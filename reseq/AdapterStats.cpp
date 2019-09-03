@@ -35,7 +35,7 @@ using seqan::StringSet;
 using seqan::readRecords;
 using seqan::SeqFileIn;
 
-#include "skewer/matrix.h"
+#include "skewer/src/matrix.h"
 
 //include "utilities.h"
 using reseq::utilities::SetToMax;

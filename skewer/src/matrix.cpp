@@ -35,6 +35,8 @@
 #include "matrix.h"
 #include "fastq.h"
 
+using namespace skewer;
+
 CODE codeMap[256] = {
 	//  0        1        2        3        4        5        6        7        8        9        A        B        C        D        E        F
 	CD_NONE, CD_NONE, CD_NONE, CD_NONE, CD_NONE, CD_NONE, CD_NONE, CD_NONE, CD_NONE, CD_NONE, CD_NONE, CD_NONE, CD_NONE, CD_NONE, CD_NONE, CD_NONE, // 0
@@ -294,13 +296,13 @@ inline void cAdapter::UPDATE_COLUMN(deque<ELEMENT> & queue, uint64 &d0bits, uint
 	}
 }
 
-bool cAdapter::align(char * read, size_t rLen, uchar * qual, size_t qLen, cElementSet &result, int bc, bool bBestAlign)
+bool cAdapter::align(char * read, size_t rLen, uchar * qual, size_t qLen, cElementSet &result, int bc, int i_min_overlap, bool bBestAlign)
 {
 	bool bDetermined = false;
 	ELEMENT elem;
 	double dMaxPenalty = cMatrix::dPenaltyPerErr * len + 0.001;
 	int iMaxIndel = ceil(cMatrix::dEpsilonIndel * len);
-	int minK = bBestAlign ? ((cMatrix::iMinOverlap >= (int)(len - iMaxIndel + 1)) ? (int)(len - iMaxIndel + 1) : cMatrix::iMinOverlap) : 1;
+	int minK = bBestAlign ? ((i_min_overlap >= (int)(len - iMaxIndel + 1)) ? (int)(len - iMaxIndel + 1) : i_min_overlap) : 1;
 	double dMu = (bc >= 0) ? cMatrix::dMu : MIN_PENALTY;
 
 	deque<ELEMENT> queue;
@@ -581,6 +583,7 @@ void cMatrix::CalculateIndices(vector< vector<bool> > &bMatrix, int nRow, int nC
 	int i, j;
 	rowBc.clear();
 	colBc.clear();
+	indices.clear();
 	indices.resize(nRow, vector<int>(nCol, -1));
 	iIdxCnt = 0;
 	for(i=0; i<nRow; i++){
@@ -656,7 +659,7 @@ int cMatrix::trimByQuality(uchar * quals, size_t len, int minQual)
 	return (i+1);
 }
 
-INDEX cMatrix::findAdapter(char * read, size_t rLen, uchar * qual, size_t qLen)
+INDEX cMatrix::findAdapter(char * read, size_t rLen, uchar * qual, size_t qLen, int i_min_overlap)
 {
 	deque<cAdapter>::iterator it_adapter;
 	cAdapter * pAdapter;
@@ -668,17 +671,18 @@ INDEX cMatrix::findAdapter(char * read, size_t rLen, uchar * qual, size_t qLen)
 	int i;
 	for(i=0,it_adapter=firstAdapters.begin(); it_adapter!=firstAdapters.end(); it_adapter++,i++){
 		pAdapter = &(*it_adapter);
-		if(pAdapter->align(read, rLen, qual, qLen, result, i)){
+		if(pAdapter->align(read, rLen, qual, qLen, result, i, i_min_overlap)){
 			if(result.begin()->score > maxScore){
 				index = result.begin()->idx;
 				maxScore = result.begin()->score;
 			}
 		}
 	}
+
 	return index;
 }
 
-INDEX cMatrix::findAdapter2(char * read, size_t rLen, uchar * qual, size_t qLen)
+INDEX cMatrix::findAdapter2(char * read, size_t rLen, uchar * qual, size_t qLen, int i_min_overlap)
 {
 	deque<cAdapter>::iterator it_adapter;
 	cAdapter * pAdapter;
@@ -691,13 +695,14 @@ INDEX cMatrix::findAdapter2(char * read, size_t rLen, uchar * qual, size_t qLen)
 	deque<cAdapter> *pAdapters = (bShareAdapter ? &firstAdapters : &secondAdapters);
 	for(i=0,it_adapter=pAdapters->begin(); it_adapter!=pAdapters->end(); it_adapter++,i++){
 		pAdapter = &(*it_adapter);
-		if(pAdapter->align(read, rLen, qual, qLen, result, i)){
+		if(pAdapter->align(read, rLen, qual, qLen, result, i, i_min_overlap)){
 			if(result.begin()->score > maxScore){
 				index = result.begin()->idx;
 				maxScore = result.begin()->score;
 			}
 		}
 	}
+
 	return index;
 }
 
@@ -713,7 +718,7 @@ INDEX cMatrix::findJuncAdapter(char * read, size_t rLen, uchar * qual, size_t qL
 	int i;
 	for(i=0,it_adapter=junctionAdapters.begin(); it_adapter!=junctionAdapters.end(); it_adapter++,i++){
 		pAdapter = &(*it_adapter);
-		if(pAdapter->align(read, rLen, qual, qLen, result, i)){
+		if(pAdapter->align(read, rLen, qual, qLen, result, i, cMatrix::iMinOverlap)){
 			if(result.begin()->score > maxScore){
 				index = result.begin()->idx;
 				maxScore = result.begin()->score;
@@ -735,12 +740,12 @@ bool cMatrix::findAdapterWithPE(char * read, char * read2, size_t rLen, size_t r
 	int i;
 	for(i=0,it_adapter=firstAdapters.begin(); it_adapter!=firstAdapters.end(); it_adapter++,i++){
 		pAdapter = &(*it_adapter);
-		pAdapter->align(read, rLen, qual, qLen, result, i, false);
+		pAdapter->align(read, rLen, qual, qLen, result, i, cMatrix::iMinOverlap, false);
 	}
 	deque<cAdapter> *pAdapters = (bShareAdapter ? &firstAdapters : &secondAdapters);
 	for(i=0,it_adapter=pAdapters->begin(); it_adapter!=pAdapters->end(); it_adapter++,i++){
 		pAdapter = &(*it_adapter);
-		pAdapter->align(read2, rLen2, qual2, qLen2, result2, i, false);
+		pAdapter->align(read2, rLen2, qual2, qLen2, result2, i, cMatrix::iMinOverlap, false);
 	}
 	if(result.empty() && result2.empty()){
 		return false;
@@ -869,7 +874,7 @@ int cMatrix::findAdaptersInARead(char * read, size_t rLen, uchar * qual, size_t 
 	for(i=0,it_adapter=firstAdapters.begin(); it_adapter!=firstAdapters.end(); it_adapter++,i++){
 		pAdapter = &(*it_adapter);
 		nLen = (pAdapter->len < rLen ? pAdapter->len : rLen);
-		if(pAdapter->align(read, nLen, qual, qLen, result, i)){
+		if(pAdapter->align(read, nLen, qual, qLen, result, i, cMatrix::iMinOverlap)){
 			if(result.begin()->score > maxScore){
 				index = result.begin()->idx;
 				index.bc = indices[index.bc][0];
@@ -881,7 +886,7 @@ int cMatrix::findAdaptersInARead(char * read, size_t rLen, uchar * qual, size_t 
 		for(i=0,it_adapter=secondAdapters.begin(); it_adapter!=secondAdapters.end(); it_adapter++,i++){
 			pAdapter = &(*it_adapter);
 			nLen = (pAdapter->len < rLen ? pAdapter->len : rLen);
-			if(pAdapter->align(read, nLen, qual, qLen, result, i)){
+			if(pAdapter->align(read, nLen, qual, qLen, result, i, cMatrix::iMinOverlap)){
 				if(result.begin()->score > maxScore){
 					index = result.begin()->idx;
 					index.bc = indices[0][index.bc];
@@ -914,11 +919,11 @@ char * read2, size_t rLen2, uchar * qual2, size_t qLen2, INDEX &index, INDEX &in
 	for(i=0,it_adapter=firstAdapters.begin(); it_adapter!=firstAdapters.end(); it_adapter++,i++){
 		pAdapter = &(*it_adapter);
 		nLen = (pAdapter->len < rLen ? pAdapter->len : rLen);
-		if(pAdapter->align(read, nLen, qual, qLen, result, i)){
+		if(pAdapter->align(read, nLen, qual, qLen, result, i, cMatrix::iMinOverlap)){
 			result1.push_back(*result.begin());
 		}
 		nLen = (pAdapter->len < rLen2 ? pAdapter->len : rLen2);
-		if(pAdapter->align(read2, nLen, qual2, qLen2, result, i)){
+		if(pAdapter->align(read2, nLen, qual2, qLen2, result, i, cMatrix::iMinOverlap)){
 			result3.push_back(*result.begin());
 		}
 	}
@@ -952,11 +957,11 @@ char * read2, size_t rLen2, uchar * qual2, size_t qLen2, INDEX &index, INDEX &in
 	for(i=0,it_adapter=secondAdapters.begin(); it_adapter!=secondAdapters.end(); it_adapter++,i++){
 		pAdapter = &(*it_adapter);
 		nLen = (pAdapter->len < rLen2 ? pAdapter->len : rLen2);
-		if(pAdapter->align(read2, nLen, qual2, qLen2, result, i)){
+		if(pAdapter->align(read2, nLen, qual2, qLen2, result, i, cMatrix::iMinOverlap)){
 			result2.push_back(*result.begin());
 		}
 		nLen = (pAdapter->len < rLen ? pAdapter->len : rLen);
-		if(pAdapter->align(read, nLen, qual, qLen, result, i)){
+		if(pAdapter->align(read, nLen, qual, qLen, result, i, cMatrix::iMinOverlap)){
 			result4.push_back(*result.begin());
 		}
 	}
@@ -1071,7 +1076,7 @@ INDEX cMatrix::mergePE(char * read, char * read2, size_t rLen, uchar * qual, uch
 	index.pos = int(rLen);
 	index.bc = 0;
 	adapter.Init2(read2, rLen);
-	if(adapter.align(read, rLen, NULL, 0, result, -1)){
+	if(adapter.align(read, rLen, NULL, 0, result, -1, cMatrix::iMinOverlap)){
 		pos = result.begin()->idx.pos;
 		if(pos >= 0){
 			clen = rLen - pos;

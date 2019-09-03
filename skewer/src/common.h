@@ -30,46 +30,47 @@
  */
 #ifndef _COMMON_H
 #define _COMMON_H
+namespace skewer{
+	typedef unsigned long long uint64;
+	typedef unsigned long uint32;
+	typedef unsigned short uint16;
+	typedef long long int64;
+	typedef long int32;
+	typedef short int16;
 
-typedef unsigned long long uint64;
-typedef unsigned long uint32;
-typedef unsigned short uint16;
-typedef long long int64;
-typedef long int32;
-typedef short int16;
+	#ifndef uint
+	typedef unsigned int uint;
+	#endif
 
-#ifndef uint
-typedef unsigned int uint;
-#endif
+	typedef unsigned char uchar;
 
-typedef unsigned char uchar;
+	const int MAX_PATH = 255;
+	const int MAX_ADAPTER_LEN = 64;
+	const int MAX_ADAPTER_CNT = 96;
 
-const int MAX_PATH = 255;
-const int MAX_ADAPTER_LEN = 64;
-const int MAX_ADAPTER_CNT = 96;
+	typedef struct tag_INDEX{
+		int pos;
+		int pos2;
+		int bc;
+	}INDEX;
 
-typedef struct tag_INDEX{
-	int pos;
-	int pos2;
-	int bc;
-}INDEX;
-
-enum TRIM_MODE{
-	TRIM_DEFAULT = 0,
-	TRIM_HEAD = 1,
-	TRIM_TAIL = 2,
-	TRIM_ANY = 3,
-	TRIM_PE = 4,
-	TRIM_PE_HEAD = 5,
-	TRIM_PE_TAIL = 6,
-	TRIM_PE_ANY = 7,
-	TRIM_MP = 8,
-	TRIM_MP_HEAD = 9,
-	TRIM_MP_TAIL = 10,
-	TRIM_MP_ANY = 11,
-	TRIM_AP = 16,
-	TRIM_AP_HEAD = 17,
-	TRIM_MODE_CNT = 14
-};
+	enum TRIM_MODE{
+		TRIM_DEFAULT = 0,
+		TRIM_HEAD = 1,
+		TRIM_TAIL = 2,
+		TRIM_ANY = 3,
+		TRIM_PE = 4,
+		TRIM_PE_HEAD = 5,
+		TRIM_PE_TAIL = 6,
+		TRIM_PE_ANY = 7,
+		TRIM_MP = 8,
+		TRIM_MP_HEAD = 9,
+		TRIM_MP_TAIL = 10,
+		TRIM_MP_ANY = 11,
+		TRIM_AP = 16,
+		TRIM_AP_HEAD = 17,
+		TRIM_MODE_CNT = 14
+	};
+}
 
 #endif // _COMMON_H

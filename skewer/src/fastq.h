@@ -54,91 +54,92 @@
 
 #include "common.h"
 
-typedef struct tag_LINE {
-	char *s;
-	int n;
-	size_t a;
-}LINE;
+namespace skewer{
+	typedef struct tag_LINE {
+		char *s;
+		int n;
+		size_t a;
+	}LINE;
 
-typedef enum{
-	TAG_NORMAL = 0,
-	TAG_BLURRY = 1,
-	TAG_BADQUAL = 2,
-	TAG_EMPTY = 3,
-	TAG_SHORT = 4,
-	TAG_CONTAMINANT = 5,
-	TAG_UNDETERMINED = 6,
-	TAG_LONG = 7
-}REC_TAG;
+	typedef enum{
+		TAG_NORMAL = 0,
+		TAG_BLURRY = 1,
+		TAG_BADQUAL = 2,
+		TAG_EMPTY = 3,
+		TAG_SHORT = 4,
+		TAG_CONTAMINANT = 5,
+		TAG_UNDETERMINED = 6,
+		TAG_LONG = 7
+	}REC_TAG;
 
-typedef struct tag_REC{
-	uint32 tag:7; // REC_TAG
-	uint32 bExchange:1;
-	uint32 nCnt:24;
-	INDEX idx;
-	LINE id;
-	LINE seq;
-	LINE com;
-	LINE qual;
-}RECORD;
+	typedef struct tag_REC{
+		uint32 tag:7; // REC_TAG
+		uint32 bExchange:1;
+		uint32 nCnt:24;
+		INDEX idx;
+		LINE id;
+		LINE seq;
+		LINE com;
+		LINE qual;
+	}RECORD;
 
-class cFQ
-{
-private:
-//	int size;
+	class cFQ
+	{
+	private:
+	//	int size;
 
-public:
-	char tag;
+	public:
+		char tag;
 
-	RECORD rec;
-//	RECORD *pBuffer;
-//	int cnt;
+		RECORD rec;
+	//	RECORD *pBuffer;
+	//	int cnt;
 
-	FILE * in;
-	int64 offset;
-	int64 next_pos;
-	int rno;
+		FILE * in;
+		int64 offset;
+		int64 next_pos;
+		int rno;
 
-private:
-	inline int read_line(LINE &l);
+	private:
+		inline int read_line(LINE &l);
 
-public:
-	cFQ();
-	~cFQ();
-//	bool InitBuffer(int nBuffSize=256);
-//	void DestroyBuffer();
-//	void clearBuffer();
-	void associateFile(FILE * fp);
-	int readRecord(RECORD *pRecord=NULL);
-//	int readRecord2Buffer();
-//	RECORD * getLastRecord();
-	inline int64 tell(){ return offset; }
-};
+	public:
+		cFQ();
+		~cFQ();
+	//	bool InitBuffer(int nBuffSize=256);
+	//	void DestroyBuffer();
+	//	void clearBuffer();
+		void associateFile(FILE * fp);
+		int readRecord(RECORD *pRecord=NULL);
+	//	int readRecord2Buffer();
+	//	RECORD * getLastRecord();
+		inline int64 tell(){ return offset; }
+	};
 
-typedef struct tag_CFILE{
-	FILE * fp;
-	bool bGz;
-}CFILE;
+	typedef struct tag_CFILE{
+		FILE * fp;
+		bool bGz;
+	}CFILE;
 
-enum FASTQ_FORMAT{
-	SANGER_FASTQ = 0,
-	SOLEXA_FASTQ = 1,
-	UNKNOWN_FASTQ = 2,
-	CONTRADICT_FASTQ = 3,
-	FASTA = 4,
-	FASTQ_FORMAT_CNT = 5
-};
-extern const char * FASTQ_FORMAT_NAME[FASTQ_FORMAT_CNT];
+	enum FASTQ_FORMAT{
+		SANGER_FASTQ = 0,
+		SOLEXA_FASTQ = 1,
+		UNKNOWN_FASTQ = 2,
+		CONTRADICT_FASTQ = 3,
+		FASTA = 4,
+		FASTQ_FORMAT_CNT = 5
+	};
+	extern const char * FASTQ_FORMAT_NAME[FASTQ_FORMAT_CNT];
 
-// open a file, possibly gzipped, exit on failure
-extern CFILE gzopen(const char * fileName, const char *mode);
-extern int gzclose(CFILE *f);
-extern int64 gzsize(const char * fileName);
-extern enum FASTQ_FORMAT gzformat(char * fileNames[], int nFileCnt);
-extern int gzreadlen(char * fileName);
-extern void gzstrncpy (char * dest, const char * src, int n);
+	// open a file, possibly gzipped, exit on failure
+	extern CFILE gzopen(const char * fileName, const char *mode);
+	extern int gzclose(CFILE *f);
+	extern int64 gzsize(const char * fileName);
+	extern enum FASTQ_FORMAT gzformat(char * fileNames[], int nFileCnt);
+	extern int gzreadlen(char * fileName);
+	extern void gzstrncpy (char * dest, const char * src, int n);
 
-// time function
-extern void versatile_gettime(struct timespec *tp);
-
+	// time function
+	extern void versatile_gettime(struct timespec *tp);
+}
 #endif // _FASTQ_H
