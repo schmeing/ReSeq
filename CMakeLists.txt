@@ -27,6 +27,7 @@ SET( CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} ${BOOST_LIBRARY_FLAGS}" )
 
 # Add NLopt
 SET( CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -Wdeprecated-declarations" )
+LIST(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/nlopt/cmake/")
 add_subdirectory(nlopt)
 include_directories("${PROJECT_SOURCE_DIR}/build/nlopt/src/api/")
 
