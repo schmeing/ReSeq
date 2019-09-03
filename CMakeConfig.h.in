@@ -1,0 +1,9 @@
+#ifndef CMAKECONFIG_H
+#define CMAKECONFIG_H
+
+// The configured options and settings for readar from cmake
+#define RESEQ_VERSION_MAJOR @RESEQ_VERSION_MAJOR@
+#define RESEQ_VERSION_MINOR @RESEQ_VERSION_MINOR@
+#define PROJECT_SOURCE_DIR "@PROJECT_SOURCE_DIR@"
+
+#endif // CMAKECONFIG_H
