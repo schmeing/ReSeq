@@ -8,6 +8,9 @@
 
 namespace reseq{
 	class AdapterStatsTest : public BasicTestClass{
+	public:
+		static void Register();
+
 	protected:
 		AdapterStats *test_;
 

@@ -11,6 +11,9 @@
 
 namespace reseq{
 	class TileStatsTest : public BasicTestClass{
+	public: 
+		static void Register();
+
 	protected:
 		TileStats *test_;
 

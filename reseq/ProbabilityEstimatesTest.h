@@ -16,6 +16,9 @@
 
 namespace reseq{
 	class ProbabilityEstimatesTest : public BasicTestClass{
+	public: 
+		static void Register();
+
 	private:
 		const double epsilon_ = 1.0e-13;
 

@@ -10,6 +10,9 @@
 
 namespace reseq{
 	class FragmentDuplicationStatsTest : public BasicTestClassWithReference{
+	public: 
+		static void Register();
+
 	protected:
 		FragmentDuplicationStats *test_;
 

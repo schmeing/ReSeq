@@ -11,6 +11,9 @@
 
 namespace reseq{
 	class DataStatsTest : public BasicTestClassWithReference{
+	public:
+		static void Register();
+
 	protected:
 		DataStats *test_;
 

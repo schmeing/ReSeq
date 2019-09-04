@@ -6,6 +6,10 @@ using std::string;
 #include <vector>
 using std::vector;
 
+void FragmentDuplicationStatsTest::Register(){
+	// Guarantees that library is included
+}
+
 void FragmentDuplicationStatsTest::CreateTestObject(){
 	ASSERT_TRUE( test_ = new FragmentDuplicationStats ) << "Could not allocate memory for FragmentDuplicationStats object\n";
 }

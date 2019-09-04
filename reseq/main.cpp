@@ -48,6 +48,18 @@ using reseq::Simulator;
 #include "utilities.h"
 using reseq::utilities::TrueRandom;
 
+#include "AdapterStatsTest.h"
+#include "DataStatsTest.h"
+#include "FragmentDistributionStatsTest.h"
+#include "FragmentDuplicationStatsTest.h"
+#include "ProbabilityEstimatesTest.h"
+#include "ReferenceTest.h"
+#include "SeqQualityStatsTest.h"
+#include "SimulatorTest.h"
+#include "TileStatsTest.h"
+#include "VectTest.h"
+#include "utilitiesTest.h"
+
 // Helper functions
 void DefaultExtensionFile(string &file_name, const string folder, const string extension){
 	if (FILE *file = fopen(file_name.c_str(), "r")){
@@ -676,6 +688,18 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		else if ("test" == unrecognized_opts.at(0)) {
+			reseq::AdapterStatsTest::Register();
+			reseq::DataStatsTest::Register();
+			reseq::FragmentDistributionStatsTest::Register();
+			reseq::FragmentDuplicationStatsTest::Register();
+			reseq::ProbabilityEstimatesTest::Register();
+			reseq::ReferenceTest::Register();
+			reseq::SeqQualityStatsTest::Register();
+			reseq::SimulatorTest::Register();
+			reseq::TileStatsTest::Register();
+			reseq::VectTest::Register();
+			reseq::utilitiesTest::Register();
+			
 			cout << " in test mode\n";
 
 			if ( general_opts_map.count("help") || general_opts_map.count("h") ) {

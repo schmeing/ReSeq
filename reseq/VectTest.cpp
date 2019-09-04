@@ -1,4 +1,5 @@
-#include "Vect.hpp"
+#include "VectTest.h"
+using reseq::VectTest;
 
 #include <stdint.h>
 #include <string>
@@ -7,6 +8,10 @@ using std::string;
 using std::vector;
 
 #include "gtest/gtest.h"
+
+void VectTest::Register(){
+	// Guarantees that library is included
+}
 
 namespace reseq{
 	TEST(VectTest, BasicFunctionality){

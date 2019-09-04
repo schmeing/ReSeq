@@ -1,8 +1,13 @@
-#include "utilities.h"
+#include "utilitiesTest.h"
+using reseq::utilitiesTest;
 
 #include <stdint.h>
 
 #include "gtest/gtest.h"
+
+void utilitiesTest::Register(){
+	// Guarantees that library is included
+}
 
 namespace reseq{
 	namespace utilities{

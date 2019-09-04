@@ -18,6 +18,10 @@ using reseq::utilities::VectorAtomic;
 
 #include "CMakeConfig.h"
 
+void ReferenceTest::Register(){
+	// Guarantees that library is included
+}
+
 void ReferenceTest::TestVariantClass(){
 	Reference::Variant test(0, "", 7);
 	EXPECT_TRUE(test.InAllele(2));

@@ -11,6 +11,10 @@ using std::to_string;
 using seqan::CharString;
 using seqan::toCString;
 
+void TileStatsTest::Register(){
+	// Guarantees that library is included
+}
+
 void TileStatsTest::CreateTestObject(){
 	ASSERT_TRUE( test_ = new TileStats() ) << "Could not allocate memory for DataStats object\n";
 }

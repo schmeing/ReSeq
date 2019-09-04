@@ -26,6 +26,10 @@ using std::vector;
 #include "utilities.h"
 using reseq::utilities::Divide;
 
+void ProbabilityEstimatesTest::Register(){
+	// Guarantees that library is included
+}
+
 inline double ProbabilityEstimatesTest::CalculateAbsolutPrecision(uint64_t correct_margin, double marginal_sum, double precision){
 	// Precision is defined to be always >1 so this has to be reverted first
 	double sum_factor = correct_margin > marginal_sum ? precision : 1.0/precision;

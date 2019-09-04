@@ -13,6 +13,9 @@
 
 namespace reseq{
 	class FragmentDistributionStatsTest : public BasicTestClassWithReference{
+	public: 
+		static void Register();
+
 	protected:
 		FragmentDistributionStats *test_;
 

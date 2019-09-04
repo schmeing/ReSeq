@@ -1,8 +1,13 @@
-#include "SeqQualityStats.hpp"
+#include "SeqQualityStatsTest.h"
+using reseq::SeqQualityStatsTest;
 
 #include <stdint.h>
 
 #include "gtest/gtest.h"
+
+void SeqQualityStatsTest::Register(){
+	// Guarantees that library is included
+}
 
 namespace reseq{
 	TEST(SeqQualityStatsTest, EmptyClass){

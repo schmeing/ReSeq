@@ -10,6 +10,9 @@
 
 namespace reseq{
 	class ReferenceTest : public BasicTestClass{
+	public:
+		static void Register();
+
 	protected:
 		Reference ref_;
 

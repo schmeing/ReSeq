@@ -12,6 +12,9 @@
 
 namespace reseq{
 	class SimulatorTest : public BasicTestClassWithReference{
+	public: 
+		static void Register();
+
 	protected:
 		Simulator *test_;
 

@@ -9,6 +9,10 @@ using seqan::CharString;
 
 #include "CMakeConfig.h"
 
+void AdapterStatsTest::Register(){
+	// Guarantees that library is included
+}
+
 void AdapterStatsTest::CreateTestObject(){
 	ASSERT_TRUE( test_ = new AdapterStats() ) << "Could not allocate memory for DataStats object\n";
 }

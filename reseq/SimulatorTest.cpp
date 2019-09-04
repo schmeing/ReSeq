@@ -13,6 +13,10 @@ using std::vector;
 //include <seqan/seq_io.h>
 using seqan::DnaString;
 
+void SimulatorTest::Register(){
+	// Guarantees that library is included
+}
+
 void SimulatorTest::CreateTestObject(){
 	ASSERT_TRUE( test_ = new Simulator ) << "Could not allocate memory for FragmentDuplicationStats object\n";
 }

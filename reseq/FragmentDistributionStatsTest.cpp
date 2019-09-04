@@ -30,6 +30,10 @@ using reseq::utilities::IntPow;
 using reseq::utilities::InvLogit2;
 using reseq::utilities::Percent;
 
+void FragmentDistributionStatsTest::Register(){
+	// Guarantees that library is included
+}
+
 void FragmentDistributionStatsTest::CreateTestObject(const Reference *ref){
 	ASSERT_TRUE( test_ = new FragmentDistributionStats ) << "Could not allocate memory for FragmentDistributionStats object\n";
 

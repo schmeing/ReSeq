@@ -26,6 +26,10 @@ using reseq::QualityStatsTest;
 #include "TileStatsTest.h"
 using reseq::TileStatsTest;
 
+void DataStatsTest::Register(){
+	// Guarantees that library is included
+}
+
 void DataStatsTest::CreateTestObject(Reference *ref){
 	ASSERT_TRUE( test_ = new DataStats(ref) ) << "Could not allocate memory for DataStats object\n";
 }
