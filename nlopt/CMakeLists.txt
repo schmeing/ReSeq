@@ -163,8 +163,8 @@ endif ()
 
 
 if (NLOPT_CXX OR NLOPT_PYTHON OR NLOPT_GUILE OR NLOPT_OCTAVE)
-  check_cxx_symbol_exists (__cplusplus ciso646 SYSTEM_HAS_CXX)
-  if (SYSTEM_HAS_CXX)
+#  check_cxx_symbol_exists (__cplusplus ciso646 SYSTEM_HAS_CXX)
+#  if (SYSTEM_HAS_CXX)
     check_cxx_compiler_flag ("-std=c++11" SUPPORTS_STDCXX11)
     if (SUPPORTS_STDCXX11)
       set (CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
@@ -172,9 +172,9 @@ if (NLOPT_CXX OR NLOPT_PYTHON OR NLOPT_GUILE OR NLOPT_OCTAVE)
         set (NLOPT_CXX11 ON)
       endif ()
     endif ()
-  else()
-    message (FATAL_ERROR "The compiler doesn't support CXX.")
-  endif ()
+#  else()
+#    message (FATAL_ERROR "The compiler doesn't support CXX.")
+#  endif ()
 endif ()
 
 #==============================================================================

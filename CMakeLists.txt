@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.4)
+cmake_minimum_required(VERSION 3.1) 
 project(reseq)
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -7,6 +7,13 @@ if(NOT CMAKE_BUILD_TYPE)
 RelWithDebInfo MinSizeRel."
       FORCE)
 endif(NOT CMAKE_BUILD_TYPE)
+
+# Require C++14
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Adding libraries from LD_LIBRARY_PATH
+link_directories( $ENV{LD_LIBRARY_PATH} )
 
 # Testing framework
 add_subdirectory(googletest)
@@ -18,8 +25,9 @@ find_package(ZLIB REQUIRED)
 find_package(BZip2 REQUIRED)
 
 # Add boost
-find_package(Boost 1.36.0 REQUIRED)
+find_package(Boost 1.36.0 REQUIRED filesystem program_options serialization system)
 include_directories(${Boost_INCLUDE_DIRS})
+link_directories(${Boost_LIBRARY_DIRS})
 SET( BOOST_LIBRARY_FLAGS "-lboost_serialization -lboost_program_options -lboost_filesystem -lboost_system" )
 # Suppress warnings of deprecated std::auto_ptr used in boost
 SET( BOOST_LIBRARY_FLAGS "${BOOST_LIBRARY_FLAGS} -Wno-deprecated-declarations" )

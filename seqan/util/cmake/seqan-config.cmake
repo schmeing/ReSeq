@@ -188,22 +188,22 @@ endif ()
 
 # The visual studio compiler and intel compiler on windows defines __cplusplus
 # still as 199711L, thus the check below would fail.
-if (NOT (COMPILER_MSVC OR COMPILER_WINTEL))
-    set(CXXSTD_TEST_SOURCE
-    "#if !defined(__cplusplus) || (__cplusplus < 201300L)
-    #error NOCXX14
-    #endif
-    int main() {}")
-    check_cxx_source_compiles("${CXXSTD_TEST_SOURCE}" CXX14_BUILTIN)
-    if (NOT CXX14_BUILTIN)
-        set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
-        check_cxx_source_compiles("${CXXSTD_TEST_SOURCE}" CXX14_FLAG)
-        if (NOT CXX14_FLAG)
-            message (FATAL_ERROR "SeqAn requires C++14 since v2.2.0, but your compiler does not support it.")
-            return ()
-        endif ()
-    endif ()
-endif ()
+#if (NOT (COMPILER_MSVC OR COMPILER_WINTEL))
+#    set(CXXSTD_TEST_SOURCE
+#    "#if !defined(__cplusplus) || (__cplusplus < 201300L)
+#    #error NOCXX14
+#    #endif
+#    int main() {}")
+#    check_cxx_source_compiles("${CXXSTD_TEST_SOURCE}" CXX14_BUILTIN)
+#    if (NOT CXX14_BUILTIN)
+#        set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
+#        check_cxx_source_compiles("${CXXSTD_TEST_SOURCE}" CXX14_FLAG)
+#        if (NOT CXX14_FLAG)
+#            message (FATAL_ERROR "SeqAn requires C++14 since v2.2.0, but your compiler does not support it.")
+#            return ()
+#        endif ()
+#    endif ()
+#endif ()
 
 # ----------------------------------------------------------------------------
 # Compile-specific settings and workarounds around missing CMake features.
