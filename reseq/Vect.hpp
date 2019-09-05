@@ -53,10 +53,14 @@ namespace reseq{
 		}
 		Vect( const typename std::vector<T>::size_type offset, const typename std::vector<T> &values ):vec_{offset, values}{}
 		Vect(const Vect& x):vec_(x.vec_){}
-		Vect& operator=(const Vect& x){ vec_ = x.vec_; }
+		Vect& operator=(const Vect& x){
+			vec_ = x.vec_;
+			return *this;
+		}
 		Vect& operator=(const std::vector<T>& x){
 			vec_.first = 0;
 			vec_.second = x;
+			return *this;
 		}
 		template<typename U> Vect& operator=(const std::vector<utilities::VectorAtomic<U>>& x){
 			Clear();
@@ -79,6 +83,8 @@ namespace reseq{
 					vec_.second[i-first] = x[i];
 				}
 			}
+
+			return *this;
 		}
 		template<typename U> Vect& operator=(const std::vector<U>& x){
 			Clear();
@@ -101,6 +107,8 @@ namespace reseq{
 					vec_.second[i-first] = x[i];
 				}
 			}
+
+			return *this;
 		}
 
 		// Iterators

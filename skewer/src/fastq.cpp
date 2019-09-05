@@ -218,7 +218,9 @@ namespace skewer{
 				int64 compress_length;
 				unsigned char buffer[4];
 				uint32 x;
-				fread(buffer, 1, 4, fp);
+				if(4 != fread(buffer, 1, 4, fp)){
+					return 0L;
+				}
 				x = buffer[3];
 				x <<= 8;
 				x |= buffer[2];

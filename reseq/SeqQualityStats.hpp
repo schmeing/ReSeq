@@ -42,8 +42,9 @@ namespace reseq{
 			SeqQualityStats(){
 			qualities_.reserve(reserved);
 		}
-		template<typename U> SeqQualityStats& operator=(const std::vector<U>& x){
+		template<typename U> SeqQualityStats<T>& operator=(const std::vector<U>& x){
 			qualities_ = x;
+			return *this;
 		}
 
 		// Forward functions to the Vect qualities_
@@ -78,7 +79,10 @@ namespace reseq{
 		void PopBack(){ qualities_.PopBack(); }
 		template<typename U>  void Acquire(std::vector<U>& x){ qualities_.Acquire(x); }
 
-		SeqQualityStats<T>& operator+=(const SeqQualityStats<T>& right){ this->qualities_ += right.qualities_; }
+		SeqQualityStats<T>& operator+=(const SeqQualityStats<T>& right){
+			this->qualities_ += right.qualities_;
+			return *this;
+		}
 
 		// Own class function
 		void Clear(){ // Clears qualities_ and the statistics

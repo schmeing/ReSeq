@@ -2084,6 +2084,8 @@ bool Simulator::WriteOutSystematicErrorProfile(const std::string &id, std::vecto
 		printErr << "Could not write systematic error profile: " << e.what() << '\n';
 		return false;
 	}
+
+	return true;
 }
 
 Simulator::Simulator():
