@@ -153,7 +153,6 @@ void FragmentDistributionStatsTest::CreateCoverageData(uint32_t fragment_length)
 	rgen.seed( 201907171113 );
 
 	uint16_t ref_seq_id(0);
-	//test_->fragment_sites_by_ref_seq_bin_by_insert_length_.at(ref_seq_id).at(fragment_length).reserve(100*2*species_reference_.SequenceLength(ref_seq_id)); // 100: Max entries per site, 2: forward/reverse
 	test_->fragment_sites_by_ref_seq_bin_.at(ref_seq_id).reserve(4*species_reference_.SequenceLength(ref_seq_id));
 	uint16_t dist_ref_seq_ends(50);
 
@@ -179,7 +178,7 @@ void FragmentDistributionStatsTest::CreateCoverageData(uint32_t fragment_length)
 			gc_perc = 50;
 		}
 
-		CreateCoverageDataHelper(gc_perc, start_pos, fragment_length, rgen);
+		CreateCoverageDataHelper(gc_perc, ++start_pos, fragment_length, rgen);
 	}
 }
 
@@ -530,6 +529,7 @@ namespace reseq{
 		for(auto i = num_threads; i--; ){
 			threads[i].join();
 		}
+
 		test_->FinalizeBiasCalculation(species_reference_, 4, duplications);
 		kVerbosityLevel = cur_verbosity;
 
