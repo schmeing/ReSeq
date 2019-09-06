@@ -68,8 +68,8 @@ namespace reseq{
 				}
 			}
 
-			CoveragePosition(const CoveragePosition&right){
-				printErr << "This function should never be called\n";
+			CoveragePosition(const CoveragePosition &UNUSED(right)){
+				throw std::runtime_error( "This function should never be called." );
 			}
 		};
 
@@ -160,7 +160,7 @@ namespace reseq{
 
 		// Boost archive functions
 		friend class boost::serialization::access;
-		template<class Archive> void serialize(Archive & ar, const unsigned int version){
+		template<class Archive> void serialize(Archive & ar, const unsigned int UNUSED(version)){
 			ar & coverage_threshold_;
 			ar & reset_distance_;
 

@@ -1,5 +1,5 @@
 # Own libraries
-set(PRIVATE_COMPILE_OPTIONS -Wall -Wextra -Wno-sign-compare)
+set(PRIVATE_COMPILE_OPTIONS -Wall -Wextra -Wno-sign-compare -Wno-implicit-fallthrough)
 add_library(utilities utilities.cpp)
 target_compile_options(utilities PRIVATE ${PRIVATE_COMPILE_OPTIONS})
 add_library(utilitiesTest utilitiesTest.cpp)

@@ -26,7 +26,7 @@ namespace reseq{
 
 		virtual void TearDown();
 
-		void CreateCoverageDataHelper(uint8_t gc_perc, const std::array<int32_t, Reference::num_surrounding_blocks_> &start_sur, const std::array<int32_t, Reference::num_surrounding_blocks_> &end_sur, uint32_t start_pos, uint32_t fragment_length, std::mt19937_64 &rgen);
+		void CreateCoverageDataHelper(uint8_t gc_perc, uint32_t start_pos, uint32_t fragment_length, std::mt19937_64 &rgen);
 		void CreateCoverageData(uint32_t fragment_length);
 
 	public:

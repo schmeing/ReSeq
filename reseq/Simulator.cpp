@@ -698,7 +698,7 @@ void Simulator::SetSystematicErrorVariantsReverse(uint32_t &start_dist_error_reg
 		uint16_t chosen_allele;
 		vector<pair<Dna5,uint8_t>> tmp_sys_errors;
 		Dna5 last_base;
-		uint32_t gc, gc_bases;
+		uint32_t gc(0), gc_bases(0);
 
 		auto var_id=block.first_variant_id_;
 		for(; 0 <= var_id && ref.Variants(ref_seq_id).at(var_id).position_ >= end_pos; --var_id){
@@ -947,7 +947,7 @@ void Simulator::SetSystematicErrorVariantsForward(uint32_t &start_dist_error_reg
 		uint16_t chosen_allele;
 		std::vector<std::pair<seqan::Dna5,uint8_t>> tmp_sys_errors;
 		seqan::Dna5 last_base;
-		uint32_t gc, gc_bases;
+		uint32_t gc(0), gc_bases(0);
 
 		auto var_id=block.first_variant_id_;
 		for(; var_id < ref.Variants(ref_seq_id).size() && ref.Variants(ref_seq_id).at(var_id).position_ < end_pos; ++var_id){

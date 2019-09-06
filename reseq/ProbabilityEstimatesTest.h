@@ -79,7 +79,6 @@ namespace reseq{
 									}
 									else{
 										margins[i][pos[dim1]][pos[dim2]] += counts[pos[0]][pos[1]][pos[2]][pos[3]][pos[4]];
-
 									}
 
 									if(margin_def[i].second){
@@ -111,7 +110,7 @@ namespace reseq{
 		void SetUpDataStorageErrorRate(ProbabilityEstimatesSubClasses::DataStorage<3> &data, std::array< std::vector<uint64_t>, 3 > &dim_indices, std::array< std::vector<uint16_t>, 3 > &initial_dim_indices, const Vect< Vect< Vect< Vect< Vect<uint64_t> > > > > &counts);
 		void TestDataStorageSetUpErrorRate(ProbabilityEstimatesSubClasses::DataStorage<3> &data, std::array< std::vector<uint64_t>, 3 > &dim_indices, std::array< std::vector<uint16_t>, 3 > &initial_dim_indices, bool middle_bin_inserted=false);
 		void IterativeProportionalFittingQual(uint16_t base, const std::vector<Vect<Vect<uint64_t>>> &margins, const Vect<SeqQualityStats<uint64_t>> &margin_quality_position);
-		void GetIPFResultQual( const ProbabilityEstimates &estimate, uint16_t base, Vect< Vect< Vect< Vect< Vect<double> > > > > &comp_counts, std::vector<Vect<Vect<uint64_t>>> &margins);
+		void GetIPFResultQual( const ProbabilityEstimates &estimate, uint16_t base, Vect< Vect< Vect< Vect< Vect<double> > > > > &estimated_counts, const std::vector<Vect<Vect<uint64_t>>> &margins);
 		template<uint16_t U1, uint16_t U2, uint16_t L1, uint16_t L2, uint16_t L3> void IPFStepQual( uint16_t base, const ProbabilityEstimatesSubClasses::DataStorage<5> &data ){
 			test_.quality_[template_segment_][0][base].IPFStep<U1,U2,L1,L2,L3>(data);
 

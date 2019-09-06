@@ -74,7 +74,7 @@ void FragmentDistributionStatsTest::TearDown(){
 	DeleteTestObject();
 }
 
-void FragmentDistributionStatsTest::CreateCoverageDataHelper(uint8_t gc_perc, const array<int32_t, 3> &start_sur, const array<int32_t, 3> &end_sur, uint32_t start_pos, uint32_t fragment_length, mt19937_64 &rgen){
+void FragmentDistributionStatsTest::CreateCoverageDataHelper(uint8_t gc_perc, uint32_t start_pos, uint32_t fragment_length, mt19937_64 &rgen){
 	uint16_t ref_seq_id(0);
 
 	double bias;
@@ -167,11 +167,7 @@ void FragmentDistributionStatsTest::CreateCoverageData(uint32_t fragment_length)
 		gc_perc = 50;
 	}
 
-	array<int32_t, Reference::num_surrounding_blocks_> start_sur, end_sur;
-	species_reference_.ForwardSurroundingWithN(start_sur, ref_seq_id, dist_ref_seq_ends);
-	species_reference_.ReverseSurroundingWithN(end_sur, ref_seq_id, dist_ref_seq_ends+fragment_length-1);
-
-	CreateCoverageDataHelper(gc_perc, start_sur, end_sur, dist_ref_seq_ends, fragment_length, rgen);
+	CreateCoverageDataHelper(gc_perc, dist_ref_seq_ends, fragment_length, rgen);
 
 	const Dna5String &ref_seq(species_reference_[ref_seq_id]);
 	for( uint32_t start_pos=dist_ref_seq_ends; start_pos < length(ref_seq)-fragment_length-dist_ref_seq_ends; ){
@@ -183,10 +179,7 @@ void FragmentDistributionStatsTest::CreateCoverageData(uint32_t fragment_length)
 			gc_perc = 50;
 		}
 
-		species_reference_.UpdateReverseSurroundingWithN( end_sur, ref_seq, start_pos+fragment_length, ref_seq_id );
-		species_reference_.UpdateForwardSurroundingWithN( start_sur, ref_seq, ++start_pos, ref_seq_id );
-
-		CreateCoverageDataHelper(gc_perc, start_sur, end_sur, start_pos, fragment_length, rgen);
+		CreateCoverageDataHelper(gc_perc, start_pos, fragment_length, rgen);
 	}
 }
 
@@ -464,8 +457,7 @@ namespace reseq{
 		// cat <(seqtk seq reference-test-withN.fa | awk '(2==NR)') | awk '{for(i=51;i<=length($0)-50-10; i+=1){print substr($0,i-10,30), i-51}}' | awk '{print ">"$1, $2; print $1}' | seqtk seq -r | awk '(1==NR%2){forward=substr($1,2,length($1)-1); pos=$2}(0==NR%2){print pos, substr(forward,11,10), forward, $0}' | awk '(0 == gsub("N","",$3)){print gsub(/[GC]/,"",$2), substr($3,1,10), substr($3,11,10), substr($3,21,10), substr($4,1,10), substr($4,11,10), substr($4,21,10), $1}' | awk '(substr($2,3,1) != "C" && substr($5,3,1) != "C" && substr($2,7,1) != "C" && substr($5,7,1) != "C" && substr($2,7,1) != "G" && substr($5,7,1) != "G" && substr($3,4,1) != "C" && substr($6,4,1) != "C" && substr($3,7,1) != "G" && substr($6,7,1) != "G" && substr($4,2,1) != "C" && substr($7,2,1) != "C" && substr($4,4,1) != "C" && substr($7,4,1) != "C" && substr($4,4,1) != "G" && substr($7,4,1) != "G" && substr($4,8,1) != "G" && substr($7,8,1) != "G")' | wc -l
 		EXPECT_EQ(26, test.sites_.size());
 
-		//test.GetWeights();
-		double coverage = static_cast<double>(5)/(19*2);
+		//test.RemoveUnnecessarySites();
 		// cat <(seqtk seq reference-test-withN.fa | awk '(2==NR)') | awk '{for(i=51;i<=length($0)-50-10; i+=1){print substr($0,i-10,30), i-51}}' | awk '{print ">"$1, $2; print $1}' | seqtk seq -r | awk '(1==NR%2){forward=substr($1,2,length($1)-1); pos=$2}(0==NR%2){print pos, substr(forward,11,10), forward, $0}' | awk '(0 == gsub("N","",$3)){print gsub(/[GC]/,"",$2), substr($3,1,10), substr($3,11,10), substr($3,21,10), substr($4,1,10), substr($4,11,10), substr($4,21,10), $1}' | awk '((0 == $1 || 3 == $1 || 4 == $1 || 5 == $1) && substr($2,3,1) != "C" && substr($5,3,1) != "C" && substr($2,7,1) != "C" && substr($5,7,1) != "C" && substr($2,7,1) != "G" && substr($5,7,1) != "G" && substr($3,4,1) != "C" && substr($6,4,1) != "C" && substr($3,7,1) != "G" && substr($6,7,1) != "G" && substr($4,2,1) != "C" && substr($7,2,1) != "C" && substr($4,4,1) != "C" && substr($7,4,1) != "C" && substr($4,4,1) != "G" && substr($7,4,1) != "G" && substr($4,8,1) != "G" && substr($7,8,1) != "G"){print $1}' | sort | uniq -c
 		EXPECT_EQ(2*2, test.gc_sites_.at(0));
 		EXPECT_EQ(3*2, test.gc_sites_.at(30));

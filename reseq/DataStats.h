@@ -143,8 +143,8 @@ namespace reseq{
 
 		bool CheckForAdapters(const seqan::BamAlignmentRecord &record_first, const seqan::BamAlignmentRecord &record_second);
 		void EvalBaseLevelStats( CoverageStats::FullRecord *full_record, uint16_t template_segment, uint16_t tile_id, uint8_t &paired_seq_qual );
-		bool EvalReferenceStatistics( CoverageStats::FullRecord *record, uint16_t template_segment, CoverageStats::CoverageBlock *coverage_block, ThreadData& thread_data, uint32_t paired_read_end );
-		bool EvalRecord( std::pair<CoverageStats::FullRecord *, CoverageStats::FullRecord *> &record, ThreadData &thread_data );
+		bool EvalReferenceStatistics( CoverageStats::FullRecord *record, uint16_t template_segment, CoverageStats::CoverageBlock *coverage_block );
+		bool EvalRecord( std::pair<CoverageStats::FullRecord *, CoverageStats::FullRecord *> &record );
 
 		bool SignsOfPairsWithNamesNotIdentical();
 		void PrepareReadIn(uint8_t size_mapping_quality, uint32_t size_indel);
@@ -161,7 +161,7 @@ namespace reseq{
 
 		// boost serialization
 		friend class boost::serialization::access;
-		template<class Archive> void serialize(Archive & ar, const unsigned int version){
+		template<class Archive> void serialize(Archive & ar, const unsigned int UNUSED(version)){
 			ar & min_dist_to_ref_seq_ends_;
 
 			ar & adapters_;
@@ -248,7 +248,7 @@ namespace reseq{
 		static uint32_t GetReadLengthOnReference(const seqan::BamAlignmentRecord &record, uint32_t &max_indel);
 		inline bool InProperDirection( const seqan::BamAlignmentRecord &record_first, uint32_t end_pos ) const{
 			// Proper forward reverse direction or read sized pair (proper direction is only checked if they are on same scaffold, so no check needed for that)
-			return !hasFlagRC(record_first) && hasFlagNextRC(record_first) && maximum_insert_length_ >= end_pos - record_first.beginPos || record_first.beginPos == record_first.pNext;
+			return (!hasFlagRC(record_first) && hasFlagNextRC(record_first) && maximum_insert_length_ >= end_pos - record_first.beginPos) || record_first.beginPos == record_first.pNext;
 		}
 
 		bool ReadBam( const char *bam_file, const char *adapter_file, const char *adapter_matrix, const std::string &variant_file, uint64_t max_ref_seq_bin_size, uint16_t num_threads, bool calculate_bias = true ); // Fill the class with the information from a bam file

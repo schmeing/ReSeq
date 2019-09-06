@@ -155,10 +155,8 @@ void CoverageStats::EvalRead( FullRecord *record, CoverageStats::CoverageBlock *
 								}
 							}
 
-							if(!IsVariantPosition(cur_var, record->record_.rID, full_ref_pos, reference, hasFlagRC(record->record_))){
-								if(ref_base != base){
-									++num_errors;
-								}
+							if(ref_base != base && !IsVariantPosition(cur_var, record->record_.rID, full_ref_pos, reference, hasFlagRC(record->record_))){
+								++num_errors;
 							}
 						}
 						else{
@@ -800,11 +798,11 @@ bool CoverageStats::Finalize(const Reference &reference, QualityStats &qualities
 				first_block_ = first_block_->next_block_;
 				delete first_block_->previous_block_;
 			}
+
 			CountBlock(first_block_, reference);
-			for( auto rec : first_block_->reads_){ // Last block cannot have priority reads
+			for( auto rec : first_block_->reads_){
 				EvalRead(rec, first_block_, reference, qualities, errors, phred_quality_offset);
 			}
-
 			delete first_block_;
 			first_block_ = NULL;
 			last_block_ = NULL;

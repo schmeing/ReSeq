@@ -75,7 +75,7 @@ namespace reseq{
 
 		// Boost archive functions
 		friend class boost::serialization::access;
-		template<class Archive> void serialize(Archive & ar, const unsigned int version){
+		template<class Archive> void serialize(Archive & ar, const unsigned int UNUSED(version)){
 			ar & called_bases_by_base_quality_per_tile_;
 			ar & called_bases_by_position_per_tile_;
 			ar & called_bases_by_error_num_per_tile_;

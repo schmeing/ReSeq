@@ -16,6 +16,7 @@
 #include <boost/archive/text_oarchive.hpp>
 
 #include "SeqQualityStats.hpp"
+#include "utilities.h"
 #include "Vect.hpp"
 #include "DataStats.h"
 
@@ -106,7 +107,7 @@ namespace reseq{
 
 			// boost serialization
 			friend class boost::serialization::access;
-			template<class Archive> void serialize(Archive & ar, const unsigned int version){
+			template<class Archive> void serialize(Archive & ar, const unsigned int UNUSED(version)){
 				ar & dim2_;
 				ar & dim_size_;
 			}
@@ -690,7 +691,7 @@ namespace reseq{
 
 				IPFStepCallerTemp<S,UPDATE>( data );
 
-				if(1 == UPDATE || 2 == UPDATE && precision_ > precision_aim_){ // IPFStep or IPFPotentialStep with update
+				if(1 == UPDATE || (2 == UPDATE && precision_ > precision_aim_)){ // IPFStep or IPFPotentialStep with update
 					last_margin_ = S;
 
 					if(precision_ > margin_precision_.at(S)){
@@ -792,7 +793,7 @@ namespace reseq{
 			}
 
 			inline void IPFIteration( const DataStorage<N> &data ){
-				uint16_t update_id;
+				uint16_t update_id(0);
 				double max_precision(0);
 
 				for( uint16_t ind=kNumMargins; ind--; ){
@@ -910,7 +911,7 @@ namespace reseq{
 
 			// boost serialization
 			friend class boost::serialization::access;
-			template<class Archive> void serialize(Archive & ar, const unsigned int version){
+			template<class Archive> void serialize(Archive & ar, const unsigned int UNUSED(version)){
 				ar & steps_;
 				ar & needed_updates_;
 				ar & precision_;
@@ -1409,7 +1410,7 @@ namespace reseq{
 
 		// boost serialization
 		friend class boost::serialization::access;
-		template<class Archive> void serialize(Archive & ar, const unsigned int version){
+		template<class Archive> void serialize(Archive & ar, const unsigned int UNUSED(version)){
 			ar & quality_;
 			ar & sequence_quality_;
 			ar & base_call_;

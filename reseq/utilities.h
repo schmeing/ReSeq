@@ -11,6 +11,13 @@
 
 #include <seqan/sequence.h>
 
+//https://stackoverflow.com/questions/3599160/how-to-suppress-unused-parameter-warnings-in-c
+#ifdef __GNUC__
+#  define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
+#else
+#  define UNUSED(x) UNUSED_ ## x
+#endif
+
 namespace reseq{
 	namespace utilities{
 		inline void CreateDir(const char *file){
@@ -126,7 +133,7 @@ namespace reseq{
 				value_(0){
 			}
 
-			VectorAtomic(const VectorAtomic&right){
+			VectorAtomic(const VectorAtomic &UNUSED(right)){
 				throw std::runtime_error( "This function should never be called. Did you resize an object with a non-zero length?" );
 			}
 

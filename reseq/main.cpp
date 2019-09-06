@@ -260,7 +260,6 @@ void PrepareProbabilityEstimation( string &probs_in, string &probs_out, const st
 		probs_in = "";
 		if( loaded_stats ){
 			// Check if standard probabilities output file exists and in case it does use it as input for the probabilities
-			struct stat buffer;
 			if (FILE *file = fopen(standard_probs_out.c_str(), "r")){
 				probs_in = standard_probs_out;
 				fclose(file);

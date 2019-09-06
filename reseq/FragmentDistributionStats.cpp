@@ -647,7 +647,7 @@ double BiasCalculationVectors::OptimizeSpline(){
 
 double BiasCalculationVectors::OptimizeSpline(uint16_t knot, int16_t shift){
 	// knot is assumed to be an inner knot
-	if( shift < 0 && gc_knots_.at(knot-1) >= gc_knots_.at(knot)+shift || shift > 0 && gc_knots_.at(knot+1) <= gc_knots_.at(knot)+shift || 0 == gc_count_.at( gc_knots_.at(knot) + shift ) ){
+	if( (shift < 0 && gc_knots_.at(knot-1) >= gc_knots_.at(knot)+shift) || (shift > 0 && gc_knots_.at(knot+1) <= gc_knots_.at(knot)+shift) || (0 == gc_count_.at( gc_knots_.at(knot) + shift )) ){
 		return -1 * numeric_limits<double>::infinity();
 	}
 	else{
@@ -2078,9 +2078,9 @@ bool FragmentDistributionStats::UpdateRefSeqBias(RefSeqBiasSimulation model, con
 			}
 
 			// Read in information from file (One line corresponds to one reference sequence [identifier bias])
-			double bias;
+			double bias(0.0);
 			string line;
-			uint32_t nline;
+			uint32_t nline(0);
 			bool empty_line = false; // Allow only a single empty line at the end of the file
 			std::vector<bool> bias_found;
 			bias_found.resize(ref_seq_bias_.size(), false);

@@ -49,7 +49,7 @@ namespace reseq{
 		
 		// Boost archive functions
 		friend class boost::serialization::access;
-		template<class Archive> void serialize(Archive & ar, const unsigned int version){
+		template<class Archive> void serialize(Archive & ar, const unsigned int UNUSED(version)){
 			ar & names_;
 			ar & combinations_;
 			

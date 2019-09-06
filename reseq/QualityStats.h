@@ -140,7 +140,7 @@ namespace reseq{
 		
 		// Boost archive functions
 		friend class boost::serialization::access;
-		template<class Archive> void serialize(Archive & ar, const unsigned int version){
+		template<class Archive> void serialize(Archive & ar, const unsigned int UNUSED(version)){
 			ar & base_quality_stats_per_tile_per_error_reference_;
 			ar & error_rate_for_position_per_tile_per_error_reference_;
 			ar & base_quality_for_error_rate_per_tile_per_error_reference_;

@@ -186,7 +186,7 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand(){
 					red_k = 1;
 				}
 
-				if( !(0==red_i && 0==red_j || 1==red_i && 1==red_k || 2==red_j && 2==red_k) ){
+				if( !((0==red_i && 0==red_j) || (1==red_i && 1==red_k) || (2==red_j && 2==red_k)) ){
 					value = (red_i+1)*(red_j+4)*(red_k+7);
 
 					test.data_[0][j*test.dim_size_[0]+i] += value;
@@ -266,7 +266,7 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand(){
 		else if(2==n){
 			bool count_two_left(true);
 			for( auto count : dim_indices_count[n]){
-				EXPECT_TRUE(1 == count || count_two_left && 2 == count) << "dim_indices_count[" << n << "] has wrong counts after first expansion";
+				EXPECT_TRUE(1 == count || (count_two_left && 2 == count)) << "dim_indices_count[" << n << "] has wrong counts after first expansion";
 				if(2 == count){
 					count_two_left = false;
 				}
@@ -430,7 +430,7 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand2(){
 
 		bool count_two_left(true);
 		for( auto count : dim_indices_count[2]){
-			EXPECT_TRUE(1 == count || count_two_left && 2 == count) << "dim_indices_count[2] has wrong counts in case " << test_case;
+			EXPECT_TRUE(1 == count || (count_two_left && 2 == count)) << "dim_indices_count[2] has wrong counts in case " << test_case;
 			if(2 == count){
 				count_two_left = false;
 			}
@@ -627,24 +627,30 @@ void ProbabilityEstimatesTest::CheckIPFResult(
 		const vector<Vect<Vect<uint64_t>>> &margins,
 		const Vect<SeqQualityStats<uint64_t>> &margin_quality_position,
 		const vector< pair<bool, bool> > &margin_def,
-		const Vect< Vect< Vect< Vect< Vect<double> > > > > &comp_counts,
+		const Vect< Vect< Vect< Vect< Vect<double> > > > > &estimated_counts,
 		string context ){
 	EXPECT_LE( iterations, max_iterations_ ) << "Maximum iterations exceeded\n";
 	EXPECT_LT( precision, precision_aim_ ) << "Precision aim not achieved\n";
 
 	// Get margins
-	vector<Vect<Vect<double>>> comp_margins;
-	Vect<SeqQualityStats<double>> comp_margin_quality_position;
-	CalculateMargins(margin_def, comp_margins, comp_margin_quality_position, comp_counts);
+	vector<Vect<Vect<double>>> estimated_margins;
+	Vect<SeqQualityStats<double>> estimated_margins_quality_position;
+	CalculateMargins(margin_def, estimated_margins, estimated_margins_quality_position, estimated_counts);
 
 	// Check all defined margins
-	double marginal_sum;
-	uint16_t dim1 = 0;
-	uint16_t dim2 = 1;
 	for(uint16_t i=0; i < margins.size(); ++i){
-		for( auto pos1=margins[i].from(); pos1 < margins[i].to(); ++pos1 ){
-			for( auto pos2=margins[i][pos1].from(); pos2 < margins[i][pos1].to(); ++pos2 ){
-				EXPECT_NEAR( margins[i][pos1][pos2], comp_margins[i][pos1][pos2], CalculateAbsolutPrecision(margins[i][pos1][pos2], comp_margins[i][pos1][pos2], precision) ) << "margins[" << i << "][" << pos1 << "][" << pos2 << "] does not match within precision for " << context << '\n';
+		if(margin_def[i].first){
+			for( auto pos1=margin_quality_position.from(); pos1 < margin_quality_position.to(); ++pos1 ){
+				for( auto pos2=margin_quality_position[pos1].from(); pos2 < margin_quality_position[pos1].to(); ++pos2 ){
+					EXPECT_NEAR( margin_quality_position[pos1][pos2], estimated_margins_quality_position[pos1][pos2], CalculateAbsolutPrecision(margin_quality_position[pos1][pos2], estimated_margins_quality_position[pos1][pos2], precision) ) << "(quality_position) margins[" << i << "][" << pos1 << "][" << pos2 << "] does not match within precision for " << context << '\n';
+				}
+			}
+		}
+		else{
+			for( auto pos1=margins[i].from(); pos1 < margins[i].to(); ++pos1 ){
+				for( auto pos2=margins[i][pos1].from(); pos2 < margins[i][pos1].to(); ++pos2 ){
+					EXPECT_NEAR( margins[i][pos1][pos2], estimated_margins[i][pos1][pos2], CalculateAbsolutPrecision(margins[i][pos1][pos2], estimated_margins[i][pos1][pos2], precision) ) << "margins[" << i << "][" << pos1 << "][" << pos2 << "] does not match within precision for " << context << '\n';
+				}
 			}
 		}
 	}
@@ -750,8 +756,8 @@ void ProbabilityEstimatesTest::IterativeProportionalFittingQual(uint16_t base, c
 	test_.IterativeProportionalFitting(stats, ProbabilityEstimates::kIPFQuality, template_segment_, 0, base, 0, 0, max_iterations_, precision_aim_);
 }
 
-void ProbabilityEstimatesTest::GetIPFResultQual( const ProbabilityEstimates &estimate, uint16_t base, Vect< Vect< Vect< Vect< Vect<double> > > > > &comp_counts, vector<Vect<Vect<uint64_t>>> &margins ){
-	comp_counts.Clear();
+void ProbabilityEstimatesTest::GetIPFResultQual( const ProbabilityEstimates &estimate, uint16_t base, Vect< Vect< Vect< Vect< Vect<double> > > > > &estimated_counts, const vector<Vect<Vect<uint64_t>>> &margins ){
+	estimated_counts.Clear();
 
 	auto tot_counts = SumVect(margins[0]); // As the data conversion before the IPF normalizes the sum of the matrix to 1 we have to revert it here
 
@@ -763,14 +769,14 @@ void ProbabilityEstimatesTest::GetIPFResultQual( const ProbabilityEstimates &est
 			for( uint32_t pq=0; pq < dim_indices[2].size(); ++pq ){
 				for( uint32_t pos=0; pos < dim_indices[3].size(); ++pos ){
 					for( uint32_t sq=0; sq < dim_indices[1].size(); ++sq ){
-						comp_counts[dim_indices[0][q]][dim_indices[4][er]][dim_indices[2][pq]][dim_indices[3][pos]][dim_indices[1][sq]] = estimate.quality_[template_segment_][0][base].estimates_.GetMatrixElement({q, sq, pq, pos, er}) * tot_counts;
+						estimated_counts[dim_indices[0][q]][dim_indices[4][er]][dim_indices[2][pq]][dim_indices[3][pos]][dim_indices[1][sq]] = estimate.quality_[template_segment_][0][base].estimates_.GetMatrixElement({q, sq, pq, pos, er}) * tot_counts;
 					}
 				}
 			}
 		}
 	}
 
-	ShrinkVect(comp_counts);
+	ShrinkVect(estimated_counts);
 }
 
 void ProbabilityEstimatesTest::IPFStepWiseQual(uint16_t base, const vector<Vect<Vect<uint64_t>>> &margins, const Vect<SeqQualityStats<uint64_t>> &margin_quality_position){
@@ -807,8 +813,8 @@ void ProbabilityEstimatesTest::IterativeProportionalFittingBaseCall( const vecto
 	test_.IterativeProportionalFitting(stats, ProbabilityEstimates::kIPFBaseCall, template_segment_, 0, 0, 0, 0, max_iterations_, precision_aim_);
 }
 
-void ProbabilityEstimatesTest::GetIPFResultBaseCall( const ProbabilityEstimates &estimate, Vect< Vect< Vect< Vect< Vect<double> > > > > &comp_counts, vector<Vect<Vect<uint64_t>>> &margins ){
-	comp_counts.Clear();
+void ProbabilityEstimatesTest::GetIPFResultBaseCall( const ProbabilityEstimates &estimate, Vect< Vect< Vect< Vect< Vect<double> > > > > &estimated_counts, vector<Vect<Vect<uint64_t>>> &margins ){
+	estimated_counts.Clear();
 
 	auto tot_counts = SumVect(margins[0]); // As the data conversion before the IPF normalizes the sum of the matrix to 1 we have to revert it here
 
@@ -820,14 +826,14 @@ void ProbabilityEstimatesTest::GetIPFResultBaseCall( const ProbabilityEstimates 
 			for( uint32_t pos=0; pos < dim_indices[2].size(); ++pos ){
 				for( uint32_t num=0; num < dim_indices[3].size(); ++num ){
 					for( uint32_t er=0; er < dim_indices[4].size(); ++er ){
-						comp_counts[dim_indices[0][bc]][dim_indices[1][q]][dim_indices[2][pos]][dim_indices[3][num]][dim_indices[4][er]] = estimate.base_call_[template_segment_][0][0][0].estimates_.GetMatrixElement({bc, q, pos, num, er}) * tot_counts;
+						estimated_counts[dim_indices[0][bc]][dim_indices[1][q]][dim_indices[2][pos]][dim_indices[3][num]][dim_indices[4][er]] = estimate.base_call_[template_segment_][0][0][0].estimates_.GetMatrixElement({bc, q, pos, num, er}) * tot_counts;
 					}
 				}
 			}
 		}
 	}
 
-	ShrinkVect(comp_counts);
+	ShrinkVect(estimated_counts);
 }
 
 void ProbabilityEstimatesTest::IterativeProportionalFittingDomError(const vector<Vect<Vect<uint64_t>>> &margins){
@@ -837,8 +843,8 @@ void ProbabilityEstimatesTest::IterativeProportionalFittingDomError(const vector
 	test_.IterativeProportionalFitting(stats, ProbabilityEstimates::kIPFDominantError, template_segment_, 0, 0, 0, 0, max_iterations_, precision_aim_);
 }
 
-void ProbabilityEstimatesTest::GetIPFResultDomError( const ProbabilityEstimates &estimate, Vect< Vect< Vect< Vect< Vect<double> > > > > &comp_counts, vector<Vect<Vect<uint64_t>>> &margins ){
-	comp_counts.Clear();
+void ProbabilityEstimatesTest::GetIPFResultDomError( const ProbabilityEstimates &estimate, Vect< Vect< Vect< Vect< Vect<double> > > > > &estimated_counts, vector<Vect<Vect<uint64_t>>> &margins ){
+	estimated_counts.Clear();
 
 	auto tot_counts = SumVect(margins[0]); // As the data conversion before the IPF normalizes the sum of the matrix to 1 we have to revert it here
 
@@ -848,12 +854,12 @@ void ProbabilityEstimatesTest::GetIPFResultDomError( const ProbabilityEstimates 
 	for( uint32_t dist=0; dist < dim_indices[1].size(); ++dist ){
 		for( uint32_t dom_err=0; dom_err < dim_indices[0].size(); ++dom_err ){
 			for( uint32_t gc=0; gc < dim_indices[2].size(); ++gc ){
-				comp_counts[dim_indices[0][dom_err]][dim_indices[1][dist]][dim_indices[2][gc]][0][0] = estimate.dom_error_[0][0][0].estimates_.GetMatrixElement({dom_err, dist, gc}) * tot_counts;
+				estimated_counts[dim_indices[0][dom_err]][dim_indices[1][dist]][dim_indices[2][gc]][0][0] = estimate.dom_error_[0][0][0].estimates_.GetMatrixElement({dom_err, dist, gc}) * tot_counts;
 			}
 		}
 	}
 
-	ShrinkVect(comp_counts);
+	ShrinkVect(estimated_counts);
 }
 
 void ProbabilityEstimatesTest::SetMarginDefErrorRate(vector< pair<bool, bool> > &margin_def){
@@ -870,8 +876,8 @@ void ProbabilityEstimatesTest::IterativeProportionalFittingErrorRate(const vecto
 	test_.IterativeProportionalFitting(stats, ProbabilityEstimates::kIPFErrorRate, template_segment_, 0, 0, 0, 0, max_iterations_, precision_aim_);
 }
 
-void ProbabilityEstimatesTest::GetIPFResultErrorRate( const ProbabilityEstimates &estimate, Vect< Vect< Vect< Vect< Vect<double> > > > > &comp_counts, vector<Vect<Vect<uint64_t>>> &margins ){
-	comp_counts.Clear();
+void ProbabilityEstimatesTest::GetIPFResultErrorRate( const ProbabilityEstimates &estimate, Vect< Vect< Vect< Vect< Vect<double> > > > > &estimated_counts, vector<Vect<Vect<uint64_t>>> &margins ){
+	estimated_counts.Clear();
 
 	auto tot_counts = SumVect(margins[0]); // As the data conversion before the IPF normalizes the sum of the matrix to 1 we have to revert it here
 
@@ -881,12 +887,12 @@ void ProbabilityEstimatesTest::GetIPFResultErrorRate( const ProbabilityEstimates
 	for( uint32_t dist=0; dist < dim_indices[1].size(); ++dist ){
 		for( uint32_t er=0; er < dim_indices[0].size(); ++er ){
 			for( uint32_t gc=0; gc < dim_indices[2].size(); ++gc ){
-				comp_counts[dim_indices[0][er]][dim_indices[1][dist]][dim_indices[2][gc]][0][0] = estimate.error_rate_[0][0].estimates_.GetMatrixElement({er, dist, gc}) * tot_counts;
+				estimated_counts[dim_indices[0][er]][dim_indices[1][dist]][dim_indices[2][gc]][0][0] = estimate.error_rate_[0][0].estimates_.GetMatrixElement({er, dist, gc}) * tot_counts;
 			}
 		}
 	}
 
-	ShrinkVect(comp_counts);
+	ShrinkVect(estimated_counts);
 }
 
 namespace reseq{
@@ -987,19 +993,19 @@ namespace reseq{
 		auto iterations = GetIterationsQual(test_, base);
 		auto precision = GetPrecisionQual(test_, base);
 
-		Vect< Vect< Vect< Vect< Vect<double> > > > > comp_counts;
-		GetIPFResultQual(test_, base, comp_counts, margins);
+		Vect< Vect< Vect< Vect< Vect<double> > > > > estimated_counts;
+		GetIPFResultQual(test_, base, estimated_counts, margins);
 
 		test_.PrepareResult();
-		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, comp_counts, "estimation" );
+		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, estimated_counts, "estimation" );
 
 		ProbabilityEstimates test2;
 		ASSERT_TRUE( test2.Load(save_test_file_.c_str()) );
 		iterations = GetIterationsQual(test2, base);
 		precision = GetPrecisionQual(test2, base);
-		GetIPFResultQual(test2, base, comp_counts, margins);
+		GetIPFResultQual(test2, base, estimated_counts, margins);
 		test2.PrepareResult();
-		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, comp_counts, "loading" );
+		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, estimated_counts, "loading" );
 
 		EXPECT_EQ( 0, remove(save_test_file_.c_str()) ) << "Error deleting file: " << save_test_file_ << '\n';
 
@@ -1025,11 +1031,11 @@ namespace reseq{
 		auto iterations = GetIterationsQual(test_, base);
 		auto precision = GetPrecisionQual(test_, base);
 
-		Vect< Vect< Vect< Vect< Vect<double> > > > > comp_counts;
-		GetIPFResultQual(test_, base, comp_counts, margins);
+		Vect< Vect< Vect< Vect< Vect<double> > > > > estimated_counts;
+		GetIPFResultQual(test_, base, estimated_counts, margins);
 
 		test_.PrepareResult();
-		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, comp_counts, "estimation" );
+		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, estimated_counts, "estimation" );
 	}
 
 	TEST_F(ProbabilityEstimatesTest, IPFforQualityWithZeroMarginValues){
@@ -1050,11 +1056,11 @@ namespace reseq{
 		auto iterations = GetIterationsQual(test_, base);
 		auto precision = GetPrecisionQual(test_, base);
 
-		Vect< Vect< Vect< Vect< Vect<double> > > > > comp_counts;
-		GetIPFResultQual(test_, base, comp_counts, margins);
+		Vect< Vect< Vect< Vect< Vect<double> > > > > estimated_counts;
+		GetIPFResultQual(test_, base, estimated_counts, margins);
 
 		test_.PrepareResult();
-		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, comp_counts, "estimation" );
+		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, estimated_counts, "estimation" );
 	}
 
 	TEST_F(ProbabilityEstimatesTest, IPFforQualityWithZeroOverAllMargins){
@@ -1075,11 +1081,11 @@ namespace reseq{
 		auto iterations = GetIterationsQual(test_, base);
 		auto precision = GetPrecisionQual(test_, base);
 
-		Vect< Vect< Vect< Vect< Vect<double> > > > > comp_counts;
-		GetIPFResultQual(test_, base, comp_counts, margins);
+		Vect< Vect< Vect< Vect< Vect<double> > > > > estimated_counts;
+		GetIPFResultQual(test_, base, estimated_counts, margins);
 
 		test_.PrepareResult();
-		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, comp_counts, "estimation" );
+		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, estimated_counts, "estimation" );
 	}
 
 	TEST_F(ProbabilityEstimatesTest, IPFforBaseCalls){
@@ -1108,19 +1114,19 @@ namespace reseq{
 		auto iterations = GetIterationsBaseCall(test_);
 		auto precision = GetPrecisionBaseCall(test_);
 
-		Vect< Vect< Vect< Vect< Vect<double> > > > > comp_counts;
-		GetIPFResultBaseCall(test_, comp_counts, margins);
+		Vect< Vect< Vect< Vect< Vect<double> > > > > estimated_counts;
+		GetIPFResultBaseCall(test_, estimated_counts, margins);
 
 		test_.PrepareResult();
-		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, comp_counts, "estimation" );
+		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, estimated_counts, "estimation" );
 
 		ProbabilityEstimates test2;
 		ASSERT_TRUE( test2.Load(save_test_file_.c_str()) );
 		iterations = GetIterationsBaseCall(test2);
 		precision = GetPrecisionBaseCall(test2);
-		GetIPFResultBaseCall(test2, comp_counts, margins);
+		GetIPFResultBaseCall(test2, estimated_counts, margins);
 		test2.PrepareResult();
-		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, comp_counts, "loading" );
+		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, estimated_counts, "loading" );
 
 		EXPECT_EQ( 0, remove(save_test_file_.c_str()) ) << "Error deleting file: " << save_test_file_ << '\n';
 	}
@@ -1141,17 +1147,17 @@ namespace reseq{
 		IterativeProportionalFittingDomError(margins);
 		ASSERT_TRUE( test_.Save(save_test_file_.c_str()) );
 
-		Vect< Vect< Vect< Vect< Vect<double> > > > > comp_counts;
-		GetIPFResultDomError(test_, comp_counts, margins);
+		Vect< Vect< Vect< Vect< Vect<double> > > > > estimated_counts;
+		GetIPFResultDomError(test_, estimated_counts, margins);
 
 		test_.PrepareResult();
-		CheckIPFResult( GetIterationsDomError(test_), GetPrecisionDomError(test_), margins, margin_quality_position, margin_def, comp_counts, "estimation" );
+		CheckIPFResult( GetIterationsDomError(test_), GetPrecisionDomError(test_), margins, margin_quality_position, margin_def, estimated_counts, "estimation" );
 
 		ProbabilityEstimates test2;
 		ASSERT_TRUE( test2.Load(save_test_file_.c_str()) );
-		GetIPFResultDomError(test2, comp_counts, margins);
+		GetIPFResultDomError(test2, estimated_counts, margins);
 		test2.PrepareResult();
-		CheckIPFResult( GetIterationsDomError(test2), GetPrecisionDomError(test2), margins, margin_quality_position, margin_def, comp_counts, "loading" );
+		CheckIPFResult( GetIterationsDomError(test2), GetPrecisionDomError(test2), margins, margin_quality_position, margin_def, estimated_counts, "loading" );
 
 		EXPECT_EQ( 0, remove(save_test_file_.c_str()) ) << "Error deleting file: " << save_test_file_ << '\n';
 	}
@@ -1170,17 +1176,17 @@ namespace reseq{
 		IterativeProportionalFittingErrorRate(margins);
 		ASSERT_TRUE( test_.Save(save_test_file_.c_str()) );
 
-		Vect< Vect< Vect< Vect< Vect<double> > > > > comp_counts;
-		GetIPFResultErrorRate(test_, comp_counts, margins);
+		Vect< Vect< Vect< Vect< Vect<double> > > > > estimated_counts;
+		GetIPFResultErrorRate(test_, estimated_counts, margins);
 
 		test_.PrepareResult();
-		CheckIPFResult( GetIterationsErrorRate(test_), GetPrecisionErrorRate(test_), margins, margin_quality_position, margin_def, comp_counts, "estimation" );
+		CheckIPFResult( GetIterationsErrorRate(test_), GetPrecisionErrorRate(test_), margins, margin_quality_position, margin_def, estimated_counts, "estimation" );
 
 		ProbabilityEstimates test2;
 		ASSERT_TRUE( test2.Load(save_test_file_.c_str()) );
-		GetIPFResultErrorRate(test2, comp_counts, margins);
+		GetIPFResultErrorRate(test2, estimated_counts, margins);
 		test2.PrepareResult();
-		CheckIPFResult( GetIterationsErrorRate(test2), GetPrecisionErrorRate(test2), margins, margin_quality_position, margin_def, comp_counts, "loading" );
+		CheckIPFResult( GetIterationsErrorRate(test2), GetPrecisionErrorRate(test2), margins, margin_quality_position, margin_def, estimated_counts, "loading" );
 
 		EXPECT_EQ( 0, remove(save_test_file_.c_str()) ) << "Error deleting file: " << save_test_file_ << '\n';
 	}

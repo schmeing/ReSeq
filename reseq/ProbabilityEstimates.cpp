@@ -219,8 +219,7 @@ template<uint16_t N> void DataStorage<N>::FillDiffMatrix(vector<double> &diff_ma
 		}
 
 		if(dimension == dim_a || dimension == dim_b){
-			double diff, value1, value2, sum_diff;
-			uint32_t count;
+			double value1, value2, sum_diff;
 			for(uint32_t ind1=0; ind1 < dim_size_.at(dimension); ind1++){
 				for(uint32_t ind2=ind1+1; ind2 < dim_size_.at(dimension); ind2++){
 					sum_diff = 0.0;
@@ -613,7 +612,7 @@ template<uint16_t N> bool DataStorage<N>::Expand(DataStorage<N> &reduced_data, a
 					}
 					else{
 						// Give duplication to the one that has less duplications, in a tie to the one that needs more
-						if(dim_new_size.at(dimension) < dim_new_size.at(dupl_dimension) || dim_new_size.at(dimension) == dim_new_size.at(dupl_dimension) && dim_size_.at(dimension) > dim_size_.at(dupl_dimension)){
+						if(dim_new_size.at(dimension) < dim_new_size.at(dupl_dimension) || (dim_new_size.at(dimension) == dim_new_size.at(dupl_dimension) && dim_size_.at(dimension) > dim_size_.at(dupl_dimension))){
 							dupl_dimension = dimension;
 						}
 					}
@@ -676,7 +675,7 @@ template<uint16_t N> bool DataStorage<N>::Expand(DataStorage<N> &reduced_data, a
 				uint16_t split_index = 0;
 				for( auto ind = max_diff.size(); --ind; ){
 					// Pick the one with the highest difference and in a tie with the highest number of combined indices
-					if( max_diff.at(ind) > max_diff.at(split_index) || max_diff.at(ind) == max_diff.at(split_index) && dim_indices_count.at(dimension).at(ind) > dim_indices_count.at(dimension).at(split_index) ){
+					if( max_diff.at(ind) > max_diff.at(split_index) || (max_diff.at(ind) == max_diff.at(split_index) && dim_indices_count.at(dimension).at(ind) > dim_indices_count.at(dimension).at(split_index)) ){
 						split_index = ind;
 					}
 				}
@@ -1054,8 +1053,6 @@ bool ProbabilityEstimates::Estimate(const DataStats &stats, uint16_t max_iterati
 	printInfo << "Using a maximum of " << max_iterations << " iterations\n";
 
 	// Collect the different parameters determining the different matrices that have to be calculated
-	const Vect<SeqQualityStats<uint64_t>> *alternative_margin;
-
 	vector<IPFThreadParams> params;
 	params.reserve( (2*4 + 2*4*5 + 2)*stats.Tiles().NumTiles() + 5*5*4-4 + 5*4 + 2*6 );
 	for(uint16_t template_segment=0; template_segment<2; ++template_segment){

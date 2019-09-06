@@ -131,7 +131,7 @@ void DataStats::EvalBaseLevelStats( CoverageStats::FullRecord *full_record, uint
 	Size<CharString>::Type pos_reversed(length(record.seq));
 	FunctorComplement<Dna5> complementor;
 
-	uint16_t strand = hasFlagRC(record) && hasFlagFirst(record) || !hasFlagRC(record) && hasFlagLast(record);
+	uint16_t strand = (hasFlagRC(record) && hasFlagFirst(record)) || (!hasFlagRC(record) && hasFlagLast(record));
 
 	SeqQualityStats<uint64_t> seq_qual_stats;
 	seq_qual_stats[maximum_quality_]; // Resize to maximum quality
@@ -201,9 +201,7 @@ void DataStats::EvalBaseLevelStats( CoverageStats::FullRecord *full_record, uint
 bool DataStats::EvalReferenceStatistics(
 		CoverageStats::FullRecord *record,
 		uint16_t template_segment,
-		CoverageStats::CoverageBlock *coverage_block,
-		ThreadData& thread_data,
-		uint32_t paired_read_end ){
+		CoverageStats::CoverageBlock *coverage_block ){
 	// Get gc on reference
 	array<uint64_t, 5> seq_content_reference = {0,0,0,0,0};
 	auto cur_var = coverage_block->first_variant_id_;
@@ -384,7 +382,7 @@ bool DataStats::EvalReferenceStatistics(
 	return true;
 }
 
-bool DataStats::EvalRecord( pair<CoverageStats::FullRecord *, CoverageStats::FullRecord *> &record, ThreadData &thread_data ){
+bool DataStats::EvalRecord( pair<CoverageStats::FullRecord *, CoverageStats::FullRecord *> &record ){
 	// Start handling pair by determining tile(and counting it) and template segment
 	uint16_t tile_id;
 	if( !tiles_.GetTileId(tile_id, record.first->record_.qName) ){
@@ -496,10 +494,10 @@ bool DataStats::EvalRecord( pair<CoverageStats::FullRecord *, CoverageStats::Ful
 							record.first->fragment_length_ = insert_length;
 							record.second->fragment_length_ = insert_length;
 
-							if( !EvalReferenceStatistics( record.first, (template_segment+1)%2, coverage_block, thread_data, 0 ) ){
+							if( !EvalReferenceStatistics( record.first, (template_segment+1)%2, coverage_block ) ){
 								return false;
 							}
-							if( !EvalReferenceStatistics( record.second, template_segment, coverage_block, thread_data, end_pos_first ) ){
+							if( !EvalReferenceStatistics( record.second, template_segment, coverage_block ) ){
 								return false;
 							}
 						}
@@ -669,7 +667,7 @@ void DataStats::PrepareGeneral(){
 
 bool DataStats::OrderOfBamFileCorrect(const seqan::BamAlignmentRecord &record, pair< uint32_t, uint32_t > last_record_pos){
 	if( !hasFlagUnmapped(record) ){
-		if( record.rID < last_record_pos.first || record.rID == last_record_pos.first && record.beginPos < last_record_pos.second ){
+		if( record.rID < last_record_pos.first || (record.rID == last_record_pos.first && record.beginPos < last_record_pos.second) ){
 			printErr << "Bamfile is not sorted by position. Detected at position " << record.beginPos << " with read name: " << record.qName << '\n';
 			return false;
 		}
@@ -870,7 +868,7 @@ void DataStats::ReadThread( DataStats &self, BamFileIn &bam, uint32_t max_seq_bi
 				// Enters valid fragments into duplication check
 				// Calculate all the statistics that are independent of other reads
 				// Fills the coverage information in the coverage blocks
-				if(self.EvalRecord(rec, thread_data)){
+				if(self.EvalRecord(rec)){
 					if( self.PotentiallyValid(rec.first->record_) ){
 						// coverage_.RemoveFragment
 						// Marks the reads as processed, so the fully processed coverage blocks can be handled after all reads are processed

@@ -345,7 +345,6 @@ namespace reseq{
 			if(BiasCalculationVectors::sur_sum_){
 				for(auto sur_pos = 0; sur_pos < Reference::num_surrounding_blocks_*Reference::surrounding_range_; ++sur_pos){
 					double sur_sum(0.0);
-					uint16_t valid_sur = 0;
 					for(auto sur = 4*sur_pos; sur < 4*sur_pos+4; ++sur){
 						sur_sum += separated.at(sur);
 					}
@@ -421,7 +420,7 @@ namespace reseq{
 		
 		// Boost archive functions
 		friend class boost::serialization::access;
-		template<class Archive> void serialize(Archive & ar, const unsigned int version){
+		template<class Archive> void serialize(Archive & ar, const unsigned int UNUSED(version)){
 			ar & surrounding_range_;
 
 			ar & abundance_;

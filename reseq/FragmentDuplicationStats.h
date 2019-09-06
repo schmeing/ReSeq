@@ -13,6 +13,7 @@
 #include <seqan/bam_io.h>
 
 #include "Reference.h"
+#include "utilities.h"
 #include "Vect.hpp"
 
 namespace reseq{
@@ -37,7 +38,7 @@ namespace reseq{
 
 		// Boost archive functions
 		friend class boost::serialization::access;
-		template<class Archive> void serialize(Archive & ar, const unsigned int version){
+		template<class Archive> void serialize(Archive & ar, const unsigned int UNUSED(version)){
 			ar & duplication_number_by_gc_insert_length_;
 		}
 
