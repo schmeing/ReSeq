@@ -25,7 +25,7 @@ find_package(ZLIB REQUIRED)
 find_package(BZip2 REQUIRED)
 
 # Add boost
-find_package(Boost 1.36.0 REQUIRED filesystem program_options serialization system)
+find_package(Boost 1.48.0 REQUIRED filesystem program_options serialization system)
 include_directories(${Boost_INCLUDE_DIRS})
 link_directories(${Boost_LIBRARY_DIRS})
 SET( BOOST_LIBRARY_FLAGS "-lboost_serialization -lboost_program_options -lboost_filesystem -lboost_system" )
