@@ -233,6 +233,7 @@ void CoverageStats::EvalRead( FullRecord *record, CoverageStats::CoverageBlock *
 			}
 		}
 	}
+
 	DeleteRecord( record, qualities );
 }
 
@@ -369,6 +370,7 @@ CoverageStats::CoverageBlock *CoverageStats::CreateBlock(uint32_t seq_id, uint32
 			new_block->sequence_id_ = seq_id;
 			new_block->start_pos_ = start_pos;
 			new_block->previous_block_ = last_block_;
+			new_block->next_block_ = NULL;
 			new_block->coverage_.clear();
 			new_block->reads_.clear();
 			new_block->first_variant_id_ = 0;
@@ -737,6 +739,7 @@ uint32_t CoverageStats::CleanUp(uint32_t &still_needed_position, Reference &refe
 			}
 			until_block = until_block->previous_block_;
 		}
+
 		for( auto rec : until_block->reads_){
 			EvalRead(rec, until_block, reference, qualities, errors, phred_quality_offset);
 		}
