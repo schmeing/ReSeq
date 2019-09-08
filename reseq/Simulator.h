@@ -322,7 +322,7 @@ namespace reseq{
 			for(auto pos=start_pos; pos < end_pos; ++pos){
 				error_rate = sys_err_perc_[pos] - 33;
 				if(86 < error_rate){
-					error_rate += error_rate-86; // Decompress percentages again (odd percentages over 85 are removed, as fastq can store only up to 94 quality values)
+					error_rate += error_rate-86; // Decompress percentages again (odd percentages over 86 are removed, as fastq can store only up to 94 quality values)
 				}
 				sys_errors.emplace_back(sys_dom_err_[pos], error_rate);
 			}

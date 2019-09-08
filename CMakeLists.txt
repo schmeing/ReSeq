@@ -74,8 +74,6 @@ include_directories("${PROJECT_SOURCE_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}/reseq")
 include_directories("${PROJECT_SOURCE_DIR}/2016-05-15_ROOTPWA/utilities")
 
-# Own libraries
-
 # Subdirectories
 add_subdirectory(skewer)
 add_subdirectory(reseq)

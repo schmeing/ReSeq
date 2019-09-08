@@ -102,8 +102,6 @@ uint32_t AdapterStats::CountErrors(uint32_t &last_error_pos, const BamAlignmentR
 }
 
 bool AdapterStats::VerifyInsert(const CharString &read1, const CharString &read2, int32_t pos1, int32_t pos2){
-//printDebug << read1 << " (" << pos1 << ")\n";
-//printDebug << read2 << " (" << pos2 << ")\n";
 	if( 1 > pos1 || 1 > pos2){
 		return true;
 	}
@@ -135,13 +133,12 @@ bool AdapterStats::VerifyInsert(const CharString &read1, const CharString &read2
 			}
 			++i2;
 		}
-//printDebug << matches;
+
 		if(matches > pos1*95/100){
-//std::cout << " true\n";
 			return true;
 		}
 	}
-//std::cout << " false\n";
+
 	return false;
 }
 
