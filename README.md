@@ -1,5 +1,10 @@
 # ReSequenceR
-More realistic simulator for genomic DNA sequences from Illumina machines that achieves a similar k-mer spectrum as the original sequences
+More realistic simulator for genomic DNA sequences from Illumina machines that achieves a similar k-mer spectrum as the original sequences.
+
+## Abstract
+Even though sequencing biases and errors have been deeply researched to adequately account for them, comparison studies, e.g. for error correction, assembly or variant calling, face the problem that synthetic datasets resemble the real output of high-throughput sequencers only in very limited ways, resulting in optimistic estimated performance of programs run on simulated data compared to real data. Therefore, comparison studies are often based on real data. However, this approach has its own difficulties, since the ground truth is unknown and can only be estimated, which introduces its own biases and circularity towards easy solutions and the methods used.
+
+**ReSequenceR** shortens the gap between simulated and real data evaluations by adequately reproducing key statistics of real data, like the coverage profile, systematic errors and the k-mer spectrum. When these characteristics are translated into new synthetic computational experiments (i.e. simulated data), the performance can be more accurately estimated. Combining our simulator and real data gives two valuable perspectives on the performance of tools to minimize biases.
 
 ## Requirements
 
