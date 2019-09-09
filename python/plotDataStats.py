@@ -19,9 +19,11 @@ sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../build/pyMods/
 import DataStats
 
 text_size = 20
-colour_scheme = ['#D92120', '#4065B1', '#7FB972']
+colour_scheme = ["#D92120","#488BC2","#7FB972","#E6642C","#781C81","#D9AD3C","#BBBBBB","#4065B1"]
+#colour_scheme = ['#D92120', '#4065B1', '#7FB972']
 #colour_scheme = ['#D92120', '#7FB972', '#4065B1']
-fill_colour_scheme = ['#E6642C', '#488BC2', '#63AD99']
+fill_colour_scheme = ["#C8100F","#377AB1","#6EA861","#D5531B","#670B7)","#C89C2B","#AAAAAA","#2F54A0"]
+#fill_colour_scheme = ['#E6642C', '#488BC2', '#63AD99']
 #fill_colour_scheme = ['#E6642C', '#63AD99', '#488BC2']
 
 nucleotide_colour_scheme = ['#E6642C','#488BC2','#781C81','#B5BD4C','#BEBEBE']
@@ -997,7 +999,7 @@ def plotDataStats(statsFiles, oFile):
     pass
 
 def usage():
-    print "Usage: python plotDataStats.py [OPTIONS] File"
+    print "Usage: python plotDataStats.py [OPTIONS] File [File2 File3 ...]"
     print "Plots the DataStats from an boost archive from readar."
     print "  -h, --help            display this help and exit"
     print "  -o, --output          define plotting output file [File with ending pdf]"
@@ -1024,8 +1026,8 @@ def main(argv):
             pass
         pass
 
-    if 1 > len(args) or len(args) > 3:
-        print "Wrong number of arguments. Only one to three files are supported.\n"
+    if 1 > len(args) or len(args) > 8:
+        print "Wrong number of arguments. Only one to eight files are supported.\n"
         usage()
         sys.exit(2)
         pass
