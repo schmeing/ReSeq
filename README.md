@@ -70,6 +70,65 @@ To run a simulation with tiles the tile information needs to stay in the read na
 ```
 bowtie2 -p 32 -X 2000 -x my_reference -1 <(reseq-prepare-names.py my_data_1.fq my_data_2.fq) -2 <(reseq-prepare-names.py my_data_2.fq my_data_1.fq) | samtools sort -m 10G -@ 4 -T _tmp -o my_mappings.bam -
 ```
+## Parameter
+
+`reseq illuminaPE [options]`
+
+| Parameter         | Default | Description |
+|-------------------|---------|-------------|
+| **General**       |
+| `-h` `--help`     |         | Prints help information and exits |
+| `-j` `--threads`  | 60      | Number of threads used |
+| `--verbosity`     | 4       | Sets the level of verbosity (4=everything, 0=nothing) |
+| `--version`       |         | Prints version info and exits |
+| **Stats**         |
+| `--adapterFile`   | INSTALL_PATH/adapters/TruSeq_v2.fa | Fasta file with adapter sequences |
+| `--adapterMatrix` | INSTALL_PATH/adapters/TruSeq_v2.mat | 0/1 matrix with valid adapter pairing (first read in rows, second read in columns) |
+| `-b` `--bamIn`    | None    | Position sorted bam/sam file with reads mapped to `--refIn` |
+| `--binSizeBiasFit`| 100000000 | Reference sequences large then this are split for bias fitting to limit memory consumption |
+| `--maxFragLen`    | 2000    | Maximum fragment length to include pairs into statistics |
+| `--minMapQ`       | 10      | Minimum mapping quality to include pairs into statistics |
+| `--noTiles`       |         | Ignore tiles for the statistics [default] |
+| `-r` `--refIn`    | None    | Reference sequences in fasta format (gz and bz2 supported) |
+| `--statsOnly`     |         | Only generate the statistics |
+| `-s` `--statsIn`  | None    | Skips statistics generation and reads directly from stats file |
+| `-S` `--statsOut` | `--bamIn`.reseq | Stores the real data statistics for reuse in given file |
+| `--tiles`         |         | Use tiles for the statistics |
+| `-v` `--vcfIn`    | None    | Ignore all positions with a listed variant for stats generation |
+| **Probabilities** |
+| `--ipfIterations` | 200     | Maximum number of iterations for iterative proportional fitting |
+| `--ipfPrecision`  | 5       | Iterative proportional fitting procedure stops after reaching this precision (%) |
+| `-p` `--probabilitiesIn` | `--statsIn`.ipf | Loads last estimated probabilities and continues from there if precision is not met |
+| `-P` `--probabilitiesOut` | `--probabilitiesIn` | Stores the probabilities estimated by iterative proportional fitting |
+| `--stopAfterEstimation` |   | Stop after estimating the probabilities |
+| **Simulation**    |
+| `-1` `--firstReadsOut` | reseq-R1.fq | Writes the simulated first reads into this file |
+| `-2` `--secondReadsOut` | reseq-R2.fq | Writes the simulated second reads into this file |
+| `-c` `--coverage` | 0       | Approximate average read depth simulated (0 = Use `--numReads`) |
+| `--numReads`      | 0       | Approximate number of read pairs simulated (0 = Original number of reads) |
+| `--readSysError`  | None    | Read systematic errors from file in fastq format (seq=dominant error, qual=error percentage) |
+| `--recordBaseIdentifier` | ReseqRead | Base Identifier for the simulated fastq records, followed by a count and other information about the read |
+| `--refBias`       | keep/no | Way to select the reference biases for simulation (keep [from refIn] / no [biases] / draw [with replacement from original biases] / file) |
+| `--refBiasFile`   | None    | File to read reference biases from: One sequence per file (identifier bias) |
+| `-R` `--refSim`   | `--refIn` | Reference sequences in fasta format to simulate from |
+| `--seed`          | None    | Seed used for simulation, if none is given random seed will be used |
+| `-V` `--vcfSim`   | None    | Defines genotypes to simulate alleles or populations |
+| `--writeSysError` | None    | Write the randomly drawn systematic errors to file in fastq format (seq=dominant error, qual=error percentage) |
+
+`reseq replaceN [options]`
+
+| Parameter         | Default | Description |
+|-------------------|---------|-------------|
+| **General**       |
+| `-h` `--help`     |         | Prints help information and exits |
+| `-j` `--threads`  | 60      | Number of threads used |
+| `--verbosity`     | 4       | Sets the level of verbosity (4=everything, 0=nothing) |
+| `--version`       |         | Prints version info and exits |
+| **ReplaceN**      |
+| `-r` `--refIn`    | None    | Reference sequences in fasta format (gz and bz2 supported) |
+| `-R` `--refSim`   | None    | File to where reference sequences in fasta format with N's randomly replace should be written to |
+| `--seed`          | None    | Seed used for replacing N, if none is given random seed will be used |
+
 ## File Formats
 | File type             | Ending     | Information |
 |-----------------------|------------|-------------|
