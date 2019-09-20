@@ -1,12 +1,23 @@
 # ReSequenceR
 More realistic simulator for genomic DNA sequences from Illumina machines that achieves a similar k-mer spectrum as the original sequences.
 
-## Abstract
+## Table of Contents
+
+- [Abstract](#abstract)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Quick start examples](#quickstart)
+- [Parameter](#parameter)
+- [File Formats](#formats)
+- [Included libraries](#libraries)
+- [Publication](#publication)
+
+## <a name="abstract"></a>Abstract
 Even though sequencing biases and errors have been deeply researched to adequately account for them, comparison studies, e.g. for error correction, assembly or variant calling, face the problem that synthetic datasets resemble the real output of high-throughput sequencers only in very limited ways, resulting in optimistic estimated performance of programs run on simulated data compared to real data. Therefore, comparison studies are often based on real data. However, this approach has its own difficulties, since the ground truth is unknown and can only be estimated, which introduces its own biases and circularity towards easy solutions and the methods used.
 
 **ReSequenceR** shortens the gap between simulated and real data evaluations by adequately reproducing key statistics of real data, like the coverage profile, systematic errors and the k-mer spectrum. When these characteristics are translated into new synthetic computational experiments (i.e. simulated data), the performance can be more accurately estimated. Combining our simulator and real data gives two valuable perspectives on the performance of tools to minimize biases.
 
-## Requirements
+## <a name="requirements"></a>Requirements
 
 | Requirement               | Ubuntu/Debian                      | CentOS | Manual installation | Comments | Tested version |
 |---------------------------|------------------------------------|--------|---------------------|----------|----------------|
@@ -20,7 +31,7 @@ Even though sequencing biases and errors have been deeply researched to adequate
 | Boost C++ libraries | `sudo apt-get install libboost-all-dev` | `sudo yum install boost-devel`(version not working) | https://www.boost.org/doc/libs/1_71_0/more/getting_started/unix-variants.html | Only download and extraction in section 1 and library builds in section 5 are strictly needed, if you set a prefix you need to add `prefix/lib/` to your `LD_LIBRARY_PATH` and set `BOOST_ROOT` to `prefix` before the installation process below or you will get boost library errors at the cmake and make step. If you manually installed g++ run `./b2` without sudo so the environment variable CXX is found. | 1.67.0 |
 | SWIG | `sudo apt-get install swig` | (too old version) | http://www.swig.org/Doc4.0/Preface.html | If you set a prefix you need to add prefix/bin to your PATH variable | 3.0.8 |
 
-## Installation
+## <a name="installation"></a>Installation
 ```
 cd /where/you/want/to/install/ReSequenceR
 git clone https://github.com/schmeing/ReSequenceR.git
@@ -39,7 +50,7 @@ reseq test
 
 Some useful python scripts can be found in `/where/you/want/to/install/ReSequenceR/ReSequenceR/python`.
 
-## Quick start examples
+## <a name="quickstart"></a>Quick start examples
 To create simulated data similar to real data you first need to map the real data to a reference. For example with `bowtie2`:
 ```
 bowtie2-build my_reference.fa my_reference
@@ -70,7 +81,7 @@ To run a simulation with tiles the tile information needs to stay in the read na
 ```
 bowtie2 -p 32 -X 2000 -x my_reference -1 <(reseq-prepare-names.py my_data_1.fq my_data_2.fq) -2 <(reseq-prepare-names.py my_data_2.fq my_data_1.fq) | samtools sort -m 10G -@ 4 -T _tmp -o my_mappings.bam -
 ```
-## Parameter
+## <a name="parameter"></a>Parameter
 
 `reseq illuminaPE [options]`
 
@@ -129,7 +140,7 @@ bowtie2 -p 32 -X 2000 -x my_reference -1 <(reseq-prepare-names.py my_data_1.fq m
 | `-R` `--refSim`   | None    | File to where reference sequences in fasta format with N's randomly replace should be written to |
 | `--seed`          | None    | Seed used for replacing N, if none is given random seed will be used |
 
-## File Formats
+## <a name="formats"></a>File Formats
 | File type             | Ending     | Information |
 |-----------------------|------------|-------------|
 | Reference file        | .fa        | Standard reference file in fasta format. Everything not an A,C,G,T is randomly replaced by one of those before simulating. To consistently simulate the same base over multiple simulations use the replaceN mode of reseq before starting the simulation to create a reference without N(or other ambiguous bases, which are all treated as N). |
@@ -142,11 +153,11 @@ bowtie2 -p 32 -X 2000 -x my_reference -1 <(reseq-prepare-names.py my_data_1.fq m
 | Systematic error file | .fq        | Standard fastq format. The sequence represents the dominant error and the quality the error rate in percent at that position. There are two entries per reference sequence. The order of the reference sequences must be kept. The length must match the length of the reference sequence. The first entry per reference sequence is the reverse strand and reverse complemented. So an A in the first position means that a systematic error towards a T is simulated for the last base of the reference sequence in reads on the reverse strand. The second entry is the forward strand taken as is, so not reverse complemented. The error rate in percent is encoded similar to quality values with an offset of 33. Since the fastq format is limited to 94 quality values odd percentages over 86 are omitted. This mean `~` encodes 100% and `}` 98%. |
 | Reference bias file   | .txt       | One line per specified bias. The line starts by a unique identifier of the reference sequence (the part before the first space in the reference sequence name in the reference file). The identifier can be followed by a space and after it some arbitrary information. The line ends with a space or tab separating a floating point number representing the bias for this sequence. It must be positive. All reference sequences in the reference file must have a bias given. However, the order of the sequences doesn't need to be kept and the bias for additional reference sequences could be specified. |
 
-## Included libraries
+## <a name="libraries"></a>Included libraries
 Googletest (https://github.com/google/googletest.git, BSD 3-Clause license)\
 NLopt (https://github.com/stevengj/nlopt.git, MIT license)\
 SeqAn (https://github.com/seqan/seqan, BSD 3-Clause license)\
 skewer (https://github.com/relipmoc/skewer, MIT license, made slight adaptations to the code to be able to include it)
 
-## Publication
+## <a name="publication"></a>Publication
 In preparation
