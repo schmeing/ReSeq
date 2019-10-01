@@ -1,6 +1,10 @@
 #include "ErrorStats.h"
 using reseq::ErrorStats;
 
+#include <algorithm>
+using std::max;
+using std::min;
+
 #include "reportingUtils.hpp"
 
 void ErrorStats::Prepare(uint16_t num_tiles, uint8_t size_qual, uint32_t size_pos, uint32_t size_indel){
@@ -63,8 +67,41 @@ bool ErrorStats::Finalize(){
 		errors_per_read_.at(template_segment).Acquire( tmp_errors_per_read_.at(template_segment) );
 	}
 
+	bool error = false;
+
 	if( SumVect(called_bases_by_base_quality_per_previous_called_base_) != SumVect(called_bases_by_error_num_per_tile_) ){
-		printErr << "Counted bases in DataStats and in CoverageStats are not the same\n";
+		printErr << "Counted bases in DataStats(" << SumVect(called_bases_by_base_quality_per_previous_called_base_) << ") and in CoverageStats(" << SumVect(called_bases_by_error_num_per_tile_) << ") are not the same" << std::endl;
+		error = true;
+	}
+
+	Vect<uint64_t> data_qual_count, cov_qual_count;
+	for( auto template_segment=2; template_segment--; ){
+		for( auto ref_base=4; ref_base--; ){
+			for( auto called_base=5; called_base--; ){
+				data_qual_count.Clear();
+				cov_qual_count.Clear();
+
+				for(const auto & prev_call_vect : called_bases_by_base_quality_per_previous_called_base_.at(template_segment).at(ref_base).at(called_base)){
+					data_qual_count += prev_call_vect;
+				}
+
+				for(const auto &dom_error_vect : called_bases_by_base_quality_per_tile_.at(template_segment).at(ref_base)){
+					for(const auto &tile_id_vect : dom_error_vect){
+						cov_qual_count += tile_id_vect[called_base];
+					}
+				}
+
+				for(auto qual=min(data_qual_count.from(), cov_qual_count.from()); qual<max(data_qual_count.to(), cov_qual_count.to()); ++qual){
+					if( data_qual_count[qual] != cov_qual_count[qual] ){
+						printErr << "Seg " << template_segment << " ref_base " << ref_base << " called_base " << called_base << " qual " << qual << ": DataStats(" << data_qual_count[qual] << ") CoverageStats(" << cov_qual_count[qual] << ")" << std::endl;
+						error = true;
+					}
+				}
+			}
+		}
+	}
+
+	if(error){
 		return false;
 	}
 

@@ -198,7 +198,7 @@ void BiasCalculationVectors::NormGC(){
 	}
 	sort(sites.begin(), sites.end());
 
-	// Sum the biases up to half the sites starting with the gc with most sites
+	// Sum the biases up to percent_gc_sites_for_normalization_ of the sites starting with the gc with most sites
 	uint64_t sum_sites = 0;
 	double sum_bias = 0.0;
 	uint16_t num_bias = 0;
@@ -208,7 +208,7 @@ void BiasCalculationVectors::NormGC(){
 		++num_bias;
 	}
 
-	// Normalize using the biases of the gc values having 50% of the sites to take only well determined values
+	// Normalize using the biases of the gc values having percent_gc_sites_for_normalization_% of the sites to take only well determined values
 	for(uint16_t gc = gc_sites_.size(); gc--; ){
 		gc_bias_.at(gc) *= num_bias/sum_bias;
 	}
@@ -1190,6 +1190,7 @@ void FragmentDistributionStats::PrepareBiasCalculation( const Reference &ref, ui
 	}
 
 	// Temporary bias fit result vectors
+	params_fitted_ = 0;
 	auto max_fits = ref.NumRefSeqBinsInNxx(ref_seq_in_nxx_, max_ref_seq_bin_length_) * BiasCalculationVectors::num_fits_insert_length_;
 	for(uint16_t gc=tmp_gc_bias_.size(); gc--;){
 		tmp_gc_bias_.at(gc).resize(max_fits, nan("0"));

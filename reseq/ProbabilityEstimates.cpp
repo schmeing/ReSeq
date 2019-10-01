@@ -47,6 +47,7 @@ using std::max;
 
 #include "utilities.h"
 using reseq::utilities::CreateDir;
+using reseq::utilities::DeleteFile;
 
 template<uint16_t N> void DataStorage<N>::CombineEndBinsToMinCount(array< vector<uint64_t>, N > &dim_indices, array<Vect<uint64_t>, N> &dim_control){
 	// Start with summing up from both ends until min_counts_per_1d_bin_ is reached for the outermost bins
@@ -1113,6 +1114,7 @@ bool ProbabilityEstimates::Estimate(const DataStats &stats, uint16_t max_iterati
 	}
 
 	if( error_during_fitting_ ){
+		DeleteFile( output ); // Remove the probabilities file if one existed previously so it is clear that we encountered an error and do not accidentally continue with the old file
 		return false;
 	}
 

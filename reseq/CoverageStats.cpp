@@ -80,7 +80,7 @@ void CoverageStats::EvalRead( FullRecord *record, CoverageStats::CoverageBlock *
 		uint32_t read_pos(0), ref_pos(0), ref_pos_start(0), ref_pos_end, coverage_pos;
 		Dna ref_base;
 		Dna5 base;
-		unsigned char qual, last_qual(1);
+		uint8_t qual(0), last_qual(1);
 		auto cur_var = coverage_block->first_variant_id_;
 
 		// Set ref_pos_start to the first ref_pos(0 is read start) that belongs to this block
@@ -142,25 +142,20 @@ void CoverageStats::EvalRead( FullRecord *record, CoverageStats::CoverageBlock *
 							ref_base = reference.ReferenceSequence(record->record_.rID)[full_ref_pos];
 						}
 
-						if(static_cast<uint16_t>(ref_base) < 4){ // Don't do this stuff when we have an N
-							if(ref_pos >= ref_pos_start){
-								if(IsVariantPosition(cur_var, record->record_.rID, full_ref_pos, reference, hasFlagRC(record->record_))){
-									++(record->not_considered_ref_bases_);
-								}
-								else{
-									error_rate = coverage_block->coverage_.at(coverage_pos).error_rate_.at(hasFlagRC(record->record_));
-									qualities.AddRefBase(hasFlagLast(record->record_), ref_base, coverage_block->coverage_.at(coverage_pos).dom_error_.at(hasFlagRC(record->record_)), record->tile_id_, qual, error_rate, last_qual, record->sequence_quality_, read_pos);
-									errors.AddBase(hasFlagLast(record->record_), ref_base, coverage_block->coverage_.at(coverage_pos).dom_error_.at(hasFlagRC(record->record_)), record->tile_id_, base, qual, read_pos, num_errors, error_rate);
-									record->error_rate_sum_ += error_rate;
-								}
+						if(ref_pos >= ref_pos_start){
+							if(static_cast<uint16_t>(ref_base) >= 4 || IsVariantPosition(cur_var, record->record_.rID, full_ref_pos, reference, hasFlagRC(record->record_))){
+								++(record->not_considered_ref_bases_);
 							}
-
-							if(ref_base != base && !IsVariantPosition(cur_var, record->record_.rID, full_ref_pos, reference, hasFlagRC(record->record_))){
-								++num_errors;
+							else{
+								error_rate = coverage_block->coverage_.at(coverage_pos).error_rate_.at(hasFlagRC(record->record_));
+								qualities.AddRefBase(hasFlagLast(record->record_), ref_base, coverage_block->coverage_.at(coverage_pos).dom_error_.at(hasFlagRC(record->record_)), record->tile_id_, qual, error_rate, last_qual, record->sequence_quality_, read_pos);
+								errors.AddBase(hasFlagLast(record->record_), ref_base, coverage_block->coverage_.at(coverage_pos).dom_error_.at(hasFlagRC(record->record_)), record->tile_id_, base, qual, read_pos, num_errors, error_rate);
+								record->error_rate_sum_ += error_rate;
 							}
 						}
-						else{
-							++(record->not_considered_ref_bases_);
+
+						if(ref_base != base && static_cast<uint16_t>(ref_base) < 4 && !IsVariantPosition(cur_var, record->record_.rID, full_ref_pos, reference, hasFlagRC(record->record_))){
+							++num_errors;
 						}
 
 						last_qual = qual;
@@ -184,9 +179,11 @@ void CoverageStats::EvalRead( FullRecord *record, CoverageStats::CoverageBlock *
 						// We are currently not comparing the adapter to the reference
 						if( hasFlagRC(record->record_) ){
 							full_ref_pos = record->to_ref_pos_-1-ref_pos;
+							ref_base = complementor(reference.ReferenceSequence(record->record_.rID)[full_ref_pos]);
 						}
 						else{
 							full_ref_pos = record->from_ref_pos_+ref_pos;
+							ref_base = reference.ReferenceSequence(record->record_.rID)[full_ref_pos];
 						}
 
 						if(ref_pos >= ref_pos_start){
@@ -198,7 +195,7 @@ void CoverageStats::EvalRead( FullRecord *record, CoverageStats::CoverageBlock *
 							}
 						}
 
-						if(!IsVariantPosition(cur_var, record->record_.rID, full_ref_pos, reference, hasFlagRC(record->record_))){
+						if(static_cast<uint16_t>(ref_base) < 4 && !IsVariantPosition(cur_var, record->record_.rID, full_ref_pos, reference, hasFlagRC(record->record_))){
 							++num_errors;
 						}
 
@@ -216,18 +213,21 @@ void CoverageStats::EvalRead( FullRecord *record, CoverageStats::CoverageBlock *
 			case 'I':
 				if(ref_pos < ref_pos_end){
 					if( hasFlagRC(record->record_) ){
+						last_qual = reversed_qual[read_pos+cigar_element.count-1]-phred_quality_offset; // Directly fill last_qual as qual is not needed here
 						full_ref_pos = record->to_ref_pos_-1-ref_pos;
+						ref_base = complementor(reference.ReferenceSequence(record->record_.rID)[full_ref_pos]);
 					}
 					else{
+						last_qual = record->record_.qual[read_pos+cigar_element.count-1]-phred_quality_offset; // Directly fill last_qual as qual is not needed here
 						full_ref_pos = record->from_ref_pos_+ref_pos;
+						ref_base = reference.ReferenceSequence(record->record_.rID)[full_ref_pos];
 					}
 
-					read_pos += cigar_element.count;
-					if(!IsVariantPosition(cur_var, record->record_.rID, full_ref_pos, reference, hasFlagRC(record->record_))){
+					if(static_cast<uint16_t>(ref_base) < 4 && !IsVariantPosition(cur_var, record->record_.rID, full_ref_pos, reference, hasFlagRC(record->record_))){
 						num_errors += cigar_element.count;
 					}
 
-					last_qual = qual;
+					read_pos += cigar_element.count;
 				}
 				break;
 			}
@@ -239,7 +239,6 @@ void CoverageStats::EvalRead( FullRecord *record, CoverageStats::CoverageBlock *
 
 void CoverageStats::UpdateZeroCoverageRegion(int64_t zero_coverage_length){
 	coverage_[ 0 ] += zero_coverage_length;
-	error_coverage_[ 0 ] += zero_coverage_length;
 	for( int strand=2; strand--; ){
 		coverage_stranded_.at(strand)[0] += zero_coverage_length;
 	}
@@ -248,8 +247,6 @@ void CoverageStats::UpdateZeroCoverageRegion(int64_t zero_coverage_length){
 void CoverageStats::UpdateCoverageAtSinglePosition(CoveragePosition &coverage, Dna5 ref_base, bool is_variant_position){
 	FunctorComplement<Dna5> complementor;
 	Dna5 reverse_base = complementor(ref_base);
-
-	bool errors_valid = !is_variant_position && 4 > static_cast<uint16_t>(ref_base);
 
 	// Stored error rate for the simulation is the rate of the dominant error, real error rate is calculated further below for plotting stats
 	uint64_t errors(0);
@@ -308,13 +305,13 @@ void CoverageStats::UpdateCoverageAtSinglePosition(CoveragePosition &coverage, D
 	++coverage_[ cov_sum ];
 	++coverage_stranded_.at(0)[ coverage_forward ];
 	++coverage_stranded_.at(1)[ coverage_reverse ];
-	if(errors_valid){
-		++error_coverage_[ error_sum ];
-	}
 	if(cov_sum){
 		++coverage_stranded_percent_.at(0)[ Percent(coverage_forward, cov_sum) ];
 		++coverage_stranded_percent_.at(1)[ Percent(coverage_reverse, cov_sum) ];
+
+		bool errors_valid = !is_variant_position && 4 > static_cast<uint16_t>(ref_base);
 		if(errors_valid){
+			++error_coverage_[ error_sum ];
 			++error_coverage_percent_[ Percent(error_sum, cov_sum) ];
 			if(coverage_forward && coverage_reverse){
 				++error_coverage_percent_stranded_[ Percent(errors_forward, coverage_forward) ][ Percent(errors_reverse, coverage_reverse) ];
@@ -829,6 +826,7 @@ bool CoverageStats::Finalize(const Reference &reference, QualityStats &qualities
 	UpdateZeroCoverageRegion(zero_coverage_region_-2*reference.MinDistToRefSeqEnds()*reference.NumberSequences()); // Subtract excluded region due to minimum distance to reference sequence ends for accepting fragments
 	tmp_errors_forward_.shrink_to_fit();
 	tmp_errors_reverse_.shrink_to_fit();
+
 	return true;
 }
 

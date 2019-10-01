@@ -266,7 +266,10 @@ bool DataStats::EvalReferenceStatistics(
 						ref_base = reference_->ReferenceSequence(record->record_.rID)[full_ref_pos];
 					}
 
-					if(static_cast<uint16_t>(ref_base) < 4 && !CoverageStats::IsVariantPosition( cur_var, record->record_.rID, full_ref_pos, *reference_, hasFlagRC(record->record_) )){ // Don't do this stuff when we have an N
+					if(static_cast<uint16_t>(ref_base) >= 4 || CoverageStats::IsVariantPosition( cur_var, record->record_.rID, full_ref_pos, *reference_, hasFlagRC(record->record_) )){
+						++seq_content_mapped.at(4);
+					}
+					else{
 						++tmp_sequence_content_reference_.at(template_segment).at(hasFlagRC(record->record_)).at(ref_base).at(read_pos);
 
 						errors_.AddBasePlotting(template_segment, ref_base, base, qual, last_base);
@@ -277,9 +280,6 @@ bool DataStats::EvalReferenceStatistics(
 						}
 
 						++seq_content_mapped.at(base);
-					}
-					else{
-						++seq_content_mapped.at(4);
 					}
 
 					if( hasFlagRC(record->record_) ){
@@ -321,13 +321,13 @@ bool DataStats::EvalReferenceStatistics(
 
 					if(static_cast<uint16_t>(ref_base) < 4 && !CoverageStats::IsVariantPosition( cur_var, record->record_.rID, full_ref_pos, *reference_, hasFlagRC(record->record_) )){ // Don't do this stuff when we have an N
 						errors_.AddInDel( indel_type, last_base, ErrorStats::kDeletion, indel_pos, read_pos, gc_percent);
+
+						++num_errors;
 					}
 
 					++ref_pos;
 					indel_type = 1;
 				}
-
-				num_errors += cigar_element.count;
 
 				if( hasFlagRC(record->record_) ){
 					coverage_.SubtractPos(coverage_pos, coverage_block, cigar_element.count);
@@ -353,7 +353,6 @@ bool DataStats::EvalReferenceStatistics(
 					indel_type = 0;
 				}
 				else{
-					// Don't do this stuff when we have an N
 					for(indel_pos=0; indel_pos<cigar_element.count; ++indel_pos ){
 						if( hasFlagRC(record->record_) ){
 							base = reversed_seq[read_pos];
@@ -575,7 +574,6 @@ void DataStats::PrepareReadIn(uint8_t size_mapping_quality, uint32_t size_indel)
 bool DataStats::FinishReadIn(){
 	// Collect ambigous adapters into a single one
 	adapters_.Finalize();
-
 	if( !coverage_.Finalize(*reference_, qualities_, errors_, phred_quality_offset_, maximum_insert_length_+2*reference_->MinDistToRefSeqEnds()) ){
 		return false;
 	}

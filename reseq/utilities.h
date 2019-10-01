@@ -27,6 +27,10 @@ namespace reseq{
 			}
 		}
 
+		inline void DeleteFile(const char *file){
+			boost::filesystem::remove(boost::filesystem::path(file));
+		}
+
 		inline uint64_t Divide(uint64_t nom, uint64_t den){ // Calculates the division: nom/den with proper rounding to int
 			return (nom+den/2)/den;
 		}

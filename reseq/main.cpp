@@ -46,6 +46,7 @@ using reseq::Reference;
 #include "Simulator.h"
 using reseq::Simulator;
 #include "utilities.h"
+using reseq::utilities::DeleteFile;
 using reseq::utilities::TrueRandom;
 
 #include "AdapterStatsTest.h"
@@ -235,6 +236,9 @@ void GetDataStats(DataStats &real_data_stats, string &stats_file, bool &loaded_s
 						real_data_stats.PrepareProcessing();
 						real_data_stats.ClearReference(); // It shouldn't be used after the read in to guarantee that we can remove or change the reference
 					}
+					else{
+						DeleteFile( stats_file.c_str() ); // Remove the stats file if one existed previously so it is clear that we encountered an error and do not accidentally continue with the old file
+					}
 					loaded_stats = false;
 				}
 			}
@@ -324,6 +328,7 @@ bool WriteSysError(string &sys_error_file, uint64_t &seed, bool stop_after_estim
 			sys_error_file = it_write->second.as<string>();
 			Simulator sim;
 			if( !sim.CreateSystematicErrorProfile(sys_error_file.c_str(), ref, stats, estimates, seed) ){
+				DeleteFile(sys_error_file.c_str()); // Remove the sys error file if one existed previously so it is clear that we encountered an error and do not accidentally continue with the old file
 				return false;
 			}
 		}

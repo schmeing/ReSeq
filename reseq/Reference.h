@@ -71,8 +71,33 @@ namespace reseq{
 		const uint16_t min_dist_to_ref_seq_ends_; // Minimum distance from reference sequence ends to be taken into account for statistics so mapping issues at the border are avoided
 		const uint32_t max_n_in_fragment_site_; // The maximum number of n that is allowed in a fragment site to be counted for the bias calculation as it is highly likely that the fragment length and GC from those sites are wrong and highly unlikely that real fragments are found in this regions
 
+		static seqan::CharString dummy_charstring_;
+		static seqan::Dna5String dummy_dna5string_;
+
 		seqan::StringSet<seqan::CharString> reference_ids_;
 		seqan::StringSet<seqan::Dna5String> reference_sequences_;
+
+		inline seqan::CharString &RefId( seqan::Size<decltype(reference_ids_)>::Type n ){
+			if( length(reference_ids_) > n ){
+				return reference_ids_[n];
+			}
+			else{
+				printErr << "Called reference id " << n << ". Size is " << length(reference_ids_) << std::endl;
+				throw std::out_of_range( "Non-existing reference id called" );
+				return dummy_charstring_;
+			}
+		}
+
+		inline seqan::Dna5String &RefSeq( seqan::Size<decltype(reference_sequences_)>::Type n ){
+			if( length(reference_sequences_) > n ){
+				return reference_sequences_[n];
+			}
+			else{
+				printErr << "Called reference sequence " << n << ". Size is " << length(reference_sequences_) << std::endl;
+				throw std::out_of_range( "Non-existing reference sequence called" );
+				return dummy_dna5string_;
+			}
+		}
 
 #ifndef SWIG // This part is not needed for the python plotting
 		uint16_t num_alleles_;
@@ -170,13 +195,27 @@ namespace reseq{
 		}
 
 		inline const seqan::CharString &ReferenceId( seqan::Size<decltype(reference_ids_)>::Type n ) const{
-			return reference_ids_[n];
+			if( length(reference_ids_) > n ){
+				return reference_ids_[n];
+			}
+			else{
+				printErr << "Called reference id " << n << ". Size is " << length(reference_ids_) << std::endl;
+				throw std::out_of_range( "Non-existing reference id called" );
+				return dummy_charstring_;
+			}
 		}
 
 		const seqan::Prefix<const seqan::CharString>::Type ReferenceIdFirstPart( seqan::Size<decltype(reference_ids_)>::Type n ) const;
 
 		inline const seqan::Dna5String &ReferenceSequence( seqan::Size<decltype(reference_sequences_)>::Type n ) const{
-			return reference_sequences_[n];
+			if( length(reference_sequences_) > n ){
+				return reference_sequences_[n];
+			}
+			else{
+				printErr << "Called reference sequence " << n << ". Size is " << length(reference_sequences_) << std::endl;
+				throw std::out_of_range( "Non-existing reference sequence called" );
+				return dummy_dna5string_;
+			}
 		}
 
 		void ReferenceSequence(seqan::DnaString &insert_string, seqan::Size<decltype(reference_sequences_)>::Type seq_id, seqan::Size<seqan::Dna5String>::Type start_pos, seqan::Size<seqan::Dna5String>::Type min_length, bool reversed=false, seqan::Size<seqan::Dna5String>::Type seq_size=0) const;
@@ -185,11 +224,11 @@ namespace reseq{
 #endif //SWIG
 
 		inline const seqan::Dna5String &operator[]( seqan::Size<decltype(reference_sequences_)>::Type n ) const{
-			return reference_sequences_[n];
+			return ReferenceSequence(n);
 		}
 
 		seqan::Size<seqan::Dna5String>::Type SequenceLength( seqan::Size<decltype(reference_sequences_)>::Type n ) const{
-			return length(reference_sequences_[n]);
+			return length(ReferenceSequence(n));
 		}
 
 		seqan::Size<seqan::Dna5String>::Type MaxSequenceLength() const{
@@ -207,11 +246,11 @@ namespace reseq{
 		uint32_t NumRefSeqBinsInNxx(const std::vector<bool> &ref_seqs, uint64_t max_ref_seq_bin_length) const;
 
 		inline bool GC( seqan::Size<decltype(reference_sequences_)>::Type seq_id, seqan::Size<seqan::Dna5String>::Type pos ) const{
-			return ( 'G' == reference_sequences_[seq_id][pos] || 'C' == reference_sequences_[seq_id][pos] );
+			return ( 'G' == ReferenceSequence(seq_id)[pos] || 'C' == ReferenceSequence(seq_id)[pos] );
 		}
 
 		inline bool N( seqan::Size<decltype(reference_sequences_)>::Type seq_id, seqan::Size<seqan::Dna5String>::Type pos ) const{
-			return ( 'N' == reference_sequences_[seq_id][pos] );
+			return ( 'N' == ReferenceSequence(seq_id)[pos] );
 		}
 
 		inline uint64_t GCContentAbsolut( uint32_t &n_count, seqan::Size<decltype(reference_sequences_)>::Type seq_id, seqan::Size<seqan::Dna5String>::Type start_pos, seqan::Size<seqan::Dna5String>::Type end_pos ) const{
@@ -268,7 +307,7 @@ namespace reseq{
 		}
 
 		void ForwardSurroundingWithN(std::array<int32_t, num_surrounding_blocks_> &surroundings, seqan::Size<decltype(reference_sequences_)>::Type ref_seq_id, seqan::Size<seqan::Dna5String>::Type pos ) const{
-			const seqan::Dna5String &ref_seq(reference_sequences_[ref_seq_id]);
+			const seqan::Dna5String &ref_seq(ReferenceSequence(ref_seq_id));
 			uint16_t new_value;
 			uint64_t block_pos(pos+surrounding_start_pos_);
 			for(auto block=0; block < num_surrounding_blocks_; ++block){
@@ -307,7 +346,7 @@ namespace reseq{
 		}
 
 		void ReverseSurroundingWithN(std::array<int32_t, num_surrounding_blocks_> &surroundings,  seqan::Size<decltype(reference_sequences_)>::Type ref_seq_id, seqan::Size<seqan::Dna5String>::Type pos ) const{
-			const seqan::ModifiedString<const seqan::Dna5String, seqan::ModComplementDna5> ref_seq(reference_sequences_[ref_seq_id]);
+			const seqan::ModifiedString<const seqan::Dna5String, seqan::ModComplementDna5> ref_seq(ReferenceSequence(ref_seq_id));
 			uint16_t new_value;
 			uint64_t block_pos(pos+1-surrounding_start_pos_-surrounding_range_);
 			for(auto block=0; block < num_surrounding_blocks_; ++block){

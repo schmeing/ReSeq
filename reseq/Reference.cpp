@@ -348,7 +348,7 @@ void Reference::CloseVcfFile(){
 }
 
 uint32_t Reference::ForwardSurroundingBlock( Size<decltype(reference_sequences_)>::Type ref_seq_id, uint64_t pos ) const{
-	const Dna5String &ref_seq(reference_sequences_[ref_seq_id]);
+	const Dna5String &ref_seq(ReferenceSequence(ref_seq_id));
 
 	uint32_t return_value(0);
 	if( pos+surrounding_range_ <= length(ref_seq) ){
@@ -371,7 +371,7 @@ uint32_t Reference::ForwardSurroundingBlock( Size<decltype(reference_sequences_)
 }
 
 uint32_t Reference::ReverseSurroundingBlock( Size<decltype(reference_sequences_)>::Type ref_seq_id, uint64_t pos ) const{
-	const ModifiedString<const Dna5String, ModComplementDna5> ref_seq(reference_sequences_[ref_seq_id]);
+	const ModifiedString<const Dna5String, ModComplementDna5> ref_seq(ReferenceSequence(ref_seq_id));
 
 	uint32_t return_value(0);
 	if( pos+surrounding_range_ <= length(ref_seq) ){
@@ -428,8 +428,8 @@ Reference::Reference():
 
 const Prefix<const CharString>::Type Reference::ReferenceIdFirstPart( Size<decltype(reference_ids_)>::Type n ) const{
 	Size<decltype(reference_ids_)>::Type pos=0; // declare before the for loop to be able to access it afterwards
-	for( ; pos < length(reference_ids_[n]) && ' ' != reference_ids_[n][pos]; ++pos ); // loop until pos is at the first ' ' or at the end of the string
-	return prefix(reference_ids_[n], pos);
+	for( ; pos < length(ReferenceId(n)) && ' ' != ReferenceId(n)[pos]; ++pos ); // loop until pos is at the first ' ' or at the end of the string
+	return prefix(ReferenceId(n), pos);
 }
 
 void Reference::ReferenceSequence(
@@ -440,11 +440,11 @@ void Reference::ReferenceSequence(
 		bool reversed,
 		Size<Dna5String>::Type seq_size ) const{
 	if( reversed ){
-		insert_string = infix(reference_sequences_[seq_id], start_pos-min_length, start_pos);
+		insert_string = infix(ReferenceSequence(seq_id), start_pos-min_length, start_pos);
 		reverseComplement(insert_string);
 	}
 	else{
-		insert_string = infix(reference_sequences_[seq_id], start_pos, start_pos+min_length);
+		insert_string = infix(ReferenceSequence(seq_id), start_pos, start_pos+min_length);
 	}
 
 	if( seq_size > length(insert_string) ){
@@ -475,11 +475,11 @@ void Reference::ReferenceSequence(
 			if(variants.at(cur_var).InAllele(allele)){
 				if(cur_start-variants.at(cur_var).position_ > min_length-length(insert_string)){
 					// Variant after return sequence
-					insert_string += ReverseComplementor(infix(reference_sequences_[seq_id], cur_start+length(insert_string)-min_length, cur_start));
+					insert_string += ReverseComplementor(infix(ReferenceSequence(seq_id), cur_start+length(insert_string)-min_length, cur_start));
 				}
 				else{
 					// Variant inside return sequence
-					insert_string += ReverseComplementor(infix(reference_sequences_[seq_id], variants.at(cur_var).position_+1, cur_start));
+					insert_string += ReverseComplementor(infix(ReferenceSequence(seq_id), variants.at(cur_var).position_+1, cur_start));
 					insert_string += ReverseComplementor(variants.at(cur_var).var_seq_);
 					cur_start = variants.at(cur_var).position_;
 				}
@@ -487,7 +487,7 @@ void Reference::ReferenceSequence(
 		}
 		if(cur_var == -1 && length(insert_string) < min_length){
 			// Fill rest after the last variant
-			insert_string += ReverseComplementor(infix(reference_sequences_[seq_id], cur_start+length(insert_string)-min_length, cur_start));
+			insert_string += ReverseComplementor(infix(ReferenceSequence(seq_id), cur_start+length(insert_string)-min_length, cur_start));
 		}
 	}
 	else{
@@ -503,11 +503,11 @@ void Reference::ReferenceSequence(
 			if(variants.at(cur_var).InAllele(allele)){
 				if(variants.at(cur_var).position_-cur_start >= min_length-length(insert_string)){
 					// Variant after return sequence
-					insert_string += infix(reference_sequences_[seq_id], cur_start, cur_start+min_length-length(insert_string));
+					insert_string += infix(ReferenceSequence(seq_id), cur_start, cur_start+min_length-length(insert_string));
 				}
 				else{
 					// Variant inside return sequence
-					insert_string += infix(reference_sequences_[seq_id], cur_start, variants.at(cur_var).position_);
+					insert_string += infix(ReferenceSequence(seq_id), cur_start, variants.at(cur_var).position_);
 					insert_string += variants.at(cur_var).var_seq_;
 					cur_start = variants.at(cur_var).position_+1;
 				}
@@ -515,7 +515,7 @@ void Reference::ReferenceSequence(
 		}
 		if(cur_var == variants.size() && length(insert_string) < min_length){
 			// Fill rest after the last variant
-			insert_string += infix(reference_sequences_[seq_id], cur_start, cur_start+min_length-length(insert_string));
+			insert_string += infix(ReferenceSequence(seq_id), cur_start, cur_start+min_length-length(insert_string));
 		}
 	}
 
@@ -605,7 +605,7 @@ double Reference::SumBias(
 	}
 	tot += bias;
 
-	const Dna5String &ref_seq(reference_sequences_[ref_seq_id]);
+	const Dna5String &ref_seq(ReferenceSequence(ref_seq_id));
 	for( uint32_t start_pos=0; start_pos < length(ref_seq)-fragment_length; ){
 		UpdateGC( gc, n_count, ref_seq, start_pos, start_pos+fragment_length );
 		UpdateReverseSurrounding( end_sur, ref_seq, start_pos+fragment_length );
@@ -664,7 +664,7 @@ double Reference::SumBias(
 		++gc_sites.at(Percent(gc, fragment_length));
 	}
 
-	const Dna5String &ref_seq(reference_sequences_[ref_seq_id]);
+	const Dna5String &ref_seq(ReferenceSequence(ref_seq_id));
 	for( uint32_t start_pos=min_dist_to_ref_seq_ends_; start_pos < seqan::length(ref_seq)-fragment_length-min_dist_to_ref_seq_ends_; ){
 		UpdateGC( gc, n_count, ref_seq, start_pos, start_pos+fragment_length );
 		UpdateReverseSurroundingWithN( end_sur, ref_seq, start_pos+fragment_length, ref_seq_id );
@@ -699,7 +699,7 @@ void Reference::GetFragmentSites( vector<FragmentSite> &sites, Size<decltype(ref
 	// Uses min_dist_to_ref_seq_ends_ as it is used for stats creation
 	sites.clear();
 
-	const Dna5String &ref_seq(reference_sequences_[ref_seq_id]);
+	const Dna5String &ref_seq(ReferenceSequence(ref_seq_id));
 	auto start_pos = max(static_cast<uint32_t>(min_dist_to_ref_seq_ends_), start);
 	auto end_pos = min(length(ref_seq)-fragment_length-min_dist_to_ref_seq_ends_, static_cast<uint64_t>(end));
 

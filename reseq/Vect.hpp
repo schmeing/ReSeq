@@ -195,9 +195,11 @@ namespace reseq{
 		}
 		T &at(typename std::vector<T>::size_type n){
 			if( this->from() > n ){
+				printErr << "Called index " << n << " range is from " << this->from() << " to " << this->to() << std::endl;
 				throw std::out_of_range( "Index lower than threshold called" );
 			}
 			else if(this->to() <= n){
+				printErr << "Called index " << n << " range is from " << this->from() << " to " << this->to() << std::endl;
 				throw std::out_of_range( "Index higher than last element called" );
 			}
 			else{
@@ -206,9 +208,11 @@ namespace reseq{
 		}
 		const T &at(typename std::vector<T>::size_type n) const{
 			if( this->from() > n ){
+				printErr << "Called index " << n << " range is from " << this->from() << " to " << this->to() << std::endl;
 				throw std::out_of_range( "Index lower than threshold called" );
 			}
 			else if(this->to() <= n){
+				printErr << "Called index " << n << " range is from " << this->from() << " to " << this->to() << std::endl;
 				throw std::out_of_range( "Index higher than last element called" );
 			}
 			else{

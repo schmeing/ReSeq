@@ -147,7 +147,7 @@ namespace reseq{
 		std::vector<ErrorInfo> tmp_errors_reverse_;
 		uint32_t distance_to_start_of_error_region_forward_;
 		uint32_t gc_range_;
-		
+
 		// Helper functions
 		void EvalRead(FullRecord *record, CoverageStats::CoverageBlock *coverage_block, const Reference &reference, QualityStats &qualities, ErrorStats &errors, uint16_t phred_quality_offset);
 

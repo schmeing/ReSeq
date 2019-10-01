@@ -75,6 +75,7 @@ using seqan::String;
 
 #include "utilities.h"
 using reseq::utilities::CreateDir;
+using reseq::utilities::DeleteFile;
 using reseq::utilities::Divide;
 using reseq::utilities::Percent;
 using reseq::utilities::GetDominantLastX;
@@ -2373,5 +2374,11 @@ void Simulator::Simulate(
 		}
 
 		ref.ClearAllVariants();
+	}
+
+	if(simulation_error_){
+		// Remove the simulated files so it is clear that we encountered an error and do not accidentally continue with the old file
+		DeleteFile( destination_file_first );
+		DeleteFile( destination_file_second );
 	}
 }

@@ -133,7 +133,7 @@ void CoverageStatsTest::TestSrr490124Equality(const CoverageStats &test, const c
 		EXPECT_EQ(0, test.coverage_stranded_percent_min_cov_20_[strand].size() ) << "SRR490124-4pairs coverage_stranded_percent_min_cov_20_[" << strand << "].size() wrong for " << context << '\n';
 	}
 	// samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '{pos=$4;num=0;strand=int($2%32/16);for(i=6;i<=length($18);i+=1){b=substr($18,i,1);if(b ~ /^[0-9]/){num=num*10+b}else{pos+=num+1; num=0; print strand, pos-1}}; print strand, $4, "start read", NR; print strand, $4+100, "end read", NR}' | sort -k2,2n | awk 'BEGIN{count0=0;count1=0}{if("" != $3){if(0 != count0 || 0 != count1){print count0, count1, count0+count1, "errors"}; print $0; count0=0; count1=0}else{if(0==$1){count0 += 1}else{count1 += 1}}}'
-	TestVectEquality({0,{4641505,46,1}}, test.error_coverage_, context, "SRR490124-4pairs error_coverage_", " not correct for ");
+	TestVectEquality({0,{263,46,1}}, test.error_coverage_, context, "SRR490124-4pairs error_coverage_", " not correct for ");
 	EXPECT_EQ(101, test.error_coverage_percent_.size() ) << "SRR490124-4pairs error_coverage_percent_.size() wrong for " << context << '\n';
 	EXPECT_EQ(263, test.error_coverage_percent_[0] ) << "SRR490124-4pairs error_coverage_percent_[0] wrong for " << context << '\n';
 	EXPECT_EQ(34, test.error_coverage_percent_[50] ) << "SRR490124-4pairs error_coverage_percent_[50] wrong for " << context << '\n';
@@ -164,7 +164,6 @@ void CoverageStatsTest::TestDuplicates(const CoverageStats &test){
 
 void CoverageStatsTest::TestVariants(const CoverageStats &test){
 	// Manually modified values from TestSrr490124Equality
-// dominant_errors_by_distance_[refBase][previousRefBase][domRefBaseLast5][(distanceToStartOfErrorRegion+9)/10][dominantError] = #refBases
 	EXPECT_EQ(1, test.dominant_errors_by_distance_[0][0][0][1][1]);
 	EXPECT_EQ(1, test.dominant_errors_by_distance_[0][0][0][3][1]);
 	EXPECT_EQ(3, test.dominant_errors_by_distance_[0][0][0][3][2]);
@@ -261,7 +260,7 @@ void CoverageStatsTest::TestVariants(const CoverageStats &test){
 	EXPECT_EQ(3, test.error_rates_by_gc_sum_[54][100]);
 	EXPECT_EQ(394, SumVect(test.error_rates_by_gc_sum_));
 
-	TestVectEquality({0,{4641500,45,1}}, test.error_coverage_, "variant test", "SRR490124-4pairs error_coverage_", " not correct for ");
+	TestVectEquality({0,{260,45,1}}, test.error_coverage_, "variant test", "SRR490124-4pairs error_coverage_", " not correct for ");
 	EXPECT_EQ(101, test.error_coverage_percent_.size() );
 	EXPECT_EQ(260, test.error_coverage_percent_[0] );
 	EXPECT_EQ(33, test.error_coverage_percent_[50] );
