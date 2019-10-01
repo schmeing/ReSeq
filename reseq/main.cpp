@@ -11,6 +11,7 @@ using std::cout;
 using std::string;
 using std::to_string;
 #include <sys/stat.h>
+#include <thread>
 #include <vector>
 using std::vector;
 
@@ -62,6 +63,23 @@ using reseq::utilities::TrueRandom;
 #include "utilitiesTest.h"
 
 // Helper functions
+bool AutoDetectThreads(uint16_t &num_threads, const options_description &opt_desc, const string &usage_str ){
+	if(0 == num_threads){
+		num_threads = std::thread::hardware_concurrency();
+		if(0 == num_threads){
+			printErr << "Automatic detection of available cores failed." << std::endl;
+			cout << usage_str;
+			cout << opt_desc << "\n";
+			return false;
+		}
+		else{
+			printInfo << "Detected " << num_threads << " cores to be used." << std::endl;
+		}
+	}
+
+	return true;
+}
+
 void DefaultExtensionFile(string &file_name, const string folder, const string extension){
 	if (FILE *file = fopen(file_name.c_str(), "r")){
 		// File exists without modification
@@ -337,7 +355,6 @@ bool WriteSysError(string &sys_error_file, uint64_t &seed, bool stop_after_estim
 	return true;
 }
 
-
 void PrepareSimulation( string &sim_output_first, string &sim_output_second, const variables_map &opts_map ){
 	auto it = opts_map.find("firstReadsOut");
 	if(opts_map.end() == it){
@@ -373,7 +390,7 @@ int main(int argc, char *argv[]) {
 	options_description opt_desc_full("General");
 	opt_desc_full.add_options() // Returns a special object with defined operator ()
 		("help,h", "Prints help information and exits")
-		("threads,j", value<uint16_t>(&num_threads)->default_value(60), "Number of threads used")
+		("threads,j", value<uint16_t>(&num_threads)->default_value(0), "Number of threads used (0=auto)")
 		("verbosity", value<uint16_t>(&reseq::kVerbosityLevel)->default_value(4), "Sets the level of verbosity (4=everything, 0=nothing)")
 		("version", "Prints version info and exits");
 
@@ -386,13 +403,13 @@ int main(int argc, char *argv[]) {
 		store(general_opts, general_opts_map);
 		notify(general_opts_map);
 	}
-	catch (const exception& e) {
+	catch(const exception& e) {
 		printErr << "Could not parse general command line arguments: " << e.what() << "\n";
 		cout << opt_desc_full << "\n";
 		return 1;
 	}
 
-	if (general_opts_map.count("version")) { // Check if user only wants to know version
+	if(general_opts_map.count("version")) { // Check if user only wants to know version
 		cout << "ReSequenceR version " << RESEQ_VERSION_MAJOR << '.' << RESEQ_VERSION_MINOR << '\n';
 		return 0;
 	}
@@ -408,7 +425,7 @@ int main(int argc, char *argv[]) {
 		"  test\t\t\t"+"tests the program\n\n";
 
 	int return_code = 0;
-	if (0 == unrecognized_opts.size()){
+	if(0 == unrecognized_opts.size()){
 		cout << general_usage;
 	}
 	else{
@@ -442,7 +459,7 @@ int main(int argc, char *argv[]) {
 				cout << usage_str;
 				cout << opt_desc_full << "\n";
 			}
-			else{
+			else if(AutoDetectThreads(num_threads, opt_desc_full, usage_str)){
 				auto it_ref_in = opts_map.find("refIn");
 				auto it_ref_out = opts_map.find("refSim");
 				string ref_input, ref_output;
@@ -478,7 +495,7 @@ int main(int argc, char *argv[]) {
 				}
 			}
 		}
-		else if ("illuminaPE" == unrecognized_opts.at(0)) {
+		else if("illuminaPE" == unrecognized_opts.at(0)) {
 			cout << " in illuminaPE mode\n";
 			unrecognized_opts.erase(unrecognized_opts.begin());
 
@@ -539,14 +556,14 @@ int main(int argc, char *argv[]) {
 				store( command_line_parser(unrecognized_opts).options(opt_desc).run(), opts_map );
 				notify(opts_map);
 			}
-			catch (const exception& e) {
+			catch(const exception& e) {
 				printErr << "Could not parse illuminaPE command line arguments: " << e.what() << "\n";
 				cout << usage_str;
 				cout << opt_desc_full << "\n";
 				return 1;
 			}
 
-			if ( general_opts_map.count("help") ) {
+			if( general_opts_map.count("help") ) {
 				cout << usage_str;
 				cout << opt_desc_full << "\n";
 			}
@@ -560,7 +577,7 @@ int main(int argc, char *argv[]) {
 				cout << usage_str;
 				cout << opt_desc_full << "\n";
 			}
-			else{
+			else if(AutoDetectThreads(num_threads, opt_desc_full, usage_str)){
 				auto it_ref_in = opts_map.find("refIn");
 				auto it_ref_out = opts_map.find("refSim");
 				bool stop_after_estimation = opts_map.count("stopAfterEstimation");
@@ -696,26 +713,28 @@ int main(int argc, char *argv[]) {
 				}
 			}
 		}
-		else if ("test" == unrecognized_opts.at(0)) {
-			reseq::AdapterStatsTest::Register();
-			reseq::DataStatsTest::Register();
-			reseq::FragmentDistributionStatsTest::Register(num_threads);
-			reseq::FragmentDuplicationStatsTest::Register();
-			reseq::ProbabilityEstimatesTest::Register();
-			reseq::ReferenceTest::Register();
-			reseq::SeqQualityStatsTest::Register();
-			reseq::SimulatorTest::Register();
-			reseq::TileStatsTest::Register();
-			reseq::VectTest::Register();
-			reseq::utilitiesTest::Register();
-			
+		else if("test" == unrecognized_opts.at(0)) {
 			cout << " in test mode\n";
 
-			if ( general_opts_map.count("help") ) {
-				cout << "Usage: reseq test\n";
+			string usage_str = "Usage: reseq test [options]\n";
+
+			if( general_opts_map.count("help") ) {
+				cout << usage_str;
 				cout << opt_desc_full << "\n";
 			}
-			else{
+			else if(AutoDetectThreads(num_threads, opt_desc_full, usage_str)){
+				reseq::AdapterStatsTest::Register();
+				reseq::DataStatsTest::Register();
+				reseq::FragmentDistributionStatsTest::Register(num_threads);
+				reseq::FragmentDuplicationStatsTest::Register();
+				reseq::ProbabilityEstimatesTest::Register();
+				reseq::ReferenceTest::Register();
+				reseq::SeqQualityStatsTest::Register();
+				reseq::SimulatorTest::Register();
+				reseq::TileStatsTest::Register();
+				reseq::VectTest::Register();
+				reseq::utilitiesTest::Register();
+
 				bool all_tests_run = false;
 
 				// Setup google test

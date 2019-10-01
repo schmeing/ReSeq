@@ -89,7 +89,7 @@ bowtie2 -p 32 -X 2000 -x my_reference -1 <(reseq-prepare-names.py my_data_1.fq m
 |-------------------|---------|-------------|
 | **General**       |
 | `-h` `--help`     |         | Prints help information and exits |
-| `-j` `--threads`  | 60      | Number of threads used |
+| `-j` `--threads`  | 0       | Number of threads used (0=auto) |
 | `--verbosity`     | 4       | Sets the level of verbosity (4=everything, 0=nothing) |
 | `--version`       |         | Prints version info and exits |
 | **Stats**         |
