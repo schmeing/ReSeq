@@ -3,6 +3,7 @@ using reseq::FragmentDistributionStatsTest;
 
 #include <algorithm>
 using std::max_element;
+using std::min;
 //include <array>
 using std::array;
 #include <cmath>
@@ -30,8 +31,13 @@ using reseq::utilities::IntPow;
 using reseq::utilities::InvLogit2;
 using reseq::utilities::Percent;
 
-void FragmentDistributionStatsTest::Register(){
+namespace { // Unnamed namespace so it only exists for this file
+	uint32_t test_with_num_threads = 4;
+}
+
+void FragmentDistributionStatsTest::Register(uint32_t num_threads){
 	// Guarantees that library is included
+	test_with_num_threads = num_threads;
 }
 
 void FragmentDistributionStatsTest::CreateTestObject(const Reference *ref){
@@ -514,12 +520,11 @@ namespace reseq{
 		// Fit data
 		FragmentDuplicationStats duplications;
 		duplications.PrepareTmpDuplicationVector(100);
-		uint32_t num_threads = 4;
+		uint32_t num_threads = min(static_cast<uint32_t>(4), test_with_num_threads);
 		array<FragmentDistributionStats::ThreadData, 4> thread_data = {FragmentDistributionStats::ThreadData(100, species_reference_.SequenceLength(0)), FragmentDistributionStats::ThreadData(100, species_reference_.SequenceLength(0)), FragmentDistributionStats::ThreadData(100, species_reference_.SequenceLength(0)), FragmentDistributionStats::ThreadData(100, species_reference_.SequenceLength(0))};
 		mutex print_mutex;
 
-		uint16_t cur_verbosity = kVerbosityLevel;
-		kVerbosityLevel = 1; // Suppress warnings
+		ReduceVerbosity(1); // Suppress warnings
 		test_->AddNewBiasCalculations(1, thread_data.at(0), print_mutex);
 
 		thread threads[num_threads];
@@ -530,8 +535,8 @@ namespace reseq{
 			threads[i].join();
 		}
 
-		test_->FinalizeBiasCalculation(species_reference_, 4, duplications);
-		kVerbosityLevel = cur_verbosity;
+		test_->FinalizeBiasCalculation(species_reference_, num_threads, duplications);
+		RestoreTestVerbosity();
 
 		EXPECT_NEAR(0.6, test_->gc_fragment_content_bias_.at(27), 0.1);
 		EXPECT_NEAR(0.7, test_->gc_fragment_content_bias_.at(28), 0.1);
@@ -565,14 +570,15 @@ namespace reseq{
 		CreateTestObject(&species_reference_);
 		std::mt19937_64 rgen;
 
-		uint16_t cur_verbosity = kVerbosityLevel;
-		kVerbosityLevel = 1; // Suppress warnings
+		ReduceVerbosity(1); // Suppress warnings
 
 		test_->ref_seq_bias_.resize(1, 0.5);
 		EXPECT_TRUE(test_-> UpdateRefSeqBias(RefSeqBiasSimulation::kKeep, std::string(), species_reference_, rgen));
 		EXPECT_EQ(2, test_->ref_seq_bias_.size()) << "Keeping reference bias does not switch to no bias correctly.";
 		EXPECT_EQ(1.0, test_->ref_seq_bias_.at(0)) << "Keeping reference bias does not switch to no bias correctly.";
 		EXPECT_EQ(1.0, test_->ref_seq_bias_.at(1)) << "Keeping reference bias does not switch to no bias correctly.";
+
+		RestoreTestVerbosity();
 
 		test_->ref_seq_bias_.at(0) = 0.25;
 		test_->ref_seq_bias_.at(1) = 0.5;
@@ -593,6 +599,6 @@ namespace reseq{
 		EXPECT_EQ(2.0, test_->ref_seq_bias_.at(0)) << "Reference bias from file does not work.";
 		EXPECT_EQ(1.0, test_->ref_seq_bias_.at(1)) << "Reference bias from file does not work.";
 
-		kVerbosityLevel = cur_verbosity;
+		//kVerbosityLevel = cur_verbosity;
 	}
 }

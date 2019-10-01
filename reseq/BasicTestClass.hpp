@@ -16,12 +16,17 @@
 namespace reseq{
 	class BasicTestClass : public ::testing::Test{
 	private:
-		const uint16_t reduced_verbosity_ = 2;
+		static const uint16_t test_verbosity_ = 2;
 		uint16_t real_verbosity_;
 
 	protected:
-		inline void ReduceVerbosity(){ kVerbosityLevel = reduced_verbosity_; };
-		inline void RestoreVerbosity(){ kVerbosityLevel = real_verbosity_; };
+		inline void ReduceVerbosity(uint16_t reduced_verbosity = test_verbosity_){
+			if(kVerbosityLevel > reduced_verbosity){
+				kVerbosityLevel = reduced_verbosity;
+			}
+		}
+		inline void RestoreTestVerbosity(){ kVerbosityLevel = std::min(test_verbosity_,real_verbosity_); }
+		inline void RestoreVerbosity(){ kVerbosityLevel = real_verbosity_; }
 
 		virtual void SetUp(){
 			ReduceVerbosity();

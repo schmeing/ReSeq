@@ -370,17 +370,17 @@ int RunGoogleTests(const string &new_test, string &tests_already_run){
 // Main
 int main(int argc, char *argv[]) {
 	uint16_t num_threads;
-	options_description opt_desc_general("General options");
-	opt_desc_general.add_options() // Returns a special object with defined operator ()
-		("help,h", "produce help message")
-		("verbosity", value<uint16_t>(&reseq::kVerbosityLevel)->default_value(4), "Sets the level of verbosity")
-		("version", "returns version info")
-		("threads,j", value<uint16_t>(&num_threads)->default_value(60), "Number of threads used");
+	options_description opt_desc_full("General");
+	opt_desc_full.add_options() // Returns a special object with defined operator ()
+		("help,h", "Prints help information and exits")
+		("threads,j", value<uint16_t>(&num_threads)->default_value(60), "Number of threads used")
+		("verbosity", value<uint16_t>(&reseq::kVerbosityLevel)->default_value(4), "Sets the level of verbosity (4=everything, 0=nothing)")
+		("version", "Prints version info and exits");
 
 	vector<string> unrecognized_opts;
 	variables_map general_opts_map;
 	try{
-		parsed_options general_opts = command_line_parser(argc, argv).options(opt_desc_general).allow_unregistered().run();
+		parsed_options general_opts = command_line_parser(argc, argv).options(opt_desc_full).allow_unregistered().run();
 		unrecognized_opts = collect_unrecognized(general_opts.options, include_positional);
 
 		store(general_opts, general_opts_map);
@@ -388,7 +388,7 @@ int main(int argc, char *argv[]) {
 	}
 	catch (const exception& e) {
 		printErr << "Could not parse general command line arguments: " << e.what() << "\n";
-		cout << opt_desc_general << "\n";
+		cout << opt_desc_full << "\n";
 		return 1;
 	}
 
@@ -401,7 +401,7 @@ int main(int argc, char *argv[]) {
 		string("\nProgram: reseq (REal SEQUENCE Replicator)\n")+
 		"Version: "+to_string(RESEQ_VERSION_MAJOR)+'.'+to_string(RESEQ_VERSION_MINOR)+'\n'+
 		"Contact: Stephan Schmeing <stephan.schmeing@uzh.ch>\n\n"+
-		"Usage:    reseq <command> [options]\n"+
+		"Usage:  reseq <command> [options]\n"+
 		"Commands:\n"+
 		"  illuminaPE\t\t"+"simulates illumina paired-end data\n"+
 		"  replaceN\t\t"+"replaces N's in reference\n"+
@@ -418,13 +418,14 @@ int main(int argc, char *argv[]) {
 			cout << " in replaceN mode\n";
 			unrecognized_opts.erase(unrecognized_opts.begin());
 
-			options_description opt_desc("Allowed options");
+			options_description opt_desc("ReplaceN");
 			opt_desc.add_options() // Returns a special object with defined operator ()
 				("refIn,r", value<string>(), "Reference sequences in fasta format (gz and bz2 supported)")
 				("refSim,R", value<string>(), "File to where reference sequences in fasta format with N's randomly replace should be written to")
 				("seed", value<uint64_t>(), "Seed used for replacing N, if none is given random seed will be used");
+			opt_desc_full.add(opt_desc);
 
-			string usage_str = "Usage:    reseq replaceN -r <refIn.fa> -R <refSim.fa> [options]\n";
+			string usage_str = "Usage:  reseq replaceN -r <refIn.fa> -R <refSim.fa> [options]\n";
 			variables_map opts_map;
 			try{
 				store( command_line_parser(unrecognized_opts).options(opt_desc).run(), opts_map );
@@ -433,47 +434,45 @@ int main(int argc, char *argv[]) {
 			catch (const exception& e) {
 				printErr << "Could not parse replaceN command line arguments: " << e.what() << "\n";
 				cout << usage_str;
-				opt_desc.add(opt_desc_general);
-				cout << opt_desc << "\n";
+				cout << opt_desc_full << "\n";
 				return 1;
 			}
 
-			opt_desc.add(opt_desc_general);
-
-			if ( general_opts_map.count("help") || general_opts_map.count("h") ) {
+			if ( general_opts_map.count("help") ) {
 				cout << usage_str;
-				cout << opt_desc << "\n";
-			}
-
-			auto it_ref_in = opts_map.find("refIn");
-			auto it_ref_out = opts_map.find("refSim");
-			string ref_input, ref_output;
-			if(opts_map.end() == it_ref_in){
-				printErr << "refIn option is mandatory.\n";
-				cout << usage_str;
-				cout << opt_desc << "\n";
+				cout << opt_desc_full << "\n";
 			}
 			else{
-				ref_input =  it_ref_in->second.as<string>();
-				printInfo << "Reading reference from " << ref_input << '\n';
-
-				if(opts_map.end() == it_ref_out){
-					printErr << "refSim option is mandatory.\n";
+				auto it_ref_in = opts_map.find("refIn");
+				auto it_ref_out = opts_map.find("refSim");
+				string ref_input, ref_output;
+				if(opts_map.end() == it_ref_in){
+					printErr << "refIn option is mandatory.\n";
 					cout << usage_str;
-					cout << opt_desc << "\n";
+					cout << opt_desc_full << "\n";
 				}
 				else{
-					ref_output = it_ref_out->second.as<string>();
-					printInfo << "Writing reference without N to " << ref_output << '\n';
+					ref_input =  it_ref_in->second.as<string>();
+					printInfo << "Reading reference from " << ref_input << '\n';
 
-					Reference species_reference;
-					if( species_reference.ReadFasta( ref_input.c_str() ) ){
-						auto seed = GetSeed(opts_map);
+					if(opts_map.end() == it_ref_out){
+						printErr << "refSim option is mandatory.\n";
+						cout << usage_str;
+						cout << opt_desc_full << "\n";
+					}
+					else{
+						ref_output = it_ref_out->second.as<string>();
+						printInfo << "Writing reference without N to " << ref_output << '\n';
 
-						species_reference.ReplaceN( seed );
+						Reference species_reference;
+						if( species_reference.ReadFasta( ref_input.c_str() ) ){
+							auto seed = GetSeed(opts_map);
 
-						if( species_reference.WriteFasta( ref_output.c_str() ) ){
-							printInfo << "Finished replacing N's.\n";
+							species_reference.ReplaceN( seed );
+
+							if( species_reference.WriteFasta( ref_output.c_str() ) ){
+								printInfo << "Finished replacing N's.\n";
+							}
 						}
 					}
 				}
@@ -492,40 +491,49 @@ int main(int argc, char *argv[]) {
 			uint64_t max_ref_seq_bin_size;
 			std::string record_base_identifier;
 
-			options_description opt_desc("Allowed options");
+			options_description opt_desc("Stats");
 			opt_desc.add_options() // Returns a special object with defined operator ()
-				("bamIn,b", value<string>(), "Position sorted bam/sam file with reads mapped to refIn")
-				("refIn,r", value<string>(), "Reference sequences in fasta format (gz and bz2 supported)")
 				("adapterFile", value<string>(), "Fasta file with adapter sequences [adapters/TruSeq_v2.fa]")
 				("adapterMatrix", value<string>(), "0/1 matrix with valid adapter pairing (first read in rows, second read in columns) [adapters/TruSeq_v2.mat]")
+				("bamIn,b", value<string>(), "Position sorted bam/sam file with reads mapped to refIn")
 				("binSizeBiasFit", value<uint64_t>(&max_ref_seq_bin_size)->default_value(100000000), "Reference sequences large then this are split for bias fitting to limit memory consumption")
-				("minMapQ", value<uint16_t>(&minimum_mapping_quality)->default_value(10), "Minimum mapping quality to include pairs into statistics")
 				("maxFragLen", value<uint32_t>(&maximum_insert_length)->default_value(2000), "Maximum fragment length to include pairs into statistics")
+				("minMapQ", value<uint16_t>(&minimum_mapping_quality)->default_value(10), "Minimum mapping quality to include pairs into statistics")
 				("noTiles", "Ignore tiles for the statistics [default]")
-				("tiles", "Use tiles for the statistics")
-				("vcfIn,v", value<string>(), "Ignore all positions with a listed variant for stats generation")
+				("refIn,r", value<string>(), "Reference sequences in fasta format (gz and bz2 supported)")
+				("statsOnly", "Only generate the statistics")
 				("statsIn,s", value<string>(), "Skips statistics generation and reads directly from stats file")
 				("statsOut,S", value<string>(), "Stores the real data statistics for reuse in given file [<bamIn>.reseq]")
-				("statsOnly", "Only generate the statistics")
-				("ipfIterations", value<uint16_t>(&ipf_iterations)->default_value(200), "Number of iterations for iterative proportional fitting")
-				("ipfPrecision", value<double>(&ipf_precision)->default_value(5), "Iterative proportional fitting procedure stops after reaching this precision [%]")
-				("probabilitiesIn,p", value<string>(), "Loads last estimated probabilities and continues from there [<statsIn>.ipf]")
+				("tiles", "Use tiles for the statistics")
+				("vcfIn,v", value<string>(), "Ignore all positions with a listed variant for stats generation");
+
+			options_description opt_desc_ipf("Probabilities");
+			opt_desc_ipf.add_options()
+				("ipfIterations", value<uint16_t>(&ipf_iterations)->default_value(200), "Maximum number of iterations for iterative proportional fitting")
+				("ipfPrecision", value<double>(&ipf_precision)->default_value(5), "Iterative proportional fitting procedure stops after reaching this precision (%)")
+				("probabilitiesIn,p", value<string>(), "Loads last estimated probabilities and continues from there if precision is not met [<statsIn>.ipf]")
 				("probabilitiesOut,P", value<string>(), "Stores the probabilities estimated by iterative proportional fitting [<probabilitiesIn>]")
-				("stopAfterEstimation", "Stop after estimating the probabilities")
-				("coverage,c", value<double>(&coverage)->default_value(0.0), "Approximate average read depth simulated")
-				("numReads", value<uint64_t>(&num_read_pairs)->default_value(0), "Approximate number of read pairs simulated [0 = original number of reads]")
+				("stopAfterEstimation", "Stop after estimating the probabilities");
+			opt_desc.add(opt_desc_ipf);
+
+			options_description opt_desc_sim("Simulation");
+			opt_desc_sim.add_options()
+				("firstReadsOut,1", value<string>(), "Writes the simulated first reads into this file [reseq-R1.fq]")
+				("secondReadsOut,2", value<string>(), "Writes the simulated second reads into this file [reseq-R2.fq]")
+				("coverage,c", value<double>(&coverage)->default_value(0.0), "Approximate average read depth simulated (0 = Use <numReads>)")
+				("numReads", value<uint64_t>(&num_read_pairs)->default_value(0), "Approximate number of read pairs simulated (0 = Original number of reads)")
 				("readSysError", value<string>(), "Read systematic errors from file in fastq format (seq=dominant error, qual=error percentage)")
 				("recordBaseIdentifier", value<string>(&record_base_identifier)->default_value("ReseqRead"), "Base Identifier for the simulated fastq records, followed by a count and other information about the read")
-				("refBias", value<string>(), "Way to select the reference biases for simulation (keep[from refIn]/no[biases]/draw[with replacement from refIn]/file) [keep/no]")
+				("refBias", value<string>(), "Way to select the reference biases for simulation (keep [from refIn]/no [biases]/draw [with replacement from original biases]/file) [keep/no]")
 				("refBiasFile", value<string>(), "File to read reference biases from: One sequence per file (identifier bias)")
-				("refSim,R", value<string>(), "Reference sequences in fasta format to simulate from [refIn]")
+				("refSim,R", value<string>(), "Reference sequences in fasta format to simulate from [<refIn>]")
 				("seed", value<uint64_t>(), "Seed used for simulation, if none is given random seed will be used")
-				("vcfSim,V", value<string>(), "Defines genotypes to simulate alleles or populations [<vcfIn>.reseq]")
-				("writeSysError", value<string>(), "Write the randomly drawn systematic errors to file in fastq format (seq=dominant error, qual=error percentage)")
-				("firstReadsOut,1", value<string>(), "Writes the simulated first reads into this file [reseq-R1.fq]")
-				("secondReadsOut,2", value<string>(), "Writes the simulated second reads into this file [reseq-R2.fq]");
+				("vcfSim,V", value<string>(), "Defines genotypes to simulate alleles or populations")
+				("writeSysError", value<string>(), "Write the randomly drawn systematic errors to file in fastq format (seq=dominant error, qual=error percentage)");
+			opt_desc.add(opt_desc_sim);
+			opt_desc_full.add(opt_desc);
 
-			string usage_str = "Usage:    reseq illuminaPE -b <file.bam> -r <ref.fa> -1 <file1.fq> -2 <file2.fq>  [options]\n";
+			string usage_str = "Usage:  reseq illuminaPE -b <file.bam> -r <ref.fa> -1 <file1.fq> -2 <file2.fq> [options]\n";
 			variables_map opts_map;
 			try{
 				store( command_line_parser(unrecognized_opts).options(opt_desc).run(), opts_map );
@@ -534,26 +542,23 @@ int main(int argc, char *argv[]) {
 			catch (const exception& e) {
 				printErr << "Could not parse illuminaPE command line arguments: " << e.what() << "\n";
 				cout << usage_str;
-				opt_desc.add(opt_desc_general);
-				cout << opt_desc << "\n";
+				cout << opt_desc_full << "\n";
 				return 1;
 			}
 
-			opt_desc.add(opt_desc_general);
-
-			if ( general_opts_map.count("help") || general_opts_map.count("h") ) {
+			if ( general_opts_map.count("help") ) {
 				cout << usage_str;
-				cout << opt_desc << "\n";
+				cout << opt_desc_full << "\n";
 			}
 			else if( ipf_precision < 0.0 ){
 				printErr << "ipfPrecision must be positive.\n";
 				cout << usage_str;
-				cout << opt_desc << "\n";
+				cout << opt_desc_full << "\n";
 			}
 			else if(0 != num_read_pairs && 0.0 != coverage){
 				printErr << "numReads and coverage set the same value. Use either the one or the other.\n";
 				cout << usage_str;
-				cout << opt_desc << "\n";
+				cout << opt_desc_full << "\n";
 			}
 			else{
 				auto it_ref_in = opts_map.find("refIn");
@@ -562,7 +567,7 @@ int main(int argc, char *argv[]) {
 				if(opts_map.end() == it_ref_in && opts_map.end() == it_ref_out && (!stop_after_estimation || !opts_map.count("statsIn") || opts_map.count("writeSysError"))){
 					printErr << "refIn or refSim option mandatory.\n";
 					cout << usage_str;
-					cout << opt_desc << "\n";
+					cout << opt_desc_full << "\n";
 				}
 				else{
 					string ref_input, ref_output;
@@ -582,7 +587,7 @@ int main(int argc, char *argv[]) {
 						string stats_file;
 						bool loaded_stats;
 
-						GetDataStats(real_data_stats, stats_file, loaded_stats, stats_only, max_ref_seq_bin_size, opts_map, opt_desc, usage_str, num_threads);
+						GetDataStats(real_data_stats, stats_file, loaded_stats, stats_only, max_ref_seq_bin_size, opts_map, opt_desc_full, usage_str, num_threads);
 
 						if( real_data_stats.TotalNumberReads() && !stats_only ){ // Data stats have been loaded or computed
 							string probs_in, probs_out;
@@ -596,7 +601,7 @@ int main(int argc, char *argv[]) {
 
 									string sys_error_file;
 									uint64_t seed;
-									if( WriteSysError(sys_error_file, seed, stop_after_estimation, opts_map, opt_desc, usage_str, species_reference, real_data_stats, probabilities) ){
+									if( WriteSysError(sys_error_file, seed, stop_after_estimation, opts_map, opt_desc_full, usage_str, species_reference, real_data_stats, probabilities) ){
 										if( !stop_after_estimation ){
 											string sim_output_first, sim_output_second;
 
@@ -635,7 +640,7 @@ int main(int argc, char *argv[]) {
 												else{
 													printErr << "Unknown option for refBias: " << ref_bmodel << std::endl;
 													cout << usage_str;
-													cout << opt_desc << "\n";
+													cout << opt_desc_full << "\n";
 													ref_bias_model = RefSeqBiasSimulation::kError;
 												}
 											}
@@ -646,7 +651,7 @@ int main(int argc, char *argv[]) {
 												if(opts_map.end() == it_ref_bias_file){
 													printErr << "refBiasFile option mandatory if for refBias option file was chosen" << std::endl;
 													cout << usage_str;
-													cout << opt_desc << "\n";
+													cout << opt_desc_full << "\n";
 													ref_bias_model = RefSeqBiasSimulation::kError;
 												}
 												else{
@@ -666,7 +671,7 @@ int main(int argc, char *argv[]) {
 												if(opts_map.end() == it_var_file && opts_map.count("vcfIn") && opts_map.count("statsIn")){
 													printErr << "vcfIn specified but not used as stats were loaded. Did you mean vcfSim?" << std::endl;
 													cout << usage_str;
-													cout << opt_desc << "\n";
+													cout << opt_desc_full << "\n";
 												}
 												else{
 													string var_file("");
@@ -694,7 +699,7 @@ int main(int argc, char *argv[]) {
 		else if ("test" == unrecognized_opts.at(0)) {
 			reseq::AdapterStatsTest::Register();
 			reseq::DataStatsTest::Register();
-			reseq::FragmentDistributionStatsTest::Register();
+			reseq::FragmentDistributionStatsTest::Register(num_threads);
 			reseq::FragmentDuplicationStatsTest::Register();
 			reseq::ProbabilityEstimatesTest::Register();
 			reseq::ReferenceTest::Register();
@@ -706,9 +711,9 @@ int main(int argc, char *argv[]) {
 			
 			cout << " in test mode\n";
 
-			if ( general_opts_map.count("help") || general_opts_map.count("h") ) {
-				cout << "Usage:    reseq test\n";
-				cout << opt_desc_general << "\n";
+			if ( general_opts_map.count("help") ) {
+				cout << "Usage: reseq test\n";
+				cout << opt_desc_full << "\n";
 			}
 			else{
 				bool all_tests_run = false;
