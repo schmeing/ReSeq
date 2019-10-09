@@ -45,27 +45,28 @@ using std::setw;
 using std::min;
 using std::max;
 
-#include "utilities.h"
+//include "utilities.hpp"
+using reseq::uintMarginId;
 using reseq::utilities::CreateDir;
 using reseq::utilities::DeleteFile;
 
-template<uint16_t N> void DataStorage<N>::CombineEndBinsToMinCount(array< vector<uint64_t>, N > &dim_indices, array<Vect<uint64_t>, N> &dim_control){
-	// Start with summing up from both ends until min_counts_per_1d_bin_ is reached for the outermost bins
-	array<uint32_t, N> first_bin, last_bin;
+template<uintMarginId N> void DataStorage<N>::CombineEndBinsToMinCount(array< vector<uintMatrixIndex>, N > &dim_indices, array<Vect<uintMatrixCount>, N> &dim_control){
+	// Start with summing up from both ends until kMinCountsPer1dBin is reached for the outermost bins
+	array<uintMatrixIndex, N> first_bin, last_bin;
 	first_bin.at(0) = dim_control.at(0).from();
 	last_bin.at(0) = dim_control.at(0).to()-1;
-	for( uint16_t cur_dim = 1; cur_dim < dim_control.size(); ++cur_dim){ // Do not do change first dimension!!!
-		// Get the bin, where everything coming after will be added to (to reach min_counts_per_1d_bin_) and update dim_control in the process
+	for( uintMarginId cur_dim = 1; cur_dim < dim_control.size(); ++cur_dim){ // Do not do change first dimension!!!
+		// Get the bin, where everything coming after will be added to (to reach kMinCountsPer1dBin) and update dim_control in the process
 		last_bin.at(cur_dim) = dim_control.at(cur_dim).to()-1;
-		while(dim_control.at(cur_dim).at(last_bin.at(cur_dim)) < min_counts_per_1d_bin_ && last_bin.at(cur_dim) > dim_control.at(cur_dim).from()){
+		while(dim_control.at(cur_dim).at(last_bin.at(cur_dim)) < kMinCountsPer1dBin && last_bin.at(cur_dim) > dim_control.at(cur_dim).from()){
 			dim_control.at(cur_dim).at(last_bin.at(cur_dim)-1) += dim_control.at(cur_dim).at(last_bin.at(cur_dim));
 			dim_control.at(cur_dim).at(last_bin.at(cur_dim)) = 0;
 			--last_bin.at(cur_dim);
 		}
 
-		// Get the bin, where everything before will be added to (to reach min_counts_per_1d_bin_)
+		// Get the bin, where everything before will be added to (to reach kMinCountsPer1dBin)
 		first_bin.at(cur_dim) = dim_control.at(cur_dim).from();
-		while(dim_control.at(cur_dim).at(first_bin.at(cur_dim)) < min_counts_per_1d_bin_ && first_bin.at(cur_dim) < last_bin.at(cur_dim)){
+		while(dim_control.at(cur_dim).at(first_bin.at(cur_dim)) < kMinCountsPer1dBin && first_bin.at(cur_dim) < last_bin.at(cur_dim)){
 			dim_control.at(cur_dim).at(first_bin.at(cur_dim)+1) += dim_control.at(cur_dim).at(first_bin.at(cur_dim));
 			dim_control.at(cur_dim).at(first_bin.at(cur_dim)) = 0;
 			++first_bin.at(cur_dim);
@@ -81,32 +82,32 @@ template<uint16_t N> void DataStorage<N>::CombineEndBinsToMinCount(array< vector
 	}
 
 	// Reduce data_ to the new limits (This part does not have to be reverted later, as we anyways take the outermost bins for everything that is further out)
-	uint16_t dim_a(N), dim_b(N-1);
-	for(uint16_t n=kNumMargins; n--; ){
+	uintMarginId dim_a(N), dim_b(N-1);
+	for(uintMarginId n=kNumMargins; n--; ){
 		if(--dim_a == dim_b){
 			--dim_b;
 			dim_a = N-1;
 		}
 
 		// Add values from bins outside the new limits, to first or last bin (dim_a)
-		for(uint64_t ia = 0; ia < first_bin.at(dim_a); ++ia ){
-			for(uint64_t ib = 0; ib < dim_size_.at(dim_b); ++ib ){
+		for(uintMatrixIndex ia = 0; ia < first_bin.at(dim_a); ++ia ){
+			for(uintMatrixIndex ib = 0; ib < dim_size_.at(dim_b); ++ib ){
 				data_.at(n).at(first_bin.at(dim_a)*dim_size_.at(dim_b)+ib) += data_.at(n).at(ia*dim_size_.at(dim_b)+ib);
 			}
 		}
-		for(uint64_t ia = dim_size_.at(dim_a); --ia > last_bin.at(dim_a); ){
-			for(uint64_t ib = 0; ib < dim_size_.at(dim_b); ++ib ){
+		for(uintMatrixIndex ia = dim_size_.at(dim_a); --ia > last_bin.at(dim_a); ){
+			for(uintMatrixIndex ib = 0; ib < dim_size_.at(dim_b); ++ib ){
 				data_.at(n).at(last_bin.at(dim_a)*dim_size_.at(dim_b)+ib) += data_.at(n).at(ia*dim_size_.at(dim_b)+ib);
 			}
 		}
 		// Add values from bins outside the new limits, to first or last bin (dim_b)
-		for(uint64_t ib = 0; ib < first_bin.at(dim_b); ++ib ){
-			for(uint64_t ia = first_bin.at(dim_a); ia <= last_bin.at(dim_a); ++ia ){ // We can ignore the other indexes as we already added their values
+		for(uintMatrixIndex ib = 0; ib < first_bin.at(dim_b); ++ib ){
+			for(uintMatrixIndex ia = first_bin.at(dim_a); ia <= last_bin.at(dim_a); ++ia ){ // We can ignore the other indexes as we already added their values
 				data_.at(n).at(ia*dim_size_.at(dim_b)+first_bin.at(dim_b)) += data_.at(n).at(ia*dim_size_.at(dim_b)+ib);
 			}
 		}
-		for(uint64_t ib = dim_size_.at(dim_b); --ib > last_bin.at(dim_b); ){
-			for(uint64_t ia = first_bin.at(dim_a); ia <= last_bin.at(dim_a); ++ia ){ // We can ignore the other indexes as we already added their values
+		for(uintMatrixIndex ib = dim_size_.at(dim_b); --ib > last_bin.at(dim_b); ){
+			for(uintMatrixIndex ia = first_bin.at(dim_a); ia <= last_bin.at(dim_a); ++ia ){ // We can ignore the other indexes as we already added their values
 				data_.at(n).at(ia*dim_size_.at(dim_b)+last_bin.at(dim_b)) += data_.at(n).at(ia*dim_size_.at(dim_b)+ib);
 			}
 		}
@@ -114,8 +115,8 @@ template<uint16_t N> void DataStorage<N>::CombineEndBinsToMinCount(array< vector
 		// Remove bins outside the new limits
 		if(dim_indices.at(dim_b).size() != dim_size_.at(dim_b)){
 			// Inner dimension has changed, so instead of deleting small bits here and there, we start from the beginning and copy the new value there and finally cut the rest
-			for(uint64_t ia = 0; ia < dim_indices.at(dim_a).size(); ++ia ){
-				for(uint64_t ib = 0; ib < dim_indices.at(dim_b).size(); ++ib ){
+			for(uintMatrixIndex ia = 0; ia < dim_indices.at(dim_a).size(); ++ia ){
+				for(uintMatrixIndex ib = 0; ib < dim_indices.at(dim_b).size(); ++ib ){
 					data_.at(n).at(ia*dim_indices.at(dim_b).size()+ib) = data_.at(n).at((ia+first_bin.at(dim_a))*dim_size_.at(dim_b)+ib+first_bin.at(dim_b));
 				}
 			}
@@ -129,40 +130,40 @@ template<uint16_t N> void DataStorage<N>::CombineEndBinsToMinCount(array< vector
 	}
 
 	// Update dim_size_ with the new limits (Still needed to reduce data, so only done afterwards)
-	for(uint16_t cur_dim=N; cur_dim--;){
+	for(uintMarginId cur_dim=N; cur_dim--;){
 		dim_size_.at(cur_dim) = dim_indices.at(cur_dim).size();
 	}
 }
 
-template<uint16_t N> void DataStorage<N>::CombineBins(array<vector<uint16_t>, N> &initial_dim_indices_reduced, array<Vect<uint64_t>, N> &dim_control){
-	array<vector<uint16_t>, N> dim_indices_count;
+template<uintMarginId N> void DataStorage<N>::CombineBins(array<vector<uintMatrixIndex>, N> &initial_dim_indices_reduced, array<Vect<uintMatrixCount>, N> &dim_control){
+	array<vector<uintMatrixIndex>, N> dim_indices_count;
 
-	for( uint16_t cur_dim = 0; cur_dim < N; ++cur_dim ){
+	for( uintMarginId cur_dim = 0; cur_dim < N; ++cur_dim ){
 		initial_dim_indices_reduced.at(cur_dim).clear();
 		initial_dim_indices_reduced.at(cur_dim).reserve(dim_control.at(cur_dim).size());
 		dim_indices_count.at(cur_dim).reserve(dim_control.at(cur_dim).size());
 	}
 
 	// First dimension remains unchanged as we later read out this values based on all the other dimensions
-	for(uint32_t bin = 0; bin < dim_control.at(0).size(); ++bin){
+	for(uintMatrixIndex bin = 0; bin < dim_control.at(0).size(); ++bin){
 		initial_dim_indices_reduced.at(0).push_back(bin);
 		dim_indices_count.at(0).push_back(1);
 	}
 
 	// Handle other dimensions
-	for( uint16_t cur_dim = 1; cur_dim < N; ++cur_dim ){ // Do not do anything for first dimension
-		// First and Last bin are above min_counts_per_1d_bin_ already from call to CombineEndBinsToMinCount, except if only one element is left in the vector
+	for( uintMarginId cur_dim = 1; cur_dim < N; ++cur_dim ){ // Do not do anything for first dimension
+		// First and Last bin are above kMinCountsPer1dBin already from call to CombineEndBinsToMinCount, except if only one element is left in the vector
 		if( 1== dim_control.at(cur_dim).size() ){
-			// Counts in the single bin could be lower than min_counts_per_1d_bin_, but we cannot do anything about it
+			// Counts in the single bin could be lower than kMinCountsPer1dBin, but we cannot do anything about it
 			initial_dim_indices_reduced.at(cur_dim).push_back(0);
 			dim_indices_count.at(cur_dim).push_back(1);
 		}
 		else{
-			// Going from left to right combine bins with a count lower than min_counts_per_1d_bin_ with the neighbouring bin that has fewer counts
-			uint32_t new_bin(0), combined_bins(1);
-			for(uint32_t old_bin = 0; old_bin < dim_control.at(cur_dim).size(); ++old_bin){
-				if( min_counts_per_1d_bin_ > dim_control.at(cur_dim).at(old_bin) ){
-					if( dim_control.at(cur_dim).at(old_bin+1) > dim_control.at(cur_dim).at(new_bin-1) ){ // old_bin+1 and new_bin-1 guaranteed to be valid as CombineEndBinsToMinCount called earlier makes sure first and last bin are above min_counts_per_1d_bin_ and don't end up here
+			// Going from left to right combine bins with a count lower than kMinCountsPer1dBin with the neighbouring bin that has fewer counts
+			uintMatrixIndex new_bin(0), combined_bins(1);
+			for(uintMatrixIndex old_bin = 0; old_bin < dim_control.at(cur_dim).size(); ++old_bin){
+				if( kMinCountsPer1dBin > dim_control.at(cur_dim).at(old_bin) ){
+					if( dim_control.at(cur_dim).at(old_bin+1) > dim_control.at(cur_dim).at(new_bin-1) ){ // old_bin+1 and new_bin-1 guaranteed to be valid as CombineEndBinsToMinCount called earlier makes sure first and last bin are above kMinCountsPer1dBin and don't end up here
 						// Next bin bigger, so add to previous bin
 						for(auto i=combined_bins; i--; ){
 							initial_dim_indices_reduced.at(cur_dim).push_back(new_bin-1);
@@ -199,21 +200,21 @@ template<uint16_t N> void DataStorage<N>::CombineBins(array<vector<uint16_t>, N>
 	DataStorage<N> reduced_data;
 	Reduce(reduced_data, initial_dim_indices_reduced, dim_indices_count);
 
-	// Reduce further if necessary, so that we end up below max_bins_per_dimension_
-	array<vector<uint16_t>, N> dim_indices_reduced;
-	reduced_data.Reduce(*this, dim_indices_reduced, dim_indices_count, max_bins_per_dimension_);
+	// Reduce further if necessary, so that we end up below kMaxBinsPerDimension
+	array<vector<uintMatrixIndex>, N> dim_indices_reduced;
+	reduced_data.Reduce(*this, dim_indices_reduced, dim_indices_count, kMaxBinsPerDimension);
 
 	// Integrate dim_indices_reduced from second reduction into initial_dim_indices_reduced from first reduction
 	CombineDimIndices(initial_dim_indices_reduced, dim_indices_reduced);
 }
 
-template<uint16_t N> void DataStorage<N>::FillDiffMatrix(vector<double> &diff_matrix, uint16_t dimension) const{
+template<uintMarginId N> void DataStorage<N>::FillDiffMatrix(vector<double> &diff_matrix, uintMarginId dimension) const{
 	// Fill diff_matrix
 	diff_matrix.clear();
 	diff_matrix.resize(dim_size_.at(dimension)*dim_size_.at(dimension), 0.0);
 
-	uint16_t dim_a(N), dim_b(N-1);
-	for(uint16_t n=kNumMargins; n--; ){
+	uintMarginId dim_a(N), dim_b(N-1);
+	for(uintMarginId n=kNumMargins; n--; ){
 		if(--dim_a == dim_b){
 			--dim_b;
 			dim_a = N-1;
@@ -221,11 +222,11 @@ template<uint16_t N> void DataStorage<N>::FillDiffMatrix(vector<double> &diff_ma
 
 		if(dimension == dim_a || dimension == dim_b){
 			double value1, value2, sum_diff;
-			for(uint32_t ind1=0; ind1 < dim_size_.at(dimension); ind1++){
-				for(uint32_t ind2=ind1+1; ind2 < dim_size_.at(dimension); ind2++){
+			for(uintMatrixIndex ind1=0; ind1 < dim_size_.at(dimension); ind1++){
+				for(uintMatrixIndex ind2=ind1+1; ind2 < dim_size_.at(dimension); ind2++){
 					sum_diff = 0.0;
 					if(dimension == dim_a){
-						for(uint32_t j=0; j < dim_size_.at(dim_b); ++j){
+						for(uintMatrixIndex j=0; j < dim_size_.at(dim_b); ++j){
 							value1 = data_.at(n).at(ind1*dim_size_.at(dim_b)+j);
 							value2 = data_.at(n).at(ind2*dim_size_.at(dim_b)+j);
 
@@ -235,7 +236,7 @@ template<uint16_t N> void DataStorage<N>::FillDiffMatrix(vector<double> &diff_ma
 						}
 					}
 					else{
-						for(uint32_t j=0; j < dim_size_.at(dim_a); ++j){
+						for(uintMatrixIndex j=0; j < dim_size_.at(dim_a); ++j){
 							value1 = data_.at(n).at(j*dim_size_.at(dim_b)+ind1);
 							value2 = data_.at(n).at(j*dim_size_.at(dim_b)+ind2);
 
@@ -252,12 +253,12 @@ template<uint16_t N> void DataStorage<N>::FillDiffMatrix(vector<double> &diff_ma
 	}
 }
 
-template<uint16_t N> double DataStorage<N>::MaxDiff(const vector<double> &diff_matrix, uint16_t combined_index, vector<uint16_t> &same_combined_index, const vector<uint16_t> &dim_indices_reduced, const vector<uint16_t> &dim_indices_count) const{
+template<uintMarginId N> double DataStorage<N>::MaxDiff(const vector<double> &diff_matrix, uintMatrixIndex combined_index, vector<uintMatrixIndex> &same_combined_index, const vector<uintMatrixIndex> &dim_indices_reduced, const vector<uintMatrixIndex> &dim_indices_count) const{
 	double max_diff(0.0);
 
 	if(1 < dim_indices_count.at(combined_index)){ // We need a minimum of 2 values to have a difference
 		same_combined_index.clear();
-		for(uint32_t current_index = dim_indices_reduced.size(); current_index--;){
+		for(uintMatrixIndex current_index = dim_indices_reduced.size(); current_index--;){
 			if(combined_index == dim_indices_reduced.at(current_index)){
 				for(auto comparison_index : same_combined_index){
 					// We go backwards so all comparison_index are higher than current_index which is important as diff_matrix is triangular
@@ -274,21 +275,21 @@ template<uint16_t N> double DataStorage<N>::MaxDiff(const vector<double> &diff_m
 	return max_diff;
 }
 
-template<uint16_t N> bool DataStorage<N>::SetUp(const array< pair< const Vect<Vect<uint64_t>> *, bool>, N*(N-1)/2 > &margins, const Vect<SeqQualityStats<uint64_t>> *alternative_margin, array< vector<uint64_t>, N > &dim_indices, array<vector<uint16_t>, N> &initial_dim_indices_reduced, std::mutex &print_mutex){
+template<uintMarginId N> bool DataStorage<N>::SetUp(const array< pair< const Vect<Vect<uintMatrixCount>> *, bool>, N*(N-1)/2 > &margins, const Vect<SeqQualityStats<uintMatrixCount>> *alternative_margin, array< vector<uintMatrixIndex>, N > &dim_indices, array<vector<uintMatrixIndex>, N> &initial_dim_indices_reduced, std::mutex &print_mutex){
 	// Make sure dim_indices are empty
-	for(uint16_t n=N; n--;){
+	for(uintMarginId n=N; n--;){
 		dim_indices.at(n).clear();
 	}
 
 	// Fill the existing indices(qualities, positions, etc.) for each dimension into vector
-	uint16_t dim_a(N), dim_b(N-1);
-	for(uint16_t n=kNumMargins; n--; ){
+	uintMarginId dim_a(N), dim_b(N-1);
+	for(uintMarginId n=kNumMargins; n--; ){
 		if(--dim_a == dim_b){
 			--dim_b;
 			dim_a = N-1;
 		}
 
-		uint16_t dim_first;
+		uintMarginId dim_first;
 		if(margins.at(n).second){
 			// Indices are flipped (like they are in data_)
 			dim_first = dim_a;
@@ -328,7 +329,7 @@ template<uint16_t N> bool DataStorage<N>::SetUp(const array< pair< const Vect<Ve
 	}
 
 	// Get the number of counts in the matrix, so we can later normalize to 1
-	uint64_t sum_matrix;
+	uintMatrixCount sum_matrix;
 	if(margins.at(0).first){
 		sum_matrix = SumVect(*margins.at(0).first);
 	}
@@ -337,15 +338,15 @@ template<uint16_t N> bool DataStorage<N>::SetUp(const array< pair< const Vect<Ve
 	}
 
 	// Fill in data and check that counts are distributed the same way within a variable in all margins where it appears
-	for(uint16_t cur_dim=N; cur_dim--;){
+	for(uintMarginId cur_dim=N; cur_dim--;){
 		dim_size_.at(cur_dim) = dim_indices.at(cur_dim).size();
 	}
-	array<Vect<uint64_t>, N> dim_control;
-	Vect<uint64_t> dim_control_a, dim_control_b;
+	array<Vect<uintMatrixCount>, N> dim_control;
+	Vect<uintMatrixCount> dim_control_a, dim_control_b;
 
 	dim_a = N;
 	dim_b = N-1;
-	for(uint16_t n=kNumMargins; n--; ){
+	for(uintMarginId n=kNumMargins; n--; ){
 		if(--dim_a == dim_b){
 			--dim_b;
 			dim_a = N-1;
@@ -358,10 +359,10 @@ template<uint16_t N> bool DataStorage<N>::SetUp(const array< pair< const Vect<Ve
 		// Set the vectors to the proper size
 		data_.at(n).resize(dim_size_.at(dim_a)*dim_size_.at(dim_b));
 
-		for(uint64_t ia = 0; ia < dim_size_.at(dim_a); ++ia ){
+		for(uintMatrixIndex ia = 0; ia < dim_size_.at(dim_a); ++ia ){
 			// Fill the vectors
-			for(uint64_t ib = 0; ib < dim_size_.at(dim_b); ++ib ){
-				uint64_t index_first, index_second;
+			for(uintMatrixIndex ib = 0; ib < dim_size_.at(dim_b); ++ib ){
+				uintMatrixIndex index_first, index_second;
 				if(margins.at(n).second){
 					// Indices are flipped (like they are in data_)
 					index_first = dim_indices.at(dim_a).at(ia);
@@ -393,15 +394,15 @@ template<uint16_t N> bool DataStorage<N>::SetUp(const array< pair< const Vect<Ve
 		if(dim_control.at(dim_a).size()){
 			if(! (dim_control_a == dim_control.at(dim_a)) ){
 				print_mutex.lock();
-				printErr << "The dimension " << dim_a << " is inconsistent in margin " << n << ":\n";
+				printErr << "The dimension " << dim_a << " is inconsistent in margin " << n << ":" << std::endl;
 				for(auto element : dim_control_a){
 					std::cout << element << ' ';
 				}
-				std::cout << '\n';
+				std::cout << std::endl;
 				for(auto element : dim_control.at(dim_a)){
 					std::cout << element << ' ';
 				}
-				std::cout << '\n';
+				std::cout << std::endl;
 				print_mutex.unlock();
 				return false;
 			}
@@ -413,15 +414,15 @@ template<uint16_t N> bool DataStorage<N>::SetUp(const array< pair< const Vect<Ve
 		if(dim_control.at(dim_b).size()){
 			if(! (dim_control_b == dim_control.at(dim_b)) ){
 				print_mutex.lock();
-				printErr << "The dimension " << dim_b << " is inconsistent in margin " << n << ":\n";
+				printErr << "The dimension " << dim_b << " is inconsistent in margin " << n << ":" << std::endl;
 				for(auto element : dim_control_b){
 					std::cout << element << ' ';
 				}
-				std::cout << '\n';
+				std::cout << std::endl;
 				for(auto element : dim_control.at(dim_b)){
 					std::cout << element << ' ';
 				}
-				std::cout << '\n';
+				std::cout << std::endl;
 				print_mutex.unlock();
 				return false;
 			}
@@ -431,22 +432,22 @@ template<uint16_t N> bool DataStorage<N>::SetUp(const array< pair< const Vect<Ve
 		}
 	}
 
-	// Initial reduction of data that is only reverted after all the fitting (Reversion in LogIPF.FullExpansion): Combining 1d-bins that have less than min_counts_per_1d_bin_ entries and reduce data so it has max_bins_per_dimension_ (First dimension must not be changed, as this are the values we want to read out)
+	// Initial reduction of data that is only reverted after all the fitting (Reversion in LogIPF.FullExpansion): Combining 1d-bins that have less than kMinCountsPer1dBin entries and reduce data so it has kMaxBinsPerDimension (First dimension must not be changed, as this are the values we want to read out)
 	CombineEndBinsToMinCount(dim_indices, dim_control);
 	CombineBins(initial_dim_indices_reduced, dim_control);
 
 	return true;
 }
 
-template<uint16_t N> void DataStorage<N>::Reduce(DataStorage<N> &reduced_data, const array<vector<uint16_t>, N> &dim_indices_reduced, const array<vector<uint16_t>, N> &dim_indices_count) const{
+template<uintMarginId N> void DataStorage<N>::Reduce(DataStorage<N> &reduced_data, const array<vector<uintMatrixIndex>, N> &dim_indices_reduced, const array<vector<uintMatrixIndex>, N> &dim_indices_count) const{
 	// Set the new dimension sizes
-	for(uint16_t n=N; n--; ){
+	for(uintMarginId n=N; n--; ){
 		reduced_data.dim_size_.at(n) = dim_indices_count.at(n).size();
 	}
 
 	// Sum the data based on dim_indices_reduced
-	uint16_t dim_a(N), dim_b(N-1);
-	for(uint16_t n=kNumMargins; n--; ){
+	uintMarginId dim_a(N), dim_b(N-1);
+	for(uintMarginId n=kNumMargins; n--; ){
 		if(--dim_a == dim_b){
 			--dim_b;
 			dim_a = N-1;
@@ -464,9 +465,9 @@ template<uint16_t N> void DataStorage<N>::Reduce(DataStorage<N> &reduced_data, c
 	}
 }
 
-template<uint16_t N> void DataStorage<N>::Reduce(DataStorage<N> &reduced_data, array<vector<uint16_t>, N> &dim_indices_reduced, array<vector<uint16_t>, N> &dim_indices_count, uint16_t max_size_dim) const{
+template<uintMarginId N> void DataStorage<N>::Reduce(DataStorage<N> &reduced_data, array<vector<uintMatrixIndex>, N> &dim_indices_reduced, array<vector<uintMatrixIndex>, N> &dim_indices_count, uintMatrixIndex max_size_dim) const{
 	vector<double> diff_matrix;
-	vector<uint32_t> seed_indeces;
+	vector<uintMatrixIndex> seed_indeces;
 
 	for(auto dimension=N; dimension--; ){
 		if(dim_size_.at(dimension) > max_size_dim){
@@ -475,9 +476,9 @@ template<uint16_t N> void DataStorage<N>::Reduce(DataStorage<N> &reduced_data, a
 			// Split the max_size_dim most separate values to generate a seed
 			// Start by taking the two most different values
 			double max_element(0.0);
-			uint32_t max_ind1(0), max_ind2(0);
-			for(uint32_t ind1=0; ind1 < dim_size_.at(dimension); ind1++){
-				for(uint32_t ind2=ind1+1; ind2 < dim_size_.at(dimension); ind2++){
+			uintMatrixIndex max_ind1(0), max_ind2(0);
+			for(uintMatrixIndex ind1=0; ind1 < dim_size_.at(dimension); ind1++){
+				for(uintMatrixIndex ind2=ind1+1; ind2 < dim_size_.at(dimension); ind2++){
 					if(diff_matrix.at(ind1*dim_size_.at(dimension)+ind2) > max_element){
 						max_element = diff_matrix.at(ind1*dim_size_.at(dimension)+ind2);
 						max_ind1 = ind1;
@@ -496,7 +497,7 @@ template<uint16_t N> void DataStorage<N>::Reduce(DataStorage<N> &reduced_data, a
 				dim_indices_reduced.at(dimension).at(seed_indeces.at(red_ind)) = red_ind;
 			}
 
-			uint32_t max_ind;
+			uintMatrixIndex max_ind;
 			double max_value, min_value, current_value;
 			while(seed_indeces.size() < max_size_dim){
 				// Add the next seed index by choosing the one with the highest minimal differences to all already chosen seed values
@@ -541,7 +542,7 @@ template<uint16_t N> void DataStorage<N>::Reduce(DataStorage<N> &reduced_data, a
 			// Join everything with the closest seed value
 			for(auto ind=dim_size_.at(dimension); ind--; ){
 				if(max_size_dim == dim_indices_reduced.at(dimension).at(ind)){ // No reduced index has been assigned yet, so it is not one of the seed indeces
-					uint16_t min_red_ind = 0;
+					uintMatrixIndex min_red_ind = 0;
 					double current_value, min_value(std::numeric_limits<double>::max());
 
 					// Find closest seed index
@@ -582,10 +583,10 @@ template<uint16_t N> void DataStorage<N>::Reduce(DataStorage<N> &reduced_data, a
 	Reduce(reduced_data, dim_indices_reduced, dim_indices_count);
 }
 
-template<uint16_t N> bool DataStorage<N>::Expand(DataStorage<N> &reduced_data, array<vector<uint16_t>, N> &dim_indices_reduced, array<vector<uint16_t>, N> &dim_indices_count, array<vector<uint16_t>, N> &expansion_indices, array<vector<uint16_t>, N> &expansion_count, uint16_t max_duplications) const{
+template<uintMarginId N> bool DataStorage<N>::Expand(DataStorage<N> &reduced_data, array<vector<uintMatrixIndex>, N> &dim_indices_reduced, array<vector<uintMatrixIndex>, N> &dim_indices_count, array<vector<uintMatrixIndex>, N> &expansion_indices, array<vector<uintMatrixIndex>, N> &expansion_count, uintMatrixIndex max_duplications) const{
 	// Check need of duplications
-	uint16_t duplications_needed(0);
-	array<uint16_t, N> dim_new_size;
+	uintMatrixIndex duplications_needed(0);
+	array<uintMatrixIndex, N> dim_new_size;
 
 	for(auto dimension=N; dimension--; ){
 		for( auto tmp_value = dim_indices_count.at(dimension).size(); tmp_value < dim_size_.at(dimension); tmp_value *= 2 ){
@@ -601,7 +602,7 @@ template<uint16_t N> bool DataStorage<N>::Expand(DataStorage<N> &reduced_data, a
 	// Distribute duplications
 	if(duplications_needed > max_duplications){
 		// Distribute max_duplications equally, in ties favoring the ones that need more
-		uint16_t duplications(0), dupl_dimension;
+		uintMatrixIndex duplications(0), dupl_dimension;
 
 		while(duplications < max_duplications){
 			dupl_dimension = N;
@@ -632,7 +633,7 @@ template<uint16_t N> bool DataStorage<N>::Expand(DataStorage<N> &reduced_data, a
 
 	// Apply duplications
 	vector<double> diff_matrix, max_diff;
-	vector<uint16_t> same_combined_index;
+	vector<uintMatrixIndex> same_combined_index;
 	for(auto dimension=N; dimension--; ){
 		if(dim_new_size.at(dimension) >= dim_size_.at(dimension)){
 			// We can expand to the original data so we do
@@ -649,7 +650,7 @@ template<uint16_t N> bool DataStorage<N>::Expand(DataStorage<N> &reduced_data, a
 			// Prepare new sizes
 			expansion_indices.at(dimension).reserve(dim_size_.at(dimension)); // It will become this size after final expansions
 			expansion_indices.at(dimension).resize(dim_new_size.at(dimension));
-			for( uint16_t ind=dim_indices_count.at(dimension).size(); ind--; ){
+			for( uintMatrixIndex ind=dim_indices_count.at(dimension).size(); ind--; ){
 				expansion_indices.at(dimension).at(ind) = ind; // The indexes we already have are staying were they are
 			}
 
@@ -666,14 +667,14 @@ template<uint16_t N> bool DataStorage<N>::Expand(DataStorage<N> &reduced_data, a
 			max_diff.reserve(dim_new_size.at(dimension));
 			max_diff.resize(expansion_count.at(dimension).size(), 0.0);
 
-			for(uint16_t combined_index = max_diff.size(); combined_index--; ){
+			for(uintMatrixIndex combined_index = max_diff.size(); combined_index--; ){
 				max_diff.at(combined_index) = MaxDiff(diff_matrix, combined_index, same_combined_index, dim_indices_reduced.at(dimension), dim_indices_count.at(dimension));
 			}
 
 			// Do the expansion by splitting the indexes with max difference
 			while(max_diff.size() < dim_new_size.at(dimension)){
 				// Pick combined index to split
-				uint16_t split_index = 0;
+				uintMatrixIndex split_index = 0;
 				for( auto ind = max_diff.size(); --ind; ){
 					// Pick the one with the highest difference and in a tie with the highest number of combined indices
 					if( max_diff.at(ind) > max_diff.at(split_index) || (max_diff.at(ind) == max_diff.at(split_index) && dim_indices_count.at(dimension).at(ind) > dim_indices_count.at(dimension).at(split_index)) ){
@@ -682,9 +683,9 @@ template<uint16_t N> bool DataStorage<N>::Expand(DataStorage<N> &reduced_data, a
 				}
 
 				// Find indexes to split in the combined index
-				uint16_t split_ind1(0), split_ind2(0);
+				uintMatrixIndex split_ind1(0), split_ind2(0);
 				same_combined_index.clear();
-				for(uint32_t current_index = dim_size_.at(dimension); current_index-- && split_ind1 == split_ind2;){
+				for(uintMatrixIndex current_index = dim_size_.at(dimension); current_index-- && split_ind1 == split_ind2;){
 					if(split_index == dim_indices_reduced.at(dimension).at(current_index)){
 						for(auto comparison_index : same_combined_index){
 							// We go backwards so all comparison_index are higher than current_index which is important as diff_matrix is triangular
@@ -706,7 +707,7 @@ template<uint16_t N> bool DataStorage<N>::Expand(DataStorage<N> &reduced_data, a
 
 				// Distribute indexes between the two new combined indexes minimizing difference
 				double diff1, diff2;
-				for(uint32_t current_index = dim_size_.at(dimension); current_index--;){
+				for(uintMatrixIndex current_index = dim_size_.at(dimension); current_index--;){
 					if(split_index == dim_indices_reduced.at(dimension).at(current_index)){
 						if(current_index < split_ind1){
 							diff1 = diff_matrix.at(current_index*dim_size_.at(dimension)+split_ind1);
@@ -743,7 +744,7 @@ template<uint16_t N> bool DataStorage<N>::Expand(DataStorage<N> &reduced_data, a
 	return true; // We did an expansion
 }
 
-void ProbabilityEstimates::SetVariables(uint16_t num_tiles){
+void ProbabilityEstimates::SetVariables(uintTileId num_tiles){
 	error_during_fitting_ = false;
 	precision_improved_ = false;
 
@@ -762,12 +763,12 @@ void ProbabilityEstimates::SetVariables(uint16_t num_tiles){
 void ProbabilityEstimates::IterativeProportionalFitting(
 		const DataStats &stats,
 		IPFDataSelector selected_data,
-		uint16_t template_segment,
-		uint16_t tile_id,
-		uint16_t ref_base,
-		uint16_t dom_error,
-		uint16_t last_ref_base,
-		uint16_t max_iterations,
+		uintTempSeq template_segment,
+		uintTileId tile_id,
+		uintBaseCall ref_base,
+		uintBaseCall dom_error,
+		uintBaseCall last_ref_base,
+		uintNumFits max_iterations,
 		double precision_aim
 		){
 	switch(selected_data){
@@ -775,7 +776,7 @@ void ProbabilityEstimates::IterativeProportionalFitting(
 		if( stats.Qualities().BaseQualityForErrorRateReference(template_segment, tile_id, ref_base).size() ){
 			// Something has to be done as data is not empty
 			// Start with defining the margins (Dimension order: quality, sequence quality, previous quality, position, error rate)
-			array< pair<const Vect<Vect<uint64_t>> *, bool>, 10 > margins;
+			array< pair<const Vect<Vect<uintMatrixCount>> *, bool>, 10 > margins;
 			auto alternative_margin = DefineMarginsQuality(stats, margins, template_segment, tile_id, ref_base);
 
 			// Write the description for printing
@@ -800,7 +801,7 @@ void ProbabilityEstimates::IterativeProportionalFitting(
 		if( stats.Qualities().SequenceQualityMeanForGCPerTileReference(template_segment, tile_id).size() ){
 			// Something has to be done as data is not empty
 			// Start with defining the margins (Dimension order: quality, previous quality, position, error rate)
-			array< pair<const Vect<Vect<uint64_t>> *, bool>, 6 > margins;
+			array< pair<const Vect<Vect<uintMatrixCount>> *, bool>, 6 > margins;
 			auto alternative_margin = DefineMarginsSequenceQuality(stats, margins, template_segment, tile_id);
 
 			// Write the description for printing
@@ -825,7 +826,7 @@ void ProbabilityEstimates::IterativeProportionalFitting(
 		if( stats.Qualities().BaseQualityForErrorRateReference(template_segment, tile_id, ref_base, dom_error).size() ){
 			// Something has to be done as data is not empty
 			// Start with defining the margins (Dimension order: called base, quality, position, error number, error rate)
-			array< pair<const Vect<Vect<uint64_t>> *, bool>, 10 > margins;
+			array< pair<const Vect<Vect<uintMatrixCount>> *, bool>, 10 > margins;
 			auto alternative_margin = DefineMarginsBaseCall(stats, margins, template_segment, tile_id, ref_base, dom_error);
 
 			// Write the description for printing
@@ -850,7 +851,7 @@ void ProbabilityEstimates::IterativeProportionalFitting(
 		if( stats.Coverage().GCByDistance(ref_base, last_ref_base, dom_error).size() ){
 			// Something has to be done as data is not empty
 			// Start with defining the margins (Dimension order: dominant error, distance, gc)
-			array< pair<const Vect<Vect<uint64_t>> *, bool>, 3 > margins;
+			array< pair<const Vect<Vect<uintMatrixCount>> *, bool>, 3 > margins;
 			DefineMarginsDominantError(stats, margins, ref_base, last_ref_base, dom_error);
 
 			// Write the description for printing
@@ -875,7 +876,7 @@ void ProbabilityEstimates::IterativeProportionalFitting(
 		if( stats.Coverage().GCByDistance(ref_base, dom_error).size() ){
 			// Something has to be done as data is not empty
 			// Start with defining the margins (Dimension order: error rate, distance, gc)
-			array< pair<const Vect<Vect<uint64_t>> *, bool>, 3 > margins;
+			array< pair<const Vect<Vect<uintMatrixCount>> *, bool>, 3 > margins;
 			DefineMarginsErrorRate(stats, margins, ref_base, dom_error);
 
 			// Write the description for printing
@@ -900,7 +901,7 @@ void ProbabilityEstimates::IterativeProportionalFitting(
 		if( stats.Errors().InDelByInDelPos(template_segment, last_ref_base).size() ){
 			// Something has to be done as data is not empty
 			// Start with defining the margins (Dimension order: error rate, distance, gc)
-			array< pair<const Vect<Vect<uint64_t>> *, bool>, 6 > margins;
+			array< pair<const Vect<Vect<uintMatrixCount>> *, bool>, 6 > margins;
 			DefineMarginsIndels(stats, margins, template_segment, last_ref_base);
 
 			// Write the description for printing
@@ -924,7 +925,7 @@ void ProbabilityEstimates::IterativeProportionalFitting(
 	}
 }
 
-void ProbabilityEstimates::IPFThread(ProbabilityEstimates &self, const DataStats &stats, const std::vector<IPFThreadParams> &params, uint16_t max_iterations, double precision_aim){
+void ProbabilityEstimates::IPFThread(ProbabilityEstimates &self, const DataStats &stats, const std::vector<IPFThreadParams> &params, uintNumFits max_iterations, double precision_aim){
 	decltype(params.size()) cur_par(self.current_param_++);
 
 	for(; cur_par < params.size() && !self.error_during_fitting_; cur_par = self.current_param_++){
@@ -1003,7 +1004,7 @@ bool ProbabilityEstimates::Load( const char *archive_file ){
 		ia >> *this;
 	}
 	catch(const exception& e){
-		printErr<< "Could not load probability estimates from '" << archive_file << "': " << e.what() << "\n";
+		printErr<< "Could not load probability estimates from '" << archive_file << "': " << e.what() << std::endl;
 		return false;
 	}
 
@@ -1026,76 +1027,76 @@ bool ProbabilityEstimates::Save( const char *archive_file ) const{
 		oa << *this;
 	}
 	catch(const exception& e){
-		printErr<< "Could not save probability estimates to '" << archive_file << "': " << e.what() << "\n";
+		printErr<< "Could not save probability estimates to '" << archive_file << "': " << e.what() << std::endl;
 		return false;
 	}
 
 	return true;
 }
 
-bool ProbabilityEstimates::Estimate(const DataStats &stats, uint16_t max_iterations, double precision_aim, uint16_t num_threads, const char *output, const char *input){
+bool ProbabilityEstimates::Estimate(const DataStats &stats, uintNumFits max_iterations, double precision_aim, uintNumThreads num_threads, const char *output, const char *input){
 	if( string("") == input){
-		printInfo << "Starting new probability estimates\n";
+		printInfo << "Starting new probability estimates" << std::endl;
 		SetVariables(stats.Tiles().NumTiles());
 	}
 	else{
-		printInfo << "Loading probability estimates from '" << input << "'\n";
+		printInfo << "Loading probability estimates from '" << input << "'" << std::endl;
 		if( !this->Load(input) ){
 			return false;
 		}
 
 		if(quality_.at(0).size() != stats.Tiles().NumTiles()){
-			printErr << "Tile numbers do not match! Loaded estimation has " << quality_.at(0).size() << " tiles, loaded statistics have " << stats.Tiles().NumTiles() << " tiles. Did you create one with deactivated tiles?\n";
+			printErr << "Tile numbers do not match! Loaded estimation has " << quality_.at(0).size() << " tiles, loaded statistics have " << stats.Tiles().NumTiles() << " tiles. Did you create one with deactivated tiles?" << std::endl;
 			return false;
 		}
 	}
 
-	printInfo << "Aiming for a precision lower than " << precision_aim << "%\n";
-	printInfo << "Using a maximum of " << max_iterations << " iterations\n";
+	printInfo << "Aiming for a precision lower than " << precision_aim << "%" << std::endl;
+	printInfo << "Using a maximum of " << max_iterations << " iterations" << std::endl;
 
 	// Collect the different parameters determining the different matrices that have to be calculated
 	vector<IPFThreadParams> params;
 	params.reserve( (2*4 + 2*4*5 + 2)*stats.Tiles().NumTiles() + 5*5*4-4 + 5*4 + 2*6 );
-	for(uint16_t template_segment=0; template_segment<2; ++template_segment){
-		for(uint16_t tile_id=0; tile_id<stats.Tiles().NumTiles(); ++tile_id){
-			for( uint16_t ref_base = base_call_.at(template_segment).at(tile_id).size(); ref_base--; ){
+	for(uintTempSeq template_segment=0; template_segment<2; ++template_segment){
+		for(uintTileId tile_id=0; tile_id<stats.Tiles().NumTiles(); ++tile_id){
+			for( uintBaseCall ref_base = base_call_.at(template_segment).at(tile_id).size(); ref_base--; ){
 				params.push_back( {kIPFQuality,template_segment,tile_id,ref_base,0,0} );
 			}
 		}
 	}
-	for(uint16_t template_segment=0; template_segment<2; ++template_segment){
-		for(uint16_t tile_id=0; tile_id<stats.Tiles().NumTiles(); ++tile_id){
-			for( uint16_t ref_base = base_call_.at(template_segment).at(tile_id).size(); ref_base--; ){
-				for( uint16_t dom_error = base_call_.at(template_segment).at(tile_id).at(ref_base).size(); dom_error--; ){
+	for(uintTempSeq template_segment=0; template_segment<2; ++template_segment){
+		for(uintTileId tile_id=0; tile_id<stats.Tiles().NumTiles(); ++tile_id){
+			for( uintBaseCall ref_base = base_call_.at(template_segment).at(tile_id).size(); ref_base--; ){
+				for( uintBaseCall dom_error = base_call_.at(template_segment).at(tile_id).at(ref_base).size(); dom_error--; ){
 					params.push_back( {kIPFBaseCall,template_segment,tile_id,ref_base,dom_error,0} );
 				}
 			}
 		}
 	}
 
-	std::array< std::pair<const Vect<Vect<uint64_t>> *, bool>, 3 > seq_qual_margins;
-	for(uint16_t template_segment=0; template_segment<2; ++template_segment){
-		for(uint16_t tile_id=0; tile_id<stats.Tiles().NumTiles(); ++tile_id){
+	std::array< std::pair<const Vect<Vect<uintMatrixCount>> *, bool>, 3 > seq_qual_margins;
+	for(uintTempSeq template_segment=0; template_segment<2; ++template_segment){
+		for(uintTileId tile_id=0; tile_id<stats.Tiles().NumTiles(); ++tile_id){
 			params.push_back( {kIPFSequenceQuality,template_segment,tile_id,0,0,0} );
 		}
 	}
 
-	std::array< std::pair<const Vect<Vect<uint64_t>> *, bool>, 3 > dom_error_margins, error_rate_margins;
-	for( uint16_t ref_base = 4; ref_base--; ){
-		for( uint16_t dom_error = 5; dom_error--; ){
+	std::array< std::pair<const Vect<Vect<uintMatrixCount>> *, bool>, 3 > dom_error_margins, error_rate_margins;
+	for( uintBaseCall ref_base = 4; ref_base--; ){
+		for( uintBaseCall dom_error = 5; dom_error--; ){
 			if(ref_base != dom_error){
 				params.push_back( {kIPFErrorRate,0,0,ref_base,dom_error,0} );
 			}
 
-			for( uint16_t last_ref_base = 5; last_ref_base--; ){
+			for( uintBaseCall last_ref_base = 5; last_ref_base--; ){
 				params.push_back( {kIPFDominantError,0,0,ref_base,dom_error,last_ref_base} );
 			}
 		}
 	}
 
-	std::array< std::pair<const Vect<Vect<uint64_t>> *, bool>, 6 > indel_margins;
-	for(uint16_t type=0; type<2; ++type){
-		for( uint16_t last_call=6; last_call--; ){
+	std::array< std::pair<const Vect<Vect<uintMatrixCount>> *, bool>, 6 > indel_margins;
+	for(uintInDelType type=0; type<2; ++type){
+		for( uintBaseCall last_call=6; last_call--; ){
 			params.push_back( {kIPFInDels,type,0,0,0,last_call} );
 		}
 	}
@@ -1121,10 +1122,10 @@ bool ProbabilityEstimates::Estimate(const DataStats &stats, uint16_t max_iterati
 	if(max_iterations){
 		if( precision_improved_ ){
 			if( string("") == input){
-				printInfo << "Writing probability estimates to " << output << '\n';
+				printInfo << "Writing probability estimates to " << output << std::endl;
 			}
 			else{
-				printInfo << "Updating probability estimates in " << output << '\n';
+				printInfo << "Updating probability estimates in " << output << std::endl;
 			}
 
 			if( !this->Save(output) ){
@@ -1132,11 +1133,11 @@ bool ProbabilityEstimates::Estimate(const DataStats &stats, uint16_t max_iterati
 			}
 		}
 		else{
-			printInfo << "Precision aim already met by loaded probabilities. Probabilities won't be updated.\n";
+			printInfo << "Precision aim already met by loaded probabilities. Probabilities won't be updated." << std::endl;
 		}
 	}
 	else{
-		printInfo << "No iterations allowed. Probabilities could not be improved.\n";
+		printInfo << "No iterations allowed. Probabilities could not be improved." << std::endl;
 	}
 
 	return true;

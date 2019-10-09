@@ -100,8 +100,8 @@ void AdapterStatsTest::TestAdapters(const AdapterStats &test){
 	TestLoading(test);
 
 	// The tests below were done manually and are not updated yet with verification commands
-	for( uint16_t i=0; i < test.counts_.size(); ++i  ){
-		for( uint16_t j=0; j < test.counts_[i].size(); ++j  ){
+	for( uintAdapterId i=0; i < test.counts_.size(); ++i  ){
+		for( uintAdapterId j=0; j < test.counts_[i].size(); ++j  ){
 			if( 8==i && 1==j ){
 				EXPECT_EQ(59, test.counts_[i][j].size()) << "Combination " << test.names_[0][i] << ' ' << test.names_[1][j] << " is not detected properly\n";
 				EXPECT_EQ(2, test.counts_[i][j][100][100]) << "Position 0 not correctly detected\n";

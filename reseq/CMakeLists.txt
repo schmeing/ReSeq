@@ -1,7 +1,7 @@
 # Own libraries
 set(PRIVATE_COMPILE_OPTIONS -Wall -Wextra -Wno-sign-compare -Wno-implicit-fallthrough)
 
-add_library(DataStats STATIC DataStats.cpp AdapterStats.cpp CoverageStats.cpp ErrorStats.cpp FragmentDistributionStats.cpp FragmentDuplicationStats.cpp QualityStats.cpp TileStats.cpp Reference.cpp utilities.cpp)
+add_library(DataStats STATIC DataStats.cpp AdapterStats.cpp CoverageStats.cpp ErrorStats.cpp FragmentDistributionStats.cpp FragmentDuplicationStats.cpp QualityStats.cpp TileStats.cpp Reference.cpp)
 target_link_libraries(DataStats skewer_matrix)
 target_link_libraries(DataStats nlopt)
 target_link_libraries(DataStats ${SEQAN_LIBRARIES})

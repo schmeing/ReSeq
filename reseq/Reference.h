@@ -10,7 +10,7 @@
 #include <seqan/seq_io.h>
 #include <seqan/vcf_io.h>
 
-#include "utilities.h"
+#include "utilities.hpp"
 #include "Vect.hpp"
 
 namespace reseq{
@@ -21,23 +21,25 @@ namespace reseq{
 #ifndef SWIG // This part is not needed for the python plotting and swig can't handle the nested classes
 		class Variant{
 		public:
-			uint32_t position_;
-			seqan::DnaString var_seq_;
-			uint64_t allele_;
+			static const uintAlleleId kMaxAlleles = 64; // One bit per allele is needed and uint64_t is used for allele_
 
-			template<typename T> Variant(uint32_t position, const T &var_seq, uint64_t allele):
+			uintSeqLen position_;
+			seqan::DnaString var_seq_;
+			uintAlleleBitArray allele_;
+
+			template<typename T> Variant(uintSeqLen position, const T &var_seq, uintAlleleBitArray allele):
 				position_(position),
 				var_seq_(var_seq),
 				allele_(allele){
 			}
 
-			inline bool InAllele(uint16_t allele) const{
+			inline bool InAllele(uintAlleleId allele) const{
 				return (allele_ >> allele) & 1; // Get bit corresponding to allele
 			}
 
-			inline uint16_t FirstAllele() const{
+			inline uintAlleleId FirstAllele() const{
 				if(allele_){
-					uint16_t first = 0;
+					uintAlleleId first = 0;
 					while(!InAllele(first)){
 						++first;
 					}
@@ -53,23 +55,18 @@ namespace reseq{
 		};
 #endif //SWIG
 
-		static const uint16_t num_surrounding_blocks_ = 3; // Number of surrounding blocks
-		static const uint16_t surrounding_range_ = 10; // Length of a single surrounding block
+		static const uintSurBlockId num_surrounding_blocks_ = 3; // Number of surrounding blocks
+		static const uintSeqLen surrounding_range_ = 10; // Length of a single surrounding block
 		static const int16_t surrounding_start_pos_ = -10; // Position where the surrounding should start relative to the first base in the fragment (so -10 is 10 bases before the fragment) [-num_surrounding_blocks_*surrounding_range_ < surrounding_start_pos_ <= 0]
-		static uint32_t SurroundingSize(){
+		static uintSeqLen SurroundingSize(){
 			return 1 << 2*surrounding_range_;
 		}
 
-#ifndef SWIG // This part is not needed for the python plotting
-		static seqan::FunctorComplement<seqan::Dna5> Complementor;
-		static seqan::Dna5String ReverseComplementor(seqan::Dna5String org){
-			return seqan::ModifiedString< seqan::ModifiedString<const seqan::Dna5String, seqan::ModComplementDna5>, seqan::ModReverse>(org);
-		}
-#endif //SWIG
+		static const uintSeqLen kMinDistToRefSeqEnds = 50; // Minimum distance from reference sequence ends to be taken into account for statistics so mapping issues at the border are avoided
 
 	private:
-		const uint16_t min_dist_to_ref_seq_ends_; // Minimum distance from reference sequence ends to be taken into account for statistics so mapping issues at the border are avoided
-		const uint32_t max_n_in_fragment_site_; // The maximum number of n that is allowed in a fragment site to be counted for the bias calculation as it is highly likely that the fragment length and GC from those sites are wrong and highly unlikely that real fragments are found in this regions
+		const uintSeqLen kMaxNInFragmentSite = 50; // The maximum number of n that is allowed in a fragment site to be counted for the bias calculation as it is highly likely that the fragment length and GC from those sites are wrong and highly unlikely that real fragments are found in this regions
+		const uintErrorCount kMaxErrorsShownPerFile = 50;
 
 		static seqan::CharString dummy_charstring_;
 		static seqan::Dna5String dummy_dna5string_;
@@ -77,7 +74,7 @@ namespace reseq{
 		seqan::StringSet<seqan::CharString> reference_ids_;
 		seqan::StringSet<seqan::Dna5String> reference_sequences_;
 
-		inline seqan::CharString &RefId( seqan::Size<decltype(reference_ids_)>::Type n ){
+		inline seqan::CharString &RefId( uintRefSeqId n ){
 			if( length(reference_ids_) > n ){
 				return reference_ids_[n];
 			}
@@ -88,7 +85,7 @@ namespace reseq{
 			}
 		}
 
-		inline seqan::Dna5String &RefSeq( seqan::Size<decltype(reference_sequences_)>::Type n ){
+		inline seqan::Dna5String &RefSeq( uintRefSeqId n ){
 			if( length(reference_sequences_) > n ){
 				return reference_sequences_[n];
 			}
@@ -100,24 +97,24 @@ namespace reseq{
 		}
 
 #ifndef SWIG // This part is not needed for the python plotting
-		uint16_t num_alleles_;
+		uintAlleleId num_alleles_;
 		seqan::VcfFileIn vcf_file_;
 		seqan::VcfRecord cur_vcf_record_; // Already read but not yet handled vcf record (mostly the first of the next reference sequence, that is not yet prepared)
-		std::atomic<uint32_t> read_variation_for_num_sequences_;
-		std::atomic<uint32_t> cleared_variation_for_num_sequences_;
+		std::atomic<uintRefSeqId> read_variation_for_num_sequences_;
+		std::atomic<uintRefSeqId> cleared_variation_for_num_sequences_;
 		std::vector<std::vector<Reference::Variant>> variants_; // variants_[RefSeqId][PositionSortedVariantID] = {Position,VarSeq,[Yes/No per allele]}
-		std::vector<std::vector<uint32_t>> variant_positions_; // variant_positions_[RefSeqId][PositionSortedVariantID] = VariantPosition
+		std::vector<std::vector<uintSeqLen>> variant_positions_; // variant_positions_[RefSeqId][PositionSortedVariantID] = VariantPosition
 
 		bool CheckVcf() const;
 
-		template<typename T> void InsertVariant(uint32_t ref_seq_id, uint32_t position, const T &var_seq, uint64_t allele){
+		template<typename T> void InsertVariant(uintRefSeqId ref_seq_id, uintSeqLen position, const T &var_seq, uintAlleleBitArray allele){
 			if(0 == variants_.at(ref_seq_id).size()){
 				variants_.at(ref_seq_id).emplace_back(position, var_seq, allele);
 			}
 			else{
 				// Check if variant is already added
 				auto insert_it=variants_.at(ref_seq_id).end(); // Have variant at same position sorted by length: deletion/substitution/insertion(by length)
-				uint32_t var=variants_.at(ref_seq_id).size();
+				auto var=variants_.at(ref_seq_id).size();
 				while(0 < var && variants_.at(ref_seq_id).at(--var).position_ == position){
 					if(variants_.at(ref_seq_id).at(var).var_seq_ == var_seq){
 						// Variation is already in, so only adjust allele
@@ -135,30 +132,38 @@ namespace reseq{
 		}
 
 		inline bool ReadFirstVcfRecord();
-		bool ReadVariants(uint32_t end_ref_seq_id, bool positions_only);
+		bool ReadVariants(uintRefSeqId end_ref_seq_id, bool positions_only);
 		void CloseVcfFile();
 #endif //SWIG
 
-		inline void UpdateGC( seqan::Size<seqan::Dna5String>::Type &gc, uint32_t &n_count, const seqan::Dna5String &ref_seq, seqan::Size<seqan::Dna5String>::Type old_pos, seqan::Size<seqan::Dna5String>::Type new_pos ) const{
+		inline void UpdateGC( uintSeqLen &gc, uintSeqLen &n_count, const seqan::Dna5String &ref_seq, uintSeqLen old_pos, uintSeqLen new_pos ) const{
 			// Account for new position in fragment
-			if( 1 == ref_seq[new_pos] || 2 == ref_seq[new_pos] ){
+			if( utilities::IsGC(ref_seq, new_pos) ){
 				gc += 1;
 			}
-			else if( 3 < ref_seq[new_pos]){
+			else if( utilities::IsN(ref_seq, new_pos) ){
 				++n_count;
 			}
 
 			// Account for removed position from fragment
-			if( 1 == ref_seq[old_pos] || 2 == ref_seq[old_pos] ){
+			if( utilities::IsGC(ref_seq, old_pos) ){
 				gc -= 1;
 			}
-			else if( 3 < ref_seq[old_pos]){
+			else if( utilities::IsN(ref_seq, old_pos) ){
 				--n_count;
 			}
 		}
 
-		uint32_t ForwardSurroundingBlock( seqan::Size<decltype(reference_sequences_)>::Type ref_seq_id, uint64_t pos ) const;
-		uint32_t ReverseSurroundingBlock( seqan::Size<decltype(reference_sequences_)>::Type ref_seq_id, uint64_t pos ) const;
+		intSurrounding ForwardSurroundingBlock( uintRefSeqId ref_seq_id, uintSeqLen sur_start_pos, uintSurBlockId block ) const;
+		intSurrounding ReverseSurroundingBlock( uintRefSeqId ref_seq_id, uintSeqLen sur_start_pos, uintSurBlockId block ) const;
+
+		inline uintBaseCall NewForwardSurroundingBase(const seqan::Dna5String &ref_seq, uintSeqLen new_fragment_start, uintSurBlockId block) const{
+			return ref_seq[(length(ref_seq) + (block+1)*surrounding_range_ + new_fragment_start-1 + surrounding_start_pos_)%length(ref_seq)];
+		}
+
+		inline uintBaseCall NewReverseSurroundingBase(const seqan::Dna5String &ref_seq, uintSeqLen new_fragment_end, uintSurBlockId block) const{
+			return utilities::Complement::Dna5(ref_seq[(length(ref_seq) + new_fragment_end - surrounding_start_pos_ - block*surrounding_range_)%length(ref_seq)]);
+		}
 
 		static inline double Bias( double general, double gc, const std::array<double, num_surrounding_blocks_> &start_sur, const std::array<double, num_surrounding_blocks_> &end_sur ){
 			double bias = general * gc;
@@ -171,7 +176,7 @@ namespace reseq{
 			return  bias;
 		}
 
-		void AddFragmentSite(std::vector<FragmentSite> &sites, uint32_t fragment_length, uint32_t gc, uint32_t n_count, const std::array<int32_t, num_surrounding_blocks_> &start_sur, const std::array<int32_t, num_surrounding_blocks_> &end_sur) const;
+		void AddFragmentSite(std::vector<FragmentSite> &sites, uintSeqLen fragment_length, uintSeqLen gc, uintSeqLen n_count, const std::array<intSurrounding, num_surrounding_blocks_> &start_sur, const std::array<intSurrounding, num_surrounding_blocks_> &end_sur) const;
 
 		// Google test
 		friend class ReferenceTest;
@@ -186,15 +191,12 @@ namespace reseq{
 		inline uint16_t SurroundingStartPos() const{
 			return surrounding_start_pos_;
 		}
-		inline uint16_t MinDistToRefSeqEnds() const{
-			return min_dist_to_ref_seq_ends_;
-		}
 
-		inline seqan::Size<decltype(reference_ids_)>::Type NumberSequences() const{
+		inline uintRefSeqId NumberSequences() const{
 			return length(reference_ids_);
 		}
 
-		inline const seqan::CharString &ReferenceId( seqan::Size<decltype(reference_ids_)>::Type n ) const{
+		inline const seqan::CharString &ReferenceId( uintRefSeqId n ) const{
 			if( length(reference_ids_) > n ){
 				return reference_ids_[n];
 			}
@@ -205,9 +207,9 @@ namespace reseq{
 			}
 		}
 
-		const seqan::Prefix<const seqan::CharString>::Type ReferenceIdFirstPart( seqan::Size<decltype(reference_ids_)>::Type n ) const;
+		const seqan::Prefix<const seqan::CharString>::Type ReferenceIdFirstPart( uintRefSeqId n ) const;
 
-		inline const seqan::Dna5String &ReferenceSequence( seqan::Size<decltype(reference_sequences_)>::Type n ) const{
+		inline const seqan::Dna5String &ReferenceSequence( uintRefSeqId n ) const{
 			if( length(reference_sequences_) > n ){
 				return reference_sequences_[n];
 			}
@@ -218,49 +220,51 @@ namespace reseq{
 			}
 		}
 
-		void ReferenceSequence(seqan::DnaString &insert_string, seqan::Size<decltype(reference_sequences_)>::Type seq_id, seqan::Size<seqan::Dna5String>::Type start_pos, seqan::Size<seqan::Dna5String>::Type min_length, bool reversed=false, seqan::Size<seqan::Dna5String>::Type seq_size=0) const;
+		void ReferenceSequence(seqan::DnaString &insert_string, uintRefSeqId seq_id, uintSeqLen start_pos, uintSeqLen min_length, bool reversed=false, uintSeqLen seq_size=0) const;
 #ifndef SWIG // This part is not needed for the python plotting and swig can't handle the nested classes
-		void ReferenceSequence(seqan::DnaString &insert_string, seqan::Size<decltype(reference_sequences_)>::Type seq_id, seqan::Size<seqan::Dna5String>::Type start_pos, seqan::Size<seqan::Dna5String>::Type min_length, bool reversed, const std::vector<Variant> &variants, std::pair<int32_t, uint16_t> first_variant, uint16_t allele, seqan::Size<seqan::Dna5String>::Type seq_size=0) const;
+		void ReferenceSequence(seqan::DnaString &insert_string, uintRefSeqId seq_id, uintSeqLen start_pos, uintSeqLen min_length, bool reversed, const std::vector<Variant> &variants, std::pair<intVariantId, uintSeqLen> first_variant, uintAlleleId allele, uintSeqLen seq_size=0) const;
 #endif //SWIG
 
-		inline const seqan::Dna5String &operator[]( seqan::Size<decltype(reference_sequences_)>::Type n ) const{
+		inline const seqan::Dna5String &operator[]( uintRefSeqId n ) const{
 			return ReferenceSequence(n);
 		}
 
-		seqan::Size<seqan::Dna5String>::Type SequenceLength( seqan::Size<decltype(reference_sequences_)>::Type n ) const{
+		uint32_t SequenceLength( uintRefSeqId n ) const{
 			return length(ReferenceSequence(n));
 		}
 
-		seqan::Size<seqan::Dna5String>::Type MaxSequenceLength() const{
-			seqan::Size<seqan::Dna5String>::Type max(0);
-			for(uint32_t seq=0; seq < NumberSequences(); ++seq){
+		uintSeqLen MaxSequenceLength() const{
+			uintSeqLen max(0);
+			for(uintRefSeqId seq=0; seq < NumberSequences(); ++seq){
 				utilities::SetToMax(max, SequenceLength(seq));
 			}
 			return max;
 		}
 
-		uint64_t TotalSize() const;
+		uintRefLenCalc TotalSize() const;
 
-		void RefSeqsSortedByNxx(std::vector<std::pair<double, uint32_t>> &ref_seqs) const;
-		uint32_t RefSeqsInNxx(std::vector<bool> &ref_seqs, double nxx_ref_seqs) const;
-		uint32_t NumRefSeqBinsInNxx(const std::vector<bool> &ref_seqs, uint64_t max_ref_seq_bin_length) const;
+		void RefSeqsSortedByNxx(std::vector<std::pair<double, uintRefSeqId>> &ref_seqs) const;
+		uintRefSeqId RefSeqsInNxx(std::vector<bool> &ref_seqs, double nxx_ref_seqs) const;
+		uintRefSeqBin NumRefSeqBinsInNxx(const std::vector<bool> &ref_seqs, uintSeqLen max_ref_seq_bin_length) const;
 
-		inline bool GC( seqan::Size<decltype(reference_sequences_)>::Type seq_id, seqan::Size<seqan::Dna5String>::Type pos ) const{
-			return ( 'G' == ReferenceSequence(seq_id)[pos] || 'C' == ReferenceSequence(seq_id)[pos] );
+		inline bool GC( uintRefSeqId seq_id, uintSeqLen pos ) const{
+			return utilities::IsGC( ReferenceSequence(seq_id), pos );
 		}
 
-		inline bool N( seqan::Size<decltype(reference_sequences_)>::Type seq_id, seqan::Size<seqan::Dna5String>::Type pos ) const{
-			return ( 'N' == ReferenceSequence(seq_id)[pos] );
+		inline bool N( uintRefSeqId seq_id, uintSeqLen pos ) const{
+			return utilities::IsN( ReferenceSequence(seq_id), pos );
 		}
 
-		inline uint64_t GCContentAbsolut( uint32_t &n_count, seqan::Size<decltype(reference_sequences_)>::Type seq_id, seqan::Size<seqan::Dna5String>::Type start_pos, seqan::Size<seqan::Dna5String>::Type end_pos ) const{
-			uint64_t gc = 0;
+		inline uintSeqLen GCContentAbsolut( uintSeqLen &n_count, uintRefSeqId seq_id, uintSeqLen start_pos, uintSeqLen end_pos ) const{
+			uintSeqLen gc = 0;
+			n_count = 0;
 
+			const auto &seq(ReferenceSequence(seq_id));
 			for( auto i = start_pos; i < end_pos; ++i ){
-				if( GC(seq_id, i) ){
+				if( utilities::IsGC(seq, i) ){
 					++gc;
 				}
-				else if( N(seq_id, i) ){
+				else if( utilities::IsN(seq, i) ){
 					++n_count;
 				}
 			}
@@ -268,59 +272,44 @@ namespace reseq{
 			return gc;
 		}
 
-		inline void UpdateGC( seqan::Size<seqan::Dna5String>::Type &gc, uint32_t &n_count, seqan::Size<decltype(reference_sequences_)>::Type seq_id, seqan::Size<seqan::Dna5String>::Type old_pos, seqan::Size<seqan::Dna5String>::Type new_pos ) const{
-			// Account for new position in fragment
-			if( GC(seq_id, new_pos) ){
-				gc += 1;
-			}
-			else if( N(seq_id, new_pos) ){
-				++n_count;
-			}
-
-			// Account for removed position from fragment
-			if( GC(seq_id, old_pos) ){
-				gc -= 1;
-			}
-			else if( N(seq_id, old_pos) ){
-				--n_count;
-			}
+		inline uintSeqLen GCContentAbsolut( uintRefSeqId seq_id, uintSeqLen start_pos, uintSeqLen end_pos ) const{
+			uintSeqLen n_count(0);
+			return GCContentAbsolut( n_count, seq_id, start_pos, end_pos );
 		}
 
-		inline unsigned char GCContent( seqan::Size<decltype(reference_sequences_)>::Type seq_id, seqan::Size<seqan::Dna5String>::Type start_pos, seqan::Size<seqan::Dna5String>::Type end_pos ) const{ // end_pos like basically everywhere else is the position after the last element that still should be counted
-			uint32_t n_count(0);
+		inline void UpdateGC( uintSeqLen &gc, uintSeqLen &n_count, uintRefSeqId seq_id, uintSeqLen old_pos, uintSeqLen new_pos ) const{
+			UpdateGC(gc, n_count, ReferenceSequence(seq_id), old_pos, new_pos);
+		}
+
+		inline unsigned char GCContent( uintRefSeqId seq_id, uintSeqLen start_pos, uintSeqLen end_pos ) const{ // end_pos like basically everywhere else is the position after the last element that still should be counted
+			uintSeqLen n_count(0);
 			auto gc = GCContentAbsolut(n_count, seq_id, start_pos, end_pos);
-			if( end_pos-start_pos > n_count){
-				return reseq::utilities::Percent(gc, end_pos-start_pos-n_count);
-			}
-			else{
-				return 50;
-			}
+
+			return reseq::utilities::SafePercent(gc, end_pos-start_pos-n_count);
 		}
 
-		void ForwardSurrounding(std::array<uint32_t, num_surrounding_blocks_> &surroundings, seqan::Size<decltype(reference_sequences_)>::Type ref_seq_id, seqan::Size<seqan::Dna5String>::Type pos ) const{
+		void ForwardSurrounding(std::array<intSurrounding, num_surrounding_blocks_> &surroundings, uintRefSeqId ref_seq_id, uintSeqLen pos ) const{
 			// Other blocks
 			for(auto block=0; block < num_surrounding_blocks_; ++block){
 				// Add SequenceLength(ref_seq_id) to avoid negative positions if block reaches over lower sequence ends so it wraps around and start at the end
 				// The higher sequence end is covered by the called function as long as the given position is still a valid position and not higher or equal to the length
-				surroundings.at(block) = ForwardSurroundingBlock(ref_seq_id, (SequenceLength(ref_seq_id)+pos+block*surrounding_range_+surrounding_start_pos_)%SequenceLength(ref_seq_id));
+				surroundings.at(block) = ForwardSurroundingBlock(ref_seq_id, pos, block);
 			}
 		}
 
-		void ForwardSurroundingWithN(std::array<int32_t, num_surrounding_blocks_> &surroundings, seqan::Size<decltype(reference_sequences_)>::Type ref_seq_id, seqan::Size<seqan::Dna5String>::Type pos ) const{
+		void ForwardSurroundingWithN(std::array<intSurrounding, num_surrounding_blocks_> &surroundings, uintRefSeqId ref_seq_id, uintSeqLen pos ) const{
 			const seqan::Dna5String &ref_seq(ReferenceSequence(ref_seq_id));
-			uint16_t new_value;
-			uint64_t block_pos(pos+surrounding_start_pos_);
+			uintBaseCall new_value;
+			uintSeqLen block_pos(pos+surrounding_start_pos_);
 			for(auto block=0; block < num_surrounding_blocks_; ++block){
 				surroundings.at(block) = 0;
 				for( auto ref_pos = block_pos; ref_pos < block_pos+surrounding_range_; ++ref_pos ){
-					new_value = static_cast<uint16_t>(ref_seq[ref_pos]);
-					if(3 < new_value){
-						// N
-						surroundings.at(block) = static_cast<int32_t>(block_pos)-ref_pos-1;
+					new_value = ref_seq[ref_pos];
+					if(utilities::IsN(new_value)){
+						surroundings.at(block) = static_cast<intSurrounding>(block_pos)-ref_pos-1;
 						for( auto ref_pos2 = block_pos+surrounding_range_; --ref_pos2 > ref_pos; ){
-							new_value = static_cast<uint16_t>(ref_seq[ref_pos2]);
-							if(3 < new_value){
-								surroundings.at(block) = static_cast<int32_t>(block_pos)-ref_pos2-1;
+							if(utilities::IsN(ref_seq, ref_pos2)){
+								surroundings.at(block) = static_cast<intSurrounding>(block_pos)-ref_pos2-1;
 								break; // Last N is only interesting one
 							}
 						}
@@ -334,28 +323,22 @@ namespace reseq{
 			}
 		}
 
-		void ReverseSurrounding(std::array<uint32_t, num_surrounding_blocks_> &surroundings,  seqan::Size<decltype(reference_sequences_)>::Type ref_seq_id, seqan::Size<seqan::Dna5String>::Type pos ) const{
+		void ReverseSurrounding(std::array<intSurrounding, num_surrounding_blocks_> &surroundings, uintRefSeqId ref_seq_id, uintSeqLen pos ) const{
 			for(auto block=0; block < num_surrounding_blocks_; ++block){
-				if(pos+1-surrounding_start_pos_ < (block+1)*surrounding_range_){
-					surroundings.at(block) = ReverseSurroundingBlock(ref_seq_id, SequenceLength(ref_seq_id)+pos+1-surrounding_start_pos_-(block+1)*surrounding_range_);
-				}
-				else{
-					surroundings.at(block) = ReverseSurroundingBlock(ref_seq_id, pos+1-surrounding_start_pos_-(block+1)*surrounding_range_);
-				}
+				surroundings.at(block) = ReverseSurroundingBlock(ref_seq_id, pos, block);
 			}
 		}
 
-		void ReverseSurroundingWithN(std::array<int32_t, num_surrounding_blocks_> &surroundings,  seqan::Size<decltype(reference_sequences_)>::Type ref_seq_id, seqan::Size<seqan::Dna5String>::Type pos ) const{
-			const seqan::ModifiedString<const seqan::Dna5String, seqan::ModComplementDna5> ref_seq(ReferenceSequence(ref_seq_id));
-			uint16_t new_value;
-			uint64_t block_pos(pos+1-surrounding_start_pos_-surrounding_range_);
+		void ReverseSurroundingWithN(std::array<intSurrounding, num_surrounding_blocks_> &surroundings, uintRefSeqId ref_seq_id, uintSeqLen pos ) const{
+			utilities::ComplementedConstDna5String ref_seq(ReferenceSequence(ref_seq_id));
+			uintBaseCall new_value;
+			uintSeqLen block_pos(pos+1-surrounding_start_pos_-surrounding_range_);
 			for(auto block=0; block < num_surrounding_blocks_; ++block){
 				surroundings.at(block) = 0;
 				for( auto ref_pos = block_pos+surrounding_range_; ref_pos-- > block_pos; ){
-					new_value = static_cast<uint16_t>(ref_seq[ref_pos]);
-					if(3 < new_value){
-						// N
-						surroundings.at(block) = static_cast<int32_t>(block_pos)-ref_pos-1;
+					new_value = ref_seq[ref_pos];
+					if(utilities::IsN(new_value)){
+						surroundings.at(block) = static_cast<intSurrounding>(block_pos)-ref_pos-1;
 						break; // We don't need to calculate surrounding anymore as it is invalidated by N and we already have last N
 					}
 					else{
@@ -366,25 +349,24 @@ namespace reseq{
 			}
 		}
 
-		inline void UpdateForwardSurrounding( std::array<uint32_t, num_surrounding_blocks_> &sur, const seqan::Dna5String &ref_seq, seqan::Size<seqan::Dna5String>::Type new_fragment_start ) const{
+		inline void UpdateForwardSurrounding( std::array<intSurrounding, num_surrounding_blocks_> &sur, const seqan::Dna5String &ref_seq, uintSeqLen new_fragment_start ) const{
 			for(auto block=sur.size(); block--; ){
-				sur.at(block) = (sur.at(block) << 2)%SurroundingSize() + static_cast<uint16_t>(ref_seq[(new_fragment_start-1+surrounding_start_pos_+(block+1)*surrounding_range_)%length(ref_seq)]);
+				sur.at(block) = (sur.at(block) << 2)%SurroundingSize() + NewForwardSurroundingBase(ref_seq, new_fragment_start, block);
 			}
 		}
 
-		inline void UpdateForwardSurroundingWithN( std::array<int32_t, num_surrounding_blocks_> &sur, const seqan::Dna5String &ref_seq, seqan::Size<seqan::Dna5String>::Type new_fragment_start, seqan::Size<seqan::Dna5String>::Type ref_seq_id ) const{
-			uint16_t new_base;
+		inline void UpdateForwardSurroundingWithN( std::array<intSurrounding, num_surrounding_blocks_> &sur, const seqan::Dna5String &ref_seq, uintSeqLen new_fragment_start, uintSeqLen ref_seq_id ) const{
+			uintBaseCall new_base;
 			for(auto block=sur.size(); block--; ){
-				new_base = ref_seq[new_fragment_start-1+surrounding_start_pos_+(block+1)*surrounding_range_];
+				new_base = NewForwardSurroundingBase(ref_seq, new_fragment_start, block);
 
-				if(3 < new_base){
-					// N
+				if(utilities::IsN(new_base)){
 					sur.at(block) = -surrounding_range_; // Wait surrounding_range_ positions until calculating surrounding again
 				}
 				else if(0 > sur.at(block)){
 					if(-1 == sur.at(block)){
 						// Calculate current surrounding
-						sur.at(block) = static_cast<int32_t>( ForwardSurroundingBlock(ref_seq_id, new_fragment_start+surrounding_start_pos_+block*surrounding_range_) );
+						sur.at(block) = ForwardSurroundingBlock(ref_seq_id, new_fragment_start, block);
 					}
 					else{
 						++(sur.at(block));
@@ -397,25 +379,24 @@ namespace reseq{
 			}
 		}
 
-		inline void UpdateReverseSurrounding( std::array<uint32_t, num_surrounding_blocks_> &sur, const seqan::Dna5String &ref_seq, seqan::Size<seqan::Dna5String>::Type new_fragment_end ) const{
+		inline void UpdateReverseSurrounding( std::array<intSurrounding, num_surrounding_blocks_> &sur, const seqan::Dna5String &ref_seq, uintSeqLen new_fragment_end ) const{
 			for(auto block=sur.size(); block--; ){
-				sur.at(block) = (sur.at(block) + static_cast<uint16_t>(Complementor(ref_seq[(length(ref_seq)+new_fragment_end-surrounding_start_pos_-block*surrounding_range_)%length(ref_seq)]))*SurroundingSize())/4;
+				sur.at(block) = (sur.at(block) + NewReverseSurroundingBase(ref_seq, new_fragment_end, block)*SurroundingSize())/4;
 			}
 		}
 
-		inline void UpdateReverseSurroundingWithN( std::array<int32_t, num_surrounding_blocks_> &sur, const seqan::Dna5String &ref_seq, seqan::Size<seqan::Dna5String>::Type new_fragment_end, seqan::Size<seqan::Dna5String>::Type ref_seq_id ) const{
-			uint16_t new_base;
+		inline void UpdateReverseSurroundingWithN( std::array<intSurrounding, num_surrounding_blocks_> &sur, const seqan::Dna5String &ref_seq, uintSeqLen new_fragment_end, uintSeqLen ref_seq_id ) const{
+			uintBaseCall new_base;
 			for(auto block=sur.size(); block--; ){
-				new_base = ref_seq[new_fragment_end-surrounding_start_pos_-block*surrounding_range_];
+				new_base = NewReverseSurroundingBase(ref_seq, new_fragment_end, block);
 
-				if(3 < new_base){
-					// N
+				if(utilities::IsN(new_base)){
 					sur.at(block) = -surrounding_range_; // Wait surrounding_range_ positions until calculating surrounding again
 				}
 				else if(0 > sur.at(block)){
 					if(-1 == sur.at(block)){
 						// Calculate current surrounding
-						sur.at(block) = static_cast<int32_t>( ReverseSurroundingBlock(ref_seq_id, new_fragment_end+1-surrounding_start_pos_-(block+1)*surrounding_range_) );
+						sur.at(block) = ReverseSurroundingBlock(ref_seq_id, new_fragment_end, block);
 					}
 					else{
 						++(sur.at(block));
@@ -423,14 +404,14 @@ namespace reseq{
 				}
 				else{
 					// No N: Update surrounding normally
-					sur.at(block) = (sur.at(block) + static_cast<uint16_t>(Complementor(new_base))*SurroundingSize())/4;
+					sur.at(block) = (sur.at(block) + new_base*SurroundingSize())/4;
 				}
 			}
 		}
 
-		inline void RollBackReverseSurrounding( std::array<uint32_t, num_surrounding_blocks_> &sur, const seqan::Dna5String &ref_seq, seqan::Size<seqan::Dna5String>::Type new_fragment_end ) const{
+		inline void RollBackReverseSurrounding( std::array<intSurrounding, num_surrounding_blocks_> &sur, const seqan::Dna5String &ref_seq, uintSeqLen new_fragment_end ) const{
 			for(auto block=sur.size(); block--; ){
-				sur.at(block) = ((sur.at(block)<<2) + static_cast<uint16_t>(Complementor(ref_seq[(length(ref_seq)+new_fragment_end-surrounding_start_pos_-(block+1)*surrounding_range_+1)%length(ref_seq)])))%SurroundingSize();
+				sur.at(block) = ((sur.at(block)<<2) + static_cast<uintBaseCall>(utilities::Complement::Dna5(ref_seq[(length(ref_seq)+new_fragment_end-surrounding_start_pos_-(block+1)*surrounding_range_+1)%length(ref_seq)])))%SurroundingSize();
 			}
 		}
 
@@ -441,48 +422,48 @@ namespace reseq{
 		static inline double Bias( double ref_seq, double fragment_length, double gc, const std::array<double, num_surrounding_blocks_> &start_sur, const std::array<double, num_surrounding_blocks_> &end_sur ){
 			return Bias(ref_seq*fragment_length, gc, start_sur, end_sur);
 		}
-		double SumBias(std::vector<utilities::VectorAtomic<uint64_t>> &gc_sites, seqan::Size<decltype(reference_sequences_)>::Type ref_seq_id, seqan::Size<seqan::Dna5String>::Type fragment_length, double general_bias, const Vect<double> &gc_bias, const std::array<std::vector<double>, num_surrounding_blocks_> &sur_bias) const;
-		double SumBias(double &max_bias, seqan::Size<decltype(reference_sequences_)>::Type ref_seq_id, seqan::Size<seqan::Dna5String>::Type fragment_length, double general_bias, const Vect<double> &gc_bias, const std::array<std::vector<double>, num_surrounding_blocks_> &sur_bias) const;
-		void GetFragmentSites(std::vector<FragmentSite> &sites, seqan::Size<decltype(reference_sequences_)>::Type ref_seq_id, seqan::Size<seqan::Dna5String>::Type fragment_length, uint32_t start, uint32_t end) const;
+		double SumBias(std::vector<utilities::VectorAtomic<uintFragCount>> &gc_sites, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, double general_bias, const Vect<double> &gc_bias, const std::array<std::vector<double>, num_surrounding_blocks_> &sur_bias) const;
+		double SumBias(double &max_bias, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, double general_bias, const Vect<double> &gc_bias, const std::array<std::vector<double>, num_surrounding_blocks_> &sur_bias) const;
+		void GetFragmentSites(std::vector<FragmentSite> &sites, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintSeqLen start, uintSeqLen end) const;
 #endif //SWIG
 
 		bool ReadFasta(const char *fasta_file);
-		void ReplaceN( uint64_t seed );
-		bool hasN() const;
+		void ReplaceN( uintSeed seed );
+		bool HasN() const;
 		bool WriteFasta(const char *fasta_file) const;
 
 #ifndef SWIG // This part is not needed for the python plotting
-		inline uint16_t NumAlleles() const{ return num_alleles_; }
+		inline uintAlleleId NumAlleles() const{ return num_alleles_; }
 		inline bool VariantsLoaded() const{ return variants_.size(); }
 		inline bool VariantPositionsLoaded() const{ return variant_positions_.size(); }
-		inline bool VariantsLoadedForSequence(uint32_t ref_seq_id) const{ return read_variation_for_num_sequences_ >= ref_seq_id; }
-		inline bool VariantPositionsLoadedForSequence(uint32_t ref_seq_id) const{ return read_variation_for_num_sequences_ >= ref_seq_id; }
+		inline bool VariantsLoadedForSequence(uintRefSeqId ref_seq_id) const{ return read_variation_for_num_sequences_ >= ref_seq_id; }
+		inline bool VariantPositionsLoadedForSequence(uintRefSeqId ref_seq_id) const{ return read_variation_for_num_sequences_ >= ref_seq_id; }
 		inline bool VariantsCompletelyLoaded() const{ return read_variation_for_num_sequences_ >= NumberSequences(); }
 		inline bool VariantPositionsCompletelyLoaded() const{ return read_variation_for_num_sequences_ >= NumberSequences(); }
-		inline const std::vector<Reference::Variant> &Variants(uint32_t ref_seq_id) const{ return variants_.at(ref_seq_id); }
-		inline const std::vector<uint32_t> &VariantPositions(uint32_t ref_seq_id) const{ return variant_positions_.at(ref_seq_id); }
+		inline const std::vector<Reference::Variant> &Variants(uintRefSeqId ref_seq_id) const{ return variants_.at(ref_seq_id); }
+		inline const std::vector<uintRefSeqId> &VariantPositions(uintRefSeqId ref_seq_id) const{ return variant_positions_.at(ref_seq_id); }
 
 		bool PrepareVariantFile(const std::string &var_file);
-		inline bool ReadVariants(uint32_t end_ref_seq_id){ return ReadVariants(end_ref_seq_id, false); };
-		inline bool ReadVariantPositions(uint32_t end_ref_seq_id){ return ReadVariants(end_ref_seq_id, true); };
+		inline bool ReadVariants(uintRefSeqId end_ref_seq_id){ return ReadVariants(end_ref_seq_id, false); };
+		inline bool ReadVariantPositions(uintRefSeqId end_ref_seq_id){ return ReadVariants(end_ref_seq_id, true); };
 		bool ReadFirstVariants();
 		bool ReadFirstVariantPositions();
-		void ClearVariants(uint32_t end_ref_seq_id);
-		void ClearVariantPositions(uint32_t end_ref_seq_id);
+		void ClearVariants(uintRefSeqId end_ref_seq_id);
+		void ClearVariantPositions(uintRefSeqId end_ref_seq_id);
 		void ClearAllVariants();
 		void ClearAllVariantPositions();
 #endif //SWIG
 	};
 
 	struct FragmentSite{
-		uint16_t gc_;
-		std::array<int32_t, Reference::num_surrounding_blocks_> start_surrounding_;
-		std::array<int32_t, Reference::num_surrounding_blocks_> end_surrounding_;
-		uint32_t count_forward_;
-		uint32_t count_reverse_;
+		uintPercent gc_;
+		std::array<intSurrounding, Reference::num_surrounding_blocks_> start_surrounding_;
+		std::array<intSurrounding, Reference::num_surrounding_blocks_> end_surrounding_;
+		uintDupCount count_forward_;
+		uintDupCount count_reverse_;
 		double bias_;
 
-		FragmentSite(uint16_t gc, const std::array<int32_t, Reference::num_surrounding_blocks_> &start_sur, const std::array<int32_t, Reference::num_surrounding_blocks_> &end_sur):
+		FragmentSite(uintPercent gc, const std::array<intSurrounding, Reference::num_surrounding_blocks_> &start_sur, const std::array<intSurrounding, Reference::num_surrounding_blocks_> &end_sur):
 			gc_(gc),
 			start_surrounding_(start_sur),
 			end_surrounding_(end_sur),

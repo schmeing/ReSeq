@@ -411,7 +411,7 @@ void QualityStatsTest::TestTiles(const QualityStats &test){
 
 	EXPECT_EQ(1, test.base_quality_stats_per_tile_[0][1][0][20][39]) << "base_quality_stats_per_tile_[0][1][0][20][39] wrong in tile test\n";
 	EXPECT_EQ(1, test.base_quality_stats_per_tile_[1][3][0][20][39]) << "base_quality_stats_per_tile_[1][3][0][20][39] wrong in tile test\n";
-	SeqQualityStats<uint64_t> stats = test.base_quality_stats_per_tile_[0][0][0][18];
+	SeqQualityStats<uintNucCount> stats = test.base_quality_stats_per_tile_[0][0][0][18];
 	stats.Calculate();
 	EXPECT_EQ(38, stats.mean_) << "base_quality_stats_per_tile_[0][0][0][18].mean_ wrong in tile test\n";
 	EXPECT_EQ(1, test.base_quality_stats_per_tile_[0][0][1][20][7]) << "base_quality_stats_per_tile_[0][0][1][20][7] wrong in tile test\n";
@@ -438,9 +438,9 @@ void QualityStatsTest::TestTiles(const QualityStats &test){
 }
 
 void QualityStatsTest::TestDuplicates(const QualityStats &test){
-	uint64_t val_q, val_pq;
-	for( uint32_t pos = 1; pos < 50; ++pos ){
-		for( uint16_t ref_base = 4; ref_base--; ){
+	uintNucCount val_q, val_pq;
+	for( uintReadLen pos = 1; pos < 50; ++pos ){
+		for( uintBaseCall ref_base = 4; ref_base--; ){
 			val_q = 0;
 			val_pq = 0;
 			for( auto num_bases : test.base_quality_stats_per_tile_reference_[1][ref_base][0][pos] ){

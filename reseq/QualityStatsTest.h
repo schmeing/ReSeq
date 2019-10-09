@@ -20,10 +20,10 @@ namespace reseq{
 
 		template<typename T> static void TestSizeAtIndex_0_1_98_99(
 				T& vector,
-				uint64_t size0,
-				uint64_t size1,
-				uint64_t size98,
-				uint64_t size99,
+				size_t size0,
+				size_t size1,
+				size_t size98,
+				size_t size99,
 				const char *context,
 				const char *err_msg
 				){
@@ -35,10 +35,10 @@ namespace reseq{
 
 		template<typename T> static void TestValueAtIndex_0_1_98_99(
 				T& vector,
-				uint64_t val0,
-				uint64_t val1,
-				uint64_t val98,
-				uint64_t val99,
+				size_t val0,
+				size_t val1,
+				size_t val98,
+				size_t val99,
 				const char *context,
 				const char *err_msg
 				){

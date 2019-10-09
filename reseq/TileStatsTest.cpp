@@ -29,15 +29,15 @@ void TileStatsTest::DeleteTestObject(){
 void TileStatsTest::TestProperTileFormat(
 		const char *read_id_string,
 		const string &format,
-		uint16_t expected_id,
-		uint16_t expected_tile,
+		uintTileId expected_id,
+		uintTile expected_tile,
 		uint16_t expected_colon_number){
 	test_->ResetTileIdAccessionInfo();
 
 	string error_msg = "Could not determine tile id for " + format + " format\n";
 
 	stringstream returned_error_message("");
-	uint16_t tile_id;
+	uintTileId tile_id;
 
 	EXPECT_TRUE( test_->EnterTile(read_id_string, &returned_error_message) ) << error_msg;
 	EXPECT_EQ( "", returned_error_message.str() ) << error_msg;
@@ -49,10 +49,10 @@ void TileStatsTest::TestProperTileFormat(
 	EXPECT_EQ( expected_tile, test_->tiles_[tile_id] ) << "Tile wrongly determined for " + format + " format\n";
 }
 
-void TileStatsTest::TestProperTileFormatWithGivenColonNumber(const char * read_id_string, const string &format, uint16_t expected_id){
+void TileStatsTest::TestProperTileFormatWithGivenColonNumber(const char * read_id_string, const string &format, uintTileId expected_id){
 	string error_msg = "Could not determine tile id for " + format + " format with given tile_colon_number_\n";
 	stringstream returned_error_message("");
-	uint16_t tile_id;
+	uintTileId tile_id;
 	EXPECT_TRUE( test_->EnterTile(read_id_string, &returned_error_message) ) << error_msg;
 	EXPECT_EQ( "", returned_error_message.str() ) << error_msg;
 
@@ -63,7 +63,7 @@ void TileStatsTest::TestProperTileFormatWithGivenColonNumber(const char * read_i
 void TileStatsTest::TestErroneousTileFormat(
 		const char * read_id_string,
 		bool reset_accession_info,
-		uint16_t expected_id,
+		uintTileId expected_id,
 		const string& comment,
 		const string& expected_error){
 	if( reset_accession_info ){
@@ -75,7 +75,7 @@ void TileStatsTest::TestErroneousTileFormat(
 	error_msg += "'\n";
 
 	stringstream returned_error_message("");
-	uint16_t tile_id;
+	uintTileId tile_id;
 
 	EXPECT_TRUE( !test_->EnterTile(read_id_string, &returned_error_message) || !test_->tile_accessible_ ) << error_msg;
 	EXPECT_EQ( expected_error, returned_error_message.str() ) << comment;

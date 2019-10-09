@@ -13,7 +13,7 @@
 
 #include "reportingUtils.hpp"
 
-#include "utilities.h"
+#include "utilities.hpp"
 
 namespace reseq{
 	template<typename T> class Vect{ // std::vector that removes 0s at the beginning and has an offset variable instead and automatically increases size if called outside range
@@ -294,7 +294,7 @@ namespace reseq{
 
 	template<typename T> std::ostream& operator<<(std::ostream& os, const Vect<T>& vect){
 		for( auto x=vect.from(); x < vect.to(); ++x ){
-			os << x << ": " << vect[x] << '\n';
+			os << x << ": " << vect[x] << std::endl;
 		}
 		return os;
 	}
@@ -313,7 +313,7 @@ namespace reseq{
 		}
 	}
 
-	template<template<typename> class T, typename U> void GetIndicesFirstDimension( const T<U> &vect2d, std::vector<uint64_t> &indices ){
+	template<template<typename> class T, typename U, typename V> void GetIndicesFirstDimension( const T<U> &vect2d, std::vector<V> &indices ){
 		indices.clear();
 		indices.reserve(vect2d.size());
 		for( auto i=vect2d.from(); i < vect2d.to(); ++i){
@@ -323,7 +323,7 @@ namespace reseq{
 		}
 	}
 
-	template<template<typename> class T, typename U> void GetIndicesSecondDimension( const T<U> &vect2d, std::vector<uint64_t> &indices ){
+	template<template<typename> class T, typename U, typename V> void GetIndicesSecondDimension( const T<U> &vect2d, std::vector<V> &indices ){
 		// Count the indices from the second dimension in a 1d vect
 		Vect<uint64_t> index_count;
 

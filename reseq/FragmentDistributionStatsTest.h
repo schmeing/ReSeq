@@ -14,7 +14,7 @@
 namespace reseq{
 	class FragmentDistributionStatsTest : public BasicTestClassWithReference{
 	public: 
-		static void Register(uint32_t num_threads);
+		static void Register(uintNumThreads num_threads);
 
 	protected:
 		FragmentDistributionStats *test_;
@@ -22,12 +22,12 @@ namespace reseq{
 		void CreateTestObject(const Reference *ref);
 		void DeleteTestObject();
 
-		static void TestOutskirtContent(const FragmentDistributionStats &test, uint16_t template_segment, uint32_t at_pos, uint64_t cont_a, uint64_t cont_c, uint64_t cont_g, uint64_t cont_t, const char * context );
+		static void TestOutskirtContent(const FragmentDistributionStats &test, uintTempSeq template_segment, uintSeqLen at_pos, uintNucCount cont_a, uintNucCount cont_c, uintNucCount cont_g, uintNucCount cont_t, const char * context );
 
 		virtual void TearDown();
 
-		void CreateCoverageDataHelper(uint8_t gc_perc, uint32_t start_pos, uint32_t fragment_length, std::mt19937_64 &rgen);
-		void CreateCoverageData(uint32_t fragment_length);
+		void CreateCoverageDataHelper(uintPercent gc_perc, uintSeqLen start_pos, uintSeqLen fragment_length, std::mt19937_64 &rgen);
+		void CreateCoverageData(uintSeqLen fragment_length);
 
 	public:
 		FragmentDistributionStatsTest():

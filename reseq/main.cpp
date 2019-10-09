@@ -46,7 +46,13 @@ using reseq::ProbabilityEstimates;
 using reseq::Reference;
 #include "Simulator.h"
 using reseq::Simulator;
-#include "utilities.h"
+#include "utilities.hpp"
+using reseq::uintQual;
+using reseq::uintNumThreads;
+using reseq::uintNumFits;
+using reseq::uintSeqLen;
+using reseq::uintFragCount;
+using reseq::uintSeed;
 using reseq::utilities::DeleteFile;
 using reseq::utilities::TrueRandom;
 
@@ -63,13 +69,13 @@ using reseq::utilities::TrueRandom;
 #include "utilitiesTest.h"
 
 // Helper functions
-bool AutoDetectThreads(uint16_t &num_threads, const options_description &opt_desc, const string &usage_str ){
+bool AutoDetectThreads(uintNumThreads &num_threads, const options_description &opt_desc, const string &usage_str ){
 	if(0 == num_threads){
 		num_threads = std::thread::hardware_concurrency();
 		if(0 == num_threads){
 			printErr << "Automatic detection of available cores failed." << std::endl;
 			cout << usage_str;
-			cout << opt_desc << "\n";
+			cout << opt_desc << std::endl;
 			return false;
 		}
 		else{
@@ -105,47 +111,47 @@ void DefaultExtensionFile(string &file_name, const string folder, const string e
 		}
 	}
 
-	printErr << "Automatic filename deduction failed for: '" << file_name << "'. Please provide valid path.\n";
+	printErr << "Automatic filename deduction failed for: '" << file_name << "'. Please provide valid path." << std::endl;
 	file_name = "";
 	return;
 }
 
-void GetDataStats(DataStats &real_data_stats, string &stats_file, bool &loaded_stats, bool stats_only, uint64_t max_ref_seq_bin_size, const variables_map &opts_map, const options_description &opt_desc, const string &usage_str, uint16_t num_threads ){
+void GetDataStats(DataStats &real_data_stats, string &stats_file, bool &loaded_stats, bool stats_only, uintSeqLen max_ref_seq_bin_size, const variables_map &opts_map, const options_description &opt_desc, const string &usage_str, uintNumThreads num_threads ){
 	auto it_bam_in = opts_map.find("bamIn");
 	auto it_stats_in = opts_map.find("statsIn");
 	auto it_stats_out = opts_map.find("statsOut");
 	bool no_tiles = opts_map.count("noTiles");
 	bool tiles = opts_map.count("tiles");
 	if(no_tiles && tiles){
-		printErr << "noTiles and tiles options are exclusive.\n";
+		printErr << "noTiles and tiles options are exclusive." << std::endl;
 		cout << usage_str;
-		cout << opt_desc << "\n";
+		cout << opt_desc << std::endl;
 	}
 
 	if(opts_map.end() == it_bam_in){ // "bamIn" hasn't been found
 		if( stats_only ){
-			printErr << "With statsOnly option bamIn option is mandatory.\n";
+			printErr << "With statsOnly option bamIn option is mandatory." << std::endl;
 			cout << usage_str;
-			cout << opt_desc << "\n";
+			cout << opt_desc << std::endl;
 		}
 		else if( no_tiles || tiles ){
-			printErr << (no_tiles ? "noTiles" : "tiles") << " option can only be specified for generation of statistics. After that it depends on the statistics loaded.\n";
+			printErr << (no_tiles ? "noTiles" : "tiles") << " option can only be specified for generation of statistics. After that it depends on the statistics loaded." << std::endl;
 			cout << usage_str;
-			cout << opt_desc << "\n";
+			cout << opt_desc << std::endl;
 		}
 		else{
 			if(opts_map.end() == it_stats_in){ // "statsIn" hasn't been found
-				printErr << "Either bamIn or statsIn option are mandatory.\n";
+				printErr << "Either bamIn or statsIn option are mandatory." << std::endl;
 				cout << usage_str;
-				cout << opt_desc << "\n";
+				cout << opt_desc << std::endl;
 			}
 			else{
 				if(opts_map.end() != it_stats_out){
-					printWarn << "statsOut option ignored as statsIn is also given.\n";
+					printWarn << "statsOut option ignored as statsIn is also given." << std::endl;
 				}
 
 				stats_file = it_stats_in->second.as<string>();
-				printInfo << "Reading real data statistics from " << stats_file << '\n';
+				printInfo << "Reading real data statistics from " << stats_file << std::endl;
 
 				real_data_stats.Load( stats_file.c_str() );
 				real_data_stats.PrepareProcessing();
@@ -156,15 +162,15 @@ void GetDataStats(DataStats &real_data_stats, string &stats_file, bool &loaded_s
 	}
 	else{
 		if(opts_map.end() != it_stats_in){
-			printErr << "statsIn and bamIn options are exclusive.\n";
+			printErr << "statsIn and bamIn options are exclusive." << std::endl;
 		}
 		else{
 			if(!real_data_stats.HasReference()){
-				printErr << "Reading in statistics requires refIn option.\n";
+				printErr << "Reading in statistics requires refIn option." << std::endl;
 			}
 			else{
 				string bam_input( it_bam_in->second.as<string>() );
-				printInfo << "Reading mapping from " << bam_input << '\n';
+				printInfo << "Reading mapping from " << bam_input << std::endl;
 
 				if(opts_map.end() == it_stats_out){
 					stats_file = bam_input + ".reseq";
@@ -172,7 +178,7 @@ void GetDataStats(DataStats &real_data_stats, string &stats_file, bool &loaded_s
 				else{
 					stats_file = it_stats_out->second.as<string>();
 				}
-				printInfo << "Storing real data statistics in " << stats_file << '\n';
+				printInfo << "Storing real data statistics in " << stats_file << std::endl;
 
 				// Set adapter files to input or default
 				string adapter_file, adapter_matrix;
@@ -206,9 +212,9 @@ void GetDataStats(DataStats &real_data_stats, string &stats_file, bool &loaded_s
 								}
 							}
 							if(failed){
-								printErr << "Switching extension of adapter-sequence file did not result in valid matrix file. Please specify the matrix file.\n";
+								printErr << "Switching extension of adapter-sequence file did not result in valid matrix file. Please specify the matrix file." << std::endl;
 								cout << usage_str;
-								cout << opt_desc << "\n";
+								cout << opt_desc << std::endl;
 								adapter_file = "";
 							}
 						}
@@ -225,20 +231,20 @@ void GetDataStats(DataStats &real_data_stats, string &stats_file, bool &loaded_s
 							}
 						}
 						if(failed){
-							printErr << "Switching extension of adapter-matrix file did not result in valid sequence file. Please specify the sequence file.\n";
+							printErr << "Switching extension of adapter-matrix file did not result in valid sequence file. Please specify the sequence file." << std::endl;
 							cout << usage_str;
-							cout << opt_desc << "\n";
+							cout << opt_desc << std::endl;
 							adapter_file = "";
 						}
 					}
 				}
 
 				if( !tiles ){
-					printInfo << "Tiles will be ignored and all statistics will be generated like all reads are from the same tile.\n";
+					printInfo << "Tiles will be ignored and all statistics will be generated like all reads are from the same tile." << std::endl;
 					real_data_stats.IgnoreTiles();
 				}
 				else{
-					printInfo << "Statistics will be split into tiles if possible.\n";
+					printInfo << "Statistics will be split into tiles if possible." << std::endl;
 				}
 
 				if( !adapter_file.empty() ){
@@ -294,31 +300,31 @@ void PrepareProbabilityEstimation( string &probs_in, string &probs_out, const st
 	}
 }
 
-uint64_t GetSeed(const variables_map &opts_map){
-	uint64_t seed;
+uintSeed GetSeed(const variables_map &opts_map){
+	uintSeed seed;
 	auto it = opts_map.find("seed");
 	if(opts_map.end() == it){
 		seed = TrueRandom();
-		printInfo << "Randomly generated seed is " << seed << '\n';
+		printInfo << "Randomly generated seed is " << seed << std::endl;
 	}
 	else{
-		seed = it->second.as<uint64_t>();
-		printInfo << "Using seed " << seed << '\n';
+		seed = it->second.as<uintSeed>();
+		printInfo << "Using seed " << seed << std::endl;
 	}
 
 	return seed;
 }
 
-bool WriteSysError(string &sys_error_file, uint64_t &seed, bool stop_after_estimation, const variables_map &opts_map, const options_description &opt_desc, const string &usage_str, const Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates){
+bool WriteSysError(string &sys_error_file, uintSeed &seed, bool stop_after_estimation, const variables_map &opts_map, const options_description &opt_desc, const string &usage_str, const Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates){
 	auto it_read = opts_map.find("readSysError");
 	auto it_write = opts_map.find("writeSysError");
 
 	if(opts_map.end() == it_write){
 		if(stop_after_estimation){
 			if(opts_map.end() != it_read ){
-				printWarn << "readSysError option is only for simulation, so it's useless with the stopAfterEstimation option.\n";
+				printWarn << "readSysError option is only for simulation, so it's useless with the stopAfterEstimation option." << std::endl;
 				cout << usage_str;
-				cout << opt_desc << "\n";
+				cout << opt_desc << std::endl;
 				return false;
 			}
 		}
@@ -335,9 +341,9 @@ bool WriteSysError(string &sys_error_file, uint64_t &seed, bool stop_after_estim
 	}
 	else{
 		if(opts_map.end() != it_read){
-			printErr << "writeSysError and readSysError option are mutually exclusive. Specify the one or the other.\n";
+			printErr << "writeSysError and readSysError option are mutually exclusive. Specify the one or the other." << std::endl;
 			cout << usage_str;
-			cout << opt_desc << "\n";
+			cout << opt_desc << std::endl;
 			return false;
 		}
 		else{
@@ -371,7 +377,7 @@ void PrepareSimulation( string &sim_output_first, string &sim_output_second, con
 	else{
 		sim_output_second = it->second.as<string>();
 	}
-	printInfo << "Storing simulated data in " << sim_output_first << " and " << sim_output_second << '\n';
+	printInfo << "Storing simulated data in " << sim_output_first << " and " << sim_output_second << std::endl;
 }
 
 int RunGoogleTests(const string &new_test, string &tests_already_run){
@@ -386,11 +392,11 @@ int RunGoogleTests(const string &new_test, string &tests_already_run){
 
 // Main
 int main(int argc, char *argv[]) {
-	uint16_t num_threads;
+	uintNumThreads num_threads;
 	options_description opt_desc_full("General");
 	opt_desc_full.add_options() // Returns a special object with defined operator ()
 		("help,h", "Prints help information and exits")
-		("threads,j", value<uint16_t>(&num_threads)->default_value(0), "Number of threads used (0=auto)")
+		("threads,j", value<uintNumThreads>(&num_threads)->default_value(0), "Number of threads used (0=auto)")
 		("verbosity", value<uint16_t>(&reseq::kVerbosityLevel)->default_value(4), "Sets the level of verbosity (4=everything, 0=nothing)")
 		("version", "Prints version info and exits");
 
@@ -404,13 +410,13 @@ int main(int argc, char *argv[]) {
 		notify(general_opts_map);
 	}
 	catch(const exception& e) {
-		printErr << "Could not parse general command line arguments: " << e.what() << "\n";
-		cout << opt_desc_full << "\n";
+		printErr << "Could not parse general command line arguments: " << e.what() << std::endl;
+		cout << opt_desc_full << std::endl;
 		return 1;
 	}
 
 	if(general_opts_map.count("version")) { // Check if user only wants to know version
-		cout << "ReSequenceR version " << RESEQ_VERSION_MAJOR << '.' << RESEQ_VERSION_MINOR << '\n';
+		cout << "ReSequenceR version " << RESEQ_VERSION_MAJOR << '.' << RESEQ_VERSION_MINOR << std::endl;
 		return 0;
 	}
 
@@ -422,24 +428,24 @@ int main(int argc, char *argv[]) {
 		"Commands:\n"+
 		"  illuminaPE\t\t"+"simulates illumina paired-end data\n"+
 		"  replaceN\t\t"+"replaces N's in reference\n"+
-		"  test\t\t\t"+"tests the program\n\n";
+		"  test\t\t\t"+"tests the program\n";
 
 	int return_code = 0;
 	if(0 == unrecognized_opts.size()){
-		cout << general_usage;
+		cout << general_usage << std::endl;
 	}
 	else{
 		printInfo << "Running ReSequenceR version " << RESEQ_VERSION_MAJOR << '.' << RESEQ_VERSION_MINOR; // Always show version
 
 		if ("replaceN" == unrecognized_opts.at(0)) {
-			cout << " in replaceN mode\n";
+			cout << " in replaceN mode" << std::endl;
 			unrecognized_opts.erase(unrecognized_opts.begin());
 
 			options_description opt_desc("ReplaceN");
 			opt_desc.add_options() // Returns a special object with defined operator ()
 				("refIn,r", value<string>(), "Reference sequences in fasta format (gz and bz2 supported)")
 				("refSim,R", value<string>(), "File to where reference sequences in fasta format with N's randomly replace should be written to")
-				("seed", value<uint64_t>(), "Seed used for replacing N, if none is given random seed will be used");
+				("seed", value<uintSeed>(), "Seed used for replacing N, if none is given random seed will be used");
 			opt_desc_full.add(opt_desc);
 
 			string usage_str = "Usage:  reseq replaceN -r <refIn.fa> -R <refSim.fa> [options]\n";
@@ -449,37 +455,37 @@ int main(int argc, char *argv[]) {
 				notify(opts_map);
 			}
 			catch (const exception& e) {
-				printErr << "Could not parse replaceN command line arguments: " << e.what() << "\n";
+				printErr << "Could not parse replaceN command line arguments: " << e.what() << std::endl;
 				cout << usage_str;
-				cout << opt_desc_full << "\n";
+				cout << opt_desc_full << std::endl;
 				return 1;
 			}
 
 			if ( general_opts_map.count("help") ) {
 				cout << usage_str;
-				cout << opt_desc_full << "\n";
+				cout << opt_desc_full << std::endl;
 			}
 			else if(AutoDetectThreads(num_threads, opt_desc_full, usage_str)){
 				auto it_ref_in = opts_map.find("refIn");
 				auto it_ref_out = opts_map.find("refSim");
 				string ref_input, ref_output;
 				if(opts_map.end() == it_ref_in){
-					printErr << "refIn option is mandatory.\n";
+					printErr << "refIn option is mandatory." << std::endl;
 					cout << usage_str;
-					cout << opt_desc_full << "\n";
+					cout << opt_desc_full << std::endl;
 				}
 				else{
 					ref_input =  it_ref_in->second.as<string>();
-					printInfo << "Reading reference from " << ref_input << '\n';
+					printInfo << "Reading reference from " << ref_input << std::endl;
 
 					if(opts_map.end() == it_ref_out){
-						printErr << "refSim option is mandatory.\n";
+						printErr << "refSim option is mandatory." << std::endl;
 						cout << usage_str;
-						cout << opt_desc_full << "\n";
+						cout << opt_desc_full << std::endl;
 					}
 					else{
 						ref_output = it_ref_out->second.as<string>();
-						printInfo << "Writing reference without N to " << ref_output << '\n';
+						printInfo << "Writing reference without N to " << ref_output << std::endl;
 
 						Reference species_reference;
 						if( species_reference.ReadFasta( ref_input.c_str() ) ){
@@ -488,7 +494,7 @@ int main(int argc, char *argv[]) {
 							species_reference.ReplaceN( seed );
 
 							if( species_reference.WriteFasta( ref_output.c_str() ) ){
-								printInfo << "Finished replacing N's.\n";
+								printInfo << "Finished replacing N's." << std::endl;
 							}
 						}
 					}
@@ -496,16 +502,16 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		else if("illuminaPE" == unrecognized_opts.at(0)) {
-			cout << " in illuminaPE mode\n";
+			cout << " in illuminaPE mode" << std::endl;
 			unrecognized_opts.erase(unrecognized_opts.begin());
 
-			uint16_t ipf_iterations;
+			uintNumFits ipf_iterations;
 			double ipf_precision;
-			uint64_t num_read_pairs;
+			uintFragCount num_read_pairs;
 			double coverage;
-			uint32_t maximum_insert_length;
-			uint16_t minimum_mapping_quality;
-			uint64_t max_ref_seq_bin_size;
+			uintSeqLen maximum_insert_length;
+			uintQual minimum_mapping_quality;
+			uintSeqLen max_ref_seq_bin_size;
 			std::string record_base_identifier;
 
 			options_description opt_desc("Stats");
@@ -513,9 +519,9 @@ int main(int argc, char *argv[]) {
 				("adapterFile", value<string>(), "Fasta file with adapter sequences [adapters/TruSeq_v2.fa]")
 				("adapterMatrix", value<string>(), "0/1 matrix with valid adapter pairing (first read in rows, second read in columns) [adapters/TruSeq_v2.mat]")
 				("bamIn,b", value<string>(), "Position sorted bam/sam file with reads mapped to refIn")
-				("binSizeBiasFit", value<uint64_t>(&max_ref_seq_bin_size)->default_value(100000000), "Reference sequences large then this are split for bias fitting to limit memory consumption")
-				("maxFragLen", value<uint32_t>(&maximum_insert_length)->default_value(2000), "Maximum fragment length to include pairs into statistics")
-				("minMapQ", value<uint16_t>(&minimum_mapping_quality)->default_value(10), "Minimum mapping quality to include pairs into statistics")
+				("binSizeBiasFit", value<uintSeqLen>(&max_ref_seq_bin_size)->default_value(100000000), "Reference sequences large then this are split for bias fitting to limit memory consumption")
+				("maxFragLen", value<uintSeqLen>(&maximum_insert_length)->default_value(2000), "Maximum fragment length to include pairs into statistics")
+				("minMapQ", value<uintQual>(&minimum_mapping_quality)->default_value(10), "Minimum mapping quality to include pairs into statistics")
 				("noTiles", "Ignore tiles for the statistics [default]")
 				("refIn,r", value<string>(), "Reference sequences in fasta format (gz and bz2 supported)")
 				("statsOnly", "Only generate the statistics")
@@ -526,7 +532,7 @@ int main(int argc, char *argv[]) {
 
 			options_description opt_desc_ipf("Probabilities");
 			opt_desc_ipf.add_options()
-				("ipfIterations", value<uint16_t>(&ipf_iterations)->default_value(200), "Maximum number of iterations for iterative proportional fitting")
+				("ipfIterations", value<uintNumFits>(&ipf_iterations)->default_value(200), "Maximum number of iterations for iterative proportional fitting")
 				("ipfPrecision", value<double>(&ipf_precision)->default_value(5), "Iterative proportional fitting procedure stops after reaching this precision (%)")
 				("probabilitiesIn,p", value<string>(), "Loads last estimated probabilities and continues from there if precision is not met [<statsIn>.ipf]")
 				("probabilitiesOut,P", value<string>(), "Stores the probabilities estimated by iterative proportional fitting [<probabilitiesIn>]")
@@ -538,13 +544,13 @@ int main(int argc, char *argv[]) {
 				("firstReadsOut,1", value<string>(), "Writes the simulated first reads into this file [reseq-R1.fq]")
 				("secondReadsOut,2", value<string>(), "Writes the simulated second reads into this file [reseq-R2.fq]")
 				("coverage,c", value<double>(&coverage)->default_value(0.0), "Approximate average read depth simulated (0 = Use <numReads>)")
-				("numReads", value<uint64_t>(&num_read_pairs)->default_value(0), "Approximate number of read pairs simulated (0 = Original number of reads)")
+				("numReads", value<uintFragCount>(&num_read_pairs)->default_value(0), "Approximate number of read pairs simulated (0 = Original number of reads)")
 				("readSysError", value<string>(), "Read systematic errors from file in fastq format (seq=dominant error, qual=error percentage)")
 				("recordBaseIdentifier", value<string>(&record_base_identifier)->default_value("ReseqRead"), "Base Identifier for the simulated fastq records, followed by a count and other information about the read")
 				("refBias", value<string>(), "Way to select the reference biases for simulation (keep [from refIn]/no [biases]/draw [with replacement from original biases]/file) [keep/no]")
 				("refBiasFile", value<string>(), "File to read reference biases from: One sequence per file (identifier bias)")
 				("refSim,R", value<string>(), "Reference sequences in fasta format to simulate from [<refIn>]")
-				("seed", value<uint64_t>(), "Seed used for simulation, if none is given random seed will be used")
+				("seed", value<uintSeed>(), "Seed used for simulation, if none is given random seed will be used")
 				("vcfSim,V", value<string>(), "Defines genotypes to simulate alleles or populations")
 				("writeSysError", value<string>(), "Write the randomly drawn systematic errors to file in fastq format (seq=dominant error, qual=error percentage)");
 			opt_desc.add(opt_desc_sim);
@@ -557,44 +563,44 @@ int main(int argc, char *argv[]) {
 				notify(opts_map);
 			}
 			catch(const exception& e) {
-				printErr << "Could not parse illuminaPE command line arguments: " << e.what() << "\n";
+				printErr << "Could not parse illuminaPE command line arguments: " << e.what() << std::endl;
 				cout << usage_str;
-				cout << opt_desc_full << "\n";
+				cout << opt_desc_full << std::endl;
 				return 1;
 			}
 
 			if( general_opts_map.count("help") ) {
 				cout << usage_str;
-				cout << opt_desc_full << "\n";
+				cout << opt_desc_full << std::endl;
 			}
 			else if( ipf_precision < 0.0 ){
-				printErr << "ipfPrecision must be positive.\n";
+				printErr << "ipfPrecision must be positive." << std::endl;
 				cout << usage_str;
-				cout << opt_desc_full << "\n";
+				cout << opt_desc_full << std::endl;
 			}
 			else if(0 != num_read_pairs && 0.0 != coverage){
-				printErr << "numReads and coverage set the same value. Use either the one or the other.\n";
+				printErr << "numReads and coverage set the same value. Use either the one or the other." << std::endl;
 				cout << usage_str;
-				cout << opt_desc_full << "\n";
+				cout << opt_desc_full << std::endl;
 			}
 			else if(AutoDetectThreads(num_threads, opt_desc_full, usage_str)){
 				auto it_ref_in = opts_map.find("refIn");
 				auto it_ref_out = opts_map.find("refSim");
 				bool stop_after_estimation = opts_map.count("stopAfterEstimation");
 				if(opts_map.end() == it_ref_in && opts_map.end() == it_ref_out && (!stop_after_estimation || !opts_map.count("statsIn") || opts_map.count("writeSysError"))){
-					printErr << "refIn or refSim option mandatory.\n";
+					printErr << "refIn or refSim option mandatory." << std::endl;
 					cout << usage_str;
-					cout << opt_desc_full << "\n";
+					cout << opt_desc_full << std::endl;
 				}
 				else{
 					string ref_input, ref_output;
 					if(opts_map.end() != it_ref_in){
 						ref_input =  it_ref_in->second.as<string>();
-						printInfo << "Reading reference from " << ref_input << '\n';
+						printInfo << "Reading reference from " << ref_input << std::endl;
 					}
 					if(opts_map.end() != it_ref_out){
 						ref_output = it_ref_out->second.as<string>();
-						printInfo << "Simulating reads from reference " << ref_output << '\n';
+						printInfo << "Simulating reads from reference " << ref_output << std::endl;
 					}
 
 					Reference species_reference;
@@ -617,7 +623,7 @@ int main(int argc, char *argv[]) {
 									probabilities.PrepareResult();
 
 									string sys_error_file;
-									uint64_t seed;
+									uintSeed seed;
 									if( WriteSysError(sys_error_file, seed, stop_after_estimation, opts_map, opt_desc_full, usage_str, species_reference, real_data_stats, probabilities) ){
 										if( !stop_after_estimation ){
 											string sim_output_first, sim_output_second;
@@ -657,7 +663,7 @@ int main(int argc, char *argv[]) {
 												else{
 													printErr << "Unknown option for refBias: " << ref_bmodel << std::endl;
 													cout << usage_str;
-													cout << opt_desc_full << "\n";
+													cout << opt_desc_full << std::endl;
 													ref_bias_model = RefSeqBiasSimulation::kError;
 												}
 											}
@@ -668,7 +674,7 @@ int main(int argc, char *argv[]) {
 												if(opts_map.end() == it_ref_bias_file){
 													printErr << "refBiasFile option mandatory if for refBias option file was chosen" << std::endl;
 													cout << usage_str;
-													cout << opt_desc_full << "\n";
+													cout << opt_desc_full << std::endl;
 													ref_bias_model = RefSeqBiasSimulation::kError;
 												}
 												else{
@@ -688,7 +694,7 @@ int main(int argc, char *argv[]) {
 												if(opts_map.end() == it_var_file && opts_map.count("vcfIn") && opts_map.count("statsIn")){
 													printErr << "vcfIn specified but not used as stats were loaded. Did you mean vcfSim?" << std::endl;
 													cout << usage_str;
-													cout << opt_desc_full << "\n";
+													cout << opt_desc_full << std::endl;
 												}
 												else{
 													string var_file("");
@@ -714,13 +720,13 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		else if("test" == unrecognized_opts.at(0)) {
-			cout << " in test mode\n";
+			cout << " in test mode" << std::endl;
 
 			string usage_str = "Usage: reseq test [options]\n";
 
 			if( general_opts_map.count("help") ) {
 				cout << usage_str;
-				cout << opt_desc_full << "\n";
+				cout << opt_desc_full << std::endl;
 			}
 			else if(AutoDetectThreads(num_threads, opt_desc_full, usage_str)){
 				reseq::AdapterStatsTest::Register();
@@ -747,7 +753,7 @@ int main(int argc, char *argv[]) {
 				return_code = RunGoogleTests("utilitiesTest.*:VectTest.*", tests_already_run);
 
 				if(0 == return_code){
-					return_code = RunGoogleTests("SeqQualityStatsTest.*", tests_already_run);
+					return_code = RunGoogleTests("SeqQualityStatsTest.*:ReferenceTest.*", tests_already_run);
 
 					if(0 == return_code){
 						 // Test all remaining classes
@@ -756,20 +762,20 @@ int main(int argc, char *argv[]) {
 						all_tests_run = true;
 
 						if(0 == return_code){
-							printSucc << "All tests have succeeded\n";
+							printSucc << "All tests have succeeded" << std::endl;
 						}
 					}
 				}
 
 				if(0 != return_code && !all_tests_run){
-					printErr << "Previous class tests have failed and later classes depend on them in a way that they will definitively fail their test, so the test is aborted here.\n";
+					printErr << "Previous class tests have failed and later classes depend on them in a way that they will definitively fail their test, so the test is aborted here." << std::endl;
 				}
 			}
 		}
 		else{
-			cout << '\n';
-			printErr << "Unrecognized command: '" << unrecognized_opts.at(0) << "'\n";
-			cout << general_usage;
+			cout << std::endl;
+			printErr << "Unrecognized command: '" << unrecognized_opts.at(0) << "'" << std::endl;
+			cout << general_usage << std::endl;
 		}
 	}
 

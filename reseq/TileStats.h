@@ -11,19 +11,19 @@
 
 #include <seqan/stream.h>
 
-#include "utilities.h"
+#include "utilities.hpp"
 
 namespace reseq{
 	class TileStats{
 	private:
 		// Definitions
-		const uint16_t read_id_buffer_size_; // Size of the buffer used for parsing the read id; minimum 70 for, so some generated error messages fit
+		const uint16_t kReadIdBufferSize = 100; // Size of the buffer used for parsing the read id; Has to be long enough to contain everything until the first colon in read id; Minimum 70 so some generated error messages fit
 
 		// Variables for Simulation
-		std::vector<uint16_t> tiles_; // Array that contains the tile numbers at their corresponding ID
-		std::unordered_map<uint16_t,uint16_t> tile_ids_; // Map that contains the IDs corresponding to each tile
+		std::vector<uintTile> tiles_; // Array that contains the tile numbers at their corresponding ID
+		std::unordered_map<uintTile,uintTileId> tile_ids_; // Map that contains the IDs corresponding to each tile
 
-		std::vector<uint64_t> abundance_; // abundance_[tile_id] = #pairs
+		std::vector<uintFragCount> abundance_; // abundance_[tile_id] = #pairs
 
 		// Temporary variables for read in
 		uint16_t tile_colon_number_; // The count at which colon beginning from the left the tile number is starting (and then goes to the next colon)
@@ -35,7 +35,7 @@ namespace reseq{
 		inline void CheckDelimiter(std::stringstream &id_stream, char expected_delimiter, const std::string &occurence) const;
 		inline uint32_t ReadInt(std::stringstream &id_stream, const std::string &field, bool read_must_continue=true) const;
 		
-		uint32_t GetKnownTile(const seqan::CharString &read_id, uint16_t tile_colon_number, bool print_warnings, std::stringstream *error_message=NULL) const;
+		uintTile GetKnownTile(const seqan::CharString &read_id, uint16_t tile_colon_number, bool print_warnings, std::stringstream *error_message=NULL) const;
 
 		// Boost archive functions
 		friend class boost::serialization::access;
@@ -58,10 +58,10 @@ namespace reseq{
 		TileStats();
 	
 		// Getter functions
-		bool TileId(uint16_t &id, uint32_t tile) const;
-		const std::vector<uint16_t> &Tiles() const{ return tiles_; }
-		uint64_t NumTiles() const{ return tiles_.size(); }
-		const std::vector<uint64_t> &Abundance() const{ return abundance_; }
+		bool TileId(uintTileId &id, uintTile tile) const;
+		const std::vector<uintTileId> &Tiles() const{ return tiles_; }
+		uintTileId NumTiles() const{ return tiles_.size(); }
+		const std::vector<uintFragCount> &Abundance() const{ return abundance_; }
 		
 		// Setter functions
 		void IgnoreTiles(){ tile_accessible_ = false; }
@@ -72,9 +72,9 @@ namespace reseq{
 	
 		// Main functions
 
-		uint32_t GetTile(const seqan::CharString &read_id, uint16_t &tile_colon_number, bool &tile_accessible, std::stringstream *error_message=NULL) const;
+		uintTile GetTile(const seqan::CharString &read_id, uint16_t &tile_colon_number, bool &tile_accessible, std::stringstream *error_message=NULL) const;
 		bool EnterTile(const seqan::CharString &read_id, std::stringstream *error_message=NULL); // Reads the tile from the read id and returns its tile id. In case the tile is new it enters them into tiles_ and tile_ids_
-		bool GetTileId(uint16_t &tile_id, const seqan::CharString &read_id) const;
+		bool GetTileId(uintTileId &tile_id, const seqan::CharString &read_id) const;
 		void Shrink();
 	};
 }

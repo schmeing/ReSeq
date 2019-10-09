@@ -1,6 +1,6 @@
 #ifndef UTILITIESTEST_H
 #define UTILITIESTEST_H
-#include "utilities.h"
+#include "utilities.hpp"
 
 #include "gtest/gtest.h"
 

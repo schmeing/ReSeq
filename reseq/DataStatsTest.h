@@ -21,8 +21,8 @@ namespace reseq{
 		void DeleteTestObject();
 		void LoadStats(const std::string &stats_file, bool ignore_tiles=false, bool calculate_biases=false, const std::string adapter="TruSeq_v2", const std::string variants="");
 
-		void TestSequenceContent(uint16_t template_segment, uint32_t at_pos, uint64_t cont_a, uint64_t cont_c, uint64_t cont_g, uint64_t cont_t, uint64_t cont_n, const char * context );
-		void TestSequenceContentReference(uint16_t template_segment, uint16_t strand, uint32_t at_pos, uint64_t cont_a, uint64_t cont_c, uint64_t cont_g, uint64_t cont_t, const char * context );
+		void TestSequenceContent(uintTempSeq template_segment, uintReadLen at_pos, uintNucCount cont_a, uintNucCount cont_c, uintNucCount cont_g, uintNucCount cont_t, uintNucCount cont_n, const char * context );
+		void TestSequenceContentReference(uintTempSeq template_segment, uintTempSeq strand, uintReadLen at_pos, uintNucCount cont_a, uintNucCount cont_c, uintNucCount cont_g, uintNucCount cont_t, const char * context );
 
 		void TestSrr490124Equality(const char *context, bool test_tile_information=true);
 		void TestTiles();

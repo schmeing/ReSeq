@@ -8,6 +8,7 @@ namespace reseq{
 	uint16_t kVerbosityLevel = 99;
 	bool kNoDebugOutput = false;
 }
+#include "utilities.hpp"
 #include "Vect.hpp"
 #include "Reference.h"
 #include "DataStatsInterface.h"
@@ -19,6 +20,7 @@ namespace reseq{
 %include <std_pair.i>
 %include <std_vector.i>
 typedef unsigned long int size_t;
+%include "utilities.hpp"
 
 %template(CharVector) std::vector<signed char>;
 %template(CharHistVector) std::pair< size_t, std::vector<signed char> >;

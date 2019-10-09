@@ -13,8 +13,9 @@ using std::vector;
 #include <seqan/seq_io.h>
 using seqan::DnaString;
 
-//include "utilities.h"
+#include "utilities.hpp"
 using reseq::utilities::VectorAtomic;
+using reseq::utilities::IsN;
 
 #include "CMakeConfig.h"
 
@@ -80,7 +81,7 @@ void ReferenceTest::TestInsertVariant(){
 
 	const vector<Reference::Variant> &vars(ref_.variants_.at(0));
 	EXPECT_EQ(6, vars.size());
-	for(uint32_t nvar=0; nvar < vars.size(); ++nvar){
+	for(intVariantId nvar=0; nvar < vars.size(); ++nvar){
 		switch(nvar){
 		case 0:
 			EXPECT_EQ(0, vars.at(nvar).position_);
@@ -130,7 +131,7 @@ void ReferenceTest::TestVariationLoading(){
 	EXPECT_EQ(13, ref_.variants_.at(0).size());
 
 	const vector<Reference::Variant> &vars(ref_.variants_.at(0));
-	for(uint32_t nvar=0; nvar < vars.size(); ++nvar){
+	for(intVariantId nvar=0; nvar < vars.size(); ++nvar){
 		switch(nvar){
 		case 0:
 			EXPECT_EQ(2, vars.at(nvar).position_);
@@ -318,16 +319,16 @@ namespace reseq{
 		EXPECT_TRUE(ref_.ReferenceIdFirstPart(1) == "NC_000913.3_10000-10500") << ref_.ReferenceIdFirstPart(1) << error_msg;
 
 		error_msg = "The function GCContentAbsolut returns wrong results\n";
-		uint32_t n_count(0);
-		EXPECT_EQ(2, ref_.GCContentAbsolut(n_count,0,0,7)) << error_msg;
-		EXPECT_EQ(4, ref_.GCContentAbsolut(n_count,1,22,27)) << error_msg;
+		EXPECT_EQ(2, ref_.GCContentAbsolut(0,0,7)) << error_msg;
+		EXPECT_EQ(4, ref_.GCContentAbsolut(1,22,27)) << error_msg;
 
 		error_msg = "The function GCContent returns wrong results\n";
 		EXPECT_EQ(29, ref_.GCContent(0,0,7)) << error_msg;
 		EXPECT_EQ(80, ref_.GCContent(1,22,27)) << error_msg;
 
 		error_msg = "The function UpdateGC returns wrong results\n";
-		uint64_t gc = ref_.GCContentAbsolut(n_count,0,0,7);
+		uintSeqLen n_count(0);
+		uintSeqLen gc = ref_.GCContentAbsolut(n_count,0,0,7);
 		ref_.UpdateGC(gc, n_count, ref_.ReferenceSequence(0), 0, 7);
 		EXPECT_EQ(3, gc) << error_msg;
 		ref_.UpdateGC(gc, n_count, ref_.ReferenceSequence(0), 1, 8);
@@ -346,7 +347,7 @@ namespace reseq{
 
 		// cat reference-test.fa | seqtk seq | awk '(2==NR){print substr($0,length($0)-9,10) $0 substr($0,1,20)}' | awk 'BEGIN{split("0,1,2,15,497,498,499",poslist,",")}{for(p=1;p<=length(poslist);++p){pos=poslist[p];for(i=0;i<3;++i){print i, pos, substr($0,i*10+pos+1,10)}}}' | awk 'BEGIN{d["A"]=0;d["C"]=1;d["G"]=2;d["T"]=3}{mult=1;sur=0;for(i=length($3);i>0;i-=1){sur+=mult*d[substr($3,i,1)];mult*=4}; print $1, $2, $3, sur}'
 		error_msg = "The function ForwardSurrounding returns wrong results\n";
-		array<uint32_t, 3> surrounding;
+		array<intSurrounding, Reference::num_surrounding_blocks_> surrounding;
 		ref_.ForwardSurrounding(surrounding,0,0);
 		EXPECT_EQ(83, surrounding[0]) << error_msg;
 		EXPECT_EQ(163795, surrounding[1]) << error_msg;
@@ -590,7 +591,7 @@ namespace reseq{
 
 		// cat reference-test.fa | seqtk seq | awk '(2==NR)' | awk 'BEGIN{split("250,253,254,260",poslist,",")}{for(p=1;p<=length(poslist);++p){pos=poslist[p];for(i=0;i<3;++i){print i, pos, substr($0,i*10+pos-9,10)}}}' | awk 'BEGIN{d["A"]=0;d["C"]=1;d["G"]=2;d["T"]=3}{mult=1;sur=0;for(i=length($3);i>0;i-=1){sur+=mult*d[substr($3,i,1)];mult*=4}; print $1, $2, $3, sur}'
 		error_msg = "The function ForwardSurroundingWithN returns wrong results\n";
-		array<int32_t, 3> surrounding2;
+		array<intSurrounding, Reference::num_surrounding_blocks_> surrounding2;
 		ref_.ForwardSurroundingWithN(surrounding2,0,250);
 		EXPECT_EQ(27546, surrounding2[0]) << error_msg;
 		EXPECT_EQ(-7, surrounding2[1]) << error_msg;
@@ -722,32 +723,32 @@ namespace reseq{
 		EXPECT_EQ(1.0, frag_sites[350].bias_) << error_msg;
 
 		// Test ReplaceN
-		for(uint32_t i=50; i<150; ++i){
+		for(uintSeqLen i=50; i<150; ++i){
 			ref_.reference_sequences_[0][i] = 'N';
 			ref_.reference_sequences_[1][i+300] = 'N';
 		}
-		uint32_t n_in_reference(203); // 3 from further up where we included them to test surroundings
-		array< uint64_t, 4 > old_values = {{0,0,0,0}};
+		uintSeqLen n_in_reference(203); // 3 from further up where we included them to test surroundings
+		array< uintSeqLen, 4 > old_values = {{0,0,0,0}};
 		for( const auto &seq : ref_.reference_sequences_ ){
 			for( auto base : seq ){
-				if( static_cast<uint16_t>(base) < 4 ){
-					old_values.at( static_cast<uint16_t>(base) ) += 1;
+				if( !IsN(base) ){
+					old_values.at( static_cast<uintBaseCall>(base) ) += 1;
 				}
 			}
 		}
 
 		ref_.ReplaceN(317);
-		array< uint64_t, 4 > new_values = {{0,0,0,0}};
+		array< uintSeqLen, 4 > new_values = {{0,0,0,0}};
 		for( const auto &seq : ref_.reference_sequences_ ){
 			for( auto base : seq ){
-				if( static_cast<uint16_t>(base) < 4 ){
-					new_values.at( static_cast<uint16_t>(base) ) += 1;
+				if( !IsN(base) ){
+					new_values.at( static_cast<uintBaseCall>(base) ) += 1;
 				}
 			}
 		}
 
 		EXPECT_EQ(old_values.at(0)+old_values.at(1)+old_values.at(2)+old_values.at(3)+n_in_reference, new_values.at(0)+new_values.at(1)+new_values.at(2)+new_values.at(3)) << "Not all N's properly replaced\n";
-		for(uint16_t i=4; i--; ){
+		for(uintBaseCall i=4; i--; ){
 			EXPECT_LT(old_values.at(i), new_values.at(i)) << "No N's converted to " << i << '\n';
 		}
 	}

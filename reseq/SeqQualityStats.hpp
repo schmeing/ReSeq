@@ -7,7 +7,7 @@
 
 #include "reportingUtils.hpp"
 
-#include "utilities.h"
+#include "utilities.hpp"
 #include "Vect.hpp"
 
 namespace reseq{

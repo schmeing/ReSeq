@@ -54,7 +54,7 @@ inline uint32_t TileStats::ReadInt(stringstream &id_stream, const string &field,
 	return int_value;
 }
 
-uint32_t TileStats::GetKnownTile(const CharString &read_id, uint16_t tile_colon_number, bool print_warnings, stringstream *error_message) const{
+reseq::uintTile TileStats::GetKnownTile(const CharString &read_id, uint16_t tile_colon_number, bool print_warnings, stringstream *error_message) const{
 	uint16_t pos(0);
 
 	for(uint16_t num_colons = 0; num_colons != tile_colon_number && pos < length(read_id); ){ // Stop at colon tile_colon_number
@@ -67,31 +67,30 @@ uint32_t TileStats::GetKnownTile(const CharString &read_id, uint16_t tile_colon_
 
 	if( pos < length(read_id) ){
 		try{
-			return lexicalCast<uint16_t>(infix(read_id, start_pos, pos));
+			return lexicalCast<uintTile>(infix(read_id, start_pos, pos));
 		}
 		catch(const Exception &e){
 			if(print_warnings){
-				(error_message ? *error_message : printWarn) <<  "The read id encoding changed and the tile could not be found at colon number " << tile_colon_number << " anymore. Tile will be treated as 0: " << read_id << "\nException thrown: " << e.what() << '\n';
+				(error_message ? *error_message : printWarn) <<  "The read id encoding changed and the tile could not be found at colon number " << tile_colon_number << " anymore. Tile will be treated as 0: " << read_id << "\nException thrown: " << e.what() << std::endl;
 			}
 			return 0;
 		}
 	}
 	else{
 		if(print_warnings){
-			(error_message ? *error_message : printWarn) <<  "The read id encoding changed and the id ended before colon number " << tile_colon_number+1 << ". Tile will be treated as 0: " << read_id << '\n';
+			(error_message ? *error_message : printWarn) <<  "The read id encoding changed and the id ended before colon number " << tile_colon_number+1 << ". Tile will be treated as 0: " << read_id << std::endl;
 		}
 		return 0;
 	}
 }
 
 TileStats::TileStats():
-	read_id_buffer_size_(100), // Has to be long enough to contain everything until the first colon in read id, minimum
 	tile_colon_number_(0), // 0 indicates that the correct tile colon number has not been found yet
 	tile_accessible_(true) // Tile number is assumed to be accessible before the first read has been read
 	{
 }
 
-bool TileStats::TileId(uint16_t &id, uint32_t tile) const{
+bool TileStats::TileId(uintTileId &id, uintTile tile) const{
 	// Determine tile id
 	auto it = tile_ids_.find(tile);
 	if(tile_ids_.end() == it){ // Tile hasn't been found
@@ -103,7 +102,7 @@ bool TileStats::TileId(uint16_t &id, uint32_t tile) const{
 	}
 }
 
-uint32_t TileStats::GetTile(const CharString &read_id, uint16_t &tile_colon_number, bool &tile_accessible, stringstream *error_message) const{
+reseq::uintTile TileStats::GetTile(const CharString &read_id, uint16_t &tile_colon_number, bool &tile_accessible, stringstream *error_message) const{
 	uint32_t tile(0); // Make it a bigger int, because it also has to accept a position info to check for integer convertibility of that string
 
 	if(tile_colon_number){ // The colon number where to find the tile is know from previous reads
@@ -118,17 +117,17 @@ uint32_t TileStats::GetTile(const CharString &read_id, uint16_t &tile_colon_numb
 		stringstream id_stream(toCString(read_id));
 
 		try{
-			char buffer[read_id_buffer_size_];
+			char buffer[kReadIdBufferSize];
 
 			 // read until the first colon (unique instrument name) + potentially (NCBI identifier)
-			ReadUntil(id_stream, buffer, read_id_buffer_size_, ':', "first");
+			ReadUntil(id_stream, buffer, kReadIdBufferSize, ':', "first");
 
 			// flowcell lane or run id: Has to be int
 			ReadInt(id_stream, "second");
 			CheckDelimiter(id_stream, ':', "second");
 
 			// tile number or flowcell id: Might contain letters
-			ReadUntil(id_stream, buffer, read_id_buffer_size_, ':', "third");
+			ReadUntil(id_stream, buffer, kReadIdBufferSize, ':', "third");
 
 			// x-coordinate or flowcell lane: Has to be int
 			ReadInt(id_stream, "fourth");
@@ -142,7 +141,7 @@ uint32_t TileStats::GetTile(const CharString &read_id, uint16_t &tile_colon_numb
 				// Member of pair and index number are not checked for since they might not exist
 				tile = atoi(buffer); // Tile number have been stored in buffer before
 				string tileString(buffer);
-				if( tile && strlen(buffer) == snprintf( buffer, read_id_buffer_size_, "%u", tile ) ){ // Make sure atoi found digits to convert and all characters it found where digits
+				if( tile && strlen(buffer) == snprintf( buffer, kReadIdBufferSize, "%u", tile ) ){ // Make sure atoi found digits to convert and all characters it found where digits
 					tile_colon_number = 2;
 				}
 				else{
@@ -174,7 +173,7 @@ uint32_t TileStats::GetTile(const CharString &read_id, uint16_t &tile_colon_numb
 				*error_message << "Exception: " << e.what();
 			}
 			else{
-				printWarn << "The read enconding is unknown. All tiles will be treated as 0: " << read_id << "\nException thrown: " << e.what() << '\n';
+				printWarn << "The read enconding is unknown. All tiles will be treated as 0: " << read_id << "\nException thrown: " << e.what() << std::endl;
 			}
 			tile=0; // Not exiting because tile=0 has still to be entered into the dictionary.
 			tile_accessible=false; // Don't try further to read tile from read id
@@ -185,7 +184,7 @@ uint32_t TileStats::GetTile(const CharString &read_id, uint16_t &tile_colon_numb
 }
 
 bool TileStats::EnterTile(const CharString &read_id, stringstream *error_message){
-	uint32_t tile = GetTile(read_id, tile_colon_number_, tile_accessible_, error_message);
+	uintTile tile = GetTile(read_id, tile_colon_number_, tile_accessible_, error_message);
 
 	// Determine tile id
 	auto it = tile_ids_.find(tile);
@@ -204,7 +203,7 @@ bool TileStats::EnterTile(const CharString &read_id, stringstream *error_message
 	return tile || !tile_accessible_;
 }
 
-bool TileStats::GetTileId(uint16_t &tile_id, const CharString &read_id) const{
+bool TileStats::GetTileId(uintTileId &tile_id, const CharString &read_id) const{
 	if(tile_accessible_){
 		auto tile = GetKnownTile(read_id, tile_colon_number_, false);
 

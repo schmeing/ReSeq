@@ -51,13 +51,13 @@ void DataStatsTest::LoadStats(const string &stats_file, bool ignore_tiles, bool 
 }
 
 void DataStatsTest::TestSequenceContent(
-		uint16_t template_segment,
-		uint32_t at_pos,
-		uint64_t cont_a,
-		uint64_t cont_c,
-		uint64_t cont_g,
-		uint64_t cont_t,
-		uint64_t cont_n,
+		uintTempSeq template_segment,
+		uintReadLen at_pos,
+		uintNucCount cont_a,
+		uintNucCount cont_c,
+		uintNucCount cont_g,
+		uintNucCount cont_t,
+		uintNucCount cont_n,
 		const char * context ){
 	EXPECT_EQ(cont_a, test_->sequence_content_[template_segment][0][at_pos]) << "sequence_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
 	EXPECT_EQ(cont_c, test_->sequence_content_[template_segment][1][at_pos]) << "sequence_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
@@ -67,13 +67,13 @@ void DataStatsTest::TestSequenceContent(
 }
 
 void DataStatsTest::TestSequenceContentReference(
-		uint16_t template_segment,
-		uint16_t strand,
-		uint32_t at_pos,
-		uint64_t cont_a,
-		uint64_t cont_c,
-		uint64_t cont_g,
-		uint64_t cont_t,
+		uintTempSeq template_segment,
+		uintTempSeq strand,
+		uintReadLen at_pos,
+		uintNucCount cont_a,
+		uintNucCount cont_c,
+		uintNucCount cont_g,
+		uintNucCount cont_t,
 		const char * context ){
 	EXPECT_EQ(cont_a, test_->sequence_content_reference_[template_segment][strand][0][at_pos]) << "sequence_content_reference_[" << template_segment << "][" << strand << "] position " << at_pos << " wrong for " << context << '\n';
 	EXPECT_EQ(cont_c, test_->sequence_content_reference_[template_segment][strand][1][at_pos]) << "sequence_content_reference_[" << template_segment << "][" << strand << "] position " << at_pos << " wrong for " << context << '\n';

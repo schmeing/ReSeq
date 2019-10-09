@@ -37,11 +37,11 @@ using seqan::SeqFileIn;
 
 #include "skewer/src/matrix.h"
 
-//include "utilities.h"
+//include "utilities.hpp"
 using reseq::utilities::SetToMax;
 
-uint32_t AdapterStats::CountErrors(uint32_t &last_error_pos, const BamAlignmentRecord &record, const Reference &reference){
-	uint32_t num_errors(0), read_pos(0);
+reseq::uintReadLen AdapterStats::CountErrors(uintReadLen &last_error_pos, const BamAlignmentRecord &record, const Reference &reference){
+	uintReadLen num_errors(0), read_pos(0);
 	auto ref_pos = record.beginPos;
 	auto &ref_seq = reference.ReferenceSequence(record.rID);
 
@@ -101,14 +101,14 @@ uint32_t AdapterStats::CountErrors(uint32_t &last_error_pos, const BamAlignmentR
 	return num_errors;
 }
 
-bool AdapterStats::VerifyInsert(const CharString &read1, const CharString &read2, int32_t pos1, int32_t pos2){
+bool AdapterStats::VerifyInsert(const CharString &read1, const CharString &read2, intSeqShift pos1, intSeqShift pos2){
 	if( 1 > pos1 || 1 > pos2){
 		return true;
 	}
 
 	if( pos1 == pos2 ){
-		uint32_t matches(0), i2(0);
-		for(uint32_t i1=pos1; i1--; ){
+		uintReadLen matches(0), i2(0);
+		for(uintReadLen i1=pos1; i1--; ){
 			switch(read1[i1]){
 			case 'A':
 				if( 'T' == read2[i2] ){
@@ -142,9 +142,9 @@ bool AdapterStats::VerifyInsert(const CharString &read1, const CharString &read2
 	return false;
 }
 
-bool AdapterStats::AdaptersAmbigous(const seqan::DnaString &adaper1, const seqan::DnaString &adaper2, uint64_t max_length){
-	auto compare_until = max( max(length(adaper1), length(adaper2)), max_length );
-	uint32_t num_diff = 0;
+bool AdapterStats::AdaptersAmbigous(const seqan::DnaString &adaper1, const seqan::DnaString &adaper2, uintReadLen max_length){
+	auto compare_until = max( static_cast<uintReadLen>(max(length(adaper1), length(adaper2))), max_length );
+	uintReadLen num_diff = 0;
 	for( auto pos=compare_until; pos--; ){
 		if(adaper1[pos] != adaper2[pos]){
 			++num_diff;
@@ -153,29 +153,26 @@ bool AdapterStats::AdaptersAmbigous(const seqan::DnaString &adaper1, const seqan
 	return num_diff < 2+compare_until/10;
 }
 
-AdapterStats::AdapterStats():
-	minimum_adapter_length_unmapped_(15), // Should stop bowtie2 from mapping correctly
-	min_fraction_of_maximum_for_simulation_(0.1)
-	{
+AdapterStats::AdapterStats(){
 	// Clear adapter_overrun_bases_
 	for( auto i = tmp_overrun_bases_.size(); i--; ){
 		tmp_overrun_bases_.at(i) = 0;
 	}
 }
 
-bool AdapterStats::LoadAdapters(const char *adapter_file, const char *adapter_matrix, uint16_t phred_quality_offset, uint32_t size_read_length){
+bool AdapterStats::LoadAdapters(const char *adapter_file, const char *adapter_matrix, uintQual phred_quality_offset, uintReadLen size_read_length){
 	StringSet<CharString> ids;
 	StringSet<DnaString> seqs;
 
-	printInfo << "Loading adapters from: " << adapter_file << '\n';
-	printInfo << "Loading adapter combination matrix from: " << adapter_matrix << '\n';
+	printInfo << "Loading adapters from: " << adapter_file << std::endl;
+	printInfo << "Loading adapter combination matrix from: " << adapter_matrix << std::endl;
 
 	try{
 		SeqFileIn seq_file_in(adapter_file);
 		readRecords(ids, seqs, seq_file_in);
 	}
 	catch(const Exception &e){
-		printErr << "Could not load adapter sequences: " << e.what() << '\n';
+		printErr << "Could not load adapter sequences: " << e.what() << std::endl;
 		return false;
 	}
 
@@ -185,7 +182,7 @@ bool AdapterStats::LoadAdapters(const char *adapter_file, const char *adapter_ma
 	ifstream matrix_file;
 	matrix_file.open(adapter_matrix);
 
-	uint16_t nline=0;
+	uintAdapterId nline=0;
 	while( length(seqs) > nline && matrix_file.good() ){
 		getline(matrix_file, matrix.at(nline++));
 	}
@@ -195,26 +192,26 @@ bool AdapterStats::LoadAdapters(const char *adapter_file, const char *adapter_ma
 	// Check if matrix fits to adapter file
 	bool error = false;
 	if(length(seqs) != nline ){
-		printErr << "Matrix has less rows than adapters loaded from file.\n";
+		printErr << "Matrix has less rows than adapters loaded from file." << std::endl;
 		error = true;
 	}
 	matrix_file.get(); // Test if file is at the end
 	if( !matrix_file.eof() ){
-		printErr << "Matrix has more rows than adapters loaded from file.\n";
+		printErr << "Matrix has more rows than adapters loaded from file." << std::endl;
 		error = true;
 	}
 	for( ; nline--; ){
 		if( length(seqs) > matrix.at(nline).size() ){
-			printErr << "Matrix row " << nline << " has less columns than adapters loaded from file.\n";
+			printErr << "Matrix row " << nline << " has less columns than adapters loaded from file." << std::endl;
 			error = true;
 		}
 		else if( length(seqs) < matrix.at(nline).size() ){
-			printErr << "Matrix row " << nline << " has more columns than adapters loaded from file.\n";
+			printErr << "Matrix row " << nline << " has more columns than adapters loaded from file." << std::endl;
 			error = true;
 		}
 		for(auto nchar = matrix.at(nline).size(); nchar--; ){
 			if( '0' != matrix.at(nline).at(nchar) && '1' != matrix.at(nline).at(nchar)){
-				printErr << "Not allowed character '" << matrix.at(nline).at(nchar) << "' in matrix at line " << nline << ", position " << nchar << '\n';
+				printErr << "Not allowed character '" << matrix.at(nline).at(nchar) << "' in matrix at line " << nline << ", position " << nchar << std::endl;
 				error = true;
 			}
 		}
@@ -224,12 +221,12 @@ bool AdapterStats::LoadAdapters(const char *adapter_file, const char *adapter_ma
 	}
 
 	// Get adapters that are allowed for first or second
-	array<vector<pair<DnaString, uint16_t>>, 2> adapter_list;
-	for(uint16_t seg=2; seg--; ){
+	array<vector<pair<DnaString, uintAdapterId>>, 2> adapter_list;
+	for(uintTempSeq seg=2; seg--; ){
 		adapter_list.at(seg).reserve(length(seqs));
 	}
 
-	array<uint32_t, 2> size_adapter = {0,0};
+	array<uintReadLen, 2> size_adapter = {0,0};
 	for( nline = length(seqs); nline--; ){
 		for(auto nchar = length(seqs); nchar--; ){
 			if( '1' == matrix.at(nline).at(nchar) ){
@@ -251,10 +248,10 @@ bool AdapterStats::LoadAdapters(const char *adapter_file, const char *adapter_ma
 		}
 	}
 
-	for(uint16_t seg=2; seg--; ){
+	for(uintTempSeq seg=2; seg--; ){
 		// Also add reverse complement of adapters (as the direction is different depending on the sequencing machine Hiseq2000 vs. 4000)
 		adapter_list.at(seg).reserve(adapter_list.at(seg).size()*2);
-		for( uint16_t i=adapter_list.at(seg).size(); i--;){
+		for( uintAdapterId i=adapter_list.at(seg).size(); i--;){
 			adapter_list.at(seg).push_back(adapter_list.at(seg).at(i));
 			reverseComplement(adapter_list.at(seg).back().first);
 			adapter_list.at(seg).back().second += length(ids);
@@ -300,7 +297,7 @@ bool AdapterStats::LoadAdapters(const char *adapter_file, const char *adapter_ma
 		}
 	}
 
-	for(uint16_t seg=2; seg--; ){
+	for(uintTempSeq seg=2; seg--; ){
 		tmp_start_cut_.at(seg).resize(adapter_list.at(seg).size());
 		for( auto &dim1 : tmp_start_cut_.at(seg) ){
 			dim1.resize(size_adapter.at(seg));
@@ -323,12 +320,12 @@ bool AdapterStats::LoadAdapters(const char *adapter_file, const char *adapter_ma
 	return true;
 }
 
-bool AdapterStats::Detect(uint32_t &adapter_position_first, uint32_t &adapter_position_second, const BamAlignmentRecord &record_first, const BamAlignmentRecord &record_second, const Reference &reference, bool properly_mapped){
+bool AdapterStats::Detect(uintReadLen &adapter_position_first, uintReadLen &adapter_position_second, const BamAlignmentRecord &record_first, const BamAlignmentRecord &record_second, const Reference &reference, bool properly_mapped){
 	bool search_adapters(true);
 	// Determine minimum adapter length
 	int i_min_overlap;
 	if( hasFlagUnmapped(record_first) || hasFlagUnmapped(record_second) ){
-		uint32_t last_error_pos(minimum_adapter_length_unmapped_-1); // Case of both reads unmapped
+		uintReadLen last_error_pos(kMinimumAdapterLengthUnmapped-1); // Case of both reads unmapped
 		if( (hasFlagUnmapped(record_first) || CountErrors(last_error_pos, record_first, reference)) && (hasFlagUnmapped(record_second) || CountErrors(last_error_pos, record_second, reference)) ){
 			i_min_overlap = last_error_pos+1; // +1 because it is a position starting at 0 and we need a length
 		}
@@ -338,7 +335,7 @@ bool AdapterStats::Detect(uint32_t &adapter_position_first, uint32_t &adapter_po
 		}
 	}
 	else{
-		uint32_t last_error_pos1, last_error_pos2;
+		uintReadLen last_error_pos1, last_error_pos2;
 		if( CountErrors(last_error_pos1, record_first, reference) && CountErrors(last_error_pos2, record_second, reference) ){
 			i_min_overlap = max(last_error_pos1, last_error_pos2)+1; // A perfect matching piece cannot be an adapter, so adapter must be at least reach last error in both reads
 		}
@@ -407,8 +404,8 @@ bool AdapterStats::Detect(uint32_t &adapter_position_first, uint32_t &adapter_po
 					if( properly_mapped || VerifyInsert(read1, read2, index1.pos, index2.pos) ){
 						// Stats that need to be aware of cut length
 						bool poly_a_tail = true;
-						uint32_t poly_a_tail_length = 0;
-						for(uint32_t pos=index1.pos + length(seqs_.at(0).at(index1.bc)); pos < length(read1); ++pos){
+						uintReadLen poly_a_tail_length = 0;
+						for(uintReadLen pos=index1.pos + length(seqs_.at(0).at(index1.bc)); pos < length(read1); ++pos){
 							if(poly_a_tail){
 								if('A' == read1[pos]){
 									++poly_a_tail_length;
@@ -426,7 +423,7 @@ bool AdapterStats::Detect(uint32_t &adapter_position_first, uint32_t &adapter_po
 
 						poly_a_tail = true;
 						poly_a_tail_length = 0;
-						for(uint32_t pos=index2.pos + length(seqs_.at(1).at(index2.bc)); pos < length(read2); ++pos){
+						for(uintReadLen pos=index2.pos + length(seqs_.at(1).at(index2.bc)); pos < length(read2); ++pos){
 							if(poly_a_tail){
 								if('A' == read2[pos]){
 									++poly_a_tail_length;
@@ -490,7 +487,7 @@ void AdapterStats::Finalize(){
 		}
 	}
 
-	for(uint16_t seg=2; seg--; ){
+	for(uintTempSeq seg=2; seg--; ){
 		start_cut_.at(seg).resize(tmp_start_cut_.at(seg).size());
 		for( auto i = tmp_start_cut_.at(seg).size(); i--; ){
 			start_cut_.at(seg).at(i).Acquire(tmp_start_cut_.at(seg).at(i));
@@ -505,14 +502,14 @@ void AdapterStats::Finalize(){
 }
 
 void AdapterStats::SumCounts(){
-	for(uint16_t seg=2; seg--; ){
+	for(uintTempSeq seg=2; seg--; ){
 		count_sum_.at(seg).clear();
 		count_sum_.at(seg).resize(start_cut_.at(seg).size(), 0);
 	}
 
 	// Sum adapters starting from length where adapters are unambiguous (sorted by content: so simply first position that differs from adapter before and after)
-	uint64_t sum;
-	uint64_t first_diff_before_a1(0), first_diff_after_a1, first_diff_before_a2, first_diff_after_a2;
+	uintFragCount sum;
+	uintReadLen first_diff_before_a1(0), first_diff_after_a1, first_diff_before_a2, first_diff_after_a2;
 	for( auto a1=counts_.size(); a1--; ){
 		first_diff_after_a1 = 0;
 		if(a1){ // Not last in loop
@@ -531,8 +528,8 @@ void AdapterStats::SumCounts(){
 			}
 
 			sum = 0;
-			for( auto pos1 = max(max(first_diff_before_a1,first_diff_after_a1), counts_.at(a1).at(a2).from()); pos1 < counts_.at(a1).at(a2).to(); ++pos1){
-				for( auto pos2 = max(max(first_diff_before_a2,first_diff_after_a2), counts_.at(a1).at(a2).at(pos1).from()); pos2 < counts_.at(a1).at(a2).at(pos1).to(); ++pos2){
+			for( auto pos1 = max(max(first_diff_before_a1,first_diff_after_a1), static_cast<uintReadLen>(counts_.at(a1).at(a2).from())); pos1 < counts_.at(a1).at(a2).to(); ++pos1){
+				for( auto pos2 = max(max(first_diff_before_a2,first_diff_after_a2), static_cast<uintReadLen>(counts_.at(a1).at(a2).at(pos1).from())); pos2 < counts_.at(a1).at(a2).at(pos1).to(); ++pos2){
 					sum += counts_.at(a1).at(a2).at(pos1).at(pos2);
 				}
 			}
@@ -562,11 +559,11 @@ void AdapterStats::Shrink(){
 }
 
 void AdapterStats::PrepareSimulation(){
-	for(uint16_t seg=2; seg--; ){
+	for(uintTempSeq seg=2; seg--; ){
 		significant_count_.at(seg).clear();
 		significant_count_.at(seg).resize(count_sum_.at(seg).size(), 0);
 
-		uint64_t threshold = ceil(*max_element(count_sum_.at(seg).begin(), count_sum_.at(seg).end()) * min_fraction_of_maximum_for_simulation_);
+		uintFragCount threshold = ceil(*max_element(count_sum_.at(seg).begin(), count_sum_.at(seg).end()) * kMinFractionOfMaximumForSimulation);
 
 		for(auto i=significant_count_.at(seg).size(); i--; ){
 			if(count_sum_.at(seg).at(i) < threshold){

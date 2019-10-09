@@ -16,7 +16,7 @@
 #include <boost/archive/text_oarchive.hpp>
 
 #include "SeqQualityStats.hpp"
-#include "utilities.h"
+#include "utilities.hpp"
 #include "Vect.hpp"
 #include "DataStats.h"
 
@@ -24,7 +24,7 @@ namespace reseq{
 	class ProbabilityEstimatesTest;
 
 	namespace ProbabilityEstimatesSubClasses{
-		template<uint16_t A, uint16_t B, uint16_t N> inline uint16_t MapDim2To1(){
+		template<uintMarginId A, uintMarginId B, uintMarginId N> inline uintMarginId MapDim2To1(){
 			return A+B*(2*N-B-3)/2-1;
 		}
 
@@ -37,42 +37,39 @@ namespace reseq{
 			}
 		}
 
-		template<uint64_t N> inline void CombineDimIndices(std::array< std::vector<uint16_t>, N > &dim_indeces1, const std::array< std::vector<uint16_t>, N > &dim_indeces2){
-			for( uint16_t cur_dim = 0; cur_dim < N; ++cur_dim ){
-				for(uint32_t bin = 0; bin < dim_indeces1.at(cur_dim).size(); ++bin){
+		template<size_t N> inline void CombineDimIndices(std::array< std::vector<uintMatrixIndex>, N > &dim_indeces1, const std::array< std::vector<uintMatrixIndex>, N > &dim_indeces2){
+			for( uintMarginId cur_dim = 0; cur_dim < N; ++cur_dim ){
+				for(uintMatrixIndex bin = 0; bin < dim_indeces1.at(cur_dim).size(); ++bin){
 					dim_indeces1.at(cur_dim).at(bin) = dim_indeces2.at(cur_dim).at( dim_indeces1.at(cur_dim).at(bin) );
 				}
 			}
 		}
 
-		template<uint16_t N> class DataStorage{
-		private:
-			static const uint16_t kNumMargins = N*(N-1)/2;
-
+		template<uintMarginId N> class DataStorage{
+		public:
 			// Definitions
-			const uint64_t min_counts_per_1d_bin_;
-			const uint16_t max_bins_per_dimension_;
+			const uintMatrixCount kMinCountsPer1dBin = 100;
+			const uintMatrixIndex kMaxBinsPerDimension = 200;
+
+		private:
+			static const uintMarginId kNumMargins = N*(N-1)/2;
 
 			// Storage
 			std::array<std::vector<double>, kNumMargins> data_;
 			std::array<std::vector<double>::size_type, N> dim_size_;
 
-			void CombineEndBinsToMinCount(std::array< std::vector<uint64_t>, N > &dim_indices, std::array<Vect<uint64_t>, N> &dim_control);
-			void CombineBins(std::array<std::vector<uint16_t>, N> &initial_dim_indices_reduced, std::array<Vect<uint64_t>, N> &dim_control);
+			void CombineEndBinsToMinCount(std::array< std::vector<uintMatrixIndex>, N > &dim_indices, std::array<Vect<uintMatrixCount>, N> &dim_control);
+			void CombineBins(std::array<std::vector<uintMatrixIndex>, N> &initial_dim_indices_reduced, std::array<Vect<uintMatrixCount>, N> &dim_control);
 
-			void FillDiffMatrix(std::vector<double> &diff_matrix, uint16_t dimension) const;
-			double MaxDiff(const std::vector<double> &diff_matrix, uint16_t combined_index, std::vector<uint16_t> &same_combined_index, const std::vector<uint16_t> &dim_indices_reduced, const std::vector<uint16_t> &dim_indices_count) const;
+			void FillDiffMatrix(std::vector<double> &diff_matrix, uintMarginId dimension) const;
+			double MaxDiff(const std::vector<double> &diff_matrix, uintMatrixIndex combined_index, std::vector<uintMatrixIndex> &same_combined_index, const std::vector<uintMatrixIndex> &dim_indices_reduced, const std::vector<uintMatrixIndex> &dim_indices_count) const;
 
 			// Google test
 			friend class reseq::ProbabilityEstimatesTest;
 		public:
-			DataStorage():
-				min_counts_per_1d_bin_(100),
-				max_bins_per_dimension_(200){
-			}
-			bool SetUp(const std::array< std::pair< const Vect<Vect<uint64_t>> *, bool>, N*(N-1)/2 > &margins, const Vect<SeqQualityStats<uint64_t>> *alternative_margin, std::array< std::vector<uint64_t>, N > &dim_indices, std::array<std::vector<uint16_t>, N> &initial_dim_indices_reduced, std::mutex &print_mutex);
+			bool SetUp(const std::array< std::pair< const Vect<Vect<uintMatrixCount>> *, bool>, N*(N-1)/2 > &margins, const Vect<SeqQualityStats<uintMatrixCount>> *alternative_margin, std::array< std::vector<uintMatrixIndex>, N > &dim_indices, std::array<std::vector<uintMatrixIndex>, N> &initial_dim_indices_reduced, std::mutex &print_mutex);
 
-			template<uint16_t A, uint16_t B> inline double get(std::vector<uint64_t>::size_type index_a, std::vector<uint64_t>::size_type index_b) const{
+			template<uintMarginId A, uintMarginId B> inline double get(std::vector<uintMatrixCount>::size_type index_a, std::vector<uintMatrixCount>::size_type index_b) const{
 				if( A > B ){
 					return data_.at(MapDim2To1<A,B,N>()).at(index_a*dim_size_.at(B)+index_b);
 				}
@@ -81,20 +78,20 @@ namespace reseq{
 				}
 			}
 
-			template<uint16_t A> inline std::vector<uint64_t>::size_type size() const{
+			template<uintMarginId A> inline std::vector<uintMatrixCount>::size_type size() const{
 				return dim_size_.at(A);
 			}
 
-			void Reduce(DataStorage<N> &reduced_data, const std::array<std::vector<uint16_t>, N> &dim_indices_reduced, const std::array<std::vector<uint16_t>, N> &dim_indices_count) const;
-			void Reduce(DataStorage<N> &reduced_data, std::array<std::vector<uint16_t>, N> &dim_indices_reduced, std::array<std::vector<uint16_t>, N> &dim_indices_count, uint16_t max_size_dim) const;
-			bool Expand(DataStorage<N> &reduced_data, std::array<std::vector<uint16_t>, N> &dim_indices_reduced, std::array<std::vector<uint16_t>, N> &dim_indices_count, std::array<std::vector<uint16_t>, N> &expansion_indices, std::array<std::vector<uint16_t>, N> &expansion_count, uint16_t max_duplications) const;
+			void Reduce(DataStorage<N> &reduced_data, const std::array<std::vector<uintMatrixIndex>, N> &dim_indices_reduced, const std::array<std::vector<uintMatrixIndex>, N> &dim_indices_count) const;
+			void Reduce(DataStorage<N> &reduced_data, std::array<std::vector<uintMatrixIndex>, N> &dim_indices_reduced, std::array<std::vector<uintMatrixIndex>, N> &dim_indices_count, uintMatrixIndex max_size_dim) const;
+			bool Expand(DataStorage<N> &reduced_data, std::array<std::vector<uintMatrixIndex>, N> &dim_indices_reduced, std::array<std::vector<uintMatrixIndex>, N> &dim_indices_count, std::array<std::vector<uintMatrixIndex>, N> &expansion_indices, std::array<std::vector<uintMatrixIndex>, N> &expansion_count, uintMatrixIndex max_duplications) const;
 		};
 
-		template<uint16_t N> class LogArrayCalc{
+		template<uintMarginId N> class LogArrayCalc{
 		private:
-			template<uint16_t M> friend class LogArrayResult;
+			template<uintMarginId M> friend class LogArrayResult;
 
-			static const uint16_t kNumMargins = N*(N-1)/2;
+			static const uintMarginId kNumMargins = N*(N-1)/2;
 
 			std::array<std::vector<double>, kNumMargins> dim2_;
 			std::array<std::vector<double>::size_type, N> dim_size_;
@@ -118,8 +115,8 @@ namespace reseq{
 		public:
 			template<typename T> void SetUp(const std::array< std::vector<T>, N > &dim_indices){
 				// Fill in dim2_
-				uint16_t dim_a(N), dim_b(N-1);
-				for(uint16_t n=kNumMargins; n--; ){
+				uintMarginId dim_a(N), dim_b(N-1);
+				for(uintMarginId n=kNumMargins; n--; ){
 					if(--dim_a == dim_b){
 						--dim_b;
 						dim_a = N-1;
@@ -130,7 +127,7 @@ namespace reseq{
 				}
 
 				// Set dim_size_
-				for(uint16_t n=N; n--; ){
+				for(uintMarginId n=N; n--; ){
 					dim_size_.at(n) = dim_indices.at(n).size();
 				}
 			}
@@ -145,19 +142,19 @@ namespace reseq{
 				// Normalize dim2 so that the product of all values in a row/column are equal to 1
 				// Shift the normalization to dim1 and from there to dim0 and then redistribute equally in the other direction
 				// First change values so that the values exp(log_dim1[0]+log_dim1[1])*dim2[01] don't change
-				uint16_t dim_a(N), dim_b(N-1);
-				for(uint16_t n=kNumMargins; n--; ){
+				uintMarginId dim_a(N), dim_b(N-1);
+				for(uintMarginId n=kNumMargins; n--; ){
 					if(--dim_a == dim_b){
 						--dim_b;
 						dim_a = N-1;
 					}
 
 					// Normalize in direction dim_b
-					for(uint32_t i = dim_size_.at(dim_a); i--; ){
+					for(uintMatrixIndex i = dim_size_.at(dim_a); i--; ){
 						// Find the value to normalize
 						double prod(0.0);
-						uint32_t count(0);
-						for(uint32_t j = dim_size_.at(dim_b); j--; ){
+						uintMatrixCount count(0);
+						for(uintMatrixIndex j = dim_size_.at(dim_b); j--; ){
 							if(0.0 != dim2_.at(n).at(i*dim_size_.at(dim_b)+j)){
 								prod += std::log(dim2_.at(n).at(i*dim_size_.at(dim_b)+j)); // Use the logarithm here so that we don't run into a problem with overflow or underflow
 								++count;
@@ -170,17 +167,17 @@ namespace reseq{
 						// Normalize so the product = 1.0
 						log_dim1.at(dim_a).at(i) += prod;
 						prod = 1/std::exp(prod);
-						for(uint32_t j = dim_size_.at(dim_b); j--; ){
+						for(uintMatrixIndex j = dim_size_.at(dim_b); j--; ){
 							dim2_.at(n).at(i*dim_size_.at(dim_b)+j) *= prod;
 						}
 					}
 
 					// Normalize in direction dim_a
-					for(uint32_t j = dim_size_.at(dim_b); j--; ){
+					for(uintMatrixIndex j = dim_size_.at(dim_b); j--; ){
 						// Find the value to normalize
 						double prod(0.0);
-						uint32_t count(0);
-						for(uint32_t i = dim_size_.at(dim_a); i--; ){
+						uintMatrixCount count(0);
+						for(uintMatrixIndex i = dim_size_.at(dim_a); i--; ){
 							if(0.0 != dim2_.at(n).at(i*dim_size_.at(dim_b)+j)){
 								prod += std::log(dim2_.at(n).at(i*dim_size_.at(dim_b)+j));
 								++count;
@@ -193,24 +190,24 @@ namespace reseq{
 						// Normalize so the product = 1.0
 						log_dim1.at(dim_b).at(j) += prod;
 						prod = 1/std::exp(prod);
-						for(uint32_t i = dim_size_.at(dim_a); i--; ){
+						for(uintMatrixIndex i = dim_size_.at(dim_a); i--; ){
 							dim2_.at(n).at(i*dim_size_.at(dim_b)+j) *= prod;
 						}
 					}
 				}
 
 				// Normalize dim1 so that the values log_dim0+log_dim1 don't change
-				for(uint16_t n=N; n--; ){
+				for(uintMarginId n=N; n--; ){
 					// Find the value to normalize
 					double sum(0.0);
-					for(uint32_t i = dim_size_.at(n); i--; ){
+					for(uintMatrixIndex i = dim_size_.at(n); i--; ){
 						sum += log_dim1.at(n).at(i);
 					}
 					sum = sum/dim_size_.at(n);
 
 					// Normalize so the product = 1.0
 					log_dim0 += sum;
-					for(uint32_t i = dim_size_.at(n); i--; ){
+					for(uintMatrixIndex i = dim_size_.at(n); i--; ){
 						log_dim1.at(n).at(i) -= sum;
 					}
 				}
@@ -218,8 +215,8 @@ namespace reseq{
 				// Now redistribute log_dim0 and log_dim1 equally to dim2_ again, so that exp(log_dim0+log_dim1)*dim2_ doesn't change, but log_dim0=log_dim1=0 afterwards
 				// First store the factor to apply in log_dim1
 				log_dim0 /= N; // dim0 is separated onto N dim1 variables
-				for(uint16_t n=N; n--; ){
-					for(uint32_t i = dim_size_.at(n); i--; ){
+				for(uintMarginId n=N; n--; ){
+					for(uintMatrixIndex i = dim_size_.at(n); i--; ){
 						// dim1 variables are each separated into N-1 dim2 variables
 						log_dim1.at(n).at(i) = std::exp( (log_dim1.at(n).at(i)+log_dim0)/(N-1) );
 					}
@@ -228,22 +225,22 @@ namespace reseq{
 				// Now apply those factors
 				dim_a = N;
 				dim_b = N-1;
-				for(uint16_t n=kNumMargins; n--; ){
+				for(uintMarginId n=kNumMargins; n--; ){
 					if(--dim_a == dim_b){
 						--dim_b;
 						dim_a = N-1;
 					}
 
 					// Normalize in direction dim_b
-					for(uint32_t i = dim_size_.at(dim_a); i--; ){
-						for(uint32_t j = dim_size_.at(dim_b); j--; ){
+					for(uintMatrixIndex i = dim_size_.at(dim_a); i--; ){
+						for(uintMatrixIndex j = dim_size_.at(dim_b); j--; ){
 							dim2_.at(n).at(i*dim_size_.at(dim_b)+j) *= log_dim1.at(dim_a).at(i) * log_dim1.at(dim_b).at(j);
 						}
 					}
 				}
 			}
 
-			void Expand(const std::array<std::vector<uint16_t>, N> &dim_indices_reduced, const std::array<std::vector<uint16_t>, N> &dim_indices_count, const std::array<std::vector<uint16_t>, N> *dim_indices_new_count=NULL){
+			void Expand(const std::array<std::vector<uintMatrixIndex>, N> &dim_indices_reduced, const std::array<std::vector<uintMatrixIndex>, N> &dim_indices_count, const std::array<std::vector<uintMatrixIndex>, N> *dim_indices_new_count=NULL){
 				// Each value dim2[0] * dim2[1] * ... is divided by the number of new values it will become and then filled into those values
 				// This happens by equally splitting the division over all N-1 margins containing the variable
 
@@ -252,15 +249,15 @@ namespace reseq{
 				for( auto n=N; n--; ){
 					multipliers.at(n).resize(dim_indices_reduced.at(n).size());
 
-					for(uint32_t i = dim_indices_reduced.at(n).size(); i--; ){
+					for(uintMatrixIndex i = dim_indices_reduced.at(n).size(); i--; ){
 						multipliers.at(n).at(i) = std::pow( (dim_indices_new_count?static_cast<double>((*dim_indices_new_count).at(n).at(i)):1.0)/dim_indices_count.at(n).at(dim_indices_reduced.at(n).at(i)), 1.0/(N-1));
 					}
 				}
 
 				// Now copy the value to all new values and apply multipliers from the two relevant dimensions
 				std::vector<double> old_values;
-				uint16_t dim_a(N), dim_b(N-1);
-				for(uint16_t n=kNumMargins; n--; ){
+				uintMarginId dim_a(N), dim_b(N-1);
+				for(uintMarginId n=kNumMargins; n--; ){
 					if(--dim_a == dim_b){
 						--dim_b;
 						dim_a = N-1;
@@ -268,8 +265,8 @@ namespace reseq{
 
 					old_values = std::move(dim2_.at(n));
 					dim2_.at(n).resize(dim_indices_reduced.at(dim_a).size()*dim_indices_reduced.at(dim_b).size());
-					for(uint32_t i = dim_indices_reduced.at(dim_a).size(); i--; ){
-						for(uint32_t j = dim_indices_reduced.at(dim_b).size(); j--; ){
+					for(uintMatrixIndex i = dim_indices_reduced.at(dim_a).size(); i--; ){
+						for(uintMatrixIndex j = dim_indices_reduced.at(dim_b).size(); j--; ){
 							dim2_.at(n).at(i*dim_indices_reduced.at(dim_b).size()+j) = old_values.at( dim_indices_reduced.at(dim_a).at(i)*dim_indices_count.at(dim_b).size()+dim_indices_reduced.at(dim_b).at(j) ) * multipliers.at(dim_a).at(i) * multipliers.at(dim_b).at(j);
 						}
 					}
@@ -282,8 +279,8 @@ namespace reseq{
 			}
 
 			bool CheckConsistency(const std::string &descriptor, std::mutex &print_mutex){
-				uint16_t dim_a(N), dim_b(N-1);
-				for(uint16_t n=kNumMargins; n--; ){
+				uintMarginId dim_a(N), dim_b(N-1);
+				for(uintMarginId n=kNumMargins; n--; ){
 					if(--dim_a == dim_b){
 						--dim_b;
 						dim_a = N-1;
@@ -292,7 +289,7 @@ namespace reseq{
 					for(auto i = dim2_.at(n).size(); i--; ){
 						if( std::isnan(dim2_.at(n).at(i)) ){
 							print_mutex.lock();
-							printErr << "dim2_[" << n << "][" << i/dim_size_.at(dim_b) << "][" << i%dim_size_.at(dim_b) << "] is NaN for " << descriptor << '\n';
+							printErr << "dim2_[" << n << "][" << i/dim_size_.at(dim_b) << "][" << i%dim_size_.at(dim_b) << "] is NaN for " << descriptor << std::endl;
 							print_mutex.unlock();
 							return false;
 						}
@@ -309,7 +306,7 @@ namespace reseq{
 				}
 			}
 
-			template<uint16_t A, uint16_t B> inline double &dim2( decltype(dim2_.at(0).size()) index1, decltype(dim2_.at(0).size()) index2 ){
+			template<uintMarginId A, uintMarginId B> inline double &dim2( decltype(dim2_.at(0).size()) index1, decltype(dim2_.at(0).size()) index2 ){
 				if( A > B ){
 					return dim2_.at(MapDim2To1<A,B,N>()).at(index1*dim_size_.at(B)+index2);
 				}
@@ -317,7 +314,7 @@ namespace reseq{
 					return dim2_.at(MapDim2To1<B,A,N>()).at(index2*dim_size_.at(A)+index1);
 				}
 			}
-			template<uint16_t A, uint16_t B> inline const double &dim2( decltype(dim2_.at(0).size()) index1, decltype(dim2_.at(0).size()) index2 ) const{
+			template<uintMarginId A, uintMarginId B> inline const double &dim2( decltype(dim2_.at(0).size()) index1, decltype(dim2_.at(0).size()) index2 ) const{
 				if( A > B ){
 					return dim2_.at(MapDim2To1<A,B,N>()).at(index1*dim_size_.at(B)+index2);
 				}
@@ -325,11 +322,11 @@ namespace reseq{
 					return dim2_.at(MapDim2To1<B,A,N>()).at(index2*dim_size_.at(A)+index1);
 				}
 			}
-			inline double GetMatrixElement(const std::array<uint32_t, N> &index) const{
+			inline double GetMatrixElement(const std::array<uintMatrixIndex, N> &index) const{
 				double prod(1.0);
 
-				uint16_t dim_a(N), dim_b(N-1);
-				for(uint16_t n=kNumMargins; n--; ){
+				uintMarginId dim_a(N), dim_b(N-1);
+				for(uintMarginId n=kNumMargins; n--; ){
 					if(--dim_a == dim_b){
 						--dim_b;
 						dim_a = N-1;
@@ -342,24 +339,24 @@ namespace reseq{
 			}
 		};
 
-		template<uint16_t N> class LogArrayResult{
+		template<uintMarginId N> class LogArrayResult{
 		private:
-			static const uint16_t kNumMargins = (N-1); // Here we only take the margins with the first parameter in them, as the rest is irrelevant
+			static const uintMarginId kNumMargins = (N-1); // Here we only take the margins with the first parameter in them, as the rest is irrelevant
 
 			std::array<std::vector<double>, kNumMargins> dim2_;
-			std::array<std::pair<uint32_t, uint32_t>, N-1> limits_;
-			std::vector<uint32_t> par0_indeces_;
+			std::array<std::pair<uintMatrixIndex, uintMatrixIndex>, N-1> limits_;
+			std::vector<uintMatrixIndex> par0_indeces_;
 
-			inline double Likelihood(uint32_t ind0, const std::array<uint32_t, N-1> &index) const{
+			inline double Likelihood(uintMatrixIndex ind0, const std::array<uintMatrixIndex, N-1> &index) const{
 				double prod(dim2_.at(0).at(index.at(0)*par0_indeces_.size()+ind0));
-				for(uint16_t n=1; n<kNumMargins; ++n ){
+				for(uintMarginId n=1; n<kNumMargins; ++n ){
 					prod *= dim2_.at(n).at(index.at(n)*par0_indeces_.size()+ind0);
 				}
 
 				return prod;
 			}
 
-			inline void AdjustIndeces(std::array<uint32_t, N-1> &index) const{
+			inline void AdjustIndeces(std::array<uintMatrixIndex, N-1> &index) const{
 				for(auto n=limits_.size(); n--; ){
 					if(index.at(n) < limits_.at(n).first){
 						index.at(n) = 0; // Set it equal to the first element
@@ -374,18 +371,18 @@ namespace reseq{
 			}
 
 		public:
-			void GetResults(const LogArrayCalc<N> &calc, const std::array< std::vector<uint64_t>, N > &dim_indices ){
+			void GetResults(const LogArrayCalc<N> &calc, const std::array< std::vector<uintMatrixIndex>, N > &dim_indices ){
 				if(dim_indices.at(0).size()){
 					// Order first parameter by increasing mean, so that when called from the back the values with the highest probability come first
-					std::vector<std::pair<double, uint32_t>> dim_order;
+					std::vector<std::pair<double, uintMatrixIndex>> dim_order;
 					dim_order.resize(dim_indices.at(0).size());
 					for(auto j=dim_order.size(); j--; ){
 						dim_order.at(j) = {0.0, j};
 					}
 
-					uint16_t dim_a;
+					uintMarginId dim_a;
 					double sum;
-					for(uint16_t n=kNumMargins; n--; ){
+					for(uintMarginId n=kNumMargins; n--; ){
 						dim_a = n+1;
 
 						for(auto j = dim_order.size(); j--; ){
@@ -404,8 +401,8 @@ namespace reseq{
 					}
 
 					// Get limits {from,to} for other parameter
-					for(uint16_t n=kNumMargins; n--; ){
-						limits_.at(n) = {std::numeric_limits<uint32_t>::max(), 0};
+					for(uintMarginId n=kNumMargins; n--; ){
+						limits_.at(n) = {std::numeric_limits<uintMatrixIndex>::max(), 0};
 
 						for(auto ind : dim_indices.at(n+1) ){
 							if( ind < limits_.at(n).first ){
@@ -419,7 +416,7 @@ namespace reseq{
 					}
 
 					// Copy values to correct position
-					for(uint16_t n=kNumMargins; n--; ){
+					for(uintMarginId n=kNumMargins; n--; ){
 						dim_a = n+1;
 
 						dim2_.at(n).resize( (limits_.at(n).second - limits_.at(n).first) * par0_indeces_.size() );
@@ -437,17 +434,17 @@ namespace reseq{
 				}
 				else{
 					// No data exists so set limits to 0
-					for(uint16_t n=kNumMargins; n--; ){
+					for(uintMarginId n=kNumMargins; n--; ){
 						limits_.at(n) = {0, 0};
 					}
 				}
 			}
 
 			void ImputeMissingValues(){
-				uint32_t last_filled_index;
-				for(uint16_t n=kNumMargins; n--; ){
+				uintMatrixIndex last_filled_index;
+				for(uintMarginId n=kNumMargins; n--; ){
 					last_filled_index = 0;
-					for(uint32_t i = 1; i < limits_.at(n).second-limits_.at(n).first; ++i ){
+					for(uintMatrixIndex i = 1; i < limits_.at(n).second-limits_.at(n).first; ++i ){
 						bool filled(false);
 						for(auto j = 0; j < par0_indeces_.size(); ++j ){
 							if(0.0 != dim2_.at(n).at(i*par0_indeces_.size()+j)){
@@ -469,7 +466,7 @@ namespace reseq{
 				}
 			}
 
-			inline uint32_t Draw(std::vector<double> &prob, double &prob_sum, std::array<uint32_t, N-1> index, double random_number) const{
+			inline uintMatrixIndex Draw(std::vector<double> &prob, double &prob_sum, std::array<uintMatrixIndex, N-1> index, double random_number) const{
 				prob_sum = 0.0;
 				
 				if(par0_indeces_.size()){
@@ -478,7 +475,7 @@ namespace reseq{
 					prob.clear();
 					prob.resize(par0_indeces_.size());
 
-					for( uint32_t ind0 = 0; ind0 < prob.size(); ++ind0 ){
+					for( uintMatrixIndex ind0 = 0; ind0 < prob.size(); ++ind0 ){
 						prob.at(ind0) = Likelihood(ind0, index);
 						prob_sum += prob.at(ind0);
 					}
@@ -486,7 +483,7 @@ namespace reseq{
 					random_number *= prob_sum; // Multiply the random number [0,1[ by the sum, which is the same as dividing all likelihoods by the sum to make them probabilities
 
 					double sum(0.0);
-					uint32_t ind0 = prob.size();
+					uintMatrixIndex ind0 = prob.size();
 					while(sum <= random_number && --ind0){
 						sum += prob.at(ind0);
 					}
@@ -498,7 +495,7 @@ namespace reseq{
 				}
 			}
 			
-			inline uint32_t MaxValue() const{
+			inline uintMatrixIndex MaxValue() const{
 				if(par0_indeces_.size()){
 					return *std::max_element(par0_indeces_.begin(), par0_indeces_.end());
 				}
@@ -507,7 +504,7 @@ namespace reseq{
 				}
 			}
 			
-			inline uint32_t MostLikely() const{
+			inline uintMatrixIndex MostLikely() const{
 				if(par0_indeces_.size()){
 					return par0_indeces_.at(par0_indeces_.size()-1);
 				}
@@ -517,20 +514,20 @@ namespace reseq{
 			}
 		};
 
-		template<uint16_t G1, uint16_t G2, uint16_t L> double SumLogTerms(
+		template<uintMarginId G1, uintMarginId G2, uintMarginId L> double SumLogTerms(
 				const DataStorage<3> &data,
 				const LogArrayCalc<3> &mat,
 				std::vector<double>::size_type given_index1,
 				std::vector<double>::size_type given_index2
 				){
 			double sum = 0.0;
-			for( uint64_t i = 0; i < data.size<L>(); ++i ){
+			for( uintMatrixIndex i = 0; i < data.size<L>(); ++i ){
 				sum += mat.template dim2<G1,L>(given_index1,i) * mat.template dim2<G2,L>(given_index2,i);
 			}
 			return sum * mat.template dim2<G1,G2>(given_index1,given_index2);
 		}
 
-		template<uint16_t G1, uint16_t G2, uint16_t L1, uint16_t L2> double SumLogTerms(
+		template<uintMarginId G1, uintMarginId G2, uintMarginId L1, uintMarginId L2> double SumLogTerms(
 				const DataStorage<4> &data,
 				const LogArrayCalc<4> &mat,
 				std::vector<double>::size_type given_index1,
@@ -538,9 +535,9 @@ namespace reseq{
 				){
 			double tmp_sum;
 			double sum = 0.0;
-			for( uint64_t i = 0; i < data.size<L2>(); ++i ){
+			for( uintMatrixIndex i = 0; i < data.size<L2>(); ++i ){
 				tmp_sum = 0.0;
-				for( uint64_t j = 0; j < data.size<L1>(); ++j ){
+				for( uintMatrixIndex j = 0; j < data.size<L1>(); ++j ){
 					tmp_sum += mat.template dim2<G1,L1>(given_index1,j) * mat.template dim2<G2,L1>(given_index2,j) * mat.template dim2<L2,L1>(i,j);
 				}
 				sum += tmp_sum * mat.template dim2<G1,L2>(given_index1,i) * mat.template dim2<G2,L2>(given_index2,i);
@@ -548,7 +545,7 @@ namespace reseq{
 			return sum * mat.template dim2<G1,G2>(given_index1,given_index2);
 		}
 
-		template<uint16_t G1, uint16_t G2, uint16_t L1, uint16_t L2, uint16_t L3> double SumLogTerms(
+		template<uintMarginId G1, uintMarginId G2, uintMarginId L1, uintMarginId L2, uintMarginId L3> double SumLogTerms(
 				const DataStorage<5> &data,
 				const LogArrayCalc<5> &mat,
 				std::vector<double>::size_type given_index1,
@@ -556,11 +553,11 @@ namespace reseq{
 				){
 			double tmp_sum, tmp_sum2;
 			double sum = 0.0;
-			for( uint64_t i = 0; i < data.size<L3>(); ++i ){
+			for( uintMatrixIndex i = 0; i < data.size<L3>(); ++i ){
 				tmp_sum = 0.0;
-				for( uint64_t j = 0; j < data.size<L2>(); ++j ){
+				for( uintMatrixIndex j = 0; j < data.size<L2>(); ++j ){
 					tmp_sum2 = 0.0;
-					for( uint64_t k = 0; k < data.size<L1>(); ++k ){
+					for( uintMatrixIndex k = 0; k < data.size<L1>(); ++k ){
 						tmp_sum2 += mat.template dim2<G1,L1>(given_index1,k) * mat.template dim2<G2,L1>(given_index2,k) * mat.template dim2<L3,L1>(i,k) * mat.template dim2<L2,L1>(j,k);
 					}
 					tmp_sum += tmp_sum2 * mat.template dim2<G1,L2>(given_index1,j) * mat.template dim2<G2,L2>(given_index2,j) * mat.template dim2<L3,L2>(i,j);
@@ -570,22 +567,22 @@ namespace reseq{
 			return sum * mat.template dim2<G1,G2>(given_index1,given_index2);
 		}
 
-		template<uint16_t N> class LogIPF{
+		template<size_t N> class LogIPF{
 		private:
-			static const uint16_t kNumMargins = N*(N-1)/2;
+			static const uintMarginId kNumMargins = N*(N-1)/2;
 
 		public:
-			uint32_t steps_;
-			uint32_t needed_updates_;
+			uintNumFits steps_;
+			uintNumFits needed_updates_;
 			double precision_;
 			std::array< double, kNumMargins > margin_precision_;
-			uint16_t last_margin_;
-			std::array< uint32_t, kNumMargins > last_update_;
+			uintMarginId last_margin_;
+			std::array< uintMarginId, kNumMargins > last_update_;
 			std::array< uint16_t, kNumMargins > update_dist_;
 			LogArrayCalc<N> estimates_;
-			std::array< std::vector<uint64_t>, N > dim_indices_; // dim_indices_[Dimension][IndexInFullDataVector] = IndexInOriginalVectFromStats : Set in DataStorage.SetUp and later used for LogArrayResult.GetResult
-			std::array< std::vector<uint16_t>, N > initial_dim_indices_reduced_; // initial_dim_indices_reduced_[Dimension][IndexInFullDataVector] = IndexInInitiallyReducedVector
-			std::array< std::vector<uint16_t>, N > dim_indices_reduced_; // dim_indices_reduced_[Dimension][IndexInInitiallyReducedVector] = IndexInReducedVector
+			std::array< std::vector<uintMatrixIndex>, N > dim_indices_; // dim_indices_[Dimension][IndexInFullDataVector] = IndexInOriginalVectFromStats : Set in DataStorage.SetUp and later used for LogArrayResult.GetResult
+			std::array< std::vector<uintMatrixIndex>, N > initial_dim_indices_reduced_; // initial_dim_indices_reduced_[Dimension][IndexInFullDataVector] = IndexInInitiallyReducedVector
+			std::array< std::vector<uintMatrixIndex>, N > dim_indices_reduced_; // dim_indices_reduced_[Dimension][IndexInInitiallyReducedVector] = IndexInReducedVector
 
 		private:
 			// Temporary variables
@@ -604,11 +601,11 @@ namespace reseq{
 				}
 			}
 
-			template<uint16_t U1, uint16_t U2, uint16_t... L> inline void IPFCheckPrecision( const DataStorage<N> &data ){
+			template<uintMarginId U1, uintMarginId U2, uintMarginId... L> inline void IPFCheckPrecision( const DataStorage<N> &data ){
 				double sum;
 
-				for( uint64_t i = 0; i < data.template size<U1>(); ++i ){
-					for( uint64_t j = 0; j < data.template size<U2>(); ++j ){
+				for( uintMatrixIndex i = 0; i < data.template size<U1>(); ++i ){
+					for( uintMatrixIndex j = 0; j < data.template size<U2>(); ++j ){
 						if( 0.0 != data.template get<U1,U2>(i,j) ){
 							sum = SumLogTerms<U1,U2,L...>(data, estimates_, i, j);
 
@@ -618,11 +615,11 @@ namespace reseq{
 				}
 			}
 
-			template<uint16_t U1, uint16_t U2, uint16_t... L> inline void IPFStep( const DataStorage<N> &data ){
+			template<uintMarginId U1, uintMarginId U2, uintMarginId... L> inline void IPFStep( const DataStorage<N> &data ){
 				double sum;
 
-				for( uint64_t i = 0; i < data.template size<U1>(); ++i ){
-					for( uint64_t j = 0; j < data.template size<U2>(); ++j ){
+				for( uintMatrixIndex i = 0; i < data.template size<U1>(); ++i ){
+					for( uintMatrixIndex j = 0; j < data.template size<U2>(); ++j ){
 						if( 0.0 == data.template get<U1,U2>(i,j) ){
 							estimates_.template dim2<U1,U2>(i,j) = 0.0;
 						}
@@ -637,12 +634,12 @@ namespace reseq{
 				}
 			}
 
-			template<uint16_t U1, uint16_t U2, uint16_t... L> inline void IPFPotentialStep( const DataStorage<N> &data ){
+			template<uintMarginId U1, uintMarginId U2, uintMarginId... L> inline void IPFPotentialStep( const DataStorage<N> &data ){
 				double sum;
 				update_factors_.resize(data.template size<U1>()*data.template size<U2>());
 
-				for( uint64_t i = 0; i < data.template size<U1>(); ++i ){
-					for( uint64_t j = 0; j < data.template size<U2>(); ++j ){
+				for( uintMatrixIndex i = 0; i < data.template size<U1>(); ++i ){
+					for( uintMatrixIndex j = 0; j < data.template size<U2>(); ++j ){
 						if( 0.0 == data.template get<U1,U2>(i,j) ){
 							update_factors_.at(i*data.template size<U2>()+j) = 0.0;
 						}
@@ -659,8 +656,8 @@ namespace reseq{
 
 				// Update in case the precision aim is violated
 				if(precision_ > precision_aim_){
-						for( uint64_t i = 0; i < data.template size<U1>(); ++i ){
-							for( uint64_t j = 0; j < data.template size<U2>(); ++j ){
+						for( uintMatrixIndex i = 0; i < data.template size<U1>(); ++i ){
+							for( uintMatrixIndex j = 0; j < data.template size<U2>(); ++j ){
 								UpdateEstimate(estimates_.template dim2<U1,U2>(i,j), update_factors_.at(i*data.template size<U2>()+j));
 							}
 						}
@@ -669,7 +666,7 @@ namespace reseq{
 				update_factors_.clear();
 			}
 
-			template<uint16_t UPDATE, uint16_t U1, uint16_t U2, uint16_t... L> inline void IPFUpdateOrCheck( const DataStorage<N> &data ){
+			template<uint16_t UPDATE, uintMarginId U1, uintMarginId U2, uintMarginId... L> inline void IPFUpdateOrCheck( const DataStorage<N> &data ){
 				if(1 == UPDATE){
 					IPFStep<U1,U2,L...>(data);
 				}
@@ -686,7 +683,7 @@ namespace reseq{
 				}
 			}
 
-			template<uint16_t S, uint16_t UPDATE=1> inline void IPFStepCaller( const DataStorage<N> &data ){
+			template<uintMarginId S, uint16_t UPDATE=1> inline void IPFStepCaller( const DataStorage<N> &data ){
 				precision_ = 0;
 
 				IPFStepCallerTemp<S,UPDATE>( data );
@@ -695,12 +692,14 @@ namespace reseq{
 					last_margin_ = S;
 
 					if(precision_ > margin_precision_.at(S)){
+						// If the precision has become worse since the last update, update more often
 						if(1 < update_dist_.at(S)){
 							--update_dist_.at(S);
 						}
 					}
 					else{
 						if(steps_ >= last_update_.at(S)+update_dist_.at(S)*kNumMargins){
+							// If precision did not get worse since the last update and we called it due to precision independent updates, update less often
 							++update_dist_.at(S);
 						}
 					}
@@ -724,18 +723,18 @@ namespace reseq{
 				}
 			}
 
-			template<uint16_t S, uint16_t UPDATE=1> inline void IPFStepCallerTemp( const DataStorage<N> &data );
+			template<uintMarginId S, uint16_t UPDATE=1> inline void IPFStepCallerTemp( const DataStorage<N> &data );
 
-			template<uint16_t S> inline void IPFStepList( const DataStorage<N> &data ){
+			template<uintMarginId S> inline void IPFStepList( const DataStorage<N> &data ){
 				IPFStepCaller<S>(data);
 			}
 
-			template<uint16_t S1, uint16_t... S> inline typename std::enable_if<sizeof...(S) != 0, void>::type IPFStepList( const DataStorage<N> &data ){
+			template<uintMarginId S1, uintMarginId... S> inline typename std::enable_if<sizeof...(S) != 0, void>::type IPFStepList( const DataStorage<N> &data ){
 				IPFStepList<S1>(data);
 				IPFStepList<S...>(data);
 			}
 
-			template<uint16_t UPDATE=1> inline void IPFStep( const DataStorage<N> &data, uint16_t step ){
+			template<uint16_t UPDATE=1> inline void IPFStep( const DataStorage<N> &data, uintMarginId step ){
 				switch(step){
 				case 0:
 					IPFStepCaller<0,UPDATE>(data);
@@ -793,10 +792,10 @@ namespace reseq{
 			}
 
 			inline void IPFIteration( const DataStorage<N> &data ){
-				uint16_t update_id(0);
+				uintMarginId update_id(0);
 				double max_precision(0);
 
-				for( uint16_t ind=kNumMargins; ind--; ){
+				for( uintMarginId ind=kNumMargins; ind--; ){
 					if(last_update_.at(ind)+update_dist_.at(ind)*kNumMargins <= steps_){
 						// In case one margin hasn't been run for quite a while run it now
 						update_id = ind;
@@ -815,7 +814,7 @@ namespace reseq{
 			}
 
 			inline void IPFConfirmation( const DataStorage<N> &data ){
-				std::array< std::pair<double,uint16_t>, kNumMargins > margin_precision_sorted;
+				std::array< std::pair<double,uintMarginId>, kNumMargins > margin_precision_sorted;
 				for(auto n = kNumMargins; n--;){
 					if( n == last_margin_ ){
 						margin_precision_sorted.at(n) = {0.0,n}; // Make sure that the margin that was just run comes up last
@@ -842,13 +841,13 @@ namespace reseq{
 			}
 
 			inline void RunAllMargins( const DataStorage<N> &data ){
-				std::array< std::pair<double,uint16_t>, kNumMargins > last_update_sorted;
+				std::array< std::pair<double,uintMarginId>, kNumMargins > last_update_sorted;
 				for(auto n = kNumMargins; n--;){
 					last_update_sorted.at(n) = {last_update_.at(n),n};
 				}
 
 				std::sort(last_update_sorted.begin(), last_update_sorted.end());
-				for(uint16_t n = 0; n < kNumMargins; ++n){
+				for(uintMarginId n = 0; n < kNumMargins; ++n){
 					IPFStep(data, last_update_sorted.at(n).second);
 				}
 
@@ -867,13 +866,13 @@ namespace reseq{
 				UpdatePrecision();
 			}
 
-			inline uint32_t ReductionInfo(std::string &reduction_descriptor, const std::array<std::vector<uint16_t>, N> &dim_indices_count){
+			inline uintMatrixIndex ReductionInfo(std::string &reduction_descriptor, const std::array<std::vector<uintMatrixIndex>, N> &dim_indices_count){
 				// Prepare
 				double step_reduction_factor(1.0);
 				std::stringstream reduction_descriptor_stream;
 				reduction_descriptor_stream << " (";
 
-				for( uint16_t n=0; n < N; ++n){
+				for( uintMarginId n=0; n < N; ++n){
 					step_reduction_factor *= static_cast<double>(dim_indices_reduced_.at(n).size()) / dim_indices_count.at(n).size();
 					if(n){
 						reduction_descriptor_stream << ',';
@@ -890,7 +889,7 @@ namespace reseq{
 			bool CheckConsistency(const std::string &descriptor, std::mutex &print_mutex){
 				if( std::isnan(precision_) ){
 					print_mutex.lock();
-					printErr << "precision_ is NaN for " << descriptor << '\n';
+					printErr << "precision_ is NaN for " << descriptor << std::endl;
 					print_mutex.unlock();
 					return false;
 				}
@@ -899,7 +898,7 @@ namespace reseq{
 				}
 			}
 
-			inline void ReconstructDimIndicesCount(std::array<std::vector<uint16_t>, N> &dim_indices_count, const std::array<std::vector<uint16_t>, N> &dim_indices_reduced){
+			inline void ReconstructDimIndicesCount(std::array<std::vector<uintMatrixIndex>, N> &dim_indices_count, const std::array<std::vector<uintMatrixIndex>, N> &dim_indices_reduced){
 				// Reconstruct dim_indices_count from dim_indices_reduced_
 				for(auto n=N; n--; ){
 					dim_indices_count.at(n).resize( *std::max_element(dim_indices_reduced.at(n).begin(),dim_indices_reduced.at(n).end()) + 1, 0 );
@@ -970,13 +969,13 @@ namespace reseq{
 				}
 
 				if(expansion_necessary){
-					std::array<std::vector<uint16_t>, N> tmp_dim_indices;
-					for( uint16_t cur_dim = 0; cur_dim < N; ++cur_dim ){
+					std::array<std::vector<uintMatrixIndex>, N> tmp_dim_indices;
+					for( uintMarginId cur_dim = 0; cur_dim < N; ++cur_dim ){
 						tmp_dim_indices.at(cur_dim) = initial_dim_indices_reduced_.at(cur_dim);
 					}
 					CombineDimIndices(tmp_dim_indices, dim_indices_reduced_);
 
-					std::array<std::vector<uint16_t>, N> dim_indices_count;
+					std::array<std::vector<uintMatrixIndex>, N> dim_indices_count;
 					ReconstructDimIndicesCount(dim_indices_count, tmp_dim_indices);
 					estimates_.Expand(tmp_dim_indices,dim_indices_count);
 				}
@@ -986,9 +985,9 @@ namespace reseq{
 					std::atomic<bool> &error_during_fitting,
 					std::atomic<bool> &precision_improved,
 					double precision_aim,
-					uint16_t max_iterations,
-					const std::array< std::pair<const Vect<Vect<uint64_t>> *, bool>, kNumMargins > &margins,
-					const Vect<SeqQualityStats<uint64_t>> *alternative_margin,
+					uintNumFits max_iterations,
+					const std::array< std::pair<const Vect<Vect<uintMatrixCount>> *, bool>, kNumMargins > &margins,
+					const Vect<SeqQualityStats<uintMatrixCount>> *alternative_margin,
 					const std::string &descriptor,
 					std::mutex &print_mutex
 					){
@@ -1004,7 +1003,7 @@ namespace reseq{
 					precision_aim_ = precision_aim;
 
 					// Reserve the needed space for temporary vectors
-					uint16_t max_dim1, max_dim2;
+					uintMarginId max_dim1, max_dim2;
 					if(dim_indices_.at(N-1).size() > dim_indices_.at(N-2).size()){
 						max_dim1 = N-1;
 						max_dim2 = N-2;
@@ -1029,11 +1028,11 @@ namespace reseq{
 				}
 
 				DataStorage<N> reduced_data;
-				std::array<std::vector<uint16_t>, N> dim_indices_count, expansion_indices, expansion_count;
+				std::array<std::vector<uintMatrixIndex>, N> dim_indices_count, expansion_indices, expansion_count;
 				auto old_steps(steps_);
 				if(steps_){
 					print_mutex.lock();
-					printInfo << "Loaded " << descriptor << " at step " << steps_ << " with precision " << precision_*100 << "%\n";
+					printInfo << "Loaded " << descriptor << " at step " << steps_ << " with precision " << precision_*100 << "%" << std::endl;
 					print_mutex.unlock();
 					steps_ = 0;
 
@@ -1062,7 +1061,7 @@ namespace reseq{
 							// Print information to screen
 							if(!error_during_fitting && 0 == steps_%(50*step_multiplier)){
 								print_mutex.lock();
-								printInfo << descriptor << reduction_descriptor << " step " << steps_+old_steps << ": Current precision " << precision_*100 << "%\n";
+								printInfo << descriptor << reduction_descriptor << " step " << steps_+old_steps << ": Current precision " << precision_*100 << "%" << std::endl;
 								print_mutex.unlock();
 							}
 						}
@@ -1074,7 +1073,7 @@ namespace reseq{
 							// Print information to screen
 							if(!error_during_fitting && 0 == steps_%(50*step_multiplier)){
 								print_mutex.lock();
-								printInfo << "Confirming " << descriptor << reduction_descriptor <<" step " << steps_+old_steps << ": Current precision " << precision_*100 << "%\n";
+								printInfo << "Confirming " << descriptor << reduction_descriptor <<" step " << steps_+old_steps << ": Current precision " << precision_*100 << "%" << std::endl;
 								print_mutex.unlock();
 							}
 						}while(steps_ <= kNumMargins*max_iterations*step_multiplier && precision_ > precision_aim && !error_during_fitting);
@@ -1103,7 +1102,7 @@ namespace reseq{
 							// Print information to screen
 							if(!error_during_fitting && steps_%(50*step_multiplier) < (steps_-kNumMargins)%(50*step_multiplier)){
 								print_mutex.lock();
-								printInfo << descriptor << reduction_descriptor <<" step " << steps_+old_steps << ": Current precision " << precision_*100 << "%\n";
+								printInfo << descriptor << reduction_descriptor <<" step " << steps_+old_steps << ": Current precision " << precision_*100 << "%" << std::endl;
 								print_mutex.unlock();
 							}
 						}
@@ -1129,10 +1128,10 @@ namespace reseq{
 							steps_ += old_steps;
 							print_mutex.lock();
 							if(precision_ > precision_aim){
-								printWarn << descriptor << " did not reach precision aim: " << precision_*100 << "%\n";
+								printWarn << descriptor << " did not reach precision aim: " << precision_*100 << "%" << std::endl;
 							}
 							else{
-								printInfo << "Finished iterative proportional fitting for " << descriptor << " after step " << steps_ << " with precision " << precision_*100 << "%\n";
+								printInfo << "Finished iterative proportional fitting for " << descriptor << " after step " << steps_ << " with precision " << precision_*100 << "%" << std::endl;
 							}
 							print_mutex.unlock();
 						}
@@ -1146,7 +1145,7 @@ namespace reseq{
 			}
 		};
 
-		template<> template<uint16_t S, uint16_t UPDATE> inline void LogIPF<3>::IPFStepCallerTemp( const DataStorage<3> &data ){
+		template<> template<uintMarginId S, uint16_t UPDATE> inline void LogIPF<3>::IPFStepCallerTemp( const DataStorage<3> &data ){
 			switch(S){
 			case 0:
 				IPFUpdateOrCheck<UPDATE,0,1,2>(data);
@@ -1162,7 +1161,7 @@ namespace reseq{
 			}
 		}
 
-		template<> template<uint16_t S, uint16_t UPDATE> inline void LogIPF<4>::IPFStepCallerTemp( const DataStorage<4> &data ){
+		template<> template<uintMarginId S, uint16_t UPDATE> inline void LogIPF<4>::IPFStepCallerTemp( const DataStorage<4> &data ){
 			switch(S){
 			case 0:
 				IPFUpdateOrCheck<UPDATE,0,1,2,3>(data);
@@ -1187,7 +1186,7 @@ namespace reseq{
 			}
 		}
 
-		template<> template<uint16_t S, uint16_t UPDATE> inline void LogIPF<5>::IPFStepCallerTemp( const DataStorage<5> &data ){
+		template<> template<uintMarginId S, uint16_t UPDATE> inline void LogIPF<5>::IPFStepCallerTemp( const DataStorage<5> &data ){
 			switch(S){
 			case 0:
 				IPFUpdateOrCheck<UPDATE,0,1,2,3,4>(data);
@@ -1238,11 +1237,11 @@ namespace reseq{
 
 		struct IPFThreadParams{
 			IPFDataSelector selected_data;
-			uint16_t template_segment;
-			uint16_t tile_id;
-			uint16_t ref_base;
-			uint16_t dom_error;
-			uint16_t last_ref_base;
+			uintTempSeq template_segment;
+			uintTileId tile_id;
+			uintBaseCall ref_base;
+			uintBaseCall dom_error;
+			uintBaseCall last_ref_base;
 		};
 
 		// Mutex
@@ -1269,9 +1268,9 @@ namespace reseq{
 		std::array<std::array<ProbabilityEstimatesSubClasses::LogArrayResult<3>,5>,4> error_rate_result_; // error_rate_result_[ref_base][dom_error]: error rate, distance, gc
 		std::array<std::array<ProbabilityEstimatesSubClasses::LogArrayResult<4>,6>, 2> indels_result_; // indels_result_[Insertion/DeletionBefore][PreviousRegularCall]: indel, indel pos/length, position, gc
 
-		void SetVariables(uint16_t num_tiles);
+		void SetVariables(uintTileId num_tiles);
 
-		inline const Vect<SeqQualityStats<uint64_t>> *DefineMarginsQuality(const DataStats &stats, std::array< std::pair<const Vect<Vect<uint64_t>> *, bool>, 10 > &margins, uint16_t template_segment, uint16_t tile_id, uint16_t ref_base){
+		inline const Vect<SeqQualityStats<uintMatrixCount>> *DefineMarginsQuality(const DataStats &stats, std::array< std::pair<const Vect<Vect<uintMatrixCount>> *, bool>, 10 > &margins, uintTempSeq template_segment, uintTileId tile_id, uintBaseCall ref_base){
 			// Dimension order: quality, sequence quality, previous quality, position, error rate
 			margins.at(0) = { &stats.Qualities().BaseQualityForSequenceQualityReference(template_segment, tile_id, ref_base), true };
 			margins.at(1) = { &stats.Qualities().BaseQualityForPrecedingQualityReference(template_segment, tile_id, ref_base), true };
@@ -1286,7 +1285,7 @@ namespace reseq{
 			margins.at(2) = { NULL, true };
 			return &stats.Qualities().BaseQualityStatsReference(template_segment, tile_id, ref_base); // alternative_margin
 		}
-		inline const Vect<SeqQualityStats<uint64_t>> *DefineMarginsSequenceQuality(const DataStats &stats, std::array< std::pair<const Vect<Vect<uint64_t>> *, bool>, 6 > &margins, uint16_t template_segment, uint16_t tile_id){
+		inline const Vect<SeqQualityStats<uintMatrixCount>> *DefineMarginsSequenceQuality(const DataStats &stats, std::array< std::pair<const Vect<Vect<uintMatrixCount>> *, bool>, 6 > &margins, uintTempSeq template_segment, uintTileId tile_id){
 			// Dimension order: sequence quality, gc, mean error rate, fragment length
 			margins.at(1) = { &stats.Qualities().SequenceQualityMeanForMeanErrorRatePerTileReference(template_segment, tile_id), true };
 			margins.at(2) = { &stats.Qualities().SequenceQualityMeanForFragmentLengthPerTileReference(template_segment, tile_id), true };
@@ -1297,7 +1296,7 @@ namespace reseq{
 			margins.at(0) = { NULL, true };
 			return &stats.Qualities().SequenceQualityMeanForGCPerTileReference(template_segment, tile_id);
 		}
-		inline const Vect<SeqQualityStats<uint64_t>> *DefineMarginsBaseCall(const DataStats &stats, std::array< std::pair<const Vect<Vect<uint64_t>> *, bool>, 10 > &margins, uint16_t template_segment, uint16_t tile_id, uint16_t ref_base, uint16_t dom_error){
+		inline const Vect<SeqQualityStats<uintMatrixCount>> *DefineMarginsBaseCall(const DataStats &stats, std::array< std::pair<const Vect<Vect<uintMatrixCount>> *, bool>, 10 > &margins, uintTempSeq template_segment, uintTileId tile_id, uintBaseCall ref_base, uintBaseCall dom_error){
 			// Dimension order: called base, quality, position, error number, error rate
 			margins.at(0) = { &stats.Errors().CalledBasesByBaseQuality(template_segment, tile_id, ref_base, dom_error), false};
 			margins.at(1) = { &stats.Errors().CalledBasesByPosition(template_segment, tile_id, ref_base, dom_error), false};
@@ -1312,18 +1311,18 @@ namespace reseq{
 			margins.at(4) = { NULL, true };
 			return &stats.Qualities().BaseQualityStatsReference(template_segment, tile_id, ref_base, dom_error);
 		}
-		inline void DefineMarginsDominantError(const DataStats &stats, std::array< std::pair<const Vect<Vect<uint64_t>> *, bool>, 3 > &margins, uint16_t ref_base, uint16_t last_ref_base, uint16_t dom_last5){
+		inline void DefineMarginsDominantError(const DataStats &stats, std::array< std::pair<const Vect<Vect<uintMatrixCount>> *, bool>, 3 > &margins, uintTempSeq ref_base, uintBaseCall last_ref_base, uintBaseCall dom_last5){
 			// Dimension order: dominant error, distance, gc
 			margins.at(0) = { &stats.Coverage().DominantErrorsByDistance(ref_base, last_ref_base, dom_last5), true };
 			margins.at(1) = { &stats.Coverage().DominantErrorsByGC(ref_base, last_ref_base, dom_last5), true };
 			margins.at(2) = { &stats.Coverage().GCByDistance(ref_base, last_ref_base, dom_last5), false };
 		}
-		inline void DefineMarginsErrorRate(const DataStats &stats, std::array< std::pair<const Vect<Vect<uint64_t>> *, bool>, 3 > &margins, uint16_t ref_base, uint16_t dom_error){
+		inline void DefineMarginsErrorRate(const DataStats &stats, std::array< std::pair<const Vect<Vect<uintMatrixCount>> *, bool>, 3 > &margins, uintBaseCall ref_base, uintBaseCall dom_error){
 			margins.at(0) = { &stats.Coverage().ErrorRatesByDistance(ref_base, dom_error), true };
 			margins.at(1) = { &stats.Coverage().ErrorRatesByGC(ref_base, dom_error), true };
 			margins.at(2) = { &stats.Coverage().GCByDistance(ref_base, dom_error), false };
 		}
-		inline void DefineMarginsIndels(const DataStats &stats, std::array< std::pair<const Vect<Vect<uint64_t>> *, bool>, 6 > &margins, uint16_t indel_type, uint16_t last_call){
+		inline void DefineMarginsIndels(const DataStats &stats, std::array< std::pair<const Vect<Vect<uintMatrixCount>> *, bool>, 6 > &margins, uintInDelType indel_type, uintBaseCall last_call){
 			margins.at(0) = { &stats.Errors().InDelByInDelPos(indel_type, last_call), true };
 			margins.at(1) = { &stats.Errors().InDelByPosition(indel_type, last_call), true };
 			margins.at(2) = { &stats.Errors().InDelByGC(indel_type, last_call), true };
@@ -1332,15 +1331,15 @@ namespace reseq{
 			margins.at(5) = { &stats.Errors().GCByPosition(indel_type, last_call), false };
 		}
 
-		template<uint64_t N> void UpdateMarginDefinitionToTotal(std::array< std::pair<const Vect<Vect<uint64_t>> *, bool>, N > &margins, const std::array< Vect<Vect<uint64_t>>, N> &margin_sums){
+		template<size_t N> void UpdateMarginDefinitionToTotal(std::array< std::pair<const Vect<Vect<uintMatrixCount>> *, bool>, N > &margins, const std::array< Vect<Vect<uintMatrixCount>>, N> &margin_sums){
 			for(auto n=N; n--; ){
 				margins.at(n).first = &(margin_sums.at(n));
 				margins.at(n).second = true;
 			}
 		}
 
-		template<uint64_t N> void AddMarginsFromDefinition(std::array< Vect<Vect<uint64_t>>, N> &margin_sums, const std::array< std::pair<const Vect<Vect<uint64_t>> *, bool>, N > &margins, const Vect<SeqQualityStats<uint64_t>> *alternative_margin){
-			uint64_t N2(0);
+		template<size_t N> void AddMarginsFromDefinition(std::array< Vect<Vect<uintMatrixCount>>, N> &margin_sums, const std::array< std::pair<const Vect<Vect<uintMatrixCount>> *, bool>, N > &margins, const Vect<SeqQualityStats<uintMatrixCount>> *alternative_margin){
+			size_t N2(0);
 			switch(N){
 			case 3:
 				N2=3;
@@ -1353,14 +1352,14 @@ namespace reseq{
 				break;
 			}
 
-			uint16_t dim_a(N2), dim_b(N2-1);
-			for(uint16_t n=N; n--; ){
+			uintMarginId dim_a(N2), dim_b(N2-1);
+			for(uintMarginId n=N; n--; ){
 				if(--dim_a == dim_b){
 					--dim_b;
 					dim_a = N2-1;
 				}
 
-				uint64_t index_first_from, index_first_to;
+				uintMatrixIndex index_first_from, index_first_to;
 				if(margins.at(n).first){
 					index_first_from = (*margins.at(n).first).from();
 					index_first_to = (*margins.at(n).first).to();
@@ -1370,8 +1369,8 @@ namespace reseq{
 					index_first_to = (*alternative_margin).to();
 				}
 
-				for(uint64_t index_first = index_first_from; index_first < index_first_to; ++index_first ){
-					uint64_t index_second_from, index_second_to;
+				for(uintMatrixIndex index_first = index_first_from; index_first < index_first_to; ++index_first ){
+					uintMatrixIndex index_second_from, index_second_to;
 					if(margins.at(n).first){
 						index_second_from = (*margins.at(n).first).at(index_first).from();
 						index_second_to = (*margins.at(n).first).at(index_first).to();
@@ -1381,8 +1380,8 @@ namespace reseq{
 						index_second_to = (*alternative_margin).at(index_first).to();
 					}
 
-					for(uint64_t index_second = index_second_from; index_second < index_second_to; ++index_second ){
-						uint64_t ia, ib;
+					for(uintMatrixIndex index_second = index_second_from; index_second < index_second_to; ++index_second ){
+						uintMatrixIndex ia, ib;
 
 						if(margins.at(n).second){
 							// Indices are flipped (like they are in data_)
@@ -1405,8 +1404,8 @@ namespace reseq{
 			}
 		}
 
-		void IterativeProportionalFitting(const DataStats &stats, IPFDataSelector selected_data, uint16_t template_segment, uint16_t tile_id, uint16_t ref_base, uint16_t dom_error, uint16_t last_ref_base, uint16_t max_iterations, double precision_aim);
-		static void IPFThread(ProbabilityEstimates &self, const DataStats &stats, const std::vector<IPFThreadParams> &params, uint16_t max_iterations, double precision_aim);
+		void IterativeProportionalFitting(const DataStats &stats, IPFDataSelector selected_data, uintTempSeq template_segment, uintTileId tile_id, uintBaseCall ref_base, uintBaseCall dom_error, uintBaseCall last_ref_base, uintNumFits max_iterations, double precision_aim);
+		static void IPFThread(ProbabilityEstimates &self, const DataStats &stats, const std::vector<IPFThreadParams> &params, uintNumFits max_iterations, double precision_aim);
 
 		// boost serialization
 		friend class boost::serialization::access;
@@ -1425,29 +1424,29 @@ namespace reseq{
 	public:
 		void PrepareResult();
 
-		const ProbabilityEstimatesSubClasses::LogArrayResult<5> &Quality(uint16_t template_segment, uint16_t tile_id, uint16_t base) const{
+		const ProbabilityEstimatesSubClasses::LogArrayResult<5> &Quality(uintTempSeq template_segment, uintTileId tile_id, uintBaseCall base) const{
 			return quality_result_.at(template_segment).at(tile_id).at(base);
 		}
-		const ProbabilityEstimatesSubClasses::LogArrayResult<4> &SequenceQuality(uint16_t template_segment, uint16_t tile_id) const{
+		const ProbabilityEstimatesSubClasses::LogArrayResult<4> &SequenceQuality(uintTempSeq template_segment, uintTileId tile_id) const{
 			return sequence_quality_result_.at(template_segment).at(tile_id);
 		}
-		const ProbabilityEstimatesSubClasses::LogArrayResult<5> &BaseCall(uint16_t template_segment, uint16_t tile_id, uint16_t ref_base, uint16_t dom_error) const{
+		const ProbabilityEstimatesSubClasses::LogArrayResult<5> &BaseCall(uintTempSeq template_segment, uintTileId tile_id, uintBaseCall ref_base, uintBaseCall dom_error) const{
 			return base_call_result_.at(template_segment).at(tile_id).at(ref_base).at(dom_error);
 		}
-		const ProbabilityEstimatesSubClasses::LogArrayResult<3> &DominantError(uint16_t base, uint16_t prev_base, uint16_t dom_last5) const{
+		const ProbabilityEstimatesSubClasses::LogArrayResult<3> &DominantError(uintBaseCall base, uintBaseCall prev_base, uintBaseCall dom_last5) const{
 			return dom_error_result_.at(base).at(prev_base).at(dom_last5);
 		}
-		const ProbabilityEstimatesSubClasses::LogArrayResult<3> &ErrorRate(uint16_t base, uint16_t dom_last5) const{
+		const ProbabilityEstimatesSubClasses::LogArrayResult<3> &ErrorRate(uintBaseCall base, uintBaseCall dom_last5) const{
 			return error_rate_result_.at(base).at(dom_last5);
 		}
-		const ProbabilityEstimatesSubClasses::LogArrayResult<4> &InDels(uint16_t indel_type, uint16_t last_call) const{
+		const ProbabilityEstimatesSubClasses::LogArrayResult<4> &InDels(uintInDelType indel_type, uintBaseCall last_call) const{
 			return indels_result_.at(indel_type).at(last_call);
 		}
 
 		bool Load( const char *archive_file );
 		bool Save( const char *archive_file ) const;
 
-		bool Estimate(const DataStats &stats, uint16_t max_iterations, double precision_aim, uint16_t num_threads, const char *output, const char *input="");
+		bool Estimate(const DataStats &stats, uintNumFits max_iterations, double precision_aim, uintNumThreads num_threads, const char *output, const char *input="");
 	};
 
 }

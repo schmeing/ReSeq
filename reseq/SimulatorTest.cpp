@@ -13,6 +13,9 @@ using std::vector;
 //include <seqan/seq_io.h>
 using seqan::DnaString;
 
+//include "utilities.hpp"
+using reseq::utilities::ReverseComplementorDna;
+
 void SimulatorTest::Register(){
 	// Guarantees that library is included
 }
@@ -48,10 +51,10 @@ void SimulatorTest::TestCoverageConversion(){
 
 	// CoverageToNumberPairs
 	double coverage = 100;
-	uint64_t total_ref_size = 50000;
+	uintRefLenCalc total_ref_size = 50000;
 	double average_read_length = 150;
 
-	uint64_t total_pairs = test_->CoverageToNumberPairs(coverage, total_ref_size, average_read_length, adapter_part);
+	uintFragCount total_pairs = test_->CoverageToNumberPairs(coverage, total_ref_size, average_read_length, adapter_part);
 	EXPECT_EQ( 26667, total_pairs );
 
 	// NumberPairsToCoverage
@@ -61,7 +64,7 @@ void SimulatorTest::TestCoverageConversion(){
 void SimulatorTest::TestSurroundingModifiers(){
 	Reference test_ref;
 	resize( test_ref.reference_sequences_, 1 );
-	array<uint32_t, Reference::num_surrounding_blocks_> surrounding, comp_surrounding;
+	array<intSurrounding, Reference::num_surrounding_blocks_> surrounding, comp_surrounding;
 
 	// samtools faidx ../test/ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:1001-1020
 	// GTTGCGAGATTTGGACGGAC
@@ -217,15 +220,15 @@ void SimulatorTest::TestSurroundingModifiers(){
 
 void SimulatorTest::TestVariationInInnerLoopOfSimulateFromGivenBlock(
 		Simulator::VariantBiasVarModifiers &bias_mod,
-		uint32_t ref_seq_id,
-		uint32_t cur_start_position,
-		uint32_t frag_length_from,
-		uint32_t frag_length_to,
-		const vector<array<uint32_t, 2>> unhandled_variant_id,
-		const vector<array<uint32_t, 2>> unhandled_bases_in_variant,
-		const vector<array<int32_t, 2>> gc_mod,
-		const vector<array<int32_t, 2>> end_pos_shift,
-		array<uint32_t, 2> modified_start_pos,
+		uintRefSeqId ref_seq_id,
+		uintSeqLen cur_start_position,
+		uintSeqLen frag_length_from,
+		uintSeqLen frag_length_to,
+		const vector<array<intVariantId, 2>> unhandled_variant_id,
+		const vector<array<uintSeqLen, 2>> unhandled_bases_in_variant,
+		const vector<array<intSeqShift, 2>> gc_mod,
+		const vector<array<intSeqShift, 2>> end_pos_shift,
+		array<uintSeqLen, 2> modified_start_pos,
 		array<const Reference *, 2> comp_ref){
 	DataStats stats(NULL);
 	stats.read_lengths_.at(0)[100];
@@ -233,9 +236,9 @@ void SimulatorTest::TestVariationInInnerLoopOfSimulateFromGivenBlock(
 	stats.fragment_distribution_.insert_lengths_[frag_length_to-1];
 	stats.errors_.PrepareSimulation();
 	Simulator::SimPair sim_reads;
-	array<uint32_t, Reference::num_surrounding_blocks_> surrounding_end, comp_surrounding;
+	array<intSurrounding, Reference::num_surrounding_blocks_> surrounding_end, comp_surrounding;
 
-	uint32_t cur_end_position = cur_start_position+frag_length_from-1;
+	uintSeqLen cur_end_position = cur_start_position+frag_length_from-1;
 	species_reference_.ReverseSurrounding( surrounding_end, ref_seq_id, cur_end_position-1 ); // -1 because it is shifted first thing in the loop
 
 	for(auto frag_length = frag_length_from; frag_length < frag_length_to; ++frag_length){
@@ -263,11 +266,11 @@ void SimulatorTest::TestVariationInInnerLoopOfSimulateFromGivenBlock(
 			EXPECT_EQ(comp_surrounding.at(1), bias_mod.mod_surrounding_end_.at(1).at(1)) << bitset<20>(comp_surrounding.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_end_.at(1).at(1)) << " (Result)" << std::endl << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
 			EXPECT_EQ(comp_surrounding.at(2), bias_mod.mod_surrounding_end_.at(1).at(2)) << bitset<20>(comp_surrounding.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_end_.at(1).at(2)) << " (Result)" << std::endl << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
 
-			for(uint16_t allele=0; allele < 2; ++allele){
+			for(uintAlleleId allele=0; allele < 2; ++allele){
 				test_->GetOrgSeq(sim_reads, allele, allele, frag_length, cur_start_position, cur_end_position, ref_seq_id, species_reference_, stats, bias_mod);
 
 				EXPECT_TRUE( infix(comp_ref.at(allele)->ReferenceSequence(ref_seq_id), modified_start_pos.at(allele), modified_start_pos.at(allele)+frag_length) == prefix(sim_reads.org_seq_.at(allele), frag_length) ) << prefix(sim_reads.org_seq_.at(allele), frag_length) << std::endl << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-				EXPECT_TRUE( Reference::ReverseComplementor(infix(comp_ref.at(allele)->ReferenceSequence(ref_seq_id), modified_start_pos.at(allele), modified_start_pos.at(allele)+frag_length)) == prefix(sim_reads.org_seq_.at(!allele), frag_length) ) << prefix(sim_reads.org_seq_.at(!allele), frag_length) << std::endl << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
+				EXPECT_TRUE( ReverseComplementorDna(infix(comp_ref.at(allele)->ReferenceSequence(ref_seq_id), modified_start_pos.at(allele), modified_start_pos.at(allele)+frag_length)) == prefix(sim_reads.org_seq_.at(!allele), frag_length) ) << prefix(sim_reads.org_seq_.at(!allele), frag_length) << std::endl << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
 			}
 
 			test_->CheckForFragmentLengthExtension( bias_mod, frag_length, frag_length_to, species_reference_, stats );
@@ -278,25 +281,25 @@ void SimulatorTest::TestVariationInInnerLoopOfSimulateFromGivenBlock(
 
 void SimulatorTest::TestVariationInInnerLoopOfSimulateFromGivenBlock(
 		Simulator::VariantBiasVarModifiers &bias_mod,
-		uint32_t ref_seq_id,
-		uint32_t cur_start_position,
-		uint32_t frag_length_from,
-		uint32_t frag_length_to,
-		uint16_t allele,
-		const vector<uint32_t> unhandled_variant_id,
-		const vector<uint32_t> unhandled_bases_in_variant,
-		const vector<int32_t> gc_mod,
-		const vector<int32_t> end_pos_shift,
-		uint32_t modified_start_pos,
+		uintRefSeqId ref_seq_id,
+		uintSeqLen cur_start_position,
+		uintSeqLen frag_length_from,
+		uintSeqLen frag_length_to,
+		uintAlleleId allele,
+		const vector<intVariantId> unhandled_variant_id,
+		const vector<uintSeqLen> unhandled_bases_in_variant,
+		const vector<intSeqShift> gc_mod,
+		const vector<intSeqShift> end_pos_shift,
+		uintSeqLen modified_start_pos,
 		const Reference &comp_ref){
 	DataStats stats(NULL);
 	stats.read_lengths_.at(0)[100];
 	stats.read_lengths_.at(1)[100];
 	stats.errors_.PrepareSimulation();
 	Simulator::SimPair sim_reads;
-	array<uint32_t, Reference::num_surrounding_blocks_> surrounding_end, comp_surrounding;
+	array<intSurrounding, Reference::num_surrounding_blocks_> surrounding_end, comp_surrounding;
 
-	uint32_t cur_end_position = cur_start_position+frag_length_from-1;
+	uintSeqLen cur_end_position = cur_start_position+frag_length_from-1;
 	species_reference_.ReverseSurrounding( surrounding_end, ref_seq_id, cur_end_position-1 );
 
 	for(auto frag_length = frag_length_from; frag_length < frag_length_to; ++frag_length){
@@ -317,7 +320,7 @@ void SimulatorTest::TestVariationInInnerLoopOfSimulateFromGivenBlock(
 		test_->GetOrgSeq(sim_reads, allele, allele, frag_length, cur_start_position, cur_end_position, ref_seq_id, species_reference_, stats, bias_mod);
 
 		EXPECT_TRUE( infix(comp_ref.ReferenceSequence(ref_seq_id), modified_start_pos, modified_start_pos+frag_length) == prefix(sim_reads.org_seq_.at(allele), frag_length) ) << prefix(sim_reads.org_seq_.at(allele), frag_length) << std::endl << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-		EXPECT_TRUE( Reference::ReverseComplementor(infix(comp_ref.ReferenceSequence(ref_seq_id), modified_start_pos, modified_start_pos+frag_length)) == prefix(sim_reads.org_seq_.at(!allele), frag_length) ) << prefix(sim_reads.org_seq_.at(!allele), frag_length) << std::endl << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
+		EXPECT_TRUE( ReverseComplementorDna(infix(comp_ref.ReferenceSequence(ref_seq_id), modified_start_pos, modified_start_pos+frag_length)) == prefix(sim_reads.org_seq_.at(!allele), frag_length) ) << prefix(sim_reads.org_seq_.at(!allele), frag_length) << std::endl << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
 	}
 }
 
@@ -329,7 +332,7 @@ void SimulatorTest::TestVariationInSimulateFromGivenBlock(){
 	species_reference_.variants_.clear();
 	species_reference_.variants_.resize(1);
 	species_reference_.variants_.at(0).clear();
-	uint64_t present_in_alleles = 2; //[0:no, 1:yes]
+	uintAlleleBitArray present_in_alleles = 2; //[0:no, 1:yes]
 	species_reference_.variants_.at(0).emplace_back(455, "", present_in_alleles);
 	species_reference_.variants_.at(0).emplace_back(1002, "TAC", present_in_alleles);
 	species_reference_.variants_.at(0).emplace_back(1004, "TGA", present_in_alleles);
@@ -350,14 +353,14 @@ void SimulatorTest::TestVariationInSimulateFromGivenBlock(){
 	test_ref.reference_sequences_[0] += infix(species_reference_.ReferenceSequence(0), 1009, 1012);
 	test_ref.reference_sequences_[0][1013] = 'C';
 	test_ref.reference_sequences_[0] += infix(species_reference_.ReferenceSequence(0), 1013, 2000);
-	array<uint32_t, Reference::num_surrounding_blocks_> comp_surrounding;
+	array<intSurrounding, Reference::num_surrounding_blocks_> comp_surrounding;
 
 	Simulator::VariantBiasVarModifiers bias_mod(1, 2);
-	uint32_t ref_seq_id = 0;
-	array<uint32_t, Reference::num_surrounding_blocks_> surrounding_start;
+	uintRefSeqId ref_seq_id = 0;
+	array<intSurrounding, Reference::num_surrounding_blocks_> surrounding_start;
 
 	// Position 1003
-	uint32_t cur_start_position = 1003;
+	uintSeqLen cur_start_position = 1003;
 	bias_mod.first_variant_id_ = 2; // Insertion at position 2 has already been processed
 
 	species_reference_.ForwardSurrounding( surrounding_start, ref_seq_id, cur_start_position );

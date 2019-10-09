@@ -23,55 +23,55 @@ using std::pair;
 //include <vector>
 using std::vector;
 
-#include "utilities.h"
+//include "utilities.hpp"
 using reseq::utilities::Divide;
 
 void ProbabilityEstimatesTest::Register(){
 	// Guarantees that library is included
 }
 
-inline double ProbabilityEstimatesTest::CalculateAbsolutPrecision(uint64_t correct_margin, double marginal_sum, double precision){
+inline double ProbabilityEstimatesTest::CalculateAbsolutPrecision(uintMatrixCount correct_margin, double marginal_sum, double precision){
 	// Precision is defined to be always >1 so this has to be reverted first
 	double sum_factor = correct_margin > marginal_sum ? precision : 1.0/precision;
 	// We are interested in the absolut difference and not absolut value
 	sum_factor = fabs( sum_factor - 1);
 	// Precision is not evaluated for correct_margings equal to 0, because it would be infinity, as we still check for this cases everything considered a perfect fit (<epsilon) is accepted here
-	return max(epsilon_, marginal_sum*sum_factor);
+	return max(kEpsilon, marginal_sum*sum_factor);
 }
 
-void ProbabilityEstimatesTest::SetUpDataQual(DataStats &stats, uint16_t base, const vector<Vect<Vect<uint64_t>>> &margins, const Vect<SeqQualityStats<uint64_t>> &margin_quality_position){
-	stats.qualities_.base_quality_for_error_rate_per_tile_reference_[template_segment_][base][0] = margins[0];
-	stats.qualities_.base_quality_for_preceding_quality_per_tile_reference_[template_segment_][base][0] = margins[1];
-	stats.qualities_.preceding_quality_for_error_rate_per_tile_reference_[template_segment_][base][0] = margins[2];
-	stats.qualities_.base_quality_stats_per_tile_reference_[template_segment_][base][0] = margin_quality_position;
-	stats.qualities_.error_rate_for_position_per_tile_reference_[template_segment_][base][0] = margins[4];
-	stats.qualities_.preceding_quality_for_position_per_tile_reference_[template_segment_][base][0] = margins[5];
-	stats.qualities_.base_quality_for_sequence_quality_per_tile_reference_[template_segment_][base][0] = margins[6];
-	stats.qualities_.sequence_quality_for_error_rate_per_tile_reference_[template_segment_][base][0] = margins[7];
-	stats.qualities_.preceding_quality_for_sequence_quality_per_tile_reference_[template_segment_][base][0] = margins[8];
-	stats.qualities_.sequence_quality_for_position_per_tile_reference_[template_segment_][base][0] = margins[9];
+void ProbabilityEstimatesTest::SetUpDataQual(DataStats &stats, uintBaseCall base, const vector<Vect<Vect<uintMatrixCount>>> &margins, const Vect<SeqQualityStats<uintMatrixCount>> &margin_quality_position){
+	stats.qualities_.base_quality_for_error_rate_per_tile_reference_[kTemplateSegment][base][0] = margins[0];
+	stats.qualities_.base_quality_for_preceding_quality_per_tile_reference_[kTemplateSegment][base][0] = margins[1];
+	stats.qualities_.preceding_quality_for_error_rate_per_tile_reference_[kTemplateSegment][base][0] = margins[2];
+	stats.qualities_.base_quality_stats_per_tile_reference_[kTemplateSegment][base][0] = margin_quality_position;
+	stats.qualities_.error_rate_for_position_per_tile_reference_[kTemplateSegment][base][0] = margins[4];
+	stats.qualities_.preceding_quality_for_position_per_tile_reference_[kTemplateSegment][base][0] = margins[5];
+	stats.qualities_.base_quality_for_sequence_quality_per_tile_reference_[kTemplateSegment][base][0] = margins[6];
+	stats.qualities_.sequence_quality_for_error_rate_per_tile_reference_[kTemplateSegment][base][0] = margins[7];
+	stats.qualities_.preceding_quality_for_sequence_quality_per_tile_reference_[kTemplateSegment][base][0] = margins[8];
+	stats.qualities_.sequence_quality_for_position_per_tile_reference_[kTemplateSegment][base][0] = margins[9];
 }
 
-void ProbabilityEstimatesTest::SetUpDataBaseCall(DataStats &stats, const vector<Vect<Vect<uint64_t>>> &margins, const Vect<SeqQualityStats<uint64_t>> &margin_quality_position){
-	stats.errors_.called_bases_by_base_quality_per_tile_[template_segment_][0][0][0] = margins[0];
-	stats.errors_.called_bases_by_position_per_tile_[template_segment_][0][0][0] = margins[1];
-	stats.qualities_.base_quality_stats_per_tile_per_error_reference_[template_segment_][0][0][0] = margin_quality_position;
-	stats.errors_.called_bases_by_error_num_per_tile_[template_segment_][0][0][0] = margins[3];
-	stats.errors_.error_num_by_quality_per_tile_[template_segment_][0][0][0] = margins[4];
-	stats.errors_.error_num_by_position_per_tile_[template_segment_][0][0][0] = margins[5];
-	stats.errors_.called_bases_by_error_rate_per_tile_[template_segment_][0][0][0] = margins[6];
-	stats.qualities_.base_quality_for_error_rate_per_tile_per_error_reference_[template_segment_][0][0][0] = margins[7];
-	stats.qualities_.error_rate_for_position_per_tile_per_error_reference_[template_segment_][0][0][0] = margins[8];
-	stats.errors_.error_num_by_error_rate_per_tile_[template_segment_][0][0][0] = margins[9];
+void ProbabilityEstimatesTest::SetUpDataBaseCall(DataStats &stats, const vector<Vect<Vect<uintMatrixCount>>> &margins, const Vect<SeqQualityStats<uintMatrixCount>> &margin_quality_position){
+	stats.errors_.called_bases_by_base_quality_per_tile_[kTemplateSegment][0][0][0] = margins[0];
+	stats.errors_.called_bases_by_position_per_tile_[kTemplateSegment][0][0][0] = margins[1];
+	stats.qualities_.base_quality_stats_per_tile_per_error_reference_[kTemplateSegment][0][0][0] = margin_quality_position;
+	stats.errors_.called_bases_by_error_num_per_tile_[kTemplateSegment][0][0][0] = margins[3];
+	stats.errors_.error_num_by_quality_per_tile_[kTemplateSegment][0][0][0] = margins[4];
+	stats.errors_.error_num_by_position_per_tile_[kTemplateSegment][0][0][0] = margins[5];
+	stats.errors_.called_bases_by_error_rate_per_tile_[kTemplateSegment][0][0][0] = margins[6];
+	stats.qualities_.base_quality_for_error_rate_per_tile_per_error_reference_[kTemplateSegment][0][0][0] = margins[7];
+	stats.qualities_.error_rate_for_position_per_tile_per_error_reference_[kTemplateSegment][0][0][0] = margins[8];
+	stats.errors_.error_num_by_error_rate_per_tile_[kTemplateSegment][0][0][0] = margins[9];
 }
 
-void ProbabilityEstimatesTest::SetUpDataDomError(DataStats &stats, const vector<Vect<Vect<uint64_t>>> &margins){
+void ProbabilityEstimatesTest::SetUpDataDomError(DataStats &stats, const vector<Vect<Vect<uintMatrixCount>>> &margins){
 	stats.coverage_.dominant_errors_by_distance_[0][0][0] = margins[0];
 	stats.coverage_.dominant_errors_by_gc_[0][0][0] = margins[1];
 	stats.coverage_.gc_by_distance_de_[0][0][0] = margins[2];
 }
 
-void ProbabilityEstimatesTest::SetUpDataErrorRate(DataStats &stats, const vector<Vect<Vect<uint64_t>>> &margins){
+void ProbabilityEstimatesTest::SetUpDataErrorRate(DataStats &stats, const vector<Vect<Vect<uintMatrixCount>>> &margins){
 	stats.coverage_.error_rates_by_distance_[0][0] = margins[0];
 	stats.coverage_.error_rates_by_gc_[0][0] = margins[1];
 	stats.coverage_.gc_by_distance_er_[0][0] = margins[2];
@@ -87,7 +87,7 @@ void ProbabilityEstimatesTest::TestLogArrayCalcNormalize(){
 	LogArrayCalc<3> test, test_normalized;
 
 	// Set dimensions
-	for( uint16_t n=3; n--;){
+	for( uintMarginId n=3; n--;){
 		test.dim_size_[n] = 3;
 		test_normalized.dim_size_[n] = 3;
 	}
@@ -97,10 +97,10 @@ void ProbabilityEstimatesTest::TestLogArrayCalcNormalize(){
 	rgen.seed(20180315);
 	uniform_real_distribution<double> dist(0.5, 1.5);
 
-	for( uint16_t n=3;n--;){
+	for( uintMarginId n=3;n--;){
 		test.dim2_[n].resize(9);
-		for( uint16_t p1=3; p1--; ){
-			for( uint16_t p2=3; p2--; ){
+		for( uintMatrixIndex p1=3; p1--; ){
+			for( uintMatrixIndex p2=3; p2--; ){
 				if( 1 == p1 && 1 == p2 ){
 					test.dim2_[n][4] = 0.0; // Introduce zeros to see if the normalization can cope with that
 				}
@@ -120,10 +120,10 @@ void ProbabilityEstimatesTest::TestLogArrayCalcNormalize(){
 	}
 
 	// Copy values and renormalize new LogArray
-	for( uint16_t n=3;n--;){
+	for( uintMarginId n=3;n--;){
 		test_normalized.dim2_[n].resize(9);
-		for( uint16_t p1=3; p1--; ){
-			for( uint16_t p2=3; p2--; ){
+		for( uintMatrixIndex p1=3; p1--; ){
+			for( uintMatrixIndex p2=3; p2--; ){
 				test_normalized.dim2_[n][p1*3+p2] = test.dim2_[n][p1*3+p2];
 			}
 		}
@@ -131,18 +131,18 @@ void ProbabilityEstimatesTest::TestLogArrayCalcNormalize(){
 	test_normalized.Normalize();
 
 	// Now check if values got as small as they are supposed to be (Nothing can be higher than the max of the real distribution 1.5)
-	for( uint16_t n=3;n--;){
-		for( uint16_t p1=3; p1--; ){
-			for( uint16_t p2=3; p2--; ){
+	for( uintMarginId n=3;n--;){
+		for( uintMatrixIndex p1=3; p1--; ){
+			for( uintMatrixIndex p2=3; p2--; ){
 				EXPECT_TRUE( 1.6 > test_normalized.dim2_[n][p1*3+p2] ); // Chose 1.6, that is good enough and very generous towards precision issues
 			}
 		}
 	}
 
 	// Now check if the results are still the same
-	for( uint16_t p1=3; p1--; ){
-		for( uint16_t p2=3; p2--; ){
-			for( uint16_t p3=3; p3--; ){
+	for( uintMatrixIndex p1=3; p1--; ){
+		for( uintMatrixIndex p2=3; p2--; ){
+			for( uintMatrixIndex p3=3; p3--; ){
 				// Double precision cannot be expected after the logs used
 				EXPECT_FLOAT_EQ( test.dim2_[2][p3*3+p2]*test.dim2_[1][p3*3+p1]*test.dim2_[0][p2*3+p1],
 						test_normalized.dim2_[2][p3*3+p2]*test_normalized.dim2_[1][p3*3+p1]*test_normalized.dim2_[0][p2*3+p1] );
@@ -154,7 +154,7 @@ void ProbabilityEstimatesTest::TestLogArrayCalcNormalize(){
 void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand(){
 	// Prepare test data
 	DataStorage<3> test;
-	for(uint16_t n=3; n--; ){
+	for(uintMarginId n=3; n--; ){
 		test.dim_size_[n] = 3+2*n;
 	}
 	test.data_[0].resize(5*3, 0.0); // 1,0
@@ -162,7 +162,7 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand(){
 	test.data_[2].resize(7*5, 0.0); // 2,1
 
 	double value;
-	uint16_t red_i, red_j, red_k;
+	uintMatrixIndex red_i, red_j, red_k;
 	for(auto i=test.dim_size_[0]; i--; ){
 		for(auto j=test.dim_size_[1]; j--; ){
 			for(auto k=test.dim_size_[2]; k--; ){
@@ -199,12 +199,12 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand(){
 
 	// Test Reduce function
 	DataStorage<3> reduced_data;
-	std::array<std::vector<uint16_t>, 3> dim_indices_reduced, dim_indices_count;
+	std::array<std::vector<uintMatrixIndex>, 3> dim_indices_reduced, dim_indices_count;
 
 	test.Reduce(reduced_data, dim_indices_reduced, dim_indices_count, 3);
 
 	// Check for correctness
-	for(uint16_t n=3; n--; ){
+	for(uintMarginId n=3; n--; ){
 		EXPECT_EQ(3+2*n, dim_indices_reduced[n].size()) << "dim_indices_reduced[" << n << "].size() wrong";
 		for(auto i=dim_indices_reduced[n].size(); i--; ){
 			// Index range is from 0 to 2
@@ -235,8 +235,8 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand(){
 		EXPECT_EQ((2==n?3:1), dim_indices_count[n][ dim_indices_reduced[n][dim_indices_reduced[n].size()-1] ]) << "dim_indices_count[" << n << "][" << dim_indices_reduced[n][dim_indices_reduced[n].size()-1] << "] wrong";
 	}
 
-	uint16_t dim_a(3), dim_b(2);
-	for(uint16_t n=3; n--; ){
+	uintMarginId dim_a(3), dim_b(2);
+	for(uintMarginId n=3; n--; ){
 		if(--dim_a == dim_b){
 			--dim_b;
 			dim_a = 2;
@@ -251,9 +251,10 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand(){
 	}
 
 	// Test Expand function
-	std::array<std::vector<uint16_t>, 3> expansion_indices, expansion_count;
+	std::array<std::vector<uintMatrixIndex>, 3> expansion_indices;
+	std::array<std::vector<uintMatrixIndex>, 3> expansion_count;
 	EXPECT_TRUE( test.Expand(reduced_data, dim_indices_reduced, dim_indices_count, expansion_indices, expansion_count, 1) ) << "Expansion returns wrong value";
-	for(uint16_t n=3; n--; ){
+	for(uintMarginId n=3; n--; ){
 		EXPECT_EQ((2==n?6:3), dim_indices_count[n].size()) << "dim_indices_count[" << n << "].size() wrong";
 		if(0==n){
 			for( auto count : dim_indices_count[n]){
@@ -271,7 +272,7 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand(){
 					count_two_left = false;
 				}
 			}
-			std::vector<uint16_t> tmp_counts = dim_indices_count[n];
+			std::vector<uintMatrixIndex> tmp_counts = dim_indices_count[n];
 			for( auto ind : dim_indices_reduced[n]){
 				EXPECT_TRUE( tmp_counts[ind]-- )  << "dim_indices_count[" << n << "] does not fit with dim_indices_reduced after first expansion";
 			}
@@ -283,7 +284,7 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand(){
 	}
 
 	EXPECT_TRUE( test.Expand(reduced_data, dim_indices_reduced, dim_indices_count, expansion_indices, expansion_count, 1) ) << "Expansion returns wrong value";
-	for(uint16_t n=3; n--; ){
+	for(uintMarginId n=3; n--; ){
 		EXPECT_EQ((2==n?6:3+2*n), dim_indices_count[n].size()) << "dim_indices_count[" << n << "].size() wrong";
 		if(2!=n){
 			for( auto count : dim_indices_count[n]){
@@ -296,7 +297,7 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand(){
 	}
 
 	EXPECT_TRUE( test.Expand(reduced_data, dim_indices_reduced, dim_indices_count, expansion_indices, expansion_count, 1) ) << "Expansion returns wrong value";
-	for(uint16_t n=3; n--; ){
+	for(uintMarginId n=3; n--; ){
 		EXPECT_EQ(3+2*n, dim_indices_count[n].size()) << "dim_indices_count[" << n << "].size() wrong";
 		for( auto count : dim_indices_count[n]){
 			EXPECT_EQ(1, count) << "dim_indices_count[" << n << "] has wrong counts after third expansion";
@@ -335,10 +336,10 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand2(){
 	}
 
 	// Test Reduce function
-	std::array<std::vector<uint16_t>, 3> dim_indices_reduced, dim_indices_count;
+	std::array<std::vector<uintMatrixIndex>, 3> dim_indices_reduced, dim_indices_count;
 
 	for( uint16_t test_case=0; test_case<2; ++test_case){
-		for( uint16_t n = 3; n--; ){
+		for( uintMarginId n = 3; n--; ){
 			dim_indices_count[n].clear();
 			dim_indices_reduced[n].clear();
 		}
@@ -354,15 +355,15 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand2(){
 
 			test.Reduce(reduced_data, dim_indices_reduced, dim_indices_count, 1);
 
-			std::array<std::vector<uint16_t>, 3> expansion_indices, expansion_count;
+			std::array<std::vector<uintMatrixIndex>, 3> expansion_indices, expansion_count;
 
 			EXPECT_TRUE( test.Expand(reduced_data, dim_indices_reduced, dim_indices_count, expansion_indices, expansion_count, 1) ) << "Expansion returns wrong value";
 
-			for( uint16_t n = 3; n--; ){
+			for( uintMarginId n = 3; n--; ){
 				EXPECT_EQ( 1, expansion_count[n].size() ) << "expansion_count[" << n << "].size() wrong";
 				EXPECT_EQ( (2==n?5:1), expansion_count[n][0] ) << "expansion_count[" << n << "][0] wrong";
 				EXPECT_EQ( (2==n?2:1), expansion_indices[n].size() ) << "expansion_indices[" << n << "].size() wrong";
-				for(uint16_t i=0; i < expansion_indices[n].size(); ++i ){
+				for(uintMatrixIndex i=0; i < expansion_indices[n].size(); ++i ){
 					EXPECT_EQ( 0, expansion_indices[n][i] ) << "expansion_count[" << n << "][" << i << "] wrong";
 				}
 			}
@@ -375,27 +376,27 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand2(){
 
 		if(2 == dim_indices_count[2][0]){
 			EXPECT_EQ(3, dim_indices_count[2][1]) << "dim_indices_count[2] wrong: " << dim_indices_count[2][0] << ' ' << dim_indices_count[2][1] << " in case " << test_case;
-			for(uint16_t i=0; i<2; ++i){
+			for(uintMatrixIndex i=0; i<2; ++i){
 				EXPECT_EQ(0, dim_indices_reduced[2][i]) << "dim_indices_reduced[2] wrong in case " << test_case;
 			}
-			for(uint16_t i=2; i<5; ++i){
+			for(uintMatrixIndex i=2; i<5; ++i){
 				EXPECT_EQ(1, dim_indices_reduced[2][i]) << "dim_indices_reduced[2] wrong in case " << test_case;
 			}
 		}
 		else{
 			EXPECT_EQ(3, dim_indices_count[2][0]) << "dim_indices_count[2] wrong: " << dim_indices_count[2][0] << ' ' << dim_indices_count[2][1] << " in case " << test_case;
 			EXPECT_EQ(2, dim_indices_count[2][1]) << "dim_indices_count[2] wrong: " << dim_indices_count[2][0] << ' ' << dim_indices_count[2][1] << " in case " << test_case;
-			for(uint16_t i=0; i<2; ++i){
+			for(uintMatrixIndex i=0; i<2; ++i){
 				EXPECT_EQ(1, dim_indices_reduced[2][i]) << "dim_indices_reduced[2] wrong in case " << test_case;
 			}
-			for(uint16_t i=2; i<5; ++i){
+			for(uintMatrixIndex i=2; i<5; ++i){
 				EXPECT_EQ(2, dim_indices_reduced[2][i]) << "dim_indices_reduced[2] wrong in case " << test_case;
 			}
 		}
 	}
 
 	for( uint16_t test_case=0; test_case<2; ++test_case){
-		for( uint16_t n = 3; n--; ){
+		for( uintMarginId n = 3; n--; ){
 			dim_indices_count[n].clear();
 			dim_indices_reduced[n].clear();
 		}
@@ -411,15 +412,15 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand2(){
 
 			test.Reduce(reduced_data, dim_indices_reduced, dim_indices_count, 1);
 
-			std::array<std::vector<uint16_t>, 3> expansion_indices, expansion_count;
+			std::array<std::vector<uintMatrixIndex>, 3> expansion_indices, expansion_count;
 
 			EXPECT_TRUE( test.Expand(reduced_data, dim_indices_reduced, dim_indices_count, expansion_indices, expansion_count, 2) ) << "Expansion returns wrong value";
 
-			for( uint16_t n = 3; n--; ){
+			for( uintMarginId n = 3; n--; ){
 				EXPECT_EQ( 1, expansion_count[n].size() ) << "expansion_count[" << n << "].size() wrong";
 				EXPECT_EQ( (2==n?5:1), expansion_count[n][0] ) << "expansion_count[" << n << "][0] wrong";
 				EXPECT_EQ( (2==n?4:1), expansion_indices[n].size() ) << "expansion_indices[" << n << "].size() wrong";
-				for(uint16_t i=0; i < expansion_indices[n].size(); ++i ){
+				for(uintMatrixIndex i=0; i < expansion_indices[n].size(); ++i ){
 					EXPECT_EQ( 0, expansion_indices[n][i] ) << "expansion_count[" << n << "][" << i << "] wrong";
 				}
 			}
@@ -435,7 +436,7 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand2(){
 				count_two_left = false;
 			}
 		}
-		std::vector<uint16_t> tmp_counts = dim_indices_count[2];
+		std::vector<uintMatrixIndex> tmp_counts = dim_indices_count[2];
 		for( auto ind : dim_indices_reduced[2]){
 			EXPECT_TRUE( tmp_counts[ind]-- )  << "dim_indices_count[2] does not fit with dim_indices_reduced in case " << test_case;
 		}
@@ -446,7 +447,7 @@ void ProbabilityEstimatesTest::TestLogArrayCalcExpand(){
 	LogArrayCalc<3> test;
 
 	// Set dimensions
-	for( uint16_t n=3; n--;){
+	for( uintMarginId n=3; n--;){
 		test.dim_size_[n] = 3;
 
 	}
@@ -456,10 +457,10 @@ void ProbabilityEstimatesTest::TestLogArrayCalcExpand(){
 	rgen.seed(20180320);
 	uniform_real_distribution<double> dist(0.5, 1.5);
 
-	for( uint16_t n=3;n--;){
+	for( uintMarginId n=3;n--;){
 		test.dim2_[n].resize(9);
-		for( uint16_t p1=3; p1--; ){
-			for( uint16_t p2=3; p2--; ){
+		for( uintMatrixIndex p1=3; p1--; ){
+			for( uintMatrixIndex p2=3; p2--; ){
 				if( n == p1 && n == p2 ){
 					test.dim2_[n][4] = 0.0; // Introduce zeros to see if the extension can cope with that
 				}
@@ -472,14 +473,14 @@ void ProbabilityEstimatesTest::TestLogArrayCalcExpand(){
 
 	// Calculate marginal sums for later comparison
 	std::array<std::vector<double>, 3> marginal_sums;
-	for( uint16_t n=3; n--;){
+	for( uintMarginId n=3; n--;){
 		marginal_sums[n].resize(9, 0.0);
 	}
 
 	double value;
-	for( uint16_t p1=test.dim_size_[0]; p1--; ){
-		for( uint16_t p2=test.dim_size_[1]; p2--; ){
-			for( uint16_t p3=test.dim_size_[2]; p3--; ){
+	for( uintMatrixIndex p1=test.dim_size_[0]; p1--; ){
+		for( uintMatrixIndex p2=test.dim_size_[1]; p2--; ){
+			for( uintMatrixIndex p3=test.dim_size_[2]; p3--; ){
 				// Double precision cannot be expected after the logs used
 				value = test.dim2_[2][p3*3+p2]*test.dim2_[1][p3*3+p1]*test.dim2_[0][p2*3+p1];
 
@@ -491,7 +492,7 @@ void ProbabilityEstimatesTest::TestLogArrayCalcExpand(){
 	}
 
 	// Expand LogArray
-	std::array<std::vector<uint16_t>, 3> dim_indices_reduced, dim_indices_count;
+	std::array<std::vector<uintMatrixIndex>, 3> dim_indices_reduced, dim_indices_count;
 	dim_indices_reduced[0] = {0,1,2};
 	dim_indices_reduced[1] = {0,1,1,2};
 	dim_indices_reduced[2] = {0,1,1,1,2};
@@ -507,9 +508,9 @@ void ProbabilityEstimatesTest::TestLogArrayCalcExpand(){
 	expanded_marginal_sums[1].resize(test.dim_size_[2]*test.dim_size_[0]);
 	expanded_marginal_sums[2].resize(test.dim_size_[2]*test.dim_size_[1]);
 
-	for( uint16_t p1=test.dim_size_[0]; p1--; ){
-		for( uint16_t p2=test.dim_size_[1]; p2--; ){
-			for( uint16_t p3=test.dim_size_[2]; p3--; ){
+	for( uintMatrixIndex p1=test.dim_size_[0]; p1--; ){
+		for( uintMatrixIndex p2=test.dim_size_[1]; p2--; ){
+			for( uintMatrixIndex p3=test.dim_size_[2]; p3--; ){
 				// Double precision cannot be expected after the logs used
 				value = test.dim2_[2][p3*4+p2]*test.dim2_[1][p3*3+p1]*test.dim2_[0][p2*3+p1];
 
@@ -521,8 +522,8 @@ void ProbabilityEstimatesTest::TestLogArrayCalcExpand(){
 	}
 
 	// Compare marginal sums
-	uint16_t dim_a(3), dim_b(2);
-	for(uint16_t n=3; n--; ){
+	uintMarginId dim_a(3), dim_b(2);
+	for(uintMarginId n=3; n--; ){
 		if(--dim_a == dim_b){
 			--dim_b;
 			dim_a = 2;
@@ -539,9 +540,9 @@ void ProbabilityEstimatesTest::TestLogArrayCalcExpand(){
 }
 
 void ProbabilityEstimatesTest::TestCombineDimIndices(){
-	array< vector<uint16_t>, 2 > dim_indeces1, dim_indeces2;
+	array< vector<uintMatrixIndex>, 2 > dim_indeces1, dim_indeces2;
 
-	for(uint16_t cur_dim=2; cur_dim--; ){
+	for(uintMarginId cur_dim=2; cur_dim--; ){
 		dim_indeces1.at(cur_dim).push_back(0);
 		dim_indeces1.at(cur_dim).push_back(1);
 		dim_indeces1.at(cur_dim).push_back(1);
@@ -555,7 +556,7 @@ void ProbabilityEstimatesTest::TestCombineDimIndices(){
 
 	ProbabilityEstimatesSubClasses::CombineDimIndices(dim_indeces1, dim_indeces2);
 
-	for(uint16_t cur_dim=2; cur_dim--; ){
+	for(uintMarginId cur_dim=2; cur_dim--; ){
 		EXPECT_EQ(5, dim_indeces1.at(cur_dim).size());
 		EXPECT_EQ(0, dim_indeces1.at(cur_dim).at(0));
 		EXPECT_EQ(1, dim_indeces1.at(cur_dim).at(1));
@@ -570,16 +571,16 @@ void ProbabilityEstimatesTest::ResetProbabilityEstimates(){
 }
 
 void ProbabilityEstimatesTest::RandomFillingTestCounts(
-		Vect< Vect< Vect< Vect< Vect<uint64_t> > > > > &counts,
-		const uint16_t dim1,
-		const uint16_t dim2,
-		const uint16_t dim3,
-		const uint16_t dim4,
-		const uint16_t dim5,
-		const uint64_t seed){
+		Vect< Vect< Vect< Vect< Vect<uintMatrixCount> > > > > &counts,
+		const uintMatrixIndex dim1,
+		const uintMatrixIndex dim2,
+		const uintMatrixIndex dim3,
+		const uintMatrixIndex dim4,
+		const uintMatrixIndex dim5,
+		const uintSeed seed){
 	mt19937_64 rgen;
 	rgen.seed(seed);
-	uniform_int_distribution<uint16_t> dist(0, 10);
+	uniform_int_distribution<uintMatrixCount> dist(0, 10);
 	counts.Clear();
 
 	for( auto p1=dim1; p1--; ){
@@ -600,12 +601,12 @@ void ProbabilityEstimatesTest::RandomFillingTestCounts(
 }
 
 void ProbabilityEstimatesTest::SetOffset(
-		Vect< Vect< Vect< Vect< Vect<uint64_t> > > > > &counts,
-		const uint16_t dim1,
-		const uint16_t dim2,
-		const uint16_t dim3,
-		const uint16_t dim4,
-		const uint16_t dim5){
+		Vect< Vect< Vect< Vect< Vect<uintMatrixCount> > > > > &counts,
+		const uintMatrixIndex dim1,
+		const uintMatrixIndex dim2,
+		const uintMatrixIndex dim3,
+		const uintMatrixIndex dim4,
+		const uintMatrixIndex dim5){
 	for( auto &v1 : counts ){
 		for( auto &v2 : v1 ){
 			for( auto &v3 : v2 ){
@@ -622,15 +623,15 @@ void ProbabilityEstimatesTest::SetOffset(
 }
 
 void ProbabilityEstimatesTest::CheckIPFResult(
-		uint32_t iterations,
+		uintNumFits iterations,
 		double precision,
-		const vector<Vect<Vect<uint64_t>>> &margins,
-		const Vect<SeqQualityStats<uint64_t>> &margin_quality_position,
+		const vector<Vect<Vect<uintMatrixCount>>> &margins,
+		const Vect<SeqQualityStats<uintMatrixCount>> &margin_quality_position,
 		const vector< pair<bool, bool> > &margin_def,
 		const Vect< Vect< Vect< Vect< Vect<double> > > > > &estimated_counts,
 		string context ){
-	EXPECT_LE( iterations, max_iterations_ ) << "Maximum iterations exceeded\n";
-	EXPECT_LT( precision, precision_aim_ ) << "Precision aim not achieved\n";
+	EXPECT_LE( iterations, kMaxIterations ) << "Maximum iterations exceeded\n";
+	EXPECT_LT( precision, kPrecisionAim ) << "Precision aim not achieved\n";
 
 	// Get margins
 	vector<Vect<Vect<double>>> estimated_margins;
@@ -638,7 +639,7 @@ void ProbabilityEstimatesTest::CheckIPFResult(
 	CalculateMargins(margin_def, estimated_margins, estimated_margins_quality_position, estimated_counts);
 
 	// Check all defined margins
-	for(uint16_t i=0; i < margins.size(); ++i){
+	for(uintMarginId i=0; i < margins.size(); ++i){
 		if(margin_def[i].first){
 			for( auto pos1=margin_quality_position.from(); pos1 < margin_quality_position.to(); ++pos1 ){
 				for( auto pos2=margin_quality_position[pos1].from(); pos2 < margin_quality_position[pos1].to(); ++pos2 ){
@@ -670,9 +671,9 @@ void ProbabilityEstimatesTest::SetMarginDefQual(vector< pair<bool, bool> > &marg
 	margin_def.push_back({false, false}); // pos, sq
 }
 
-void ProbabilityEstimatesTest::SetUpDataStorageErrorRate(ProbabilityEstimatesSubClasses::DataStorage<3> &data, array< vector<uint64_t>, 3 > &dim_indices, array< vector<uint16_t>, 3 > &initial_dim_indices, const Vect< Vect< Vect< Vect< Vect<uint64_t> > > > > &counts){
-	vector<Vect<Vect<uint64_t>>> margins;
-	Vect<SeqQualityStats<uint64_t>> margin_quality_position;
+void ProbabilityEstimatesTest::SetUpDataStorageErrorRate(ProbabilityEstimatesSubClasses::DataStorage<3> &data, array< vector<uintMatrixIndex>, 3 > &dim_indices, array< vector<uintMatrixIndex>, 3 > &initial_dim_indices, const Vect< Vect< Vect< Vect< Vect<uintMatrixCount> > > > > &counts){
+	vector<Vect<Vect<uintMatrixCount>>> margins;
+	Vect<SeqQualityStats<uintMatrixCount>> margin_quality_position;
 	vector< pair<bool, bool> > margin_def;
 	SetMarginDefErrorRate(margin_def);
 	CalculateMargins(margin_def, margins, margin_quality_position, counts);
@@ -680,14 +681,14 @@ void ProbabilityEstimatesTest::SetUpDataStorageErrorRate(ProbabilityEstimatesSub
 	DataStats stats(NULL);
 	SetUpDataErrorRate(stats, margins);
 
-	array< pair<const Vect<Vect<uint64_t>> *, bool>, 3 > margin_def2;
+	array< pair<const Vect<Vect<uintMatrixCount>> *, bool>, 3 > margin_def2;
 	test_.DefineMarginsErrorRate(stats, margin_def2, 0, 0);
 
 	mutex print_mutex;
 	data.SetUp(margin_def2, NULL, dim_indices, initial_dim_indices, print_mutex);
 }
 
-void ProbabilityEstimatesTest::TestDataStorageSetUpErrorRate(ProbabilityEstimatesSubClasses::DataStorage<3> &data, array< vector<uint64_t>, 3 > &dim_indices, array< vector<uint16_t>, 3 > &initial_dim_indices, bool middle_bin_inserted){
+void ProbabilityEstimatesTest::TestDataStorageSetUpErrorRate(ProbabilityEstimatesSubClasses::DataStorage<3> &data, array< vector<uintMatrixIndex>, 3 > &dim_indices, array< vector<uintMatrixIndex>, 3 > &initial_dim_indices, bool middle_bin_inserted){
 
 	EXPECT_EQ( 2 , dim_indices.at(0).size() );
 	EXPECT_EQ( 0 , dim_indices.at(0).at(0) );
@@ -736,40 +737,40 @@ void ProbabilityEstimatesTest::TestDataStorageSetUpErrorRate(ProbabilityEstimate
 		EXPECT_EQ( 0 , initial_dim_indices.at(1).at(1) ) << "initial_dim_indices[" << 0 << "] is wrong";
 		EXPECT_EQ( 1 , initial_dim_indices.at(1).at(2) ) << "initial_dim_indices[" << 0 << "] is wrong";
 
-		for(uint16_t cur_dim=0; cur_dim < initial_dim_indices.size(); cur_dim+=2){
+		for(uintMarginId cur_dim=0; cur_dim < initial_dim_indices.size(); cur_dim+=2){
 			EXPECT_EQ( 0 , initial_dim_indices.at(cur_dim).at(0) ) << "initial_dim_indices[" << cur_dim << "] is wrong";
 			EXPECT_EQ( 1 , initial_dim_indices.at(cur_dim).at(1) ) << "initial_dim_indices[" << cur_dim << "] is wrong";
 		}
 	}
 	else{
-		for(uint16_t cur_dim=0; cur_dim < initial_dim_indices.size(); ++cur_dim){
+		for(uintMarginId cur_dim=0; cur_dim < initial_dim_indices.size(); ++cur_dim){
 			EXPECT_EQ( 0 , initial_dim_indices.at(cur_dim).at(0) ) << "initial_dim_indices[" << cur_dim << "] is wrong";
 			EXPECT_EQ( 1 , initial_dim_indices.at(cur_dim).at(1) ) << "initial_dim_indices[" << cur_dim << "] is wrong";
 		}
 	}
 }
 
-void ProbabilityEstimatesTest::IterativeProportionalFittingQual(uint16_t base, const vector<Vect<Vect<uint64_t>>> &margins, const Vect<SeqQualityStats<uint64_t>> &margin_quality_position){
+void ProbabilityEstimatesTest::IterativeProportionalFittingQual(uintBaseCall base, const vector<Vect<Vect<uintMatrixCount>>> &margins, const Vect<SeqQualityStats<uintMatrixCount>> &margin_quality_position){
 	// Run iterative proportional fitting
 	DataStats stats(NULL);
 	SetUpDataQual(stats, base, margins, margin_quality_position);
-	test_.IterativeProportionalFitting(stats, ProbabilityEstimates::kIPFQuality, template_segment_, 0, base, 0, 0, max_iterations_, precision_aim_);
+	test_.IterativeProportionalFitting(stats, ProbabilityEstimates::kIPFQuality, kTemplateSegment, 0, base, 0, 0, kMaxIterations, kPrecisionAim);
 }
 
-void ProbabilityEstimatesTest::GetIPFResultQual( const ProbabilityEstimates &estimate, uint16_t base, Vect< Vect< Vect< Vect< Vect<double> > > > > &estimated_counts, const vector<Vect<Vect<uint64_t>>> &margins ){
+void ProbabilityEstimatesTest::GetIPFResultQual( const ProbabilityEstimates &estimate, uintBaseCall base, Vect< Vect< Vect< Vect< Vect<double> > > > > &estimated_counts, const vector<Vect<Vect<uintMatrixCount>>> &margins ){
 	estimated_counts.Clear();
 
 	auto tot_counts = SumVect(margins[0]); // As the data conversion before the IPF normalizes the sum of the matrix to 1 we have to revert it here
 
-	const std::array< std::vector<uint64_t>, 5 > &dim_indices(estimate.quality_[template_segment_][0][base].dim_indices_);
+	const std::array< std::vector<uintMatrixIndex>, 5 > &dim_indices(estimate.quality_[kTemplateSegment][0][base].dim_indices_);
 
 	// Get result matrix
-	for( uint32_t q=0; q < dim_indices[0].size(); ++q ){
-		for( uint32_t er=0; er < dim_indices[4].size(); ++er ){
-			for( uint32_t pq=0; pq < dim_indices[2].size(); ++pq ){
-				for( uint32_t pos=0; pos < dim_indices[3].size(); ++pos ){
-					for( uint32_t sq=0; sq < dim_indices[1].size(); ++sq ){
-						estimated_counts[dim_indices[0][q]][dim_indices[4][er]][dim_indices[2][pq]][dim_indices[3][pos]][dim_indices[1][sq]] = estimate.quality_[template_segment_][0][base].estimates_.GetMatrixElement({q, sq, pq, pos, er}) * tot_counts;
+	for( uintMatrixIndex q=0; q < dim_indices[0].size(); ++q ){
+		for( uintMatrixIndex er=0; er < dim_indices[4].size(); ++er ){
+			for( uintMatrixIndex pq=0; pq < dim_indices[2].size(); ++pq ){
+				for( uintMatrixIndex pos=0; pos < dim_indices[3].size(); ++pos ){
+					for( uintMatrixIndex sq=0; sq < dim_indices[1].size(); ++sq ){
+						estimated_counts[dim_indices[0][q]][dim_indices[4][er]][dim_indices[2][pq]][dim_indices[3][pos]][dim_indices[1][sq]] = estimate.quality_[kTemplateSegment][0][base].estimates_.GetMatrixElement({q, sq, pq, pos, er}) * tot_counts;
 					}
 				}
 			}
@@ -779,20 +780,20 @@ void ProbabilityEstimatesTest::GetIPFResultQual( const ProbabilityEstimates &est
 	ShrinkVect(estimated_counts);
 }
 
-void ProbabilityEstimatesTest::IPFStepWiseQual(uint16_t base, const vector<Vect<Vect<uint64_t>>> &margins, const Vect<SeqQualityStats<uint64_t>> &margin_quality_position){
+void ProbabilityEstimatesTest::IPFStepWiseQual(uintBaseCall base, const vector<Vect<Vect<uintMatrixCount>>> &margins, const Vect<SeqQualityStats<uintMatrixCount>> &margin_quality_position){
 	DataStats stats(NULL);
 	SetUpDataQual(stats, base, margins, margin_quality_position);
 
-	std::array< std::pair<const Vect<Vect<uint64_t>> *, bool>, 10 > margin_defs;
-	auto alternative_margin = test_.DefineMarginsQuality(stats, margin_defs, template_segment_, 0, base);
+	std::array< std::pair<const Vect<Vect<uintMatrixCount>> *, bool>, 10 > margin_defs;
+	auto alternative_margin = test_.DefineMarginsQuality(stats, margin_defs, kTemplateSegment, 0, base);
 
-	array< vector<uint64_t>, 5 > dim_indices;
-	array< vector<uint16_t>, 5 > initial_dim_indices;
+	array< vector<uintMatrixIndex>, 5 > dim_indices;
+	array< vector<uintMatrixIndex>, 5 > initial_dim_indices;
 	DataStorage<5> data;
 	mutex print_mutex;
 	data.SetUp(margin_defs, alternative_margin, dim_indices, initial_dim_indices, print_mutex);
 
-	test_.quality_[template_segment_][0][base].estimates_.SetUp(dim_indices);
+	test_.quality_[kTemplateSegment][0][base].estimates_.SetUp(dim_indices);
 
 	IPFStepQual<1,0,2,3,4>(base, data); // (seq_qual, qual) margin
 	IPFStepQual<2,0,1,3,4>(base, data); // (prev_qual, qual) margin
@@ -806,27 +807,27 @@ void ProbabilityEstimatesTest::IPFStepWiseQual(uint16_t base, const vector<Vect<
 	IPFStepQual<4,3,0,1,2>(base, data); // (pos, error_rate) margin
 }
 
-void ProbabilityEstimatesTest::IterativeProportionalFittingBaseCall( const vector<Vect<Vect<uint64_t>>> &margins, const Vect<SeqQualityStats<uint64_t>> &margin_quality_position ){
+void ProbabilityEstimatesTest::IterativeProportionalFittingBaseCall( const vector<Vect<Vect<uintMatrixCount>>> &margins, const Vect<SeqQualityStats<uintMatrixCount>> &margin_quality_position ){
 	// Run iterative proportional fitting
 	DataStats stats(NULL);
 	SetUpDataBaseCall(stats, margins, margin_quality_position);
-	test_.IterativeProportionalFitting(stats, ProbabilityEstimates::kIPFBaseCall, template_segment_, 0, 0, 0, 0, max_iterations_, precision_aim_);
+	test_.IterativeProportionalFitting(stats, ProbabilityEstimates::kIPFBaseCall, kTemplateSegment, 0, 0, 0, 0, kMaxIterations, kPrecisionAim);
 }
 
-void ProbabilityEstimatesTest::GetIPFResultBaseCall( const ProbabilityEstimates &estimate, Vect< Vect< Vect< Vect< Vect<double> > > > > &estimated_counts, vector<Vect<Vect<uint64_t>>> &margins ){
+void ProbabilityEstimatesTest::GetIPFResultBaseCall( const ProbabilityEstimates &estimate, Vect< Vect< Vect< Vect< Vect<double> > > > > &estimated_counts, vector<Vect<Vect<uintMatrixCount>>> &margins ){
 	estimated_counts.Clear();
 
 	auto tot_counts = SumVect(margins[0]); // As the data conversion before the IPF normalizes the sum of the matrix to 1 we have to revert it here
 
-	const std::array< std::vector<uint64_t>, 5 > &dim_indices(estimate.base_call_[template_segment_][0][0][0].dim_indices_);
+	const std::array< std::vector<uintMatrixIndex>, 5 > &dim_indices(estimate.base_call_[kTemplateSegment][0][0][0].dim_indices_);
 
 	// Get result matrix
-	for( uint32_t bc=0; bc < dim_indices[0].size(); ++bc ){
-		for( uint32_t q=0; q < dim_indices[1].size(); ++q ){
-			for( uint32_t pos=0; pos < dim_indices[2].size(); ++pos ){
-				for( uint32_t num=0; num < dim_indices[3].size(); ++num ){
-					for( uint32_t er=0; er < dim_indices[4].size(); ++er ){
-						estimated_counts[dim_indices[0][bc]][dim_indices[1][q]][dim_indices[2][pos]][dim_indices[3][num]][dim_indices[4][er]] = estimate.base_call_[template_segment_][0][0][0].estimates_.GetMatrixElement({bc, q, pos, num, er}) * tot_counts;
+	for( uintMatrixIndex bc=0; bc < dim_indices[0].size(); ++bc ){
+		for( uintMatrixIndex q=0; q < dim_indices[1].size(); ++q ){
+			for( uintMatrixIndex pos=0; pos < dim_indices[2].size(); ++pos ){
+				for( uintMatrixIndex num=0; num < dim_indices[3].size(); ++num ){
+					for( uintMatrixIndex er=0; er < dim_indices[4].size(); ++er ){
+						estimated_counts[dim_indices[0][bc]][dim_indices[1][q]][dim_indices[2][pos]][dim_indices[3][num]][dim_indices[4][er]] = estimate.base_call_[kTemplateSegment][0][0][0].estimates_.GetMatrixElement({bc, q, pos, num, er}) * tot_counts;
 					}
 				}
 			}
@@ -836,24 +837,24 @@ void ProbabilityEstimatesTest::GetIPFResultBaseCall( const ProbabilityEstimates 
 	ShrinkVect(estimated_counts);
 }
 
-void ProbabilityEstimatesTest::IterativeProportionalFittingDomError(const vector<Vect<Vect<uint64_t>>> &margins){
+void ProbabilityEstimatesTest::IterativeProportionalFittingDomError(const vector<Vect<Vect<uintMatrixCount>>> &margins){
 	// Run iterative proportional fitting
 	DataStats stats(NULL);
 	SetUpDataDomError(stats, margins);
-	test_.IterativeProportionalFitting(stats, ProbabilityEstimates::kIPFDominantError, template_segment_, 0, 0, 0, 0, max_iterations_, precision_aim_);
+	test_.IterativeProportionalFitting(stats, ProbabilityEstimates::kIPFDominantError, kTemplateSegment, 0, 0, 0, 0, kMaxIterations, kPrecisionAim);
 }
 
-void ProbabilityEstimatesTest::GetIPFResultDomError( const ProbabilityEstimates &estimate, Vect< Vect< Vect< Vect< Vect<double> > > > > &estimated_counts, vector<Vect<Vect<uint64_t>>> &margins ){
+void ProbabilityEstimatesTest::GetIPFResultDomError( const ProbabilityEstimates &estimate, Vect< Vect< Vect< Vect< Vect<double> > > > > &estimated_counts, vector<Vect<Vect<uintMatrixCount>>> &margins ){
 	estimated_counts.Clear();
 
 	auto tot_counts = SumVect(margins[0]); // As the data conversion before the IPF normalizes the sum of the matrix to 1 we have to revert it here
 
-	const std::array< std::vector<uint64_t>, 3 > &dim_indices(estimate.dom_error_[0][0][0].dim_indices_);
+	const std::array< std::vector<uintMatrixIndex>, 3 > &dim_indices(estimate.dom_error_[0][0][0].dim_indices_);
 
 	// Get result matrix
-	for( uint32_t dist=0; dist < dim_indices[1].size(); ++dist ){
-		for( uint32_t dom_err=0; dom_err < dim_indices[0].size(); ++dom_err ){
-			for( uint32_t gc=0; gc < dim_indices[2].size(); ++gc ){
+	for( uintMatrixIndex dist=0; dist < dim_indices[1].size(); ++dist ){
+		for( uintMatrixIndex dom_err=0; dom_err < dim_indices[0].size(); ++dom_err ){
+			for( uintMatrixIndex gc=0; gc < dim_indices[2].size(); ++gc ){
 				estimated_counts[dim_indices[0][dom_err]][dim_indices[1][dist]][dim_indices[2][gc]][0][0] = estimate.dom_error_[0][0][0].estimates_.GetMatrixElement({dom_err, dist, gc}) * tot_counts;
 			}
 		}
@@ -869,24 +870,24 @@ void ProbabilityEstimatesTest::SetMarginDefErrorRate(vector< pair<bool, bool> > 
 	margin_def.push_back({false, false}); // dist, gc
 }
 
-void ProbabilityEstimatesTest::IterativeProportionalFittingErrorRate(const vector<Vect<Vect<uint64_t>>> &margins){
+void ProbabilityEstimatesTest::IterativeProportionalFittingErrorRate(const vector<Vect<Vect<uintMatrixCount>>> &margins){
 	// Run iterative proportional fitting
 	DataStats stats(NULL);
 	SetUpDataErrorRate(stats, margins);
-	test_.IterativeProportionalFitting(stats, ProbabilityEstimates::kIPFErrorRate, template_segment_, 0, 0, 0, 0, max_iterations_, precision_aim_);
+	test_.IterativeProportionalFitting(stats, ProbabilityEstimates::kIPFErrorRate, kTemplateSegment, 0, 0, 0, 0, kMaxIterations, kPrecisionAim);
 }
 
-void ProbabilityEstimatesTest::GetIPFResultErrorRate( const ProbabilityEstimates &estimate, Vect< Vect< Vect< Vect< Vect<double> > > > > &estimated_counts, vector<Vect<Vect<uint64_t>>> &margins ){
+void ProbabilityEstimatesTest::GetIPFResultErrorRate( const ProbabilityEstimates &estimate, Vect< Vect< Vect< Vect< Vect<double> > > > > &estimated_counts, vector<Vect<Vect<uintMatrixCount>>> &margins ){
 	estimated_counts.Clear();
 
 	auto tot_counts = SumVect(margins[0]); // As the data conversion before the IPF normalizes the sum of the matrix to 1 we have to revert it here
 
-	const std::array< std::vector<uint64_t>, 3 > &dim_indices(estimate.error_rate_[0][0].dim_indices_);
+	const std::array< std::vector<uintMatrixIndex>, 3 > &dim_indices(estimate.error_rate_[0][0].dim_indices_);
 
 	// Get result matrix
-	for( uint32_t dist=0; dist < dim_indices[1].size(); ++dist ){
-		for( uint32_t er=0; er < dim_indices[0].size(); ++er ){
-			for( uint32_t gc=0; gc < dim_indices[2].size(); ++gc ){
+	for( uintMatrixIndex dist=0; dist < dim_indices[1].size(); ++dist ){
+		for( uintMatrixIndex er=0; er < dim_indices[0].size(); ++er ){
+			for( uintMatrixIndex gc=0; gc < dim_indices[2].size(); ++gc ){
 				estimated_counts[dim_indices[0][er]][dim_indices[1][dist]][dim_indices[2][gc]][0][0] = estimate.error_rate_[0][0].estimates_.GetMatrixElement({er, dist, gc}) * tot_counts;
 			}
 		}
@@ -897,14 +898,16 @@ void ProbabilityEstimatesTest::GetIPFResultErrorRate( const ProbabilityEstimates
 
 namespace reseq{
 	TEST_F(ProbabilityEstimatesTest, DataStorageSetUp){
-		Vect< Vect< Vect< Vect< Vect<uint64_t> > > > > counts;
-		uint64_t n(0);
+		ProbabilityEstimatesSubClasses::DataStorage<3> data;
+
+		Vect< Vect< Vect< Vect< Vect<uintMatrixCount> > > > > counts;
+		uintMatrixCount n(0);
 		for(auto i=0; i<3; ++i){
 			if(1 != i){
 				for(auto j=1; j<3; ++j){
 					for(auto k=0; k<3; ++k){
 						if(2 != k){
-							counts[i][j][k][0][0] = ++n*100; // Multiply everything by 100 so we are above minimum counts and bins are not combined
+							counts[i][j][k][0][0] = ++n*data.kMinCountsPer1dBin; // Multiply everything by kMinCountsPer1dBin so we are above minimum counts and bins are not combined
 						}
 						else{
 							counts[i][j][k][0][0] = 0;
@@ -914,9 +917,8 @@ namespace reseq{
 			}
 		}
 
-		array< vector<uint64_t>, 3 > dim_indices;
-		array< vector<uint16_t>, 3 > initial_dim_indices;
-		ProbabilityEstimatesSubClasses::DataStorage<3> data;
+		array< vector<uintMatrixIndex>, 3 > dim_indices;
+		array< vector<uintMatrixIndex>, 3 > initial_dim_indices;
 		SetUpDataStorageErrorRate(data, dim_indices, initial_dim_indices, counts);
 
 		TestDataStorageSetUpErrorRate(data, dim_indices, initial_dim_indices);
@@ -963,12 +965,12 @@ namespace reseq{
 	}
 
 	TEST_F(ProbabilityEstimatesTest, IterativeProportionalFittingStepWise){
-		uint16_t base(1);
-		Vect< Vect< Vect< Vect< Vect<uint64_t> > > > > counts;
+		uintBaseCall base(1);
+		Vect< Vect< Vect< Vect< Vect<uintMatrixCount> > > > > counts;
 		RandomFillingTestCounts(counts,3,5,3,5,1,7635921665);
 
-		vector<Vect<Vect<uint64_t>>> margins;
-		Vect<SeqQualityStats<uint64_t>> margin_quality_position;
+		vector<Vect<Vect<uintMatrixCount>>> margins;
+		Vect<SeqQualityStats<uintMatrixCount>> margin_quality_position;
 		vector< pair<bool, bool> > margin_def;
 		SetMarginDefQual(margin_def);
 		CalculateMargins(margin_def, margins, margin_quality_position, counts);
@@ -977,18 +979,18 @@ namespace reseq{
 	}
 
 	TEST_F(ProbabilityEstimatesTest, IPFforQuality){
-		uint16_t base(0);
-		Vect< Vect< Vect< Vect< Vect<uint64_t> > > > > counts;
+		uintBaseCall base(0);
+		Vect< Vect< Vect< Vect< Vect<uintMatrixCount> > > > > counts;
 		RandomFillingTestCounts(counts,3,5,3,5,1,103741084);
 
-		vector<Vect<Vect<uint64_t>>> margins;
-		Vect<SeqQualityStats<uint64_t>> margin_quality_position;
+		vector<Vect<Vect<uintMatrixCount>>> margins;
+		Vect<SeqQualityStats<uintMatrixCount>> margin_quality_position;
 		vector< pair<bool, bool> > margin_def;
 		SetMarginDefQual(margin_def);
 		CalculateMargins(margin_def, margins, margin_quality_position, counts);
 
 		IterativeProportionalFittingQual(base, margins, margin_quality_position);
-		ASSERT_TRUE( test_.Save(save_test_file_.c_str()) );
+		ASSERT_TRUE( test_.Save(kSaveTestFile.c_str()) );
 
 		auto iterations = GetIterationsQual(test_, base);
 		auto precision = GetPrecisionQual(test_, base);
@@ -1000,14 +1002,14 @@ namespace reseq{
 		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, estimated_counts, "estimation" );
 
 		ProbabilityEstimates test2;
-		ASSERT_TRUE( test2.Load(save_test_file_.c_str()) );
+		ASSERT_TRUE( test2.Load(kSaveTestFile.c_str()) );
 		iterations = GetIterationsQual(test2, base);
 		precision = GetPrecisionQual(test2, base);
 		GetIPFResultQual(test2, base, estimated_counts, margins);
 		test2.PrepareResult();
 		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, estimated_counts, "loading" );
 
-		EXPECT_EQ( 0, remove(save_test_file_.c_str()) ) << "Error deleting file: " << save_test_file_ << '\n';
+		EXPECT_EQ( 0, remove(kSaveTestFile.c_str()) ) << "Error deleting file: " << kSaveTestFile << '\n';
 
 		std::vector<double> prob;
 		double prob_sum;
@@ -1015,13 +1017,13 @@ namespace reseq{
 	}
 
 	TEST_F(ProbabilityEstimatesTest, IPFforQualityWithOffset){
-		uint16_t base(2);
-		Vect< Vect< Vect< Vect< Vect<uint64_t> > > > > counts;
+		uintBaseCall base(2);
+		Vect< Vect< Vect< Vect< Vect<uintMatrixCount> > > > > counts;
 		RandomFillingTestCounts(counts,3,5,3,5,1,213576235);
 		SetOffset(counts, 37, 0, 37, 0, 0);
 
-		vector<Vect<Vect<uint64_t>>> margins;
-		Vect<SeqQualityStats<uint64_t>> margin_quality_position;
+		vector<Vect<Vect<uintMatrixCount>>> margins;
+		Vect<SeqQualityStats<uintMatrixCount>> margin_quality_position;
 		vector< pair<bool, bool> > margin_def;
 		SetMarginDefQual(margin_def);
 		CalculateMargins(margin_def, margins, margin_quality_position, counts);
@@ -1039,14 +1041,14 @@ namespace reseq{
 	}
 
 	TEST_F(ProbabilityEstimatesTest, IPFforQualityWithZeroMarginValues){
-		uint16_t base(3);
-		Vect< Vect< Vect< Vect< Vect<uint64_t> > > > > counts;
+		uintBaseCall base(3);
+		Vect< Vect< Vect< Vect< Vect<uintMatrixCount> > > > > counts;
 		RandomFillingTestCounts(counts,3,5,3,5,1,3290428530);
 		SetOffset(counts, 37, 0, 37, 0, 0);
 		counts[38][2].Clear(); // Set quality 38, error rate 2 margin to zero
 
-		vector<Vect<Vect<uint64_t>>> margins;
-		Vect<SeqQualityStats<uint64_t>> margin_quality_position;
+		vector<Vect<Vect<uintMatrixCount>>> margins;
+		Vect<SeqQualityStats<uintMatrixCount>> margin_quality_position;
 		vector< pair<bool, bool> > margin_def;
 		SetMarginDefQual(margin_def);
 		CalculateMargins(margin_def, margins, margin_quality_position, counts);
@@ -1064,14 +1066,14 @@ namespace reseq{
 	}
 
 	TEST_F(ProbabilityEstimatesTest, IPFforQualityWithZeroOverAllMargins){
-		uint16_t base(0);
-		Vect< Vect< Vect< Vect< Vect<uint64_t> > > > > counts;
+		uintBaseCall base(0);
+		Vect< Vect< Vect< Vect< Vect<uintMatrixCount> > > > > counts;
 		RandomFillingTestCounts(counts,3,5,3,5,1,9527958903);
 		SetOffset(counts, 37, 0, 37, 0, 0);
 		counts[38].Clear(); // Set quality 38 to zero for all margins
 
-		vector<Vect<Vect<uint64_t>>> margins;
-		Vect<SeqQualityStats<uint64_t>> margin_quality_position;
+		vector<Vect<Vect<uintMatrixCount>>> margins;
+		Vect<SeqQualityStats<uintMatrixCount>> margin_quality_position;
 		vector< pair<bool, bool> > margin_def;
 		SetMarginDefQual(margin_def);
 		CalculateMargins(margin_def, margins, margin_quality_position, counts);
@@ -1089,11 +1091,11 @@ namespace reseq{
 	}
 
 	TEST_F(ProbabilityEstimatesTest, IPFforBaseCalls){
-		Vect< Vect< Vect< Vect< Vect<uint64_t> > > > > counts;
+		Vect< Vect< Vect< Vect< Vect<uintMatrixCount> > > > > counts;
 		RandomFillingTestCounts(counts,5,3,5,3,5,768293592);
 
-		vector<Vect<Vect<uint64_t>>> margins;
-		Vect<SeqQualityStats<uint64_t>> margin_quality_position;
+		vector<Vect<Vect<uintMatrixCount>>> margins;
+		Vect<SeqQualityStats<uintMatrixCount>> margin_quality_position;
 		// {use margin_quality_position, flip dimensions compared to dimension order}
 		vector< pair<bool, bool> > margin_def;
 		margin_def.push_back({false, false}); // bc, qual
@@ -1109,7 +1111,7 @@ namespace reseq{
 		CalculateMargins(margin_def, margins, margin_quality_position, counts);
 
 		IterativeProportionalFittingBaseCall(margins, margin_quality_position);
-		ASSERT_TRUE( test_.Save(save_test_file_.c_str()) );
+		ASSERT_TRUE( test_.Save(kSaveTestFile.c_str()) );
 
 		auto iterations = GetIterationsBaseCall(test_);
 		auto precision = GetPrecisionBaseCall(test_);
@@ -1121,22 +1123,22 @@ namespace reseq{
 		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, estimated_counts, "estimation" );
 
 		ProbabilityEstimates test2;
-		ASSERT_TRUE( test2.Load(save_test_file_.c_str()) );
+		ASSERT_TRUE( test2.Load(kSaveTestFile.c_str()) );
 		iterations = GetIterationsBaseCall(test2);
 		precision = GetPrecisionBaseCall(test2);
 		GetIPFResultBaseCall(test2, estimated_counts, margins);
 		test2.PrepareResult();
 		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, estimated_counts, "loading" );
 
-		EXPECT_EQ( 0, remove(save_test_file_.c_str()) ) << "Error deleting file: " << save_test_file_ << '\n';
+		EXPECT_EQ( 0, remove(kSaveTestFile.c_str()) ) << "Error deleting file: " << kSaveTestFile << '\n';
 	}
 
 	TEST_F(ProbabilityEstimatesTest, IPFforDominantError){
-		Vect< Vect< Vect< Vect< Vect<uint64_t> > > > > counts;
+		Vect< Vect< Vect< Vect< Vect<uintMatrixCount> > > > > counts;
 		RandomFillingTestCounts(counts,5,3,3,1,1,793256239);
 
-		vector<Vect<Vect<uint64_t>>> margins;
-		Vect<SeqQualityStats<uint64_t>> margin_quality_position;
+		vector<Vect<Vect<uintMatrixCount>>> margins;
+		Vect<SeqQualityStats<uintMatrixCount>> margin_quality_position;
 		// {use margin_quality_position, flip dimensions compared to dimension order}
 		vector< pair<bool, bool> > margin_def;
 		margin_def.push_back({false, true}); // dist, domErr
@@ -1145,7 +1147,7 @@ namespace reseq{
 		CalculateMargins(margin_def, margins, margin_quality_position, counts);
 
 		IterativeProportionalFittingDomError(margins);
-		ASSERT_TRUE( test_.Save(save_test_file_.c_str()) );
+		ASSERT_TRUE( test_.Save(kSaveTestFile.c_str()) );
 
 		Vect< Vect< Vect< Vect< Vect<double> > > > > estimated_counts;
 		GetIPFResultDomError(test_, estimated_counts, margins);
@@ -1154,27 +1156,27 @@ namespace reseq{
 		CheckIPFResult( GetIterationsDomError(test_), GetPrecisionDomError(test_), margins, margin_quality_position, margin_def, estimated_counts, "estimation" );
 
 		ProbabilityEstimates test2;
-		ASSERT_TRUE( test2.Load(save_test_file_.c_str()) );
+		ASSERT_TRUE( test2.Load(kSaveTestFile.c_str()) );
 		GetIPFResultDomError(test2, estimated_counts, margins);
 		test2.PrepareResult();
 		CheckIPFResult( GetIterationsDomError(test2), GetPrecisionDomError(test2), margins, margin_quality_position, margin_def, estimated_counts, "loading" );
 
-		EXPECT_EQ( 0, remove(save_test_file_.c_str()) ) << "Error deleting file: " << save_test_file_ << '\n';
+		EXPECT_EQ( 0, remove(kSaveTestFile.c_str()) ) << "Error deleting file: " << kSaveTestFile << '\n';
 	}
 
 	TEST_F(ProbabilityEstimatesTest, IPFforErrorRate){
-		Vect< Vect< Vect< Vect< Vect<uint64_t> > > > > counts;
+		Vect< Vect< Vect< Vect< Vect<uintMatrixCount> > > > > counts;
 		RandomFillingTestCounts(counts,5,3,5,1,1,3465435782);
 
-		vector<Vect<Vect<uint64_t>>> margins;
-		Vect<SeqQualityStats<uint64_t>> margin_quality_position;
+		vector<Vect<Vect<uintMatrixCount>>> margins;
+		Vect<SeqQualityStats<uintMatrixCount>> margin_quality_position;
 		// {use margin_quality_position, flip dimensions compared to dimension order}
 		vector< pair<bool, bool> > margin_def;
 		SetMarginDefErrorRate(margin_def);
 		CalculateMargins(margin_def, margins, margin_quality_position, counts);
 
 		IterativeProportionalFittingErrorRate(margins);
-		ASSERT_TRUE( test_.Save(save_test_file_.c_str()) );
+		ASSERT_TRUE( test_.Save(kSaveTestFile.c_str()) );
 
 		Vect< Vect< Vect< Vect< Vect<double> > > > > estimated_counts;
 		GetIPFResultErrorRate(test_, estimated_counts, margins);
@@ -1183,11 +1185,11 @@ namespace reseq{
 		CheckIPFResult( GetIterationsErrorRate(test_), GetPrecisionErrorRate(test_), margins, margin_quality_position, margin_def, estimated_counts, "estimation" );
 
 		ProbabilityEstimates test2;
-		ASSERT_TRUE( test2.Load(save_test_file_.c_str()) );
+		ASSERT_TRUE( test2.Load(kSaveTestFile.c_str()) );
 		GetIPFResultErrorRate(test2, estimated_counts, margins);
 		test2.PrepareResult();
 		CheckIPFResult( GetIterationsErrorRate(test2), GetPrecisionErrorRate(test2), margins, margin_quality_position, margin_def, estimated_counts, "loading" );
 
-		EXPECT_EQ( 0, remove(save_test_file_.c_str()) ) << "Error deleting file: " << save_test_file_ << '\n';
+		EXPECT_EQ( 0, remove(kSaveTestFile.c_str()) ) << "Error deleting file: " << kSaveTestFile << '\n';
 	}
 }

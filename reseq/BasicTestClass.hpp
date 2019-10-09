@@ -16,16 +16,16 @@
 namespace reseq{
 	class BasicTestClass : public ::testing::Test{
 	private:
-		static const uint16_t test_verbosity_ = 2;
+		static const uint16_t kTestVerbosity = 2;
 		uint16_t real_verbosity_;
 
 	protected:
-		inline void ReduceVerbosity(uint16_t reduced_verbosity = test_verbosity_){
+		inline void ReduceVerbosity(uint16_t reduced_verbosity = kTestVerbosity){
 			if(kVerbosityLevel > reduced_verbosity){
 				kVerbosityLevel = reduced_verbosity;
 			}
 		}
-		inline void RestoreTestVerbosity(){ kVerbosityLevel = std::min(test_verbosity_,real_verbosity_); }
+		inline void RestoreTestVerbosity(){ kVerbosityLevel = std::min(kTestVerbosity,real_verbosity_); }
 		inline void RestoreVerbosity(){ kVerbosityLevel = real_verbosity_; }
 
 		virtual void SetUp(){
@@ -98,11 +98,11 @@ namespace reseq{
 
 		template<typename T> static void TestSeqQualityStats(
 				const SeqQualityStats<T> &stats,
-				uint16_t size,
-				unsigned char mean,
-				unsigned char minimum,
-				unsigned char median,
-				unsigned char maximum,
+				uintReadLen size,
+				uintQual mean,
+				uintQual minimum,
+				uintQual median,
+				uintQual maximum,
 				const char *context,
 				const std::string &err_msg
 				){

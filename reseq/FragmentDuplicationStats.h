@@ -13,23 +13,23 @@
 #include <seqan/bam_io.h>
 
 #include "Reference.h"
-#include "utilities.h"
+#include "utilities.hpp"
 #include "Vect.hpp"
 
 namespace reseq{
 	class FragmentDuplicationStats{
 	public:
-		static const uint16_t max_duplication = 50;
+		static const uintDupCount kMaxDuplication = 50; // Maximum duplication for direct plotting and plotted dispersion fit
 
 	private:
 		// Temporary variables
-		std::vector<std::array<std::array<utilities::VectorAtomic<uint64_t>, max_duplication+2>, 101>> tmp_duplication_number_by_gc_insert_length_; // tmp_duplication_number_by_gc_insert_length_[InsertLength][GC][#Fragments] = #sites
+		std::vector<std::array<std::array<utilities::VectorAtomic<uintFragCount>, kMaxDuplication+2>, 101>> tmp_duplication_number_by_gc_insert_length_; // tmp_duplication_number_by_gc_insert_length_[InsertLength][GC][#Fragments] = #sites
 
 		// Collected variables for plotting
-		Vect<Vect<Vect<uint64_t>>> duplication_number_by_gc_insert_length_; // duplication_number_by_gc_insert_length_[GC][InsertLength][#Fragments] = #Sites
+		Vect<Vect<Vect<uintFragCount>>> duplication_number_by_gc_insert_length_; // duplication_number_by_gc_insert_length_[GC][InsertLength][#Fragments] = #Sites
 
 		// Calculated variables for plotting
-		Vect<uint64_t> duplication_number_; // duplication_number_[#ReadsWithSamePosition] = #fragments
+		Vect<uintFragCount> duplication_number_; // duplication_number_[#ReadsWithSamePosition] = #fragments
 		std::vector<double> mean_list_;
 		std::vector<double> dispersion_list_;
 		
@@ -51,21 +51,21 @@ namespace reseq{
 		const std::vector<double> &DispersionList() const{ return dispersion_list_; }
 		const std::vector<double> &MeanList() const{ return mean_list_; }
 
-		const Vect<uint64_t> &DuplicationNumber() const{ return duplication_number_; }
+		const Vect<uintFragCount> &DuplicationNumber() const{ return duplication_number_; }
 
 		// Main functions
-		inline void PrepareTmpDuplicationVector(std::vector<uint32_t>::size_type maximum_insert_length){
+		inline void PrepareTmpDuplicationVector(uintSeqLen maximum_insert_length){
 			tmp_duplication_number_by_gc_insert_length_.resize(maximum_insert_length+1);
 		}
-		inline void AddDuplication(uint32_t insert_length, uint16_t gc, uint16_t dup){
-			if(dup > max_duplication){
-				++tmp_duplication_number_by_gc_insert_length_.at(insert_length).at(gc).at(max_duplication+1);
+		inline void AddDuplication(uintSeqLen insert_length, uintPercent gc, uintDupCount dup){
+			if(dup > kMaxDuplication){
+				++tmp_duplication_number_by_gc_insert_length_.at(insert_length).at(gc).at(kMaxDuplication+1);
 			}
 			else{
 				++tmp_duplication_number_by_gc_insert_length_.at(insert_length).at(gc).at(dup);
 			}
 		}
-		inline void AddSites(std::vector<FragmentSite> &sites, uint32_t insert_length){
+		inline void AddSites(std::vector<FragmentSite> &sites, uintSeqLen insert_length){
 			for(auto &site : sites){
 				if(0.0 != site.bias_){
 					AddDuplication(insert_length, site.gc_, site.count_forward_);
@@ -73,8 +73,8 @@ namespace reseq{
 				}
 			}
 		}
-		void AddDuplicates( std::vector<uint32_t> &fragment_positions, uint32_t ref_seq_id, uint32_t insert_length, const Reference &reference );
-		void FinalizeDuplicationVector(const std::vector<std::vector<utilities::VectorAtomic<uint64_t>>> &site_count_by_insert_length_gc);
+		void AddDuplicates( std::vector<uintRefLenCalc> &fragment_positions, uintRefSeqId ref_seq_id, uintSeqLen insert_length, const Reference &reference );
+		void FinalizeDuplicationVector(const std::vector<std::vector<utilities::VectorAtomic<uintFragCount>>> &site_count_by_insert_length_gc);
 
 		void CalculateDispersionPlot();
 

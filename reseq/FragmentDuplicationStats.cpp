@@ -22,9 +22,8 @@ using std::vector;
 //include <seqan/bam_io.h>
 using seqan::BamAlignmentRecord;
 using seqan::Dna5;
-using seqan::FunctorComplement;
 
-#include "utilities.h"
+//include "utilities.hpp"
 using reseq::utilities::SetToMax;
 using reseq::utilities::VectorAtomic;
 
@@ -35,7 +34,7 @@ inline void FragmentDuplicationStats::SumUpDuplicationNumber(){
 	for( auto &frag_dups_by_length : duplication_number_by_gc_insert_length_ ){
 		for( auto &frag_dups : frag_dups_by_length ){
 			if( frag_dups.size() ){
-				for( auto dup=frag_dups.to(); dup-- > max(static_cast<uint64_t>(1),frag_dups.from()); ){ // Ignore the zeros
+				for( auto dup=frag_dups.to(); dup-- > max(static_cast<size_t>(1),frag_dups.from()); ){ // Ignore the zeros
 					duplication_number_[dup] += frag_dups.at(dup);
 				}
 			}
@@ -44,10 +43,10 @@ inline void FragmentDuplicationStats::SumUpDuplicationNumber(){
 	duplication_number_.Shrink();
 }
 
-void FragmentDuplicationStats::AddDuplicates( vector<uint32_t> &fragment_positions, uint32_t ref_seq_id, uint32_t insert_length, const Reference &reference ){
+void FragmentDuplicationStats::AddDuplicates( vector<uintRefLenCalc> &fragment_positions, uintRefSeqId ref_seq_id, uintSeqLen insert_length, const Reference &reference ){
 	sort(fragment_positions.begin(), fragment_positions.end());
-	uint32_t cur_pos = 0;
-	uint32_t count = 0;
+	uintRefLenCalc cur_pos = 0;
+	uintDupCount count = 0;
 	for( auto pos : fragment_positions ){
 		if(pos == cur_pos){
 			++count;
@@ -65,12 +64,12 @@ void FragmentDuplicationStats::AddDuplicates( vector<uint32_t> &fragment_positio
 	AddDuplication(insert_length, reference.GCContent(ref_seq_id, cur_pos/2, cur_pos/2+insert_length ), count);
 }
 
-void FragmentDuplicationStats::FinalizeDuplicationVector(const vector<vector<VectorAtomic<uint64_t>>> &site_count_by_insert_length_gc){
-	uint64_t site_sum;
-	for(uint32_t insert_length=tmp_duplication_number_by_gc_insert_length_.size(); insert_length-- > 1; ){
-		for(uint16_t gc=tmp_duplication_number_by_gc_insert_length_.at(insert_length).size(); gc-- ; ){
+void FragmentDuplicationStats::FinalizeDuplicationVector(const vector<vector<VectorAtomic<uintFragCount>>> &site_count_by_insert_length_gc){
+	uintFragCount site_sum;
+	for(uintSeqLen insert_length=tmp_duplication_number_by_gc_insert_length_.size(); insert_length-- > 1; ){
+		for(uintPercent gc=tmp_duplication_number_by_gc_insert_length_.at(insert_length).size(); gc-- ; ){
 			site_sum = 0;
-			for(uint16_t dup=tmp_duplication_number_by_gc_insert_length_.at(insert_length).at(gc).size(); dup-- > 1; ){
+			for(uintDupCount dup=tmp_duplication_number_by_gc_insert_length_.at(insert_length).at(gc).size(); dup-- > 1; ){
 				duplication_number_by_gc_insert_length_[gc][insert_length][dup] += tmp_duplication_number_by_gc_insert_length_.at(insert_length).at(gc).at(dup);
 				site_sum += tmp_duplication_number_by_gc_insert_length_.at(insert_length).at(gc).at(dup);
 			}
@@ -86,10 +85,10 @@ void FragmentDuplicationStats::FinalizeDuplicationVector(const vector<vector<Vec
 }
 
 void FragmentDuplicationStats::CalculateDispersionPlot(){
-	uint64_t count;
+	uintFragCount count;
 	double mean, var;
 
-	uint64_t needed_size=0;
+	size_t needed_size=0;
 	for(auto &dup_by_len : duplication_number_by_gc_insert_length_ ){
 		needed_size += dup_by_len.size();
 	}

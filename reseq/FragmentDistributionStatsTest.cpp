@@ -26,16 +26,17 @@ using std::vector;
 using seqan::Dna5String;
 using seqan::length;
 
-#include "utilities.h"
+#include "utilities.hpp"
 using reseq::utilities::IntPow;
 using reseq::utilities::InvLogit2;
 using reseq::utilities::Percent;
+using reseq::utilities::SafePercent;
 
 namespace { // Unnamed namespace so it only exists for this file
-	uint32_t test_with_num_threads = 4;
+reseq::uintNumThreads test_with_num_threads = 4;
 }
 
-void FragmentDistributionStatsTest::Register(uint32_t num_threads){
+void FragmentDistributionStatsTest::Register(uintNumThreads num_threads){
 	// Guarantees that library is included
 	test_with_num_threads = num_threads;
 }
@@ -45,7 +46,7 @@ void FragmentDistributionStatsTest::CreateTestObject(const Reference *ref){
 
 	test_->CreateRefBins(*ref, 100000000);
 
-	vector<uint64_t> reads_per_ref_seq_;
+	vector<uintFragCount> reads_per_ref_seq_;
 	reads_per_ref_seq_.resize(ref->NumberSequences(), 0);
 	test_->Prepare(*ref, 100, reads_per_ref_seq_);
 
@@ -62,12 +63,12 @@ void FragmentDistributionStatsTest::DeleteTestObject(){
 
 void FragmentDistributionStatsTest::TestOutskirtContent(
 		const FragmentDistributionStats &test,
-		uint16_t template_segment,
-		uint32_t at_pos,
-		uint64_t cont_a,
-		uint64_t cont_c,
-		uint64_t cont_g,
-		uint64_t cont_t,
+		uintTempSeq template_segment,
+		uintSeqLen at_pos,
+		uintNucCount cont_a,
+		uintNucCount cont_c,
+		uintNucCount cont_g,
+		uintNucCount cont_t,
 		const char * context ){
 	EXPECT_EQ(cont_a, test.outskirt_content_[template_segment][0][at_pos]) << "outskirt_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
 	EXPECT_EQ(cont_c, test.outskirt_content_[template_segment][1][at_pos]) << "outskirt_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
@@ -80,8 +81,8 @@ void FragmentDistributionStatsTest::TearDown(){
 	DeleteTestObject();
 }
 
-void FragmentDistributionStatsTest::CreateCoverageDataHelper(uint8_t gc_perc, uint32_t start_pos, uint32_t fragment_length, mt19937_64 &rgen){
-	uint16_t ref_seq_id(0);
+void FragmentDistributionStatsTest::CreateCoverageDataHelper(uintPercent gc_perc, uintSeqLen start_pos, uintSeqLen fragment_length, mt19937_64 &rgen){
+	uintRefSeqId ref_seq_id(0);
 
 	double bias;
 	if(27 > gc_perc){
@@ -142,47 +143,37 @@ void FragmentDistributionStatsTest::CreateCoverageDataHelper(uint8_t gc_perc, ui
 	double probability = mean/(mean+dispersion);
 
 	auto count = FragmentDistributionStats::NegativeBinomial(probability, dispersion, zero_to_one(rgen));
-	for(int32_t entries=count; entries--; ){
+	for(uintSeqLen entries=count; entries--; ){
 		test_->fragment_sites_by_ref_seq_bin_.at(ref_seq_id).push_back({start_pos << 1, fragment_length}); // Forward
 		++test_->fragment_sites_by_ref_seq_bin_cur_id_.at(ref_seq_id);
 	}
 
 	count = FragmentDistributionStats::NegativeBinomial(probability, dispersion, zero_to_one(rgen));
-	for(int32_t entries=count; entries--; ){
+	for(uintSeqLen entries=count; entries--; ){
 		test_->fragment_sites_by_ref_seq_bin_.at(ref_seq_id).push_back({(start_pos << 1)+1, fragment_length}); // Reverse
 		++test_->fragment_sites_by_ref_seq_bin_cur_id_.at(ref_seq_id);
 	}
 }
 
-void FragmentDistributionStatsTest::CreateCoverageData(uint32_t fragment_length){
+void FragmentDistributionStatsTest::CreateCoverageData(uintSeqLen fragment_length){
 	mt19937_64 rgen;
 	rgen.seed( 201907171113 );
 
-	uint16_t ref_seq_id(0);
+	uintRefSeqId ref_seq_id(0);
 	test_->fragment_sites_by_ref_seq_bin_.at(ref_seq_id).reserve(4*species_reference_.SequenceLength(ref_seq_id));
-	uint16_t dist_ref_seq_ends(50);
+	uintSeqLen dist_ref_seq_ends(50);
 
-	uint8_t gc_perc;
-	uint32_t n_count(0);
-	uint64_t gc = species_reference_.GCContentAbsolut(n_count, ref_seq_id, dist_ref_seq_ends, dist_ref_seq_ends+fragment_length);
-	if(n_count < fragment_length){
-		gc_perc = Percent(gc, fragment_length-n_count);
-	}
-	else{
-		gc_perc = 50;
-	}
+	uintPercent gc_perc;
+	uintSeqLen n_count(0);
+	uintSeqLen gc = species_reference_.GCContentAbsolut(n_count, ref_seq_id, dist_ref_seq_ends, dist_ref_seq_ends+fragment_length);
+	gc_perc = SafePercent(gc, fragment_length-n_count);
 
 	CreateCoverageDataHelper(gc_perc, dist_ref_seq_ends, fragment_length, rgen);
 
 	const Dna5String &ref_seq(species_reference_[ref_seq_id]);
-	for( uint32_t start_pos=dist_ref_seq_ends; start_pos < length(ref_seq)-fragment_length-dist_ref_seq_ends; ){
+	for( uintSeqLen start_pos=dist_ref_seq_ends; start_pos < length(ref_seq)-fragment_length-dist_ref_seq_ends; ){
 		species_reference_.UpdateGC( gc, n_count, ref_seq_id, start_pos, start_pos+fragment_length );
-		if(n_count < fragment_length){
-			gc_perc = Percent(gc, fragment_length-n_count);
-		}
-		else{
-			gc_perc = 50;
-		}
+		gc_perc = SafePercent(gc, fragment_length-n_count);
 
 		CreateCoverageDataHelper(gc_perc, ++start_pos, fragment_length, rgen);
 	}
@@ -399,7 +390,7 @@ namespace reseq{
 
 		array<double, 4*Reference::num_surrounding_blocks_*Reference::surrounding_range_> separated_bias;
 		separated_bias.fill(0.0);
-		for(uint16_t block=0; block <= 80; block += 40){
+		for(uintSeqLen block=0; block <= 80; block += 40){
 			//ACGTTGCATA: 114252
 			separated_bias[block+0] = 0.9;
 			separated_bias[block+5] = 1.0;
@@ -418,7 +409,7 @@ namespace reseq{
 		array<vector<double>, Reference::num_surrounding_blocks_> combined_bias;
 		test_->CombineSurroundingPositions(combined_bias, separated_bias);
 
-		for(uint16_t block=0; block < combined_bias.size(); ++block){
+		for(uintSurBlockId block=0; block < combined_bias.size(); ++block){
 			EXPECT_DOUBLE_EQ(9.9, combined_bias[block][114252]);
 			EXPECT_DOUBLE_EQ(9.7, combined_bias[block][113996]);
 		}
@@ -508,8 +499,8 @@ namespace reseq{
 		test_->fragment_sites_by_ref_seq_bin_.resize(species_reference_.NumberSequences());
 		test_->fragment_sites_by_ref_seq_bin_cur_id_.resize(species_reference_.NumberSequences());
 
-		uint32_t last_size = 0;
-		for(uint32_t fragment_length=65; fragment_length <= 95; fragment_length += 5){
+		uintSeqLen last_size = 0;
+		for(uintSeqLen fragment_length=65; fragment_length <= 95; fragment_length += 5){
 			CreateCoverageData(fragment_length);
 
 			test_->insert_lengths_.at(fragment_length) += test_->fragment_sites_by_ref_seq_bin_.at(0).size() - last_size;
@@ -520,7 +511,7 @@ namespace reseq{
 		// Fit data
 		FragmentDuplicationStats duplications;
 		duplications.PrepareTmpDuplicationVector(100);
-		uint32_t num_threads = min(static_cast<uint32_t>(4), test_with_num_threads);
+		uintNumThreads num_threads = min(static_cast<uintNumThreads>(4), test_with_num_threads);
 		array<FragmentDistributionStats::ThreadData, 4> thread_data = {FragmentDistributionStats::ThreadData(100, species_reference_.SequenceLength(0)), FragmentDistributionStats::ThreadData(100, species_reference_.SequenceLength(0)), FragmentDistributionStats::ThreadData(100, species_reference_.SequenceLength(0)), FragmentDistributionStats::ThreadData(100, species_reference_.SequenceLength(0))};
 		mutex print_mutex;
 
@@ -548,13 +539,13 @@ namespace reseq{
 		EXPECT_NEAR(0.4, test_->gc_fragment_content_bias_.at(34), 0.2);
 		EXPECT_DOUBLE_EQ(1.0, *max_element(test_->gc_fragment_content_bias_.begin(), test_->gc_fragment_content_bias_.end()));
 
-		uint32_t pos_base = 262144;
+		intSurrounding pos_base = 262144;
 		EXPECT_NEAR(-0.4, accumulate(test_->fragment_surroundings_bias_.at(1).begin(), test_->fragment_surroundings_bias_.at(1).begin()+pos_base, 0.0)/pos_base, 0.2);
 		EXPECT_NEAR(-0.4, accumulate(test_->fragment_surroundings_bias_.at(1).begin()+pos_base, test_->fragment_surroundings_bias_.at(1).begin()+2*pos_base, 0.0)/pos_base, 0.2);
 		EXPECT_NEAR(0.4, accumulate(test_->fragment_surroundings_bias_.at(1).begin()+2*pos_base, test_->fragment_surroundings_bias_.at(1).begin()+3*pos_base, 0.0)/pos_base, 0.2);
 		EXPECT_NEAR(0.4, accumulate(test_->fragment_surroundings_bias_.at(1).begin()+3*pos_base, test_->fragment_surroundings_bias_.at(1).begin()+4*pos_base, 0.0)/pos_base, 0.2);
 
-		for(uint32_t fragment_length=65; fragment_length <= 95; fragment_length += 5){
+		for(uintSeqLen fragment_length=65; fragment_length <= 95; fragment_length += 5){
 			EXPECT_NEAR(1.0, test_->insert_lengths_bias_.at(fragment_length), 0.1) << "Fragment length " << fragment_length << " wrong\n";
 		}
 		EXPECT_DOUBLE_EQ(1.0, *max_element(test_->insert_lengths_bias_.begin(), test_->insert_lengths_bias_.end()));

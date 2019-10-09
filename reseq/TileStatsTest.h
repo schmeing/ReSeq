@@ -20,9 +20,9 @@ namespace reseq{
 		void CreateTestObject();
 		void DeleteTestObject();
 
-		void TestProperTileFormat(const char *read_id_string, const std::string &format, uint16_t expected_id, uint16_t expected_tile, uint16_t expected_colon_number);
-		void TestProperTileFormatWithGivenColonNumber(const char * read_id_string, const std::string &format, uint16_t expected_id);
-		void TestErroneousTileFormat(const char * read_id_string, bool reset_accession_info, uint16_t expected_id, const std::string& comment, const std::string& expected_error);
+		void TestProperTileFormat(const char *read_id_string, const std::string &format, uintTileId expected_id, uintTile expected_tile, uint16_t expected_colon_number);
+		void TestProperTileFormatWithGivenColonNumber(const char * read_id_string, const std::string &format, uintTileId expected_id);
+		void TestErroneousTileFormat(const char * read_id_string, bool reset_accession_info, uintTileId expected_id, const std::string& comment, const std::string& expected_error);
 
 		virtual void TearDown();
 
