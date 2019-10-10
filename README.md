@@ -23,13 +23,14 @@ Even though sequencing biases and errors have been deeply researched to adequate
 |---------------------------|------------------------------------|--------|---------------------|----------|----------------|
 | Linux system              |
 | Compiler supporting C++14 | `sudo apt install build-essential` | `sudo yum install gcc gcc-c++ glibc-devel make` | | On CentOs 7 the g++ compiler is too old to support C++14 so you need to additionally to the yum command install a newer version following for example this guide (https://linuxhostsupport.com/blog/how-to-install-gcc-on-centos-7/). Afterwards the `CXX` variable has to be set to `/usr/local/bin/c++` and `/usr/local/lib64/` has to be added to your `LD_LIBRARY_PATH` before installing boost if you used the standard install path. | 7.2.1 20171019|
-| ZLIB | `sudo apt-get install zlib1g-dev` | `sudo yum install zlib-devel` | | | |
-| BZip2 | `sudo apt-get install libbz2-dev` | `sudo yum install bzip2-devel` | | | |
-| Python libraries | `sudo apt-get install python-dev` | `ssudo yum install python-devel` | | | |
-| Git | `sudo apt-get install git` | `sudo yum install git` | | | |
-| CMake | `sudo apt-get install cmake` | (too old version) | https://cmake.org/install/  | | 3.5.1 |
-| Boost C++ libraries | `sudo apt-get install libboost-all-dev` | `sudo yum install boost-devel`(version not working) | https://www.boost.org/doc/libs/1_71_0/more/getting_started/unix-variants.html | Only download and extraction in section 1 and library builds in section 5 are strictly needed, if you set a prefix you need to add `prefix/lib/` to your `LD_LIBRARY_PATH` and set `BOOST_ROOT` to `prefix` before the installation process below or you will get boost library errors at the cmake and make step. If you manually installed g++ run `./b2` without sudo so the environment variable CXX is found. | 1.67.0 |
-| SWIG | `sudo apt-get install swig` | (too old version) | http://www.swig.org/Doc4.0/Preface.html | If you set a prefix you need to add prefix/bin to your PATH variable | 3.0.8 |
+| ZLIB                      | `sudo apt-get install zlib1g-dev`  | `sudo yum install zlib-devel`   | | | |
+| BZip2                     | `sudo apt-get install libbz2-dev`  | `sudo yum install bzip2-devel`  | | | |
+| Python 2                  |                                    |                                 | | Preinstalled, but through something like Anaconda the default might be python3 | 2.7 |
+| Python libraries          | `sudo apt-get install python-dev`  | `sudo yum install python-devel` | | | |
+| Git                       | `sudo apt-get install git`         | `sudo yum install git`          | | | |
+| CMake                     | `sudo apt-get install cmake`       | (too old version)               | https://cmake.org/install/  | | 3.5.1 |
+| Boost C++ libraries       | `sudo apt-get install libboost-all-dev` | `sudo yum install boost-devel`(version not working) | https://www.boost.org/doc/libs/1_71_0/more/getting_started/unix-variants.html | Only download and extraction in section 1 and library builds in section 5 are strictly needed, if you set a prefix you need to add `prefix/lib/` to your `LD_LIBRARY_PATH` and set `BOOST_ROOT` to `prefix` before the installation process below or you will get boost library errors at the cmake and make step. If you manually installed g++ run `./b2` without sudo so the environment variable CXX is found. | 1.67.0 |
+| SWIG                      | `sudo apt-get install swig`        | (too old version)               | http://www.swig.org/Doc4.0/Preface.html | If you set a prefix you need to add prefix/bin to your PATH variable | 3.0.8 |
 
 ## <a name="installation"></a>Installation
 ```
@@ -143,7 +144,7 @@ bowtie2 -p 32 -X 2000 -x my_reference -1 <(reseq-prepare-names.py my_data_1.fq m
 ## <a name="formats"></a>File Formats
 | File type             | Ending     | Information |
 |-----------------------|------------|-------------|
-| Reference file        | .fa        | Standard reference file in fasta format. Everything not an A,C,G,T is randomly replaced by one of those before simulating. To consistently simulate the same base over multiple simulations use the replaceN mode of reseq before starting the simulation to create a reference without N(or other ambiguous bases, which are all treated as N). |
+| Reference file        | .fa        | Standard reference file in fasta format. Everything not an A,C,G,T is randomly replaced by one of those before simulating. To consistently simulate the same base over multiple simulations use the replaceN mode of reseq before starting the simulation to create a reference without N(or other ambiguous bases, which are all treated as N). A single reference sequence is only supported up to  a maximum length of 4294967295 bases. The complete reference can be much bigger. |
 | Mapping file          | .bam       | Standard mapping file in bam format. Reference information need to match the provided reference. Soft clipped bases are yet untested. To include tiles the tile information needs to stay in the QNAME field. |
 | Adapter file          | .fa        | File in fasta format giving the sequences of possibly used adapters. The shorter this list the less missidentification can happen. Some files to use are in the adapter folder. The direction of the adapters is irrelevant as always the adapter given and its reverse complement are checked, due to sequencing-machine dependence on the direction. |
 | Adapter matrix        | .mat       | 0/1 matrix stating if the adapters can occur in a read pair together. (0:no; 1:yes). The n-th row/column is the n-th entry in the adapter file. Rows represent the adapter in the first read and columns represent the adapter in the second read. Columns are consecutive digits in a row. Number of rows and columns need to match the number of entries in the adapter file. |
