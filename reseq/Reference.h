@@ -68,32 +68,15 @@ namespace reseq{
 		const uintSeqLen kMaxNInFragmentSite = 50; // The maximum number of n that is allowed in a fragment site to be counted for the bias calculation as it is highly likely that the fragment length and GC from those sites are wrong and highly unlikely that real fragments are found in this regions
 		const uintErrorCount kMaxErrorsShownPerFile = 50;
 
-		static seqan::CharString dummy_charstring_;
-		static seqan::Dna5String dummy_dna5string_;
-
 		seqan::StringSet<seqan::CharString> reference_ids_;
 		seqan::StringSet<seqan::Dna5String> reference_sequences_;
 
 		inline seqan::CharString &RefId( uintRefSeqId n ){
-			if( length(reference_ids_) > n ){
-				return reference_ids_[n];
-			}
-			else{
-				printErr << "Called reference id " << n << ". Size is " << length(reference_ids_) << std::endl;
-				throw std::out_of_range( "Non-existing reference id called" );
-				return dummy_charstring_;
-			}
+			return utilities::at(reference_ids_, n);
 		}
 
 		inline seqan::Dna5String &RefSeq( uintRefSeqId n ){
-			if( length(reference_sequences_) > n ){
-				return reference_sequences_[n];
-			}
-			else{
-				printErr << "Called reference sequence " << n << ". Size is " << length(reference_sequences_) << std::endl;
-				throw std::out_of_range( "Non-existing reference sequence called" );
-				return dummy_dna5string_;
-			}
+			return utilities::at(reference_sequences_, n);
 		}
 
 #ifndef SWIG // This part is not needed for the python plotting
@@ -158,11 +141,11 @@ namespace reseq{
 		intSurrounding ReverseSurroundingBlock( uintRefSeqId ref_seq_id, uintSeqLen sur_start_pos, uintSurBlockId block ) const;
 
 		inline uintBaseCall NewForwardSurroundingBase(const seqan::Dna5String &ref_seq, uintSeqLen new_fragment_start, uintSurBlockId block) const{
-			return ref_seq[(length(ref_seq) + (block+1)*surrounding_range_ + new_fragment_start-1 + surrounding_start_pos_)%length(ref_seq)];
+			return utilities::at(ref_seq, (length(ref_seq) + (block+1)*surrounding_range_ + new_fragment_start-1 + surrounding_start_pos_)%length(ref_seq) );
 		}
 
 		inline uintBaseCall NewReverseSurroundingBase(const seqan::Dna5String &ref_seq, uintSeqLen new_fragment_end, uintSurBlockId block) const{
-			return utilities::Complement::Dna5(ref_seq[(length(ref_seq) + new_fragment_end - surrounding_start_pos_ - block*surrounding_range_)%length(ref_seq)]);
+			return utilities::Complement::Dna5( utilities::at(ref_seq, (length(ref_seq) + new_fragment_end - surrounding_start_pos_ - block*surrounding_range_)%length(ref_seq) ));
 		}
 
 		static inline double Bias( double general, double gc, const std::array<double, num_surrounding_blocks_> &start_sur, const std::array<double, num_surrounding_blocks_> &end_sur ){
@@ -197,27 +180,13 @@ namespace reseq{
 		}
 
 		inline const seqan::CharString &ReferenceId( uintRefSeqId n ) const{
-			if( length(reference_ids_) > n ){
-				return reference_ids_[n];
-			}
-			else{
-				printErr << "Called reference id " << n << ". Size is " << length(reference_ids_) << std::endl;
-				throw std::out_of_range( "Non-existing reference id called" );
-				return dummy_charstring_;
-			}
+			return utilities::at(reference_ids_, n);
 		}
 
 		const seqan::Prefix<const seqan::CharString>::Type ReferenceIdFirstPart( uintRefSeqId n ) const;
 
 		inline const seqan::Dna5String &ReferenceSequence( uintRefSeqId n ) const{
-			if( length(reference_sequences_) > n ){
-				return reference_sequences_[n];
-			}
-			else{
-				printErr << "Called reference sequence " << n << ". Size is " << length(reference_sequences_) << std::endl;
-				throw std::out_of_range( "Non-existing reference sequence called" );
-				return dummy_dna5string_;
-			}
+			return utilities::at(reference_sequences_, n);
 		}
 
 		void ReferenceSequence(seqan::DnaString &insert_string, uintRefSeqId seq_id, uintSeqLen start_pos, uintSeqLen min_length, bool reversed=false, uintSeqLen seq_size=0) const;
@@ -304,7 +273,7 @@ namespace reseq{
 			for(auto block=0; block < num_surrounding_blocks_; ++block){
 				surroundings.at(block) = 0;
 				for( auto ref_pos = block_pos; ref_pos < block_pos+surrounding_range_; ++ref_pos ){
-					new_value = ref_seq[ref_pos];
+					new_value = utilities::at(ref_seq, ref_pos);
 					if(utilities::IsN(new_value)){
 						surroundings.at(block) = static_cast<intSurrounding>(block_pos)-ref_pos-1;
 						for( auto ref_pos2 = block_pos+surrounding_range_; --ref_pos2 > ref_pos; ){
@@ -336,7 +305,7 @@ namespace reseq{
 			for(auto block=0; block < num_surrounding_blocks_; ++block){
 				surroundings.at(block) = 0;
 				for( auto ref_pos = block_pos+surrounding_range_; ref_pos-- > block_pos; ){
-					new_value = ref_seq[ref_pos];
+					new_value = utilities::at(ref_seq, ref_pos);
 					if(utilities::IsN(new_value)){
 						surroundings.at(block) = static_cast<intSurrounding>(block_pos)-ref_pos-1;
 						break; // We don't need to calculate surrounding anymore as it is invalidated by N and we already have last N
@@ -411,7 +380,7 @@ namespace reseq{
 
 		inline void RollBackReverseSurrounding( std::array<intSurrounding, num_surrounding_blocks_> &sur, const seqan::Dna5String &ref_seq, uintSeqLen new_fragment_end ) const{
 			for(auto block=sur.size(); block--; ){
-				sur.at(block) = ((sur.at(block)<<2) + static_cast<uintBaseCall>(utilities::Complement::Dna5(ref_seq[(length(ref_seq)+new_fragment_end-surrounding_start_pos_-(block+1)*surrounding_range_+1)%length(ref_seq)])))%SurroundingSize();
+				sur.at(block) = ((sur.at(block)<<2) + static_cast<uintBaseCall>(utilities::Complement::Dna5(utilities::at(ref_seq, (length(ref_seq)+new_fragment_end-surrounding_start_pos_-(block+1)*surrounding_range_+1)%length(ref_seq)))))%SurroundingSize();
 			}
 		}
 

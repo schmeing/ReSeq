@@ -321,11 +321,11 @@ namespace reseq{
 		void ReadSystematicErrors(std::vector<std::pair<seqan::Dna5,uintPercent>> &sys_errors, uintSeqLen start_pos, uintSeqLen end_pos){
 			uintPercent error_rate;
 			for(auto pos=start_pos; pos < end_pos; ++pos){
-				error_rate = sys_err_perc_[pos] - 33;
+				error_rate = utilities::at(sys_err_perc_, pos) - 33;
 				if(86 < error_rate){
 					error_rate += error_rate-86; // Decompress percentages again (odd percentages over 86 are removed, as fastq can store only up to 94 quality values)
 				}
-				sys_errors.emplace_back(sys_dom_err_[pos], error_rate);
+				sys_errors.emplace_back(utilities::at(sys_dom_err_, pos), error_rate);
 			}
 		}
 
@@ -346,7 +346,7 @@ namespace reseq{
 			return error_rate;
 		}
 
-		template<typename T> inline void UpdateGC( uintReadLen &gc, uintReadLen &bases, uintReadLen pos, const T &sequence ){
+		template<typename T> inline void UpdateGC( uintReadLen &gc, uintReadLen &bases, uintSeqLen pos, const T &sequence ){
 			if( utilities::IsGC(sequence, pos) ){
 				++gc;
 			}
@@ -365,7 +365,7 @@ namespace reseq{
 			uintPercent error_rate;
 
 			for(auto pos=start_pos; pos < end_pos; ++pos){
-				ref_base = sequence[pos];
+				ref_base = utilities::at(sequence, pos);
 				error_rate = DrawSystematicError(sys_errors, ref_base, sys_last_base_, sys_dom_last5_, utilities::SafePercent(sys_gc_, sys_gc_bases_), utilities::TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_), estimates);
 
 				// Set values for next iteration

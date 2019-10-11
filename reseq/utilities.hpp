@@ -144,6 +144,121 @@ namespace reseq{
 			donator.shrink_to_fit();
 		}
 
+		template<typename T> struct AtDummy{
+			static T dummy_;
+		};
+
+		template<typename T> inline const T &at(const seqan::StringSet<T> &set, size_t n){
+			if( length(set) > n ){
+				return set[n];
+			}
+			else{
+				printErr << "Called position " << n << ". StringSet size is only " << length(set) << "." << std::endl;
+				throw std::out_of_range( "Accessing StringSet after last position" );
+				return AtDummy<T>::dummy_;
+			}
+		}
+
+		template<typename T> inline T &at(seqan::StringSet<T> &set, size_t n){
+			if( length(set) > n ){
+				return set[n];
+			}
+			else{
+				printErr << "Called position " << n << ". StringSet size is only " << length(set) << "." << std::endl;
+				throw std::out_of_range( "Accessing StringSet after last position" );
+				return AtDummy<T>::dummy_;
+			}
+		}
+
+		template<typename T> inline const T &at(const seqan::String<T>& string, size_t n){
+			if( length(string) > n ){
+				return string[n];
+			}
+			else{
+				printErr << "Called position " << n << ". String size is only " << length(string) << "." << std::endl;
+				throw std::out_of_range( "Accessing String after last position" );
+				return AtDummy<T>::dummy_;
+			}
+		}
+
+		template<typename T> inline T &at(seqan::String<T>& string, size_t n){
+			if( length(string) > n ){
+				return string[n];
+			}
+			else{
+				printErr << "Called position " << n << ". String size is only " << length(string) << "." << std::endl;
+				throw std::out_of_range( "Accessing String after last position" );
+				return AtDummy<T>::dummy_;
+			}
+		}
+
+		// Do not return references for ModifiedString types, as they generate temporary values and it does not work and we don't want to change the underlying string in those cases anyways
+		template<typename T, typename U> inline T at(const seqan::ModifiedString<const seqan::String<T>, U> &string, size_t n){
+			if( length(string) > n ){
+				return string[n];
+			}
+			else{
+				printErr << "Called position " << n << ". ModifiedString size is only " << length(string) << "." << std::endl;
+				throw std::out_of_range( "Accessing ModifiedString after last position" );
+				return AtDummy<T>::dummy_;
+			}
+		}
+
+		template<typename T, typename U> inline T at(const seqan::ModifiedString<seqan::String<T>, U> &string, size_t n){
+			if( length(string) > n ){
+				return string[n];
+			}
+			else{
+				printErr << "Called position " << n << ". ModifiedString size is only " << length(string) << "." << std::endl;
+				throw std::out_of_range( "Accessing ModifiedString after last position" );
+				return AtDummy<T>::dummy_;
+			}
+		}
+
+		template<typename T, typename U> inline T at(seqan::ModifiedString<seqan::String<T>, U> &string, size_t n){
+			if( length(string) > n ){
+				return string[n];
+			}
+			else{
+				printErr << "Called position " << n << ". ModifiedString size is only " << length(string) << "." << std::endl;
+				throw std::out_of_range( "Accessing ModifiedString after last position" );
+				return AtDummy<T>::dummy_;
+			}
+		}
+
+		template<typename T, typename U, typename V> inline T at(const seqan::ModifiedString< seqan::ModifiedString<const seqan::String<T>, U>, V> &string, size_t n){
+			if( length(string) > n ){
+				return string[n];
+			}
+			else{
+				printErr << "Called position " << n << ". ModifiedString size is only " << length(string) << "." << std::endl;
+				throw std::out_of_range( "Accessing ModifiedString after last position" );
+				return AtDummy<T>::dummy_;
+			}
+		}
+
+		template<typename T, typename U, typename V> inline T at(const seqan::ModifiedString< seqan::ModifiedString<seqan::String<T>, U>, V> &string, size_t n){
+			if( length(string) > n ){
+				return string[n];
+			}
+			else{
+				printErr << "Called position " << n << ". ModifiedString size is only " << length(string) << "." << std::endl;
+				throw std::out_of_range( "Accessing ModifiedString after last position" );
+				return AtDummy<T>::dummy_;
+			}
+		}
+
+		template<typename T, typename U, typename V> inline T at(seqan::ModifiedString< seqan::ModifiedString<seqan::String<T>, U>, V> &string, size_t n){
+			if( length(string) > n ){
+				return string[n];
+			}
+			else{
+				printErr << "Called position " << n << ". ModifiedString size is only " << length(string) << "." << std::endl;
+				throw std::out_of_range( "Accessing ModifiedString after last position" );
+				return AtDummy<T>::dummy_;
+			}
+		}
+
 		inline void CreateDir(const char *file){
 			auto file_path = boost::filesystem::path(file).parent_path();
 			if( !file_path.empty() ){
@@ -166,6 +281,10 @@ namespace reseq{
 		}
 		template<typename T> inline T Divide(const std::atomic<T> &nom, const std::atomic<T> &den){ // Calculates the division: nom/den with proper rounding to int
 			return (nom+den/static_cast<T>(2))/den;
+		}
+
+		template<typename T> inline const T &getConst(T &object){
+			return object;
 		}
 
 		inline bool IsN(seqan::Dna5 base);
@@ -206,61 +325,39 @@ namespace reseq{
 			return base == 'G' || base == 'C';
 		}
 
-		template<typename T> inline bool IsGCTemplate(const T& sequence, uintSeqLen pos){
-			if(seqan::length(sequence) > pos){
-				return IsGC(sequence[pos]);
-			}
-			else{
-				printErr << "Sequence position " << pos << " called, but length is only " << seqan::length(sequence) << std::endl;
-				throw std::out_of_range( "Sequence position after the last called" );
-				return false;
-			}
-		}
-
-		// Specify possible options so we do not accidentally call function with seqan::CharString etc., which results in wrong output
+		// Specify possible options instead of using a template so we do not accidentally call function with seqan::CharString etc., which results in wrong output
 		inline bool IsGC(const seqan::Dna5String& sequence, uintSeqLen pos){
-			return IsGCTemplate(sequence, pos);
+			return IsGC( at(sequence, pos) );
 		}
 		inline bool IsGC(const seqan::DnaString& sequence, uintSeqLen pos){
-			return IsGCTemplate(sequence, pos);
+			return IsGC( at(sequence, pos) );
 		}
 		inline bool IsGC(const seqan::Dna5StringReverseComplement& sequence, uintSeqLen pos){
-			return IsGCTemplate(sequence, pos);
+			return IsGC( at(sequence, pos) );
 		}
 		inline bool IsGC(const seqan::DnaStringReverseComplement& sequence, uintSeqLen pos){
-			return IsGCTemplate(sequence, pos);
+			return IsGC( at(sequence, pos) );
 		}
 		inline bool IsGC(const ConstDna5StringReverseComplement& sequence, uintSeqLen pos){
-			return IsGCTemplate(sequence, pos);
+			return IsGC( at(sequence, pos) );
 		}
 		inline bool IsGC(const ConstDnaStringReverseComplement& sequence, uintSeqLen pos){
-			return IsGCTemplate(sequence, pos);
+			return IsGC( at(sequence, pos) );
 		}
 
 		inline bool IsN(seqan::Dna5 base){
 			return 3 < static_cast<uintBaseCall>(base);
 		}
 
-		template<typename T> inline bool IsNTemplate(const T& sequence, uintSeqLen pos){
-			if(seqan::length(sequence) > pos){
-				return IsN(sequence[pos]);
-			}
-			else{
-				printErr << "Sequence position " << pos << " called, but length is only " << seqan::length(sequence) << std::endl;
-				throw std::out_of_range( "Sequence position after the last called" );
-				return false;
-			}
-		}
-
-		// Specify possible options so we do not accidentally call function with seqan::CharString etc., which results in wrong output
+		// Specify possible options instead of using a template so we do not accidentally call function with seqan::CharString etc., which results in wrong output
 		inline bool IsN(const seqan::Dna5String& sequence, uintSeqLen pos){
-			return IsNTemplate(sequence, pos);
+			return IsN( at(sequence, pos) );
 		}
 		inline bool IsN(const seqan::Dna5StringReverseComplement& sequence, uintSeqLen pos){
-			return IsNTemplate(sequence, pos);
+			return IsN( at(sequence, pos) );
 		}
 		inline bool IsN(const ConstDna5StringReverseComplement& sequence, uintSeqLen pos){
-			return IsNTemplate(sequence, pos);
+			return IsN( at(sequence, pos) );
 		}
 
 		template<typename T> inline T MeanWithRoundingToFirst(T first, T second){ // Mean between first and second and rounding in the direction of first
@@ -333,14 +430,14 @@ namespace reseq{
 			// Add new base
 			++seq_content.at(base);
 			// Remove old base if we reached lastx bases, so that the sum of seq_content is actually lastx
-			if(lastx <= pos) --seq_content.at(static_cast<seqan::Dna5>(seq[pos-lastx]));
+			if(lastx <= pos) --seq_content.at(static_cast<seqan::Dna5>(at(seq, pos-lastx)));
 			// If we added an N, we just ignore it
 			if(4 > base){
 				// In case we don't have a defined base yet or the just added base has equal or more appearances than the current dominant one it's easy
 				if(dom_base >= N || seq_content.at(base) >= seq_content.at(dom_base)){
 					dom_base = base;
 				}
-				else if(lastx <= pos && dom_base == seq[pos-lastx]){ // In case seq content is not complete yet only the easy case above can happen
+				else if(lastx <= pos && dom_base == at(seq, pos-lastx)){ // In case seq content is not complete yet only the easy case above can happen
 					// Otherwise check if there are two most abundant bases
 					bool equal_content(false);
 					for( uintBaseCall b=N; b--; ){
@@ -351,8 +448,8 @@ namespace reseq{
 					// If two bases are most abundant take the one closer to pos
 					if(equal_content){
 						for( uintSeqLen p=1; p<lastx; ++p){
-							if( seq_content.at(seq[pos-p]) >= seq_content.at(dom_base) ){
-								dom_base = seq[pos-p];
+							if( seq_content.at(at(seq, pos-p)) >= seq_content.at(dom_base) ){
+								dom_base = at(seq, pos-p);
 								break;
 							}
 						}
@@ -365,7 +462,7 @@ namespace reseq{
 			if(cur_pos){
 				// Fill seq_content_reference_last5
 				for( uintSeqLen pos = (lastx<cur_pos?cur_pos-lastx:0); pos < cur_pos; ++pos){
-					++seq_content.at( seq[pos] );
+					++seq_content.at( at(seq, pos) );
 				}
 
 				// Get count of most appearing base
@@ -381,8 +478,8 @@ namespace reseq{
 				else{
 					// Get the base that is closest to the current base which matches max_content (in case there are multiple bases with same number of appearances)
 					uintSeqLen pos=cur_pos;
-					while(max_content != seq_content.at( seq[--pos] ));
-					dom_base = seq[pos];
+					while(max_content != seq_content.at( at(seq, --pos) ));
+					dom_base = at(seq, pos);
 				}
 			}
 		}

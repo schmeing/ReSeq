@@ -70,8 +70,9 @@ using seqan::readHeader; // <>
 
 //include "utilities.hpp"
 using reseq::utilities::ConstDna5StringReverseComplement;
-using reseq::utilities::Complement;
 using reseq::utilities::CigarString;
+using reseq::utilities::Complement;
+using reseq::utilities::at;
 using reseq::utilities::CreateDir;
 using reseq::utilities::DeleteFile;
 using reseq::utilities::Divide;
@@ -284,23 +285,23 @@ bool Simulator::FillReadPart(
 			}
 
 			// Roll quality
-			par.qual_ = estimates.Quality(template_segment, tile_id, org_sequence[org_pos]).Draw(prob_quality, prob_sum, {par.seq_qual_, par.qual_, par.read_pos_, par.error_rate_}, rdist.ZeroToOne(rgen));
+			par.qual_ = estimates.Quality(template_segment, tile_id, at(org_sequence, org_pos)).Draw(prob_quality, prob_sum, {par.seq_qual_, par.qual_, par.read_pos_, par.error_rate_}, rdist.ZeroToOne(rgen));
 			if( 0.0 == prob_sum ){
 				if(par.read_pos_){
-					par.qual_ = sim_reads.qual_.at(template_segment)[par.read_pos_-1] - stats.PhredQualityOffset(); // Take last quality again
+					par.qual_ = at(sim_reads.qual_.at(template_segment), par.read_pos_-1) - stats.PhredQualityOffset(); // Take last quality again
 				}
 				else{
-					par.qual_ = estimates.Quality(template_segment, tile_id, org_sequence[org_pos]).MaxValue();
+					par.qual_ = estimates.Quality(template_segment, tile_id, at(org_sequence, org_pos)).MaxValue();
 				}
 			}
-			sim_reads.qual_.at(template_segment)[par.read_pos_] = par.qual_ + stats.PhredQualityOffset();
+			at(sim_reads.qual_.at(template_segment), par.read_pos_) = par.qual_ + stats.PhredQualityOffset();
 
 			// Roll base call
-			par.base_call_ = estimates.BaseCall(template_segment, tile_id, org_sequence[org_pos], dom_error).Draw(prob_base_call, prob_sum, {par.qual_, par.read_pos_, par.num_errors_, par.error_rate_}, rdist.ZeroToOne(rgen));
+			par.base_call_ = estimates.BaseCall(template_segment, tile_id, at(org_sequence, org_pos), dom_error).Draw(prob_base_call, prob_sum, {par.qual_, par.read_pos_, par.num_errors_, par.error_rate_}, rdist.ZeroToOne(rgen));
 			if( 0.0 == prob_sum ){
-				par.base_call_ = org_sequence[org_pos];
+				par.base_call_ = at(org_sequence, org_pos);
 			}
-			sim_reads.seq_.at(template_segment)[par.read_pos_] = par.base_call_;
+			at(sim_reads.seq_.at(template_segment), par.read_pos_) = par.base_call_;
 
 			// Update cigar
 			if(base_cigar_element == cigar_element){
@@ -315,7 +316,7 @@ bool Simulator::FillReadPart(
 			}
 
 			// Update num_errors_
-			if(par.base_call_ != org_sequence[org_pos]){
+			if(par.base_call_ != at(org_sequence, org_pos)){
 				++par.num_errors_;
 			}
 
@@ -359,13 +360,13 @@ bool Simulator::FillReadPart(
 		else{
 			// Insertion
 			// Roll quality
-			sim_reads.qual_.at(template_segment)[par.read_pos_] = stats.PhredQualityOffset() + estimates.Quality(template_segment, tile_id, org_sequence[org_pos]).Draw(prob_quality, prob_sum, {par.seq_qual_, par.qual_, par.read_pos_, par.error_rate_}, rdist.ZeroToOne(rgen));
+			at(sim_reads.qual_.at(template_segment), par.read_pos_) = stats.PhredQualityOffset() + estimates.Quality(template_segment, tile_id, at(org_sequence, org_pos)).Draw(prob_quality, prob_sum, {par.seq_qual_, par.qual_, par.read_pos_, par.error_rate_}, rdist.ZeroToOne(rgen));
 			if( 0.0 == prob_sum ){
-				sim_reads.qual_.at(template_segment)[par.read_pos_] = stats.PhredQualityOffset() + par.qual_; // Take last quality again
+				at(sim_reads.qual_.at(template_segment), par.read_pos_) = stats.PhredQualityOffset() + par.qual_; // Take last quality again
 			}
 			
 			// Take base call from indel
-			sim_reads.seq_.at(template_segment)[par.read_pos_] = indel-2; // This base call is not stored in par.base_call, because the normal calls have more predictive power for indel calls
+			at(sim_reads.seq_.at(template_segment), par.read_pos_) = indel-2; // This base call is not stored in par.base_call, because the normal calls have more predictive power for indel calls
 
 			// Update cigar
 			if('I' == cigar_element){
@@ -507,12 +508,12 @@ bool Simulator::FillRead(
 				// There is no clear way to set the qualities here, so just do something
 				par.qual_ = estimates.Quality(template_segment, tile_id, 0).Draw(prob_quality, prob_sum, {par.seq_qual_, par.qual_, par.read_pos_, par.error_rate_}, rdist.ZeroToOne(rgen));
 				if( 0.0 == prob_sum ){
-					par.qual_ = sim_reads.qual_.at(template_segment)[par.read_pos_-1] - stats.PhredQualityOffset(); // Take last quality again
+					par.qual_ = at(sim_reads.qual_.at(template_segment), par.read_pos_-1) - stats.PhredQualityOffset(); // Take last quality again
 				}
-				sim_reads.qual_.at(template_segment)[par.read_pos_] = par.qual_ + stats.PhredQualityOffset();
+				at(sim_reads.qual_.at(template_segment), par.read_pos_) = par.qual_ + stats.PhredQualityOffset();
 
 				// Set called base to A
-				sim_reads.seq_.at(template_segment)[par.read_pos_++] = 0;
+				at(sim_reads.seq_.at(template_segment), par.read_pos_++) = 0;
 			}
 
 			// After the tail add random bases
@@ -520,12 +521,12 @@ bool Simulator::FillRead(
 				// There is no clear way to set the qualities here, so just do something
 				par.qual_ = estimates.Quality(template_segment, tile_id, 0).Draw(prob_quality, prob_sum, {par.seq_qual_, par.qual_, par.read_pos_, par.error_rate_}, rdist.ZeroToOne(rgen));
 				if( 0.0 == prob_sum ){
-					par.qual_ = sim_reads.qual_.at(template_segment)[par.read_pos_-1] - stats.PhredQualityOffset(); // Take last quality again
+					par.qual_ = at(sim_reads.qual_.at(template_segment), par.read_pos_-1) - stats.PhredQualityOffset(); // Take last quality again
 				}
-				sim_reads.qual_.at(template_segment)[par.read_pos_] = par.qual_ + stats.PhredQualityOffset();
+				at(sim_reads.qual_.at(template_segment), par.read_pos_) = par.qual_ + stats.PhredQualityOffset();
 
 				// Set random called base to A
-				sim_reads.seq_.at(template_segment)[par.read_pos_++] = rdist.OverrunBases(rgen);
+				at(sim_reads.seq_.at(template_segment), par.read_pos_++) = rdist.OverrunBases(rgen);
 			}
 		}
 	}
@@ -718,7 +719,7 @@ void Simulator::SetSystematicErrorVariantsReverse(uintSeqLen &start_dist_error_r
 			}
 			else{
 				if(var.position_+1 < ref.SequenceLength(ref_seq_id)){
-					last_base = Complement::Dna(ref.ReferenceSequence(ref_seq_id)[var.position_+1]);
+					last_base = Complement::Dna(at(ref.ReferenceSequence(ref_seq_id), var.position_+1));
 				}
 				else{
 					last_base = 4;
@@ -728,11 +729,11 @@ void Simulator::SetSystematicErrorVariantsReverse(uintSeqLen &start_dist_error_r
 			// Get dom_base
 			if( sys_last_var_pos_per_allele_.at(chosen_allele) < ref.SequenceLength(ref_seq_id) && sys_last_var_pos_per_allele_.at(chosen_allele) <= var.position_+5 ){
 				for( auto pos = sys_last_var_pos_per_allele_.at(chosen_allele)-1; pos > var.position_; --pos ){
-					SetDominantLastX( sys_dom_last5_per_allele_.at(chosen_allele), sys_seq_content_last5_per_allele_.at(chosen_allele), Complement::Dna(ref.ReferenceSequence(ref_seq_id)[pos]), 5, sys_seq_last5_per_allele_.at(chosen_allele), length(sys_seq_last5_per_allele_.at(chosen_allele)) );
+					SetDominantLastX( sys_dom_last5_per_allele_.at(chosen_allele), sys_seq_content_last5_per_allele_.at(chosen_allele), Complement::Dna(at(ref.ReferenceSequence(ref_seq_id), pos)), 5, sys_seq_last5_per_allele_.at(chosen_allele), length(sys_seq_last5_per_allele_.at(chosen_allele)) );
 					if(length(sys_seq_last5_per_allele_.at(chosen_allele)) > 4){
 						erase(sys_seq_last5_per_allele_.at(chosen_allele), 0);
 					}
-					sys_seq_last5_per_allele_.at(chosen_allele) += Complement::Dna(ref.ReferenceSequence(ref_seq_id)[pos]);
+					sys_seq_last5_per_allele_.at(chosen_allele) += Complement::Dna(at(ref.ReferenceSequence(ref_seq_id), pos));
 				}
 			}
 			else{
@@ -774,8 +775,8 @@ void Simulator::SetSystematicErrorVariantsReverse(uintSeqLen &start_dist_error_r
 			if( 0 < length(var.var_seq_)){
 				tmp_sys_errors.reserve(length(var.var_seq_));
 				for(uintSeqLen vpos=length(var.var_seq_); vpos--; ){
-					DrawSystematicError(tmp_sys_errors, Complement::Dna(var.var_seq_[vpos]), last_base, sys_dom_last5_per_allele_.at(chosen_allele), SafePercent(gc, gc_bases), TransformDistanceToStartOfErrorRegion(start_dist_error_region), estimates);
-					last_base = Complement::Dna(var.var_seq_[vpos]);
+					DrawSystematicError(tmp_sys_errors, Complement::Dna(at(var.var_seq_, vpos)), last_base, sys_dom_last5_per_allele_.at(chosen_allele), SafePercent(gc, gc_bases), TransformDistanceToStartOfErrorRegion(start_dist_error_region), estimates);
+					last_base = Complement::Dna(at(var.var_seq_, vpos));
 					SetDominantLastX( sys_dom_last5_per_allele_.at(chosen_allele), sys_seq_content_last5_per_allele_.at(chosen_allele), last_base, 5, sys_seq_last5_per_allele_.at(chosen_allele), length(sys_seq_last5_per_allele_.at(chosen_allele)));
 					if(length(sys_seq_last5_per_allele_.at(chosen_allele)) > 4){
 						erase(sys_seq_last5_per_allele_.at(chosen_allele), 0);
@@ -798,19 +799,19 @@ void Simulator::SetSystematicErrorVariantsReverse(uintSeqLen &start_dist_error_r
 						// Update dom base
 						if(sys_last_var_pos_per_allele_.at(allele) < ref.SequenceLength(ref_seq_id) && sys_last_var_pos_per_allele_.at(allele)+length(var.var_seq_) <= var.position_+5){
 							for( auto pos = sys_last_var_pos_per_allele_.at(allele)-1; pos > var.position_; --pos ){
-								SetDominantLastX( sys_dom_last5_per_allele_.at(allele), sys_seq_content_last5_per_allele_.at(allele), Complement::Dna(ref.ReferenceSequence(ref_seq_id)[pos]), 5, sys_seq_last5_per_allele_.at(allele), length(sys_seq_last5_per_allele_.at(allele)) );
+								SetDominantLastX( sys_dom_last5_per_allele_.at(allele), sys_seq_content_last5_per_allele_.at(allele), Complement::Dna(at(ref.ReferenceSequence(ref_seq_id), pos)), 5, sys_seq_last5_per_allele_.at(allele), length(sys_seq_last5_per_allele_.at(allele)) );
 								if(length(sys_seq_last5_per_allele_.at(allele)) > 4){
 									erase(sys_seq_last5_per_allele_.at(allele), 0);
 								}
-								sys_seq_last5_per_allele_.at(allele) += Complement::Dna(ref.ReferenceSequence(ref_seq_id)[pos]);
+								sys_seq_last5_per_allele_.at(allele) += Complement::Dna(at(ref.ReferenceSequence(ref_seq_id), pos));
 							}
 
 							for(uintSeqLen vpos=length(var.var_seq_); vpos--; ){
-								SetDominantLastX( sys_dom_last5_per_allele_.at(allele), sys_seq_content_last5_per_allele_.at(allele), Complement::Dna(var.var_seq_[vpos]), 5, sys_seq_last5_per_allele_.at(allele), length(sys_seq_last5_per_allele_.at(allele)));
+								SetDominantLastX( sys_dom_last5_per_allele_.at(allele), sys_seq_content_last5_per_allele_.at(allele), Complement::Dna(at(var.var_seq_, vpos)), 5, sys_seq_last5_per_allele_.at(allele), length(sys_seq_last5_per_allele_.at(allele)));
 								if(length(sys_seq_last5_per_allele_.at(allele)) > 4){
 									erase(sys_seq_last5_per_allele_.at(allele), 0);
 								}
-								sys_seq_last5_per_allele_.at(allele) += Complement::Dna(var.var_seq_[vpos]);
+								sys_seq_last5_per_allele_.at(allele) += Complement::Dna(at(var.var_seq_, vpos));
 							}
 						}
 						else{
@@ -836,11 +837,11 @@ void Simulator::SetSystematicErrorVariantsReverse(uintSeqLen &start_dist_error_r
 								}
 
 								for(uintSeqLen vpos=length(var.var_seq_); vpos--; ){
-									SetDominantLastX( sys_dom_last5_per_allele_.at(allele), sys_seq_content_last5_per_allele_.at(allele), Complement::Dna(var.var_seq_[vpos]), 5, sys_seq_last5_per_allele_.at(allele), length(sys_seq_last5_per_allele_.at(allele)));
+									SetDominantLastX( sys_dom_last5_per_allele_.at(allele), sys_seq_content_last5_per_allele_.at(allele), Complement::Dna(at(var.var_seq_, vpos)), 5, sys_seq_last5_per_allele_.at(allele), length(sys_seq_last5_per_allele_.at(allele)));
 									if(length(sys_seq_last5_per_allele_.at(allele)) > 4){
 										erase(sys_seq_last5_per_allele_.at(allele), 0);
 									}
-									sys_seq_last5_per_allele_.at(allele) += Complement::Dna(var.var_seq_[vpos]);
+									sys_seq_last5_per_allele_.at(allele) += Complement::Dna(at(var.var_seq_, vpos));
 								}
 							}
 						}
@@ -920,6 +921,7 @@ bool Simulator::CreateUnit(uintRefSeqId ref_id, uintRefSeqBin first_block_id, Re
 	ResetSystematicErrorCounters(ref);
 	uintSeqLen start_pos(0), end_pos(ref.SequenceLength(unit->ref_seq_id_) - block->start_pos_);
 	while(block){
+printDebug << "Bases: " << sys_gc_bases_ << std::endl;
 		block->sys_errors_.reserve(end_pos - start_pos);
 		if(sys_from_file_){
 			ReadSystematicErrors(block->sys_errors_, start_pos, end_pos);
@@ -965,7 +967,7 @@ void Simulator::SetSystematicErrorVariantsForward(uintSeqLen &start_dist_error_r
 			}
 			else{
 				if(var.position_){
-					last_base = ref.ReferenceSequence(ref_seq_id)[var.position_-1];
+					last_base = at(ref.ReferenceSequence(ref_seq_id), var.position_-1);
 				}
 				else{
 					last_base = 4;
@@ -975,11 +977,11 @@ void Simulator::SetSystematicErrorVariantsForward(uintSeqLen &start_dist_error_r
 			// Get dom_base
 			if( sys_last_var_pos_per_allele_.at(chosen_allele) < ref.SequenceLength(ref_seq_id) && sys_last_var_pos_per_allele_.at(chosen_allele)+5 >= var.position_ ){
 				for( auto pos = sys_last_var_pos_per_allele_.at(chosen_allele)+1; pos < var.position_; ++pos ){
-					SetDominantLastX( sys_dom_last5_per_allele_.at(chosen_allele), sys_seq_content_last5_per_allele_.at(chosen_allele), ref.ReferenceSequence(ref_seq_id)[pos], 5, sys_seq_last5_per_allele_.at(chosen_allele), length(sys_seq_last5_per_allele_.at(chosen_allele)) );
+					SetDominantLastX( sys_dom_last5_per_allele_.at(chosen_allele), sys_seq_content_last5_per_allele_.at(chosen_allele), at(ref.ReferenceSequence(ref_seq_id), pos), 5, sys_seq_last5_per_allele_.at(chosen_allele), length(sys_seq_last5_per_allele_.at(chosen_allele)) );
 					if(length(sys_seq_last5_per_allele_.at(chosen_allele)) > 4){
 						erase(sys_seq_last5_per_allele_.at(chosen_allele), 0);
 					}
-					sys_seq_last5_per_allele_.at(chosen_allele) += ref.ReferenceSequence(ref_seq_id)[pos];
+					sys_seq_last5_per_allele_.at(chosen_allele) += at(ref.ReferenceSequence(ref_seq_id), pos);
 				}
 			}
 			else{
@@ -1021,8 +1023,8 @@ void Simulator::SetSystematicErrorVariantsForward(uintSeqLen &start_dist_error_r
 			if( 0 < length(var.var_seq_)){
 				tmp_sys_errors.reserve(length(var.var_seq_));
 				for(uintSeqLen vpos=0; vpos < length(var.var_seq_); ++vpos){
-					DrawSystematicError(tmp_sys_errors, var.var_seq_[vpos], last_base, sys_dom_last5_per_allele_.at(chosen_allele), SafePercent(gc, gc_bases), TransformDistanceToStartOfErrorRegion(start_dist_error_region), estimates);
-					last_base = var.var_seq_[vpos];
+					DrawSystematicError(tmp_sys_errors, at(var.var_seq_, vpos), last_base, sys_dom_last5_per_allele_.at(chosen_allele), SafePercent(gc, gc_bases), TransformDistanceToStartOfErrorRegion(start_dist_error_region), estimates);
+					last_base = at(var.var_seq_, vpos);
 					SetDominantLastX( sys_dom_last5_per_allele_.at(chosen_allele), sys_seq_content_last5_per_allele_.at(chosen_allele), last_base, 5, sys_seq_last5_per_allele_.at(chosen_allele), length(sys_seq_last5_per_allele_.at(chosen_allele)));
 					if(length(sys_seq_last5_per_allele_.at(chosen_allele)) > 4){
 						erase(sys_seq_last5_per_allele_.at(chosen_allele), 0);
@@ -1045,19 +1047,19 @@ void Simulator::SetSystematicErrorVariantsForward(uintSeqLen &start_dist_error_r
 						// Update dom base
 						if(sys_last_var_pos_per_allele_.at(allele) < ref.SequenceLength(ref_seq_id) && sys_last_var_pos_per_allele_.at(allele)+5 >= var.position_+length(var.var_seq_)){
 							for( auto pos = sys_last_var_pos_per_allele_.at(allele)+1; pos < var.position_; ++pos ){
-								SetDominantLastX( sys_dom_last5_per_allele_.at(allele), sys_seq_content_last5_per_allele_.at(allele), ref.ReferenceSequence(ref_seq_id)[pos], 5, sys_seq_last5_per_allele_.at(allele), length(sys_seq_last5_per_allele_.at(allele)) );
+								SetDominantLastX( sys_dom_last5_per_allele_.at(allele), sys_seq_content_last5_per_allele_.at(allele), at(ref.ReferenceSequence(ref_seq_id), pos), 5, sys_seq_last5_per_allele_.at(allele), length(sys_seq_last5_per_allele_.at(allele)) );
 								if(length(sys_seq_last5_per_allele_.at(allele)) > 4){
 									erase(sys_seq_last5_per_allele_.at(allele), 0);
 								}
-								sys_seq_last5_per_allele_.at(allele) += ref.ReferenceSequence(ref_seq_id)[pos];
+								sys_seq_last5_per_allele_.at(allele) += at(ref.ReferenceSequence(ref_seq_id), pos);
 							}
 
 							for(uintSeqLen vpos=0; vpos < length(var.var_seq_); ++vpos){
-								SetDominantLastX( sys_dom_last5_per_allele_.at(allele), sys_seq_content_last5_per_allele_.at(allele), var.var_seq_[vpos], 5, sys_seq_last5_per_allele_.at(allele), length(sys_seq_last5_per_allele_.at(allele)));
+								SetDominantLastX( sys_dom_last5_per_allele_.at(allele), sys_seq_content_last5_per_allele_.at(allele), at(var.var_seq_, vpos), 5, sys_seq_last5_per_allele_.at(allele), length(sys_seq_last5_per_allele_.at(allele)));
 								if(length(sys_seq_last5_per_allele_.at(allele)) > 4){
 									erase(sys_seq_last5_per_allele_.at(allele), 0);
 								}
-								sys_seq_last5_per_allele_.at(allele) += var.var_seq_[vpos];
+								sys_seq_last5_per_allele_.at(allele) += at(var.var_seq_, vpos);
 							}
 						}
 						else{
@@ -1083,11 +1085,11 @@ void Simulator::SetSystematicErrorVariantsForward(uintSeqLen &start_dist_error_r
 								}
 
 								for(uintSeqLen vpos=0; vpos < length(var.var_seq_); ++vpos){
-									SetDominantLastX( sys_dom_last5_per_allele_.at(allele), sys_seq_content_last5_per_allele_.at(allele), var.var_seq_[vpos], 5, sys_seq_last5_per_allele_.at(allele), length(sys_seq_last5_per_allele_.at(allele)));
+									SetDominantLastX( sys_dom_last5_per_allele_.at(allele), sys_seq_content_last5_per_allele_.at(allele), at(var.var_seq_, vpos), 5, sys_seq_last5_per_allele_.at(allele), length(sys_seq_last5_per_allele_.at(allele)));
 									if(length(sys_seq_last5_per_allele_.at(allele)) > 4){
 										erase(sys_seq_last5_per_allele_.at(allele), 0);
 									}
-									sys_seq_last5_per_allele_.at(allele) += var.var_seq_[vpos];
+									sys_seq_last5_per_allele_.at(allele) += at(var.var_seq_, vpos);
 								}
 							}
 						}
@@ -1395,7 +1397,7 @@ void Simulator::InsertSurroundingBasesShiftingOnRightSide(
 	// Convert new_bases to integer
 	intExtSurrounding shifted_bases = 0;
 	for(uintSurPos ins=0; ins<length(new_bases); ++ins){
-		shifted_bases = (shifted_bases << 2) + static_cast<intExtSurrounding>(new_bases[ins]);
+		shifted_bases = (shifted_bases << 2) + static_cast<intExtSurrounding>(at(new_bases, ins));
 	}
 
 	// Add everything that has to be shifted right from current block to make room for new bases
@@ -1422,7 +1424,7 @@ void Simulator::InsertSurroundingBasesShiftingOnLeftSide(
 	// Convert new_bases to integer
 	intExtSurrounding shifted_bases = 0;
 	for(uintSurPos ins=0; ins<length(new_bases); ++ins){
-		shifted_bases = (shifted_bases << 2) + static_cast<intExtSurrounding>(new_bases[ins]);
+		shifted_bases = (shifted_bases << 2) + static_cast<intExtSurrounding>(at(new_bases, ins));
 	}
 
 	// Add everything that has to be shifted left from current block to make room for new bases
@@ -1472,29 +1474,29 @@ void Simulator::HandleSurroundingVariantsBeforeCenter(
 				if(reverse){
 					auto new_base_pos = static_cast<intSeqShift>(center_position) + pos_shift - static_cast<intSeqShift>(Reference::num_surrounding_blocks_ * Reference::surrounding_range_);
 					if(0 > new_base_pos){
-						DeleteSurroundingBaseShiftingOnRightSide(mod_surrounding, sur_pos, Complement::Dna(ref.ReferenceSequence(ref_seq_id)[ref.SequenceLength(ref_seq_id) + new_base_pos]));
+						DeleteSurroundingBaseShiftingOnRightSide(mod_surrounding, sur_pos, Complement::Dna(at(ref.ReferenceSequence(ref_seq_id), ref.SequenceLength(ref_seq_id) + new_base_pos)));
 					}
 					else{
-						DeleteSurroundingBaseShiftingOnRightSide(mod_surrounding, sur_pos, Complement::Dna(ref.ReferenceSequence(ref_seq_id)[new_base_pos]));
+						DeleteSurroundingBaseShiftingOnRightSide(mod_surrounding, sur_pos, Complement::Dna(at(ref.ReferenceSequence(ref_seq_id), new_base_pos)));
 					}
 					--pos_shift;
 				}
 				else{
 					if(++pos_shift > center_position){
-						DeleteSurroundingBaseShiftingOnLeftSide(mod_surrounding, sur_pos, ref.ReferenceSequence(ref_seq_id)[ref.SequenceLength(ref_seq_id) + center_position - pos_shift]);
+						DeleteSurroundingBaseShiftingOnLeftSide(mod_surrounding, sur_pos, at(ref.ReferenceSequence(ref_seq_id), ref.SequenceLength(ref_seq_id) + center_position - pos_shift));
 					}
 					else{
-						DeleteSurroundingBaseShiftingOnLeftSide(mod_surrounding, sur_pos, ref.ReferenceSequence(ref_seq_id)[center_position - pos_shift]);
+						DeleteSurroundingBaseShiftingOnLeftSide(mod_surrounding, sur_pos, at(ref.ReferenceSequence(ref_seq_id), center_position - pos_shift));
 					}
 				}
 			}
 			else{
 				// Base modification (Insertions may also include a base modification and we skip checking first if we exchange it with the same)
 				if(reverse){
-					ChangeSurroundingBase(mod_surrounding, sur_pos, Complement::Dna(ref.Variants(ref_seq_id).at(cur_var).var_seq_[0]));
+					ChangeSurroundingBase(mod_surrounding, sur_pos, Complement::Dna(at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0)));
 				}
 				else{
-					ChangeSurroundingBase(mod_surrounding, sur_pos, ref.Variants(ref_seq_id).at(cur_var).var_seq_[0]);
+					ChangeSurroundingBase(mod_surrounding, sur_pos, at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0));
 				}
 
 				if(1 < length(ref.Variants(ref_seq_id).at(cur_var).var_seq_)){
@@ -1541,20 +1543,20 @@ void Simulator::HandleSurroundingVariantsAfterCenter(
 				// Deletion
 				if(reverse){
 					++pos_shift;
-					DeleteSurroundingBaseShiftingOnLeftSide(mod_surrounding, sur_pos, Complement::Dna(ref.ReferenceSequence(ref_seq_id)[(center_position + pos_shift)%ref.SequenceLength(ref_seq_id)]));
+					DeleteSurroundingBaseShiftingOnLeftSide(mod_surrounding, sur_pos, Complement::Dna(at(ref.ReferenceSequence(ref_seq_id), (center_position + pos_shift)%ref.SequenceLength(ref_seq_id))));
 				}
 				else{
-					DeleteSurroundingBaseShiftingOnRightSide(mod_surrounding, sur_pos, ref.ReferenceSequence(ref_seq_id)[(center_position - pos_shift + Reference::num_surrounding_blocks_ * Reference::surrounding_range_)%ref.SequenceLength(ref_seq_id)]);
+					DeleteSurroundingBaseShiftingOnRightSide(mod_surrounding, sur_pos, at(ref.ReferenceSequence(ref_seq_id), (center_position - pos_shift + Reference::num_surrounding_blocks_ * Reference::surrounding_range_)%ref.SequenceLength(ref_seq_id)));
 					--pos_shift;
 				}
 			}
 			else{
 				// Base modification (Insertions may also include a base modification and we skip checking first if we exchange it with the same)
 				if(reverse){
-					ChangeSurroundingBase(mod_surrounding, sur_pos, Complement::Dna(ref.Variants(ref_seq_id).at(cur_var).var_seq_[0]));
+					ChangeSurroundingBase(mod_surrounding, sur_pos, Complement::Dna(at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0)));
 				}
 				else{
-					ChangeSurroundingBase(mod_surrounding, sur_pos, ref.Variants(ref_seq_id).at(cur_var).var_seq_[0]);
+					ChangeSurroundingBase(mod_surrounding, sur_pos, at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0));
 				}
 
 				if(1 < length(ref.Variants(ref_seq_id).at(cur_var).var_seq_)){
@@ -1596,7 +1598,7 @@ void Simulator::VariantModStartSurrounding(
 		auto cur_var = bias_mod.first_variant_id_;
 		if(bias_mod.start_variant_pos_){
 			// Handle the base substitution (as the insertion might include it)
-			ChangeSurroundingBase(bias_mod.mod_surrounding_start_.at(allele), pos_shift, ref.Variants(ref_seq_id).at(cur_var).var_seq_[0] );
+			ChangeSurroundingBase(bias_mod.mod_surrounding_start_.at(allele), pos_shift, at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0) );
 			// Partial insertion (as the rest is shifted to the right)
 			InsertSurroundingBasesShiftingOnLeftSide(bias_mod.mod_surrounding_start_.at(allele), pos_shift, infix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 1, bias_mod.start_variant_pos_+1));
 			pos_shift -= bias_mod.start_variant_pos_;
@@ -1735,7 +1737,7 @@ void Simulator::VariantModEndSurrounding(
 			if( bias_mod.unhandled_bases_in_variant_.at(allele) ){
 				if(pos_shift+1 < Reference::num_surrounding_blocks_*Reference::surrounding_range_){
 					// Handle the base substitution (as the insertion might include it)
-					ChangeSurroundingBase(bias_mod.mod_surrounding_end_.at(allele), pos_shift+1, Complement::Dna(ref.Variants(ref_seq_id).at(cur_var).var_seq_[0]) );
+					ChangeSurroundingBase(bias_mod.mod_surrounding_end_.at(allele), pos_shift+1, Complement::Dna(at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0)) );
 
 					// Partial insertion (as the rest is shifted to the left)
 					InsertSurroundingBasesShiftingOnRightSide(bias_mod.mod_surrounding_end_.at(allele), pos_shift+1, ReverseComplementorDna(infix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 1, length(ref.Variants(ref_seq_id).at(cur_var).var_seq_)-bias_mod.unhandled_bases_in_variant_.at(allele))));
@@ -1745,7 +1747,7 @@ void Simulator::VariantModEndSurrounding(
 			else if( bias_mod.start_variant_pos_ && ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).position_ == last_position ){
 				cur_var = bias_mod.first_variant_id_;
 				// Handle the base substitution (as the insertion might include it)
-				ChangeSurroundingBase(bias_mod.mod_surrounding_end_.at(allele), pos_shift, Complement::Dna(ref.Variants(ref_seq_id).at(cur_var).var_seq_[0]) );
+				ChangeSurroundingBase(bias_mod.mod_surrounding_end_.at(allele), pos_shift, Complement::Dna(at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0)) );
 
 				// Partial insertion (as the rest is shifted to the left)
 				InsertSurroundingBasesShiftingOnRightSide(bias_mod.mod_surrounding_end_.at(allele), pos_shift, ReverseComplementorDna(infix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 1, bias_mod.start_variant_pos_-bias_mod.end_pos_shift_.at(allele)+1)));
@@ -2069,14 +2071,14 @@ bool Simulator::WriteOutSystematicErrorProfile(const string &id, vector<pair<Dna
 	resize(err_perc, sys_errors.size());
 
 	for(uintSeqLen pos=0; pos<sys_errors.size(); ++pos){
-		dom_err[pos] = sys_errors.at(pos).first;
+		at(dom_err, pos) = sys_errors.at(pos).first;
 		uintPercent q_perc = sys_errors.at(pos).second;
 		if(86 < q_perc){
 			// Shorten percentage that it fits into 94 (0-93) values (odd values above 86 are joined with the even value before, so e.g. 87->86)
 			q_perc -= (q_perc - 85)/2;
 		}
 		q_perc += 33; // Shift to readable ascii codes
-		err_perc[pos] = q_perc;
+		at(err_perc, pos) = q_perc;
 	}
 
 	// Write record
@@ -2314,7 +2316,6 @@ void Simulator::Simulate(
 					}
 
 					printInfo << "Starting read generation" << std::endl;
-
 					thread threads[num_threads];
 					for(auto i = num_threads; i--; ){
 						threads[i] = thread(SimulationThread, std::ref(*this), std::ref(ref), std::cref(stats), std::cref(estimates));

@@ -40,41 +40,41 @@ inline double ProbabilityEstimatesTest::CalculateAbsolutPrecision(uintMatrixCoun
 }
 
 void ProbabilityEstimatesTest::SetUpDataQual(DataStats &stats, uintBaseCall base, const vector<Vect<Vect<uintMatrixCount>>> &margins, const Vect<SeqQualityStats<uintMatrixCount>> &margin_quality_position){
-	stats.qualities_.base_quality_for_error_rate_per_tile_reference_[kTemplateSegment][base][0] = margins[0];
-	stats.qualities_.base_quality_for_preceding_quality_per_tile_reference_[kTemplateSegment][base][0] = margins[1];
-	stats.qualities_.preceding_quality_for_error_rate_per_tile_reference_[kTemplateSegment][base][0] = margins[2];
-	stats.qualities_.base_quality_stats_per_tile_reference_[kTemplateSegment][base][0] = margin_quality_position;
-	stats.qualities_.error_rate_for_position_per_tile_reference_[kTemplateSegment][base][0] = margins[4];
-	stats.qualities_.preceding_quality_for_position_per_tile_reference_[kTemplateSegment][base][0] = margins[5];
-	stats.qualities_.base_quality_for_sequence_quality_per_tile_reference_[kTemplateSegment][base][0] = margins[6];
-	stats.qualities_.sequence_quality_for_error_rate_per_tile_reference_[kTemplateSegment][base][0] = margins[7];
-	stats.qualities_.preceding_quality_for_sequence_quality_per_tile_reference_[kTemplateSegment][base][0] = margins[8];
-	stats.qualities_.sequence_quality_for_position_per_tile_reference_[kTemplateSegment][base][0] = margins[9];
+	stats.qualities_.base_quality_for_error_rate_per_tile_reference_.at(kTemplateSegment).at(base)[0] = margins.at(0);
+	stats.qualities_.base_quality_for_preceding_quality_per_tile_reference_.at(kTemplateSegment).at(base)[0] = margins.at(1);
+	stats.qualities_.preceding_quality_for_error_rate_per_tile_reference_.at(kTemplateSegment).at(base)[0] = margins.at(2);
+	stats.qualities_.base_quality_stats_per_tile_reference_.at(kTemplateSegment).at(base)[0] = margin_quality_position;
+	stats.qualities_.error_rate_for_position_per_tile_reference_.at(kTemplateSegment).at(base)[0] = margins.at(4);
+	stats.qualities_.preceding_quality_for_position_per_tile_reference_.at(kTemplateSegment).at(base)[0] = margins.at(5);
+	stats.qualities_.base_quality_for_sequence_quality_per_tile_reference_.at(kTemplateSegment).at(base)[0] = margins.at(6);
+	stats.qualities_.sequence_quality_for_error_rate_per_tile_reference_.at(kTemplateSegment).at(base)[0] = margins.at(7);
+	stats.qualities_.preceding_quality_for_sequence_quality_per_tile_reference_.at(kTemplateSegment).at(base)[0] = margins.at(8);
+	stats.qualities_.sequence_quality_for_position_per_tile_reference_.at(kTemplateSegment).at(base)[0] = margins.at(9);
 }
 
 void ProbabilityEstimatesTest::SetUpDataBaseCall(DataStats &stats, const vector<Vect<Vect<uintMatrixCount>>> &margins, const Vect<SeqQualityStats<uintMatrixCount>> &margin_quality_position){
-	stats.errors_.called_bases_by_base_quality_per_tile_[kTemplateSegment][0][0][0] = margins[0];
-	stats.errors_.called_bases_by_position_per_tile_[kTemplateSegment][0][0][0] = margins[1];
-	stats.qualities_.base_quality_stats_per_tile_per_error_reference_[kTemplateSegment][0][0][0] = margin_quality_position;
-	stats.errors_.called_bases_by_error_num_per_tile_[kTemplateSegment][0][0][0] = margins[3];
-	stats.errors_.error_num_by_quality_per_tile_[kTemplateSegment][0][0][0] = margins[4];
-	stats.errors_.error_num_by_position_per_tile_[kTemplateSegment][0][0][0] = margins[5];
-	stats.errors_.called_bases_by_error_rate_per_tile_[kTemplateSegment][0][0][0] = margins[6];
-	stats.qualities_.base_quality_for_error_rate_per_tile_per_error_reference_[kTemplateSegment][0][0][0] = margins[7];
-	stats.qualities_.error_rate_for_position_per_tile_per_error_reference_[kTemplateSegment][0][0][0] = margins[8];
-	stats.errors_.error_num_by_error_rate_per_tile_[kTemplateSegment][0][0][0] = margins[9];
+	stats.errors_.called_bases_by_base_quality_per_tile_.at(kTemplateSegment).at(0).at(0)[0] = margins.at(0);
+	stats.errors_.called_bases_by_position_per_tile_.at(kTemplateSegment).at(0).at(0)[0] = margins.at(1);
+	stats.qualities_.base_quality_stats_per_tile_per_error_reference_.at(kTemplateSegment).at(0).at(0)[0] = margin_quality_position;
+	stats.errors_.called_bases_by_error_num_per_tile_.at(kTemplateSegment).at(0).at(0)[0] = margins.at(3);
+	stats.errors_.error_num_by_quality_per_tile_.at(kTemplateSegment).at(0).at(0)[0] = margins.at(4);
+	stats.errors_.error_num_by_position_per_tile_.at(kTemplateSegment).at(0).at(0)[0] = margins.at(5);
+	stats.errors_.called_bases_by_error_rate_per_tile_.at(kTemplateSegment).at(0).at(0)[0] = margins.at(6);
+	stats.qualities_.base_quality_for_error_rate_per_tile_per_error_reference_.at(kTemplateSegment).at(0).at(0)[0] = margins.at(7);
+	stats.qualities_.error_rate_for_position_per_tile_per_error_reference_.at(kTemplateSegment).at(0).at(0)[0] = margins.at(8);
+	stats.errors_.error_num_by_error_rate_per_tile_.at(kTemplateSegment).at(0).at(0)[0] = margins.at(9);
 }
 
 void ProbabilityEstimatesTest::SetUpDataDomError(DataStats &stats, const vector<Vect<Vect<uintMatrixCount>>> &margins){
-	stats.coverage_.dominant_errors_by_distance_[0][0][0] = margins[0];
-	stats.coverage_.dominant_errors_by_gc_[0][0][0] = margins[1];
-	stats.coverage_.gc_by_distance_de_[0][0][0] = margins[2];
+	stats.coverage_.dominant_errors_by_distance_.at(0).at(0).at(0) = margins.at(0);
+	stats.coverage_.dominant_errors_by_gc_.at(0).at(0).at(0) = margins.at(1);
+	stats.coverage_.gc_by_distance_de_.at(0).at(0).at(0) = margins.at(2);
 }
 
 void ProbabilityEstimatesTest::SetUpDataErrorRate(DataStats &stats, const vector<Vect<Vect<uintMatrixCount>>> &margins){
-	stats.coverage_.error_rates_by_distance_[0][0] = margins[0];
-	stats.coverage_.error_rates_by_gc_[0][0] = margins[1];
-	stats.coverage_.gc_by_distance_er_[0][0] = margins[2];
+	stats.coverage_.error_rates_by_distance_.at(0).at(0) = margins.at(0);
+	stats.coverage_.error_rates_by_gc_.at(0).at(0) = margins.at(1);
+	stats.coverage_.gc_by_distance_er_.at(0).at(0) = margins.at(2);
 }
 
 void ProbabilityEstimatesTest::SetUp(){
@@ -88,8 +88,8 @@ void ProbabilityEstimatesTest::TestLogArrayCalcNormalize(){
 
 	// Set dimensions
 	for( uintMarginId n=3; n--;){
-		test.dim_size_[n] = 3;
-		test_normalized.dim_size_[n] = 3;
+		test.dim_size_.at(n) = 3;
+		test_normalized.dim_size_.at(n) = 3;
 	}
 
 	// Randomly fill test
@@ -98,22 +98,22 @@ void ProbabilityEstimatesTest::TestLogArrayCalcNormalize(){
 	uniform_real_distribution<double> dist(0.5, 1.5);
 
 	for( uintMarginId n=3;n--;){
-		test.dim2_[n].resize(9);
+		test.dim2_.at(n).resize(9);
 		for( uintMatrixIndex p1=3; p1--; ){
 			for( uintMatrixIndex p2=3; p2--; ){
 				if( 1 == p1 && 1 == p2 ){
-					test.dim2_[n][4] = 0.0; // Introduce zeros to see if the normalization can cope with that
+					test.dim2_.at(n).at(4) = 0.0; // Introduce zeros to see if the normalization can cope with that
 				}
 				else{
-					test.dim2_[n][p1*3+p2] = dist(rgen);
+					test.dim2_.at(n).at(p1*3+p2) = dist(rgen);
 				}
 
 				// Introduce factors that cancel each other out that are close to the numeric limit to see whether that is a problem for the normalization
 				if(2==n){
-					test.dim2_[n][p1*3+p2] *= numeric_limits<double>::max()/2.0;
+					test.dim2_.at(n).at(p1*3+p2) *= numeric_limits<double>::max()/2.0;
 				}
 				else if(1==n){
-					test.dim2_[n][p1*3+p2] *= 2.0/numeric_limits<double>::max();
+					test.dim2_.at(n).at(p1*3+p2) *= 2.0/numeric_limits<double>::max();
 				}
 			}
 		}
@@ -121,10 +121,10 @@ void ProbabilityEstimatesTest::TestLogArrayCalcNormalize(){
 
 	// Copy values and renormalize new LogArray
 	for( uintMarginId n=3;n--;){
-		test_normalized.dim2_[n].resize(9);
+		test_normalized.dim2_.at(n).resize(9);
 		for( uintMatrixIndex p1=3; p1--; ){
 			for( uintMatrixIndex p2=3; p2--; ){
-				test_normalized.dim2_[n][p1*3+p2] = test.dim2_[n][p1*3+p2];
+				test_normalized.dim2_.at(n).at(p1*3+p2) = test.dim2_.at(n).at(p1*3+p2);
 			}
 		}
 	}
@@ -134,7 +134,7 @@ void ProbabilityEstimatesTest::TestLogArrayCalcNormalize(){
 	for( uintMarginId n=3;n--;){
 		for( uintMatrixIndex p1=3; p1--; ){
 			for( uintMatrixIndex p2=3; p2--; ){
-				EXPECT_TRUE( 1.6 > test_normalized.dim2_[n][p1*3+p2] ); // Chose 1.6, that is good enough and very generous towards precision issues
+				EXPECT_TRUE( 1.6 > test_normalized.dim2_.at(n).at(p1*3+p2) ); // Chose 1.6, that is good enough and very generous towards precision issues
 			}
 		}
 	}
@@ -144,8 +144,8 @@ void ProbabilityEstimatesTest::TestLogArrayCalcNormalize(){
 		for( uintMatrixIndex p2=3; p2--; ){
 			for( uintMatrixIndex p3=3; p3--; ){
 				// Double precision cannot be expected after the logs used
-				EXPECT_FLOAT_EQ( test.dim2_[2][p3*3+p2]*test.dim2_[1][p3*3+p1]*test.dim2_[0][p2*3+p1],
-						test_normalized.dim2_[2][p3*3+p2]*test_normalized.dim2_[1][p3*3+p1]*test_normalized.dim2_[0][p2*3+p1] );
+				EXPECT_FLOAT_EQ( test.dim2_.at(2).at(p3*3+p2)*test.dim2_.at(1).at(p3*3+p1)*test.dim2_.at(0).at(p2*3+p1),
+						test_normalized.dim2_.at(2).at(p3*3+p2)*test_normalized.dim2_.at(1).at(p3*3+p1)*test_normalized.dim2_.at(0).at(p2*3+p1) );
 			}
 		}
 	}
@@ -155,17 +155,17 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand(){
 	// Prepare test data
 	DataStorage<3> test;
 	for(uintMarginId n=3; n--; ){
-		test.dim_size_[n] = 3+2*n;
+		test.dim_size_.at(n) = 3+2*n;
 	}
-	test.data_[0].resize(5*3, 0.0); // 1,0
-	test.data_[1].resize(7*3, 0.0); // 2,0
-	test.data_[2].resize(7*5, 0.0); // 2,1
+	test.data_.at(0).resize(5*3, 0.0); // 1,0
+	test.data_.at(1).resize(7*3, 0.0); // 2,0
+	test.data_.at(2).resize(7*5, 0.0); // 2,1
 
 	double value;
 	uintMatrixIndex red_i, red_j, red_k;
-	for(auto i=test.dim_size_[0]; i--; ){
-		for(auto j=test.dim_size_[1]; j--; ){
-			for(auto k=test.dim_size_[2]; k--; ){
+	for(auto i=test.dim_size_.at(0); i--; ){
+		for(auto j=test.dim_size_.at(1); j--; ){
+			for(auto k=test.dim_size_.at(2); k--; ){
 				red_i = i;
 				if( 0==j ){
 					red_j = 0;
@@ -189,9 +189,9 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand(){
 				if( !((0==red_i && 0==red_j) || (1==red_i && 1==red_k) || (2==red_j && 2==red_k)) ){
 					value = (red_i+1)*(red_j+4)*(red_k+7);
 
-					test.data_[0][j*test.dim_size_[0]+i] += value;
-					test.data_[1][k*test.dim_size_[0]+i] += value;
-					test.data_[2][k*test.dim_size_[1]+j] += value;
+					test.data_.at(0).at(j*test.dim_size_.at(0)+i) += value;
+					test.data_.at(1).at(k*test.dim_size_.at(0)+i) += value;
+					test.data_.at(2).at(k*test.dim_size_.at(1)+j) += value;
 				}
 			}
 		}
@@ -205,34 +205,34 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand(){
 
 	// Check for correctness
 	for(uintMarginId n=3; n--; ){
-		EXPECT_EQ(3+2*n, dim_indices_reduced[n].size()) << "dim_indices_reduced[" << n << "].size() wrong";
-		for(auto i=dim_indices_reduced[n].size(); i--; ){
+		EXPECT_EQ(3+2*n, dim_indices_reduced.at(n).size()) << "dim_indices_reduced[" << n << "].size() wrong";
+		for(auto i=dim_indices_reduced.at(n).size(); i--; ){
 			// Index range is from 0 to 2
-			EXPECT_TRUE(dim_indices_reduced[n][i] < 3) << "dim_indices_reduced[" << n << "][" << i << "] invalid index";
+			EXPECT_TRUE(dim_indices_reduced.at(n).at(i) < 3) << "dim_indices_reduced[" << n << "][" << i << "] invalid index";
 		}
-		for(auto i=dim_indices_reduced[n].size(); --i; ){
+		for(auto i=dim_indices_reduced.at(n).size(); --i; ){
 			// First index has to be different then all other indeces
-			EXPECT_TRUE(dim_indices_reduced[n][i] != dim_indices_reduced[n][0]) << "dim_indices_reduced[" << n << "][" << i << "] is equal to first index";
+			EXPECT_TRUE(dim_indices_reduced.at(n).at(i) != dim_indices_reduced.at(n).at(0)) << "dim_indices_reduced[" << n << "][" << i << "] is equal to first index";
 		}
-		for(auto i=dim_indices_reduced[n].size()-1; i--; ){
+		for(auto i=dim_indices_reduced.at(n).size()-1; i--; ){
 			if(i < 4){
 				// Last index has to be different then all other indeces
-				EXPECT_TRUE(dim_indices_reduced[n][i] != dim_indices_reduced[n][dim_indices_reduced[n].size()-1]) << "dim_indices_reduced[" << n << "][" << i << "] is equal to last index";
+				EXPECT_TRUE(dim_indices_reduced.at(n).at(i) != dim_indices_reduced.at(n).at(dim_indices_reduced.at(n).size()-1)) << "dim_indices_reduced[" << n << "][" << i << "] is equal to last index";
 			}
 			else{
 				// Special case for dimension 3, where the last index exists three times
-				EXPECT_TRUE(dim_indices_reduced[n][i] == dim_indices_reduced[n][dim_indices_reduced[n].size()-1]) << "dim_indices_reduced[" << n << "][" << i << "] is not equal to last index";
+				EXPECT_TRUE(dim_indices_reduced.at(n).at(i) == dim_indices_reduced.at(n).at(dim_indices_reduced.at(n).size()-1)) << "dim_indices_reduced[" << n << "][" << i << "] is not equal to last index";
 			}
 		}
-		for(auto i=dim_indices_reduced[n].size()-(2==n?4:2); --i; ){
+		for(auto i=dim_indices_reduced.at(n).size()-(2==n?4:2); --i; ){
 			// Middle indeces have to be equal
-			EXPECT_TRUE(dim_indices_reduced[n][i] == dim_indices_reduced[n][dim_indices_reduced[n].size()-(2==n?4:2)]) << "dim_indices_reduced[" << n << "][" << i << "] is not equal to middle indeces";
+			EXPECT_TRUE(dim_indices_reduced.at(n).at(i) == dim_indices_reduced.at(n).at(dim_indices_reduced.at(n).size()-(2==n?4:2))) << "dim_indices_reduced[" << n << "][" << i << "] is not equal to middle indeces";
 		}
 
-		EXPECT_EQ(3, dim_indices_count[n].size()) << "dim_indices_count[" << n << "].size() wrong";
-		EXPECT_EQ(1, dim_indices_count[n][ dim_indices_reduced[n][0] ]) << "dim_indices_count[" << n << "][" << dim_indices_reduced[n][0] << "] wrong";
-		EXPECT_EQ((0==n?1:3), dim_indices_count[n][ dim_indices_reduced[n][1] ]) << "dim_indices_count[" << n << "][" << dim_indices_reduced[n][1] << "] wrong";
-		EXPECT_EQ((2==n?3:1), dim_indices_count[n][ dim_indices_reduced[n][dim_indices_reduced[n].size()-1] ]) << "dim_indices_count[" << n << "][" << dim_indices_reduced[n][dim_indices_reduced[n].size()-1] << "] wrong";
+		EXPECT_EQ(3, dim_indices_count.at(n).size()) << "dim_indices_count[" << n << "].size() wrong";
+		EXPECT_EQ(1, dim_indices_count.at(n).at( dim_indices_reduced.at(n).at(0) )) << "dim_indices_count[" << n << "][" << dim_indices_reduced.at(n).at(0) << "] wrong";
+		EXPECT_EQ((0==n?1:3), dim_indices_count.at(n).at( dim_indices_reduced.at(n).at(1) )) << "dim_indices_count[" << n << "][" << dim_indices_reduced.at(n).at(1) << "] wrong";
+		EXPECT_EQ((2==n?3:1), dim_indices_count.at(n).at( dim_indices_reduced.at(n).at(dim_indices_reduced.at(n).size()-1) )) << "dim_indices_count[" << n << "][" << dim_indices_reduced.at(n).at(dim_indices_reduced.at(n).size()-1) << "] wrong";
 	}
 
 	uintMarginId dim_a(3), dim_b(2);
@@ -242,10 +242,10 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand(){
 			dim_a = 2;
 		}
 
-		for(auto i=dim_indices_reduced[dim_a].size(); i--; ){
-			for(auto j=dim_indices_reduced[dim_b].size(); j--; ){
-				EXPECT_DOUBLE_EQ( reduced_data.data_[n][ dim_indices_reduced[dim_a][i]*dim_indices_count[dim_b].size() + dim_indices_reduced[dim_b][j] ],
-						test.data_[n][ i*dim_indices_reduced[dim_b].size() + j] * dim_indices_count[dim_a][ dim_indices_reduced[dim_a][i] ] * dim_indices_count[dim_b][ dim_indices_reduced[dim_b][j] ] );
+		for(auto i=dim_indices_reduced.at(dim_a).size(); i--; ){
+			for(auto j=dim_indices_reduced.at(dim_b).size(); j--; ){
+				EXPECT_DOUBLE_EQ( reduced_data.data_.at(n).at( dim_indices_reduced.at(dim_a).at(i)*dim_indices_count.at(dim_b).size() + dim_indices_reduced.at(dim_b).at(j) ),
+						test.data_.at(n).at( i*dim_indices_reduced.at(dim_b).size() + j) * dim_indices_count.at(dim_a).at( dim_indices_reduced.at(dim_a).at(i) ) * dim_indices_count.at(dim_b).at( dim_indices_reduced.at(dim_b).at(j) ) );
 			}
 		}
 	}
@@ -255,55 +255,55 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand(){
 	std::array<std::vector<uintMatrixIndex>, 3> expansion_count;
 	EXPECT_TRUE( test.Expand(reduced_data, dim_indices_reduced, dim_indices_count, expansion_indices, expansion_count, 1) ) << "Expansion returns wrong value";
 	for(uintMarginId n=3; n--; ){
-		EXPECT_EQ((2==n?6:3), dim_indices_count[n].size()) << "dim_indices_count[" << n << "].size() wrong";
+		EXPECT_EQ((2==n?6:3), dim_indices_count.at(n).size()) << "dim_indices_count[" << n << "].size() wrong";
 		if(0==n){
-			for( auto count : dim_indices_count[n]){
+			for( auto count : dim_indices_count.at(n)){
 				EXPECT_EQ(1, count) << "dim_indices_count[" << n << "] has wrong counts after first expansion";
 			}
-			for( auto ind=dim_indices_reduced[n].size(); ind--; ){
-				EXPECT_EQ(ind, dim_indices_reduced[n][ind]) << "dim_indices_reduced[" << n << "] did not go back to original";
+			for( auto ind=dim_indices_reduced.at(n).size(); ind--; ){
+				EXPECT_EQ(ind, dim_indices_reduced.at(n).at(ind)) << "dim_indices_reduced[" << n << "] did not go back to original";
 			}
 		}
 		else if(2==n){
 			bool count_two_left(true);
-			for( auto count : dim_indices_count[n]){
+			for( auto count : dim_indices_count.at(n)){
 				EXPECT_TRUE(1 == count || (count_two_left && 2 == count)) << "dim_indices_count[" << n << "] has wrong counts after first expansion";
 				if(2 == count){
 					count_two_left = false;
 				}
 			}
-			std::vector<uintMatrixIndex> tmp_counts = dim_indices_count[n];
-			for( auto ind : dim_indices_reduced[n]){
-				EXPECT_TRUE( tmp_counts[ind]-- )  << "dim_indices_count[" << n << "] does not fit with dim_indices_reduced after first expansion";
+			std::vector<uintMatrixIndex> tmp_counts = dim_indices_count.at(n);
+			for( auto ind : dim_indices_reduced.at(n)){
+				EXPECT_TRUE( tmp_counts.at(ind)-- )  << "dim_indices_count[" << n << "] does not fit with dim_indices_reduced after first expansion";
 			}
 		}
 
-		EXPECT_EQ( 1, expansion_count[n][expansion_indices[n][dim_indices_reduced[n][0]]] ) << "expansion_count[" << n << "] wrong";
-		EXPECT_EQ( (0==n?1:3), expansion_count[n][expansion_indices[n][dim_indices_reduced[n][1]]] ) << "expansion_count[" << n << "] wrong";
-		EXPECT_EQ( (2==n?3:1), expansion_count[n][expansion_indices[n][dim_indices_reduced[n][dim_indices_reduced[n].size()-1]]] ) << "expansion_count[" << n << "] wrong";
+		EXPECT_EQ( 1, expansion_count.at(n).at(expansion_indices.at(n).at(dim_indices_reduced.at(n).at(0))) ) << "expansion_count[" << n << "] wrong";
+		EXPECT_EQ( (0==n?1:3), expansion_count.at(n).at(expansion_indices.at(n).at(dim_indices_reduced.at(n).at(1))) ) << "expansion_count[" << n << "] wrong";
+		EXPECT_EQ( (2==n?3:1), expansion_count.at(n).at(expansion_indices.at(n).at(dim_indices_reduced.at(n).at(dim_indices_reduced.at(n).size()-1))) ) << "expansion_count[" << n << "] wrong";
 	}
 
 	EXPECT_TRUE( test.Expand(reduced_data, dim_indices_reduced, dim_indices_count, expansion_indices, expansion_count, 1) ) << "Expansion returns wrong value";
 	for(uintMarginId n=3; n--; ){
-		EXPECT_EQ((2==n?6:3+2*n), dim_indices_count[n].size()) << "dim_indices_count[" << n << "].size() wrong";
+		EXPECT_EQ((2==n?6:3+2*n), dim_indices_count.at(n).size()) << "dim_indices_count[" << n << "].size() wrong";
 		if(2!=n){
-			for( auto count : dim_indices_count[n]){
+			for( auto count : dim_indices_count.at(n)){
 				EXPECT_EQ(1, count) << "dim_indices_count[" << n << "] has wrong counts after second expansion";
 			}
-			for( auto ind=dim_indices_reduced[n].size(); ind--; ){
-				EXPECT_EQ(ind, dim_indices_reduced[n][ind]) << "dim_indices_reduced[" << n << "] did not go back to original";
+			for( auto ind=dim_indices_reduced.at(n).size(); ind--; ){
+				EXPECT_EQ(ind, dim_indices_reduced.at(n).at(ind)) << "dim_indices_reduced[" << n << "] did not go back to original";
 			}
 		}
 	}
 
 	EXPECT_TRUE( test.Expand(reduced_data, dim_indices_reduced, dim_indices_count, expansion_indices, expansion_count, 1) ) << "Expansion returns wrong value";
 	for(uintMarginId n=3; n--; ){
-		EXPECT_EQ(3+2*n, dim_indices_count[n].size()) << "dim_indices_count[" << n << "].size() wrong";
-		for( auto count : dim_indices_count[n]){
+		EXPECT_EQ(3+2*n, dim_indices_count.at(n).size()) << "dim_indices_count[" << n << "].size() wrong";
+		for( auto count : dim_indices_count.at(n)){
 			EXPECT_EQ(1, count) << "dim_indices_count[" << n << "] has wrong counts after third expansion";
 		}
-		for( auto ind=dim_indices_reduced[n].size(); ind--; ){
-			EXPECT_EQ(ind, dim_indices_reduced[n][ind]) << "dim_indices_reduced[" << n << "] did not go back to original";
+		for( auto ind=dim_indices_reduced.at(n).size(); ind--; ){
+			EXPECT_EQ(ind, dim_indices_reduced.at(n).at(ind)) << "dim_indices_reduced[" << n << "] did not go back to original";
 		}
 	}
 
@@ -313,16 +313,16 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand(){
 void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand2(){
 	// Prepare test data
 	DataStorage<3> test;
-	test.dim_size_[0] = 1;
-	test.dim_size_[1] = 1;
-	test.dim_size_[2] = 5;
-	test.data_[0].resize(1, 0.0); // 1,0
-	test.data_[1].resize(5, 0.0); // 2,0
-	test.data_[2].resize(5, 0.0); // 2,1
+	test.dim_size_.at(0) = 1;
+	test.dim_size_.at(1) = 1;
+	test.dim_size_.at(2) = 5;
+	test.data_.at(0).resize(1, 0.0); // 1,0
+	test.data_.at(1).resize(5, 0.0); // 2,0
+	test.data_.at(2).resize(5, 0.0); // 2,1
 
 	double value;
 
-	for(auto k=test.dim_size_[2]; k--; ){
+	for(auto k=test.dim_size_.at(2); k--; ){
 		if(k < 2){
 			value=200+k;
 		}
@@ -330,9 +330,9 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand2(){
 			value=96+2*k;
 		}
 
-		test.data_[0][0] += value;
-		test.data_[1][k] += value;
-		test.data_[2][k] += value;
+		test.data_.at(0).at(0) += value;
+		test.data_.at(1).at(k) += value;
+		test.data_.at(2).at(k) += value;
 	}
 
 	// Test Reduce function
@@ -340,8 +340,8 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand2(){
 
 	for( uint16_t test_case=0; test_case<2; ++test_case){
 		for( uintMarginId n = 3; n--; ){
-			dim_indices_count[n].clear();
-			dim_indices_reduced[n].clear();
+			dim_indices_count.at(n).clear();
+			dim_indices_reduced.at(n).clear();
 		}
 
 		if(0 == test_case){
@@ -360,45 +360,45 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand2(){
 			EXPECT_TRUE( test.Expand(reduced_data, dim_indices_reduced, dim_indices_count, expansion_indices, expansion_count, 1) ) << "Expansion returns wrong value";
 
 			for( uintMarginId n = 3; n--; ){
-				EXPECT_EQ( 1, expansion_count[n].size() ) << "expansion_count[" << n << "].size() wrong";
-				EXPECT_EQ( (2==n?5:1), expansion_count[n][0] ) << "expansion_count[" << n << "][0] wrong";
-				EXPECT_EQ( (2==n?2:1), expansion_indices[n].size() ) << "expansion_indices[" << n << "].size() wrong";
-				for(uintMatrixIndex i=0; i < expansion_indices[n].size(); ++i ){
-					EXPECT_EQ( 0, expansion_indices[n][i] ) << "expansion_count[" << n << "][" << i << "] wrong";
+				EXPECT_EQ( 1, expansion_count.at(n).size() ) << "expansion_count[" << n << "].size() wrong";
+				EXPECT_EQ( (2==n?5:1), expansion_count.at(n).at(0) ) << "expansion_count[" << n << "][0] wrong";
+				EXPECT_EQ( (2==n?2:1), expansion_indices.at(n).size() ) << "expansion_indices[" << n << "].size() wrong";
+				for(uintMatrixIndex i=0; i < expansion_indices.at(n).size(); ++i ){
+					EXPECT_EQ( 0, expansion_indices.at(n).at(i) ) << "expansion_count[" << n << "][" << i << "] wrong";
 				}
 			}
 		}
 
-		EXPECT_EQ(1, dim_indices_count[0][0]) << "Error in simple dimension in case " << test_case;
-		EXPECT_EQ(1, dim_indices_count[1][0]) << "Error in simple dimension in case " << test_case;
-		EXPECT_EQ(0, dim_indices_reduced[0][0]) << "Error in simple dimension in case " << test_case;
-		EXPECT_EQ(0, dim_indices_reduced[1][0]) << "Error in simple dimension in case " << test_case;
+		EXPECT_EQ(1, dim_indices_count.at(0).at(0)) << "Error in simple dimension in case " << test_case;
+		EXPECT_EQ(1, dim_indices_count.at(1).at(0)) << "Error in simple dimension in case " << test_case;
+		EXPECT_EQ(0, dim_indices_reduced.at(0).at(0)) << "Error in simple dimension in case " << test_case;
+		EXPECT_EQ(0, dim_indices_reduced.at(1).at(0)) << "Error in simple dimension in case " << test_case;
 
-		if(2 == dim_indices_count[2][0]){
-			EXPECT_EQ(3, dim_indices_count[2][1]) << "dim_indices_count[2] wrong: " << dim_indices_count[2][0] << ' ' << dim_indices_count[2][1] << " in case " << test_case;
+		if(2 == dim_indices_count.at(2).at(0)){
+			EXPECT_EQ(3, dim_indices_count.at(2).at(1)) << "dim_indices_count[2] wrong: " << dim_indices_count.at(2).at(0) << ' ' << dim_indices_count.at(2).at(1) << " in case " << test_case;
 			for(uintMatrixIndex i=0; i<2; ++i){
-				EXPECT_EQ(0, dim_indices_reduced[2][i]) << "dim_indices_reduced[2] wrong in case " << test_case;
+				EXPECT_EQ(0, dim_indices_reduced.at(2).at(i)) << "dim_indices_reduced[2] wrong in case " << test_case;
 			}
 			for(uintMatrixIndex i=2; i<5; ++i){
-				EXPECT_EQ(1, dim_indices_reduced[2][i]) << "dim_indices_reduced[2] wrong in case " << test_case;
+				EXPECT_EQ(1, dim_indices_reduced.at(2).at(i)) << "dim_indices_reduced[2] wrong in case " << test_case;
 			}
 		}
 		else{
-			EXPECT_EQ(3, dim_indices_count[2][0]) << "dim_indices_count[2] wrong: " << dim_indices_count[2][0] << ' ' << dim_indices_count[2][1] << " in case " << test_case;
-			EXPECT_EQ(2, dim_indices_count[2][1]) << "dim_indices_count[2] wrong: " << dim_indices_count[2][0] << ' ' << dim_indices_count[2][1] << " in case " << test_case;
+			EXPECT_EQ(3, dim_indices_count.at(2).at(0)) << "dim_indices_count[2] wrong: " << dim_indices_count.at(2).at(0) << ' ' << dim_indices_count.at(2).at(1) << " in case " << test_case;
+			EXPECT_EQ(2, dim_indices_count.at(2).at(1)) << "dim_indices_count[2] wrong: " << dim_indices_count.at(2).at(0) << ' ' << dim_indices_count.at(2).at(1) << " in case " << test_case;
 			for(uintMatrixIndex i=0; i<2; ++i){
-				EXPECT_EQ(1, dim_indices_reduced[2][i]) << "dim_indices_reduced[2] wrong in case " << test_case;
+				EXPECT_EQ(1, dim_indices_reduced.at(2).at(i)) << "dim_indices_reduced[2] wrong in case " << test_case;
 			}
 			for(uintMatrixIndex i=2; i<5; ++i){
-				EXPECT_EQ(2, dim_indices_reduced[2][i]) << "dim_indices_reduced[2] wrong in case " << test_case;
+				EXPECT_EQ(2, dim_indices_reduced.at(2).at(i)) << "dim_indices_reduced[2] wrong in case " << test_case;
 			}
 		}
 	}
 
 	for( uint16_t test_case=0; test_case<2; ++test_case){
 		for( uintMarginId n = 3; n--; ){
-			dim_indices_count[n].clear();
-			dim_indices_reduced[n].clear();
+			dim_indices_count.at(n).clear();
+			dim_indices_reduced.at(n).clear();
 		}
 
 		if(0 == test_case){
@@ -417,28 +417,28 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand2(){
 			EXPECT_TRUE( test.Expand(reduced_data, dim_indices_reduced, dim_indices_count, expansion_indices, expansion_count, 2) ) << "Expansion returns wrong value";
 
 			for( uintMarginId n = 3; n--; ){
-				EXPECT_EQ( 1, expansion_count[n].size() ) << "expansion_count[" << n << "].size() wrong";
-				EXPECT_EQ( (2==n?5:1), expansion_count[n][0] ) << "expansion_count[" << n << "][0] wrong";
-				EXPECT_EQ( (2==n?4:1), expansion_indices[n].size() ) << "expansion_indices[" << n << "].size() wrong";
-				for(uintMatrixIndex i=0; i < expansion_indices[n].size(); ++i ){
-					EXPECT_EQ( 0, expansion_indices[n][i] ) << "expansion_count[" << n << "][" << i << "] wrong";
+				EXPECT_EQ( 1, expansion_count.at(n).size() ) << "expansion_count[" << n << "].size() wrong";
+				EXPECT_EQ( (2==n?5:1), expansion_count.at(n).at(0) ) << "expansion_count[" << n << "][0] wrong";
+				EXPECT_EQ( (2==n?4:1), expansion_indices.at(n).size() ) << "expansion_indices[" << n << "].size() wrong";
+				for(uintMatrixIndex i=0; i < expansion_indices.at(n).size(); ++i ){
+					EXPECT_EQ( 0, expansion_indices.at(n).at(i) ) << "expansion_count[" << n << "][" << i << "] wrong";
 				}
 			}
 		}
 
-		EXPECT_EQ(dim_indices_reduced[2][0], dim_indices_reduced[2][1]) << "Max difference for the separation doesn't seem to work in case " << test_case;
-		EXPECT_EQ(2, dim_indices_count[2][ dim_indices_reduced[2][1] ]) << "Max difference for the separation doesn't seem to work in case " << test_case;
+		EXPECT_EQ(dim_indices_reduced.at(2).at(0), dim_indices_reduced.at(2).at(1)) << "Max difference for the separation doesn't seem to work in case " << test_case;
+		EXPECT_EQ(2, dim_indices_count.at(2).at( dim_indices_reduced.at(2).at(1) )) << "Max difference for the separation doesn't seem to work in case " << test_case;
 
 		bool count_two_left(true);
-		for( auto count : dim_indices_count[2]){
+		for( auto count : dim_indices_count.at(2)){
 			EXPECT_TRUE(1 == count || (count_two_left && 2 == count)) << "dim_indices_count[2] has wrong counts in case " << test_case;
 			if(2 == count){
 				count_two_left = false;
 			}
 		}
-		std::vector<uintMatrixIndex> tmp_counts = dim_indices_count[2];
-		for( auto ind : dim_indices_reduced[2]){
-			EXPECT_TRUE( tmp_counts[ind]-- )  << "dim_indices_count[2] does not fit with dim_indices_reduced in case " << test_case;
+		std::vector<uintMatrixIndex> tmp_counts = dim_indices_count.at(2);
+		for( auto ind : dim_indices_reduced.at(2)){
+			EXPECT_TRUE( tmp_counts.at(ind)-- )  << "dim_indices_count[2] does not fit with dim_indices_reduced in case " << test_case;
 		}
 	}
 }
@@ -448,8 +448,7 @@ void ProbabilityEstimatesTest::TestLogArrayCalcExpand(){
 
 	// Set dimensions
 	for( uintMarginId n=3; n--;){
-		test.dim_size_[n] = 3;
-
+		test.dim_size_.at(n) = 3;
 	}
 
 	// Randomly fill test
@@ -458,14 +457,14 @@ void ProbabilityEstimatesTest::TestLogArrayCalcExpand(){
 	uniform_real_distribution<double> dist(0.5, 1.5);
 
 	for( uintMarginId n=3;n--;){
-		test.dim2_[n].resize(9);
+		test.dim2_.at(n).resize(9);
 		for( uintMatrixIndex p1=3; p1--; ){
 			for( uintMatrixIndex p2=3; p2--; ){
 				if( n == p1 && n == p2 ){
-					test.dim2_[n][4] = 0.0; // Introduce zeros to see if the extension can cope with that
+					test.dim2_.at(n).at(4) = 0.0; // Introduce zeros to see if the extension can cope with that
 				}
 				else{
-					test.dim2_[n][p1*3+p2] = dist(rgen);
+					test.dim2_.at(n).at(p1*3+p2) = dist(rgen);
 				}
 			}
 		}
@@ -474,49 +473,49 @@ void ProbabilityEstimatesTest::TestLogArrayCalcExpand(){
 	// Calculate marginal sums for later comparison
 	std::array<std::vector<double>, 3> marginal_sums;
 	for( uintMarginId n=3; n--;){
-		marginal_sums[n].resize(9, 0.0);
+		marginal_sums.at(n).resize(9, 0.0);
 	}
 
 	double value;
-	for( uintMatrixIndex p1=test.dim_size_[0]; p1--; ){
-		for( uintMatrixIndex p2=test.dim_size_[1]; p2--; ){
-			for( uintMatrixIndex p3=test.dim_size_[2]; p3--; ){
+	for( uintMatrixIndex p1=test.dim_size_.at(0); p1--; ){
+		for( uintMatrixIndex p2=test.dim_size_.at(1); p2--; ){
+			for( uintMatrixIndex p3=test.dim_size_.at(2); p3--; ){
 				// Double precision cannot be expected after the logs used
-				value = test.dim2_[2][p3*3+p2]*test.dim2_[1][p3*3+p1]*test.dim2_[0][p2*3+p1];
+				value = test.dim2_.at(2).at(p3*3+p2)*test.dim2_.at(1).at(p3*3+p1)*test.dim2_.at(0).at(p2*3+p1);
 
-				marginal_sums[0][p2*test.dim_size_[0]+p1] += value;
-				marginal_sums[1][p3*test.dim_size_[0]+p1] += value;
-				marginal_sums[2][p3*test.dim_size_[1]+p2] += value;
+				marginal_sums.at(0).at(p2*test.dim_size_.at(0)+p1) += value;
+				marginal_sums.at(1).at(p3*test.dim_size_.at(0)+p1) += value;
+				marginal_sums.at(2).at(p3*test.dim_size_.at(1)+p2) += value;
 			}
 		}
 	}
 
 	// Expand LogArray
 	std::array<std::vector<uintMatrixIndex>, 3> dim_indices_reduced, dim_indices_count;
-	dim_indices_reduced[0] = {0,1,2};
-	dim_indices_reduced[1] = {0,1,1,2};
-	dim_indices_reduced[2] = {0,1,1,1,2};
-	dim_indices_count[0] = {1,1,1};
-	dim_indices_count[1] = {1,2,1};
-	dim_indices_count[2] = {1,3,1};
+	dim_indices_reduced.at(0) = {0,1,2};
+	dim_indices_reduced.at(1) = {0,1,1,2};
+	dim_indices_reduced.at(2) = {0,1,1,1,2};
+	dim_indices_count.at(0) = {1,1,1};
+	dim_indices_count.at(1) = {1,2,1};
+	dim_indices_count.at(2) = {1,3,1};
 
 	test.Expand(dim_indices_reduced, dim_indices_count);
 
 	// Calculate expanded marginal sums
 	std::array<std::vector<double>, 3> expanded_marginal_sums;
-	expanded_marginal_sums[0].resize(test.dim_size_[1]*test.dim_size_[0]);
-	expanded_marginal_sums[1].resize(test.dim_size_[2]*test.dim_size_[0]);
-	expanded_marginal_sums[2].resize(test.dim_size_[2]*test.dim_size_[1]);
+	expanded_marginal_sums.at(0).resize(test.dim_size_.at(1)*test.dim_size_.at(0));
+	expanded_marginal_sums.at(1).resize(test.dim_size_.at(2)*test.dim_size_.at(0));
+	expanded_marginal_sums.at(2).resize(test.dim_size_.at(2)*test.dim_size_.at(1));
 
-	for( uintMatrixIndex p1=test.dim_size_[0]; p1--; ){
-		for( uintMatrixIndex p2=test.dim_size_[1]; p2--; ){
-			for( uintMatrixIndex p3=test.dim_size_[2]; p3--; ){
+	for( uintMatrixIndex p1=test.dim_size_.at(0); p1--; ){
+		for( uintMatrixIndex p2=test.dim_size_.at(1); p2--; ){
+			for( uintMatrixIndex p3=test.dim_size_.at(2); p3--; ){
 				// Double precision cannot be expected after the logs used
-				value = test.dim2_[2][p3*4+p2]*test.dim2_[1][p3*3+p1]*test.dim2_[0][p2*3+p1];
+				value = test.dim2_.at(2).at(p3*4+p2)*test.dim2_.at(1).at(p3*3+p1)*test.dim2_.at(0).at(p2*3+p1);
 
-				expanded_marginal_sums[0][p2*test.dim_size_[0]+p1] += value;
-				expanded_marginal_sums[1][p3*test.dim_size_[0]+p1] += value;
-				expanded_marginal_sums[2][p3*test.dim_size_[1]+p2] += value;
+				expanded_marginal_sums.at(0).at(p2*test.dim_size_.at(0)+p1) += value;
+				expanded_marginal_sums.at(1).at(p3*test.dim_size_.at(0)+p1) += value;
+				expanded_marginal_sums.at(2).at(p3*test.dim_size_.at(1)+p2) += value;
 			}
 		}
 	}
@@ -529,10 +528,10 @@ void ProbabilityEstimatesTest::TestLogArrayCalcExpand(){
 			dim_a = 2;
 		}
 
-		for(auto i=dim_indices_reduced[dim_a].size(); i--; ){
-			for(auto j=dim_indices_reduced[dim_b].size(); j--; ){
-				EXPECT_DOUBLE_EQ( marginal_sums[n][ dim_indices_reduced[dim_a][i]*dim_indices_count[dim_b].size() + dim_indices_reduced[dim_b][j] ],
-						expanded_marginal_sums[n][ i*dim_indices_reduced[dim_b].size() + j] * dim_indices_count[dim_a][ dim_indices_reduced[dim_a][i] ] * dim_indices_count[dim_b][ dim_indices_reduced[dim_b][j] ] )
+		for(auto i=dim_indices_reduced.at(dim_a).size(); i--; ){
+			for(auto j=dim_indices_reduced.at(dim_b).size(); j--; ){
+				EXPECT_DOUBLE_EQ( marginal_sums.at(n).at( dim_indices_reduced.at(dim_a).at(i)*dim_indices_count.at(dim_b).size() + dim_indices_reduced.at(dim_b).at(j) ),
+						expanded_marginal_sums.at(n).at( i*dim_indices_reduced.at(dim_b).size() + j) * dim_indices_count.at(dim_a).at( dim_indices_reduced.at(dim_a).at(i) ) * dim_indices_count.at(dim_b).at( dim_indices_reduced.at(dim_b).at(j) ) )
 						<< '[' << n << "][" << i << "][" << j << ']';
 			}
 		}
@@ -640,17 +639,17 @@ void ProbabilityEstimatesTest::CheckIPFResult(
 
 	// Check all defined margins
 	for(uintMarginId i=0; i < margins.size(); ++i){
-		if(margin_def[i].first){
+		if(margin_def.at(i).first){
 			for( auto pos1=margin_quality_position.from(); pos1 < margin_quality_position.to(); ++pos1 ){
-				for( auto pos2=margin_quality_position[pos1].from(); pos2 < margin_quality_position[pos1].to(); ++pos2 ){
-					EXPECT_NEAR( margin_quality_position[pos1][pos2], estimated_margins_quality_position[pos1][pos2], CalculateAbsolutPrecision(margin_quality_position[pos1][pos2], estimated_margins_quality_position[pos1][pos2], precision) ) << "(quality_position) margins[" << i << "][" << pos1 << "][" << pos2 << "] does not match within precision for " << context << '\n';
+				for( auto pos2=margin_quality_position.at(pos1).from(); pos2 < margin_quality_position.at(pos1).to(); ++pos2 ){
+					EXPECT_NEAR( margin_quality_position.at(pos1).at(pos2), estimated_margins_quality_position.at(pos1).at(pos2), CalculateAbsolutPrecision(margin_quality_position.at(pos1).at(pos2), estimated_margins_quality_position.at(pos1).at(pos2), precision) ) << "(quality_position) margins[" << i << "][" << pos1 << "][" << pos2 << "] does not match within precision for " << context << '\n';
 				}
 			}
 		}
 		else{
-			for( auto pos1=margins[i].from(); pos1 < margins[i].to(); ++pos1 ){
-				for( auto pos2=margins[i][pos1].from(); pos2 < margins[i][pos1].to(); ++pos2 ){
-					EXPECT_NEAR( margins[i][pos1][pos2], estimated_margins[i][pos1][pos2], CalculateAbsolutPrecision(margins[i][pos1][pos2], estimated_margins[i][pos1][pos2], precision) ) << "margins[" << i << "][" << pos1 << "][" << pos2 << "] does not match within precision for " << context << '\n';
+			for( auto pos1=margins.at(i).from(); pos1 < margins.at(i).to(); ++pos1 ){
+				for( auto pos2=margins.at(i).at(pos1).from(); pos2 < margins.at(i).at(pos1).to(); ++pos2 ){
+					EXPECT_NEAR( margins.at(i).at(pos1).at(pos2), estimated_margins.at(i).at(pos1).at(pos2), CalculateAbsolutPrecision(margins.at(i).at(pos1).at(pos2), estimated_margins.at(i).at(pos1).at(pos2), precision) ) << "margins[" << i << "][" << pos1 << "][" << pos2 << "] does not match within precision for " << context << '\n';
 				}
 			}
 		}
@@ -718,19 +717,19 @@ void ProbabilityEstimatesTest::TestDataStorageSetUpErrorRate(ProbabilityEstimate
 	EXPECT_DOUBLE_EQ( 3.0/36.0 , data.data_.at(0).at(0) );
 	EXPECT_DOUBLE_EQ( 11.0/36.0 , data.data_.at(0).at(1) );
 	EXPECT_DOUBLE_EQ( 7.0/36.0 , data.data_.at(0).at(2) );
-	EXPECT_DOUBLE_EQ( 15.0/36.0 , data.data_.at(0)[3] );
+	EXPECT_DOUBLE_EQ( 15.0/36.0 , data.data_.at(0).at(3) );
 
 	EXPECT_EQ( 4 , data.data_.at(1).size() );
 	EXPECT_DOUBLE_EQ( 4.0/36.0 , data.data_.at(1).at(0) );
 	EXPECT_DOUBLE_EQ( 12.0/36.0 , data.data_.at(1).at(1) );
 	EXPECT_DOUBLE_EQ( 6.0/36.0 , data.data_.at(1).at(2) );
-	EXPECT_DOUBLE_EQ( 14.0/36.0 , data.data_.at(1)[3] );
+	EXPECT_DOUBLE_EQ( 14.0/36.0 , data.data_.at(1).at(3) );
 
 	EXPECT_EQ( 4 , data.data_.at(2).size() );
 	EXPECT_DOUBLE_EQ( 6.0/36.0 , data.data_.at(2).at(0) );
 	EXPECT_DOUBLE_EQ( 10.0/36.0 , data.data_.at(2).at(1) );
 	EXPECT_DOUBLE_EQ( 8.0/36.0 , data.data_.at(2).at(2) );
-	EXPECT_DOUBLE_EQ( 12.0/36.0 , data.data_.at(2)[3] );
+	EXPECT_DOUBLE_EQ( 12.0/36.0 , data.data_.at(2).at(3) );
 
 	if(middle_bin_inserted){
 		EXPECT_EQ( 0 , initial_dim_indices.at(1).at(0) ) << "initial_dim_indices[" << 0 << "] is wrong";
@@ -760,17 +759,17 @@ void ProbabilityEstimatesTest::IterativeProportionalFittingQual(uintBaseCall bas
 void ProbabilityEstimatesTest::GetIPFResultQual( const ProbabilityEstimates &estimate, uintBaseCall base, Vect< Vect< Vect< Vect< Vect<double> > > > > &estimated_counts, const vector<Vect<Vect<uintMatrixCount>>> &margins ){
 	estimated_counts.Clear();
 
-	auto tot_counts = SumVect(margins[0]); // As the data conversion before the IPF normalizes the sum of the matrix to 1 we have to revert it here
+	auto tot_counts = SumVect(margins.at(0)); // As the data conversion before the IPF normalizes the sum of the matrix to 1 we have to revert it here
 
-	const std::array< std::vector<uintMatrixIndex>, 5 > &dim_indices(estimate.quality_[kTemplateSegment][0][base].dim_indices_);
+	const std::array< std::vector<uintMatrixIndex>, 5 > &dim_indices(estimate.quality_.at(kTemplateSegment).at(0).at(base).dim_indices_);
 
 	// Get result matrix
-	for( uintMatrixIndex q=0; q < dim_indices[0].size(); ++q ){
-		for( uintMatrixIndex er=0; er < dim_indices[4].size(); ++er ){
-			for( uintMatrixIndex pq=0; pq < dim_indices[2].size(); ++pq ){
-				for( uintMatrixIndex pos=0; pos < dim_indices[3].size(); ++pos ){
-					for( uintMatrixIndex sq=0; sq < dim_indices[1].size(); ++sq ){
-						estimated_counts[dim_indices[0][q]][dim_indices[4][er]][dim_indices[2][pq]][dim_indices[3][pos]][dim_indices[1][sq]] = estimate.quality_[kTemplateSegment][0][base].estimates_.GetMatrixElement({q, sq, pq, pos, er}) * tot_counts;
+	for( uintMatrixIndex q=0; q < dim_indices.at(0).size(); ++q ){
+		for( uintMatrixIndex er=0; er < dim_indices.at(4).size(); ++er ){
+			for( uintMatrixIndex pq=0; pq < dim_indices.at(2).size(); ++pq ){
+				for( uintMatrixIndex pos=0; pos < dim_indices.at(3).size(); ++pos ){
+					for( uintMatrixIndex sq=0; sq < dim_indices.at(1).size(); ++sq ){
+						estimated_counts[dim_indices.at(0).at(q)][dim_indices.at(4).at(er)][dim_indices.at(2).at(pq)][dim_indices.at(3).at(pos)][dim_indices.at(1).at(sq)] = estimate.quality_.at(kTemplateSegment).at(0).at(base).estimates_.GetMatrixElement({q, sq, pq, pos, er}) * tot_counts;
 					}
 				}
 			}
@@ -793,7 +792,7 @@ void ProbabilityEstimatesTest::IPFStepWiseQual(uintBaseCall base, const vector<V
 	mutex print_mutex;
 	data.SetUp(margin_defs, alternative_margin, dim_indices, initial_dim_indices, print_mutex);
 
-	test_.quality_[kTemplateSegment][0][base].estimates_.SetUp(dim_indices);
+	test_.quality_.at(kTemplateSegment).at(0).at(base).estimates_.SetUp(dim_indices);
 
 	IPFStepQual<1,0,2,3,4>(base, data); // (seq_qual, qual) margin
 	IPFStepQual<2,0,1,3,4>(base, data); // (prev_qual, qual) margin
@@ -817,17 +816,17 @@ void ProbabilityEstimatesTest::IterativeProportionalFittingBaseCall( const vecto
 void ProbabilityEstimatesTest::GetIPFResultBaseCall( const ProbabilityEstimates &estimate, Vect< Vect< Vect< Vect< Vect<double> > > > > &estimated_counts, vector<Vect<Vect<uintMatrixCount>>> &margins ){
 	estimated_counts.Clear();
 
-	auto tot_counts = SumVect(margins[0]); // As the data conversion before the IPF normalizes the sum of the matrix to 1 we have to revert it here
+	auto tot_counts = SumVect(margins.at(0)); // As the data conversion before the IPF normalizes the sum of the matrix to 1 we have to revert it here
 
-	const std::array< std::vector<uintMatrixIndex>, 5 > &dim_indices(estimate.base_call_[kTemplateSegment][0][0][0].dim_indices_);
+	const std::array< std::vector<uintMatrixIndex>, 5 > &dim_indices(estimate.base_call_.at(kTemplateSegment).at(0).at(0).at(0).dim_indices_);
 
 	// Get result matrix
-	for( uintMatrixIndex bc=0; bc < dim_indices[0].size(); ++bc ){
-		for( uintMatrixIndex q=0; q < dim_indices[1].size(); ++q ){
-			for( uintMatrixIndex pos=0; pos < dim_indices[2].size(); ++pos ){
-				for( uintMatrixIndex num=0; num < dim_indices[3].size(); ++num ){
-					for( uintMatrixIndex er=0; er < dim_indices[4].size(); ++er ){
-						estimated_counts[dim_indices[0][bc]][dim_indices[1][q]][dim_indices[2][pos]][dim_indices[3][num]][dim_indices[4][er]] = estimate.base_call_[kTemplateSegment][0][0][0].estimates_.GetMatrixElement({bc, q, pos, num, er}) * tot_counts;
+	for( uintMatrixIndex bc=0; bc < dim_indices.at(0).size(); ++bc ){
+		for( uintMatrixIndex q=0; q < dim_indices.at(1).size(); ++q ){
+			for( uintMatrixIndex pos=0; pos < dim_indices.at(2).size(); ++pos ){
+				for( uintMatrixIndex num=0; num < dim_indices.at(3).size(); ++num ){
+					for( uintMatrixIndex er=0; er < dim_indices.at(4).size(); ++er ){
+						estimated_counts[dim_indices.at(0).at(bc)][dim_indices.at(1).at(q)][dim_indices.at(2).at(pos)][dim_indices.at(3).at(num)][dim_indices.at(4).at(er)] = estimate.base_call_.at(kTemplateSegment).at(0).at(0).at(0).estimates_.GetMatrixElement({bc, q, pos, num, er}) * tot_counts;
 					}
 				}
 			}
@@ -847,15 +846,15 @@ void ProbabilityEstimatesTest::IterativeProportionalFittingDomError(const vector
 void ProbabilityEstimatesTest::GetIPFResultDomError( const ProbabilityEstimates &estimate, Vect< Vect< Vect< Vect< Vect<double> > > > > &estimated_counts, vector<Vect<Vect<uintMatrixCount>>> &margins ){
 	estimated_counts.Clear();
 
-	auto tot_counts = SumVect(margins[0]); // As the data conversion before the IPF normalizes the sum of the matrix to 1 we have to revert it here
+	auto tot_counts = SumVect(margins.at(0)); // As the data conversion before the IPF normalizes the sum of the matrix to 1 we have to revert it here
 
-	const std::array< std::vector<uintMatrixIndex>, 3 > &dim_indices(estimate.dom_error_[0][0][0].dim_indices_);
+	const std::array< std::vector<uintMatrixIndex>, 3 > &dim_indices(estimate.dom_error_.at(0).at(0).at(0).dim_indices_);
 
 	// Get result matrix
-	for( uintMatrixIndex dist=0; dist < dim_indices[1].size(); ++dist ){
-		for( uintMatrixIndex dom_err=0; dom_err < dim_indices[0].size(); ++dom_err ){
-			for( uintMatrixIndex gc=0; gc < dim_indices[2].size(); ++gc ){
-				estimated_counts[dim_indices[0][dom_err]][dim_indices[1][dist]][dim_indices[2][gc]][0][0] = estimate.dom_error_[0][0][0].estimates_.GetMatrixElement({dom_err, dist, gc}) * tot_counts;
+	for( uintMatrixIndex dist=0; dist < dim_indices.at(1).size(); ++dist ){
+		for( uintMatrixIndex dom_err=0; dom_err < dim_indices.at(0).size(); ++dom_err ){
+			for( uintMatrixIndex gc=0; gc < dim_indices.at(2).size(); ++gc ){
+				estimated_counts[dim_indices.at(0).at(dom_err)][dim_indices.at(1).at(dist)][dim_indices.at(2).at(gc)][0][0] = estimate.dom_error_.at(0).at(0).at(0).estimates_.GetMatrixElement({dom_err, dist, gc}) * tot_counts;
 			}
 		}
 	}
@@ -880,15 +879,15 @@ void ProbabilityEstimatesTest::IterativeProportionalFittingErrorRate(const vecto
 void ProbabilityEstimatesTest::GetIPFResultErrorRate( const ProbabilityEstimates &estimate, Vect< Vect< Vect< Vect< Vect<double> > > > > &estimated_counts, vector<Vect<Vect<uintMatrixCount>>> &margins ){
 	estimated_counts.Clear();
 
-	auto tot_counts = SumVect(margins[0]); // As the data conversion before the IPF normalizes the sum of the matrix to 1 we have to revert it here
+	auto tot_counts = SumVect(margins.at(0)); // As the data conversion before the IPF normalizes the sum of the matrix to 1 we have to revert it here
 
-	const std::array< std::vector<uintMatrixIndex>, 3 > &dim_indices(estimate.error_rate_[0][0].dim_indices_);
+	const std::array< std::vector<uintMatrixIndex>, 3 > &dim_indices(estimate.error_rate_.at(0).at(0).dim_indices_);
 
 	// Get result matrix
-	for( uintMatrixIndex dist=0; dist < dim_indices[1].size(); ++dist ){
-		for( uintMatrixIndex er=0; er < dim_indices[0].size(); ++er ){
-			for( uintMatrixIndex gc=0; gc < dim_indices[2].size(); ++gc ){
-				estimated_counts[dim_indices[0][er]][dim_indices[1][dist]][dim_indices[2][gc]][0][0] = estimate.error_rate_[0][0].estimates_.GetMatrixElement({er, dist, gc}) * tot_counts;
+	for( uintMatrixIndex dist=0; dist < dim_indices.at(1).size(); ++dist ){
+		for( uintMatrixIndex er=0; er < dim_indices.at(0).size(); ++er ){
+			for( uintMatrixIndex gc=0; gc < dim_indices.at(2).size(); ++gc ){
+				estimated_counts[dim_indices.at(0).at(er)][dim_indices.at(1).at(dist)][dim_indices.at(2).at(gc)][0][0] = estimate.error_rate_.at(0).at(0).estimates_.GetMatrixElement({er, dist, gc}) * tot_counts;
 			}
 		}
 	}
@@ -905,13 +904,8 @@ namespace reseq{
 		for(auto i=0; i<3; ++i){
 			if(1 != i){
 				for(auto j=1; j<3; ++j){
-					for(auto k=0; k<3; ++k){
-						if(2 != k){
-							counts[i][j][k][0][0] = ++n*data.kMinCountsPer1dBin; // Multiply everything by kMinCountsPer1dBin so we are above minimum counts and bins are not combined
-						}
-						else{
-							counts[i][j][k][0][0] = 0;
-						}
+					for(auto k=0; k<2; ++k){
+						counts[i][j][k][0][0] = ++n*data.kMinCountsPer1dBin; // Multiply everything by kMinCountsPer1dBin so we are above minimum counts and bins are not combined
 					}
 				}
 			}
@@ -944,7 +938,7 @@ namespace reseq{
 		for(auto i=0; i<3; ++i){
 			if(1 != i){
 				for(auto k=0; k<2; ++k){
-					counts.at(i).at(3).at(k).at(0).at(0) = counts.at(i).at(2).at(k).at(0).at(0)+24;
+					counts.at(i)[3][k][0][0] = counts.at(i).at(2).at(k).at(0).at(0)+24;
 					counts.at(i).at(2).at(k).at(0).at(0) = 24;
 					counts.at(i).at(1).at(k).at(0).at(0) -= 24;
 				}
@@ -1045,7 +1039,7 @@ namespace reseq{
 		Vect< Vect< Vect< Vect< Vect<uintMatrixCount> > > > > counts;
 		RandomFillingTestCounts(counts,3,5,3,5,1,3290428530);
 		SetOffset(counts, 37, 0, 37, 0, 0);
-		counts[38][2].Clear(); // Set quality 38, error rate 2 margin to zero
+		counts.at(38).at(2).Clear(); // Set quality 38, error rate 2 margin to zero
 
 		vector<Vect<Vect<uintMatrixCount>>> margins;
 		Vect<SeqQualityStats<uintMatrixCount>> margin_quality_position;
@@ -1070,7 +1064,7 @@ namespace reseq{
 		Vect< Vect< Vect< Vect< Vect<uintMatrixCount> > > > > counts;
 		RandomFillingTestCounts(counts,3,5,3,5,1,9527958903);
 		SetOffset(counts, 37, 0, 37, 0, 0);
-		counts[38].Clear(); // Set quality 38 to zero for all margins
+		counts.at(38).Clear(); // Set quality 38 to zero for all margins
 
 		vector<Vect<Vect<uintMatrixCount>>> margins;
 		Vect<SeqQualityStats<uintMatrixCount>> margin_quality_position;

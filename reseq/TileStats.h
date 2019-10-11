@@ -17,7 +17,7 @@ namespace reseq{
 	class TileStats{
 	private:
 		// Definitions
-		const uint16_t kReadIdBufferSize = 100; // Size of the buffer used for parsing the read id; Has to be long enough to contain everything until the first colon in read id; Minimum 70 so some generated error messages fit
+		const uint16_t kReadIdBufferSize = 200; // Size of the buffer used for parsing the read id; Has to be long enough to contain everything until the first colon in read id; Minimum 70 so some generated error messages fit
 
 		// Variables for Simulation
 		std::vector<uintTile> tiles_; // Array that contains the tile numbers at their corresponding ID

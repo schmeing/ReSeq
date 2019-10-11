@@ -38,6 +38,7 @@ using seqan::SeqFileIn;
 #include "skewer/src/matrix.h"
 
 //include "utilities.hpp"
+using reseq::utilities::at;
 using reseq::utilities::SetToMax;
 
 reseq::uintReadLen AdapterStats::CountErrors(uintReadLen &last_error_pos, const BamAlignmentRecord &record, const Reference &reference){
@@ -51,7 +52,7 @@ reseq::uintReadLen AdapterStats::CountErrors(uintReadLen &last_error_pos, const 
 		case '=':
 		case 'X':
 			for(auto i=cigar_element.count; i--; ){
-				if( ref_seq[ref_pos++] != record.seq[read_pos++] ){
+				if( at(ref_seq, ref_pos++) != at(record.seq, read_pos++) ){
 					if( !hasFlagRC(record) || !num_errors ){ // In case of a normal read always overwrite errors to get the last; in case of a reversed read stop after the first
 						last_error_pos = read_pos - 1;
 					}
@@ -109,24 +110,24 @@ bool AdapterStats::VerifyInsert(const CharString &read1, const CharString &read2
 	if( pos1 == pos2 ){
 		uintReadLen matches(0), i2(0);
 		for(uintReadLen i1=pos1; i1--; ){
-			switch(read1[i1]){
+			switch(at(read1, i1)){
 			case 'A':
-				if( 'T' == read2[i2] ){
+				if( 'T' == at(read2, i2) ){
 					++matches;
 				}
 				break;
 			case 'C':
-				if( 'G' == read2[i2] ){
+				if( 'G' == at(read2, i2) ){
 					++matches;
 				}
 				break;
 			case 'G':
-				if( 'C' == read2[i2] ){
+				if( 'C' == at(read2, i2) ){
 					++matches;
 				}
 				break;
 			case 'T':
-				if( 'A' == read2[i2] ){
+				if( 'A' == at(read2, i2) ){
 					++matches;
 				}
 				break;
@@ -146,7 +147,7 @@ bool AdapterStats::AdaptersAmbigous(const seqan::DnaString &adaper1, const seqan
 	auto compare_until = max( static_cast<uintReadLen>(max(length(adaper1), length(adaper2))), max_length );
 	uintReadLen num_diff = 0;
 	for( auto pos=compare_until; pos--; ){
-		if(adaper1[pos] != adaper2[pos]){
+		if(at(adaper1, pos) != at(adaper2, pos)){
 			++num_diff;
 		}
 	}
@@ -231,8 +232,8 @@ bool AdapterStats::LoadAdapters(const char *adapter_file, const char *adapter_ma
 		for(auto nchar = length(seqs); nchar--; ){
 			if( '1' == matrix.at(nline).at(nchar) ){
 				// If one adapter pair has this adaptor as first, add it to first and continue with the next adapter
-				adapter_list.at(0).push_back({seqs[nline],nline});
-				SetToMax(size_adapter.at(0), length(seqs[nline]));
+				adapter_list.at(0).push_back({at(seqs, nline),nline});
+				SetToMax(size_adapter.at(0), length(at(seqs, nline)));
 				break;
 			}
 		}
@@ -241,8 +242,8 @@ bool AdapterStats::LoadAdapters(const char *adapter_file, const char *adapter_ma
 	for(auto nchar = length(seqs); nchar--; ){
 		for( nline = length(seqs); nline--; ){
 			if( '1' == matrix.at(nline).at(nchar) ){
-				adapter_list.at(1).push_back({seqs[nchar],nchar});
-				SetToMax(size_adapter.at(1), length(seqs[nchar]));
+				adapter_list.at(1).push_back({at(seqs, nchar),nchar});
+				SetToMax(size_adapter.at(1), length(at(seqs, nchar)));
 				break;
 			}
 		}
@@ -265,10 +266,10 @@ bool AdapterStats::LoadAdapters(const char *adapter_file, const char *adapter_ma
 		for( auto &adapter : adapter_list.at(seg) ){
 			seqs_.at(seg).push_back(adapter.first);
 			if(adapter.second < length(ids)){
-				names_.at(seg).push_back((string(toCString(ids[adapter.second]))+"_f").c_str());
+				names_.at(seg).push_back((string(toCString(at(ids, adapter.second)))+"_f").c_str());
 			}
 			else{
-				names_.at(seg).push_back((string(toCString(ids[adapter.second-length(ids)]))+"_r").c_str());
+				names_.at(seg).push_back((string(toCString(at(ids, adapter.second-length(ids))))+"_r").c_str());
 			}
 		}
 	}
@@ -407,7 +408,7 @@ bool AdapterStats::Detect(uintReadLen &adapter_position_first, uintReadLen &adap
 						uintReadLen poly_a_tail_length = 0;
 						for(uintReadLen pos=index1.pos + length(seqs_.at(0).at(index1.bc)); pos < length(read1); ++pos){
 							if(poly_a_tail){
-								if('A' == read1[pos]){
+								if('A' == at(read1, pos)){
 									++poly_a_tail_length;
 								}
 								else{
@@ -417,7 +418,7 @@ bool AdapterStats::Detect(uintReadLen &adapter_position_first, uintReadLen &adap
 							}
 
 							if(!poly_a_tail){
-								++tmp_overrun_bases_.at(Dna5(read1[pos]));
+								++tmp_overrun_bases_.at(Dna5(at(read1, pos)));
 							}
 						}
 
@@ -425,7 +426,7 @@ bool AdapterStats::Detect(uintReadLen &adapter_position_first, uintReadLen &adap
 						poly_a_tail_length = 0;
 						for(uintReadLen pos=index2.pos + length(seqs_.at(1).at(index2.bc)); pos < length(read2); ++pos){
 							if(poly_a_tail){
-								if('A' == read2[pos]){
+								if('A' == at(read2, pos)){
 									++poly_a_tail_length;
 								}
 								else{
@@ -435,7 +436,7 @@ bool AdapterStats::Detect(uintReadLen &adapter_position_first, uintReadLen &adap
 							}
 
 							if(!poly_a_tail){
-								++tmp_overrun_bases_.at(Dna5(read2[pos]));
+								++tmp_overrun_bases_.at(Dna5(at(read2, pos)));
 							}
 						}
 
@@ -513,7 +514,7 @@ void AdapterStats::SumCounts(){
 	for( auto a1=counts_.size(); a1--; ){
 		first_diff_after_a1 = 0;
 		if(a1){ // Not last in loop
-			while(first_diff_after_a1 < min(length(seqs_.at(0).at(a1)), length(seqs_.at(0).at(a1-1))) && seqs_.at(0).at(a1)[first_diff_after_a1] == seqs_.at(0).at(a1-1)[first_diff_after_a1] ){
+			while(first_diff_after_a1 < min(length(seqs_.at(0).at(a1)), length(seqs_.at(0).at(a1-1))) && at(seqs_.at(0).at(a1), first_diff_after_a1) == at(seqs_.at(0).at(a1-1), first_diff_after_a1) ){
 				++first_diff_after_a1;
 			}
 		}
@@ -522,7 +523,7 @@ void AdapterStats::SumCounts(){
 		for( auto a2=counts_.at(0).size(); a2--; ){ // All vectors i are the same length so we can simply take the length of 0
 			first_diff_after_a2 = 0;
 			if(a2){ // Not last in loop
-				while(first_diff_after_a2 < min(length(seqs_.at(1).at(a2)), length(seqs_.at(1).at(a2-1))) && seqs_.at(1).at(a2)[first_diff_after_a2] == seqs_.at(1).at(a2-1)[first_diff_after_a2] ){
+				while(first_diff_after_a2 < min(length(seqs_.at(1).at(a2)), length(seqs_.at(1).at(a2-1))) && at(seqs_.at(1).at(a2), first_diff_after_a2) == at(seqs_.at(1).at(a2-1), first_diff_after_a2) ){
 					++first_diff_after_a2;
 				}
 			}

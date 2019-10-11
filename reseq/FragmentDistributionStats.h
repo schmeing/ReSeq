@@ -58,7 +58,7 @@ namespace reseq{
 			bias_calculation_ = bias_calculation;
 		}
 
-		void Clear(seqan::Size< seqan::StringSet<seqan::CharString> >::Type ref_seq_bin){
+		void Clear(uintRefSeqBin ref_seq_bin){
 			ref_seq_bin_ = ref_seq_bin; // It is important to have the correct one in here, because it may define the vector that is cleared and we don't want to clear an active one
 			fragment_length_ = 0; // Signal that nothing has to be done
 			bias_calculation_ = false;
@@ -268,9 +268,9 @@ namespace reseq{
 		std::array<std::vector<double>, 2> tmp_dispersion_parameters_; // tmp_dispersion_parameters_[dispPar][#Fit]
 
 		std::array<std::atomic_flag, kMaxBinsQueuedForBiasCalc> claimed_bias_bins_;
-		std::array<std::atomic<std::vector<BiasCalculationParamsSplitSeqs>::size_type>, kMaxBinsQueuedForBiasCalc> current_bias_param_;
-		std::array<std::atomic<std::vector<BiasCalculationParamsSplitSeqs>::size_type>, kMaxBinsQueuedForBiasCalc> finished_bias_calcs_;
-		std::atomic<std::vector<BiasCalculationParamsSplitSeqs>::size_type> current_bias_result_;
+		std::array<std::atomic<uintNumFits>, kMaxBinsQueuedForBiasCalc> current_bias_param_;
+		std::array<std::atomic<uintNumFits>, kMaxBinsQueuedForBiasCalc> finished_bias_calcs_;
+		std::atomic<uintNumFits> current_bias_result_;
 		std::vector<BiasCalculationParamsSplitSeqs> bias_calc_params_;
 		std::atomic<uintNumFits> params_left_for_calculation_;
 		std::atomic<uintNumFits> params_fitted_;
@@ -413,9 +413,9 @@ namespace reseq{
 		void AddNewBiasCalculations(uintRefSeqBin still_needed_ref_bin, ThreadData &thread, std::mutex &print_mutex);
 		void ExecuteBiasCalculations( const Reference &reference, FragmentDuplicationStats &duplications, BiasCalculationVectors &thread_values, std::mutex &print_mutex );
 		void HandleReferenceSequencesUntil(uintRefSeqBin still_needed_ref_bin, ThreadData &thread, const Reference &reference, FragmentDuplicationStats &duplications, std::mutex &print_mutex);
-		static void BiasSumThread( const FragmentDistributionStats &self, const Reference &reference, const std::vector<BiasCalculationParams> &params, std::atomic<std::vector<BiasCalculationParams>::size_type> &current_param, std::vector<double> &insert_length_sum, std::vector<double> &ref_seq_sum, std::vector<std::vector<utilities::VectorAtomic<uintFragCount>>> &site_count_by_insert_length_gc, std::mutex &result_mutex );
+		static void BiasSumThread( const FragmentDistributionStats &self, const Reference &reference, const std::vector<BiasCalculationParams> &params, std::atomic<uintNumFits> &current_param, std::vector<double> &insert_length_sum, std::vector<double> &ref_seq_sum, std::vector<std::vector<utilities::VectorAtomic<uintFragCount>>> &site_count_by_insert_length_gc, std::mutex &result_mutex );
 
-		static void BiasNormalizationThread( const FragmentDistributionStats &self, const Reference &reference, const std::vector<BiasCalculationParams> &params, std::atomic<std::vector<BiasCalculationParams>::size_type> &current_param, double &norm, std::mutex &result_mutex, double &max_bias );
+		static void BiasNormalizationThread( const FragmentDistributionStats &self, const Reference &reference, const std::vector<BiasCalculationParams> &params, std::atomic<uintNumFits> &current_param, double &norm, std::mutex &result_mutex, double &max_bias );
 		
 		// Boost archive functions
 		friend class boost::serialization::access;
@@ -451,7 +451,8 @@ namespace reseq{
 			max_ref_seq_bin_length_(0), // Will be set later as it is a program parameter
 			calculate_bias_(true), // Not calculated only to speed up tests
 			num_handled_reference_sequence_bins_(0),
-			current_bias_result_(0)
+			current_bias_result_(0),
+			dispersion_parameters_({0, 1e100}) // Initialize with poisson to avoid writing random values into file if saving without fitting
 			{
 		}
 

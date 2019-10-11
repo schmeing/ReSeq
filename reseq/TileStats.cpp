@@ -22,6 +22,9 @@ using seqan::CharString;
 using seqan::Exception;
 using seqan::lexicalCast;
 
+//include "utilities.hpp"
+using reseq::utilities::at;
+
 inline void TileStats::ReadUntil(stringstream &id_stream, char *buffer, uint16_t buffer_size, char until, const string &field) const{
 	id_stream.getline( buffer, buffer_size, until);
 	if( id_stream.eof() ){
@@ -58,27 +61,33 @@ reseq::uintTile TileStats::GetKnownTile(const CharString &read_id, uint16_t tile
 	uint16_t pos(0);
 
 	for(uint16_t num_colons = 0; num_colons != tile_colon_number && pos < length(read_id); ){ // Stop at colon tile_colon_number
-		if( ':' == read_id[pos++] ) ++num_colons; // Count number of colons
+		if( ':' == at(read_id, pos++) ) ++num_colons; // Count number of colons
 	}
 
 	uint16_t start_pos(pos);
 
-	while( ':' != read_id[++pos] && pos < length(read_id)); // Stop at next colon
-
-	if( pos < length(read_id) ){
-		try{
-			return lexicalCast<uintTile>(infix(read_id, start_pos, pos));
+	if( ++pos >= length(read_id) ){
+		if(print_warnings){
+			(error_message ? *error_message : printWarn) <<  "The read id encoding changed and the id ended before colon number " << tile_colon_number << ". Tile will be treated as 0: " << read_id << std::endl;
 		}
-		catch(const Exception &e){
-			if(print_warnings){
-				(error_message ? *error_message : printWarn) <<  "The read id encoding changed and the tile could not be found at colon number " << tile_colon_number << " anymore. Tile will be treated as 0: " << read_id << "\nException thrown: " << e.what() << std::endl;
-			}
-			return 0;
-		}
+		return 0;
 	}
-	else{
+
+	while( ':' != at(read_id, pos) && ++pos < length(read_id)); // Stop at next colon
+
+	if( pos >= length(read_id) ){
 		if(print_warnings){
 			(error_message ? *error_message : printWarn) <<  "The read id encoding changed and the id ended before colon number " << tile_colon_number+1 << ". Tile will be treated as 0: " << read_id << std::endl;
+		}
+		return 0;
+	}
+
+	try{
+		return lexicalCast<uintTile>(infix(read_id, start_pos, pos));
+	}
+	catch(const Exception &e){
+		if(print_warnings){
+			(error_message ? *error_message : printWarn) <<  "The read id encoding changed and the tile could not be found at colon number " << tile_colon_number << " anymore. Tile will be treated as 0: " << read_id << "\nException thrown: " << e.what() << std::endl;
 		}
 		return 0;
 	}

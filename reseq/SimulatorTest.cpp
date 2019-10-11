@@ -15,6 +15,7 @@ using seqan::DnaString;
 
 //include "utilities.hpp"
 using reseq::utilities::ReverseComplementorDna;
+using reseq::utilities::at;
 
 void SimulatorTest::Register(){
 	// Guarantees that library is included
@@ -40,11 +41,11 @@ void SimulatorTest::TestCoverageConversion(){
 	// CoveragePropLostFromAdapters
 	DataStats stats(NULL);
 
-	stats.read_lengths_by_fragment_length_[1][200][150] = 10;
-	stats.read_lengths_by_fragment_length_[0][150][150] = 10;
-	stats.read_lengths_by_fragment_length_[1][100][150] = 5;
-	stats.read_lengths_by_fragment_length_[1][50][150] = 5;
-	stats.read_lengths_by_fragment_length_[0][0][150] = 10;
+	stats.read_lengths_by_fragment_length_.at(1)[200][150] = 10;
+	stats.read_lengths_by_fragment_length_.at(0)[150][150] = 10;
+	stats.read_lengths_by_fragment_length_.at(1)[100][150] = 5;
+	stats.read_lengths_by_fragment_length_.at(1)[50][150] = 5;
+	stats.read_lengths_by_fragment_length_.at(0)[0][150] = 10;
 
 	double adapter_part = test_->CoveragePropLostFromAdapters(stats);
 	EXPECT_DOUBLE_EQ( 2250.0/(40*150), adapter_part );
@@ -70,8 +71,8 @@ void SimulatorTest::TestSurroundingModifiers(){
 	// GTTGCGAGATTTGGACGGAC
 
 	// ChangeSurroundingBase
-	test_ref.reference_sequences_[0] = infix(species_reference_.ReferenceSequence(0), 0, 2000);
-	test_ref.reference_sequences_[0][1004] = 'C';
+	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 2000);
+	at(at(test_ref.reference_sequences_, 0), 1004) = 'C';
 	test_ref.ForwardSurrounding(comp_surrounding, 0, 1004);
 	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
 	test_->ChangeSurroundingBase(surrounding, 10, 'C');
@@ -79,8 +80,8 @@ void SimulatorTest::TestSurroundingModifiers(){
 	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
 	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
 
-	test_ref.reference_sequences_[0] = infix(species_reference_.ReferenceSequence(0), 0, 2000);
-	test_ref.reference_sequences_[0][1003] = 'C';
+	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 2000);
+	at(at(test_ref.reference_sequences_, 0), 1003) = 'C';
 	test_ref.ForwardSurrounding(comp_surrounding, 0, 1004);
 	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
 	test_->ChangeSurroundingBase(surrounding, 9, 'C');
@@ -89,56 +90,56 @@ void SimulatorTest::TestSurroundingModifiers(){
 	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
 
 	// DeleteSurroundingBaseShiftingOnRightSide
-	test_ref.reference_sequences_[0] = infix(species_reference_.ReferenceSequence(0), 0, 1004);
-	test_ref.reference_sequences_[0] += infix(species_reference_.ReferenceSequence(0), 1005, 2000);
+	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 1004);
+	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1005, 2000);
 	test_ref.ForwardSurrounding(comp_surrounding, 0, 1004);
 	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
-	test_->DeleteSurroundingBaseShiftingOnRightSide(surrounding, 10, species_reference_.reference_sequences_[0][1024]);
+	test_->DeleteSurroundingBaseShiftingOnRightSide(surrounding, 10, at(at(species_reference_.reference_sequences_, 0), 1024));
 	EXPECT_EQ(comp_surrounding.at(0), surrounding.at(0));
 	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
 	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
 
-	test_ref.reference_sequences_[0] = infix(species_reference_.ReferenceSequence(0), 0, 1008);
-	test_ref.reference_sequences_[0] += infix(species_reference_.ReferenceSequence(0), 1009, 2000);
+	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 1008);
+	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1009, 2000);
 	test_ref.ForwardSurrounding(comp_surrounding, 0, 1004);
 	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
-	test_->DeleteSurroundingBaseShiftingOnRightSide(surrounding, 14, species_reference_.reference_sequences_[0][1024]);
+	test_->DeleteSurroundingBaseShiftingOnRightSide(surrounding, 14, at(at(species_reference_.reference_sequences_, 0), 1024));
 	EXPECT_EQ(comp_surrounding.at(0), surrounding.at(0));
 	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
 	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
 
-	test_ref.reference_sequences_[0] = infix(species_reference_.ReferenceSequence(0), 0, 1015);
-	test_ref.reference_sequences_[0] += infix(species_reference_.ReferenceSequence(0), 1016, 2000);
+	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 1015);
+	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1016, 2000);
 	test_ref.ForwardSurrounding(comp_surrounding, 0, 1004);
 	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
-	test_->DeleteSurroundingBaseShiftingOnRightSide(surrounding, 21, species_reference_.reference_sequences_[0][1024]);
+	test_->DeleteSurroundingBaseShiftingOnRightSide(surrounding, 21, at(at(species_reference_.reference_sequences_, 0), 1024));
 	EXPECT_EQ(comp_surrounding.at(0), surrounding.at(0));
 	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
 	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
 
 	// DeleteSurroundingBaseShiftingOnLeftSide
-	test_ref.reference_sequences_[0] = infix(species_reference_.ReferenceSequence(0), 0, 1003);
-	test_ref.reference_sequences_[0] += infix(species_reference_.ReferenceSequence(0), 1004, 2000);
+	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 1003);
+	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1004, 2000);
 	test_ref.ForwardSurrounding(comp_surrounding, 0, 1003);
 	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
-	test_->DeleteSurroundingBaseShiftingOnLeftSide(surrounding, 9, species_reference_.reference_sequences_[0][993]);
+	test_->DeleteSurroundingBaseShiftingOnLeftSide(surrounding, 9, at(at(species_reference_.reference_sequences_, 0), 993));
 	EXPECT_EQ(comp_surrounding.at(0), surrounding.at(0));
 	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
 	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
 
-	test_ref.reference_sequences_[0] = infix(species_reference_.ReferenceSequence(0), 0, 1000);
-	test_ref.reference_sequences_[0] += infix(species_reference_.ReferenceSequence(0), 1001, 2000);
+	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 1000);
+	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1001, 2000);
 	test_ref.ForwardSurrounding(comp_surrounding, 0, 1003);
 	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
-	test_->DeleteSurroundingBaseShiftingOnLeftSide(surrounding, 6, species_reference_.reference_sequences_[0][993]);
+	test_->DeleteSurroundingBaseShiftingOnLeftSide(surrounding, 6, at(at(species_reference_.reference_sequences_, 0), 993));
 	EXPECT_EQ(comp_surrounding.at(0), surrounding.at(0));
 	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
 	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
 
 	// InsertSurroundingBasesShiftingOnRightSide
-	test_ref.reference_sequences_[0] = infix(species_reference_.ReferenceSequence(0), 0, 1004);
-	test_ref.reference_sequences_[0] += "AC";
-	test_ref.reference_sequences_[0] += infix(species_reference_.ReferenceSequence(0), 1004, 2000);
+	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 1004);
+	at(test_ref.reference_sequences_, 0) += "AC";
+	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1004, 2000);
 	test_ref.ForwardSurrounding(comp_surrounding, 0, 1004);
 	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
 	test_->InsertSurroundingBasesShiftingOnRightSide(surrounding, 10, "AC");
@@ -146,9 +147,9 @@ void SimulatorTest::TestSurroundingModifiers(){
 	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
 	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
 
-	test_ref.reference_sequences_[0] = infix(species_reference_.ReferenceSequence(0), 0, 1012);
-	test_ref.reference_sequences_[0] += "ACGT";
-	test_ref.reference_sequences_[0] += infix(species_reference_.ReferenceSequence(0), 1012, 2000);
+	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 1012);
+	at(test_ref.reference_sequences_, 0) += "ACGT";
+	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1012, 2000);
 	test_ref.ForwardSurrounding(comp_surrounding, 0, 1004);
 	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
 	test_->InsertSurroundingBasesShiftingOnRightSide(surrounding, 18, "ACGT");
@@ -156,9 +157,9 @@ void SimulatorTest::TestSurroundingModifiers(){
 	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
 	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
 
-	test_ref.reference_sequences_[0] = infix(species_reference_.ReferenceSequence(0), 0, 1012);
-	test_ref.reference_sequences_[0] += "ACGTACGTACGT";
-	test_ref.reference_sequences_[0] += infix(species_reference_.ReferenceSequence(0), 1012, 2000);
+	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 1012);
+	at(test_ref.reference_sequences_, 0) += "ACGTACGTACGT";
+	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1012, 2000);
 	test_ref.ForwardSurrounding(comp_surrounding, 0, 1004);
 	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
 	test_->InsertSurroundingBasesShiftingOnRightSide(surrounding, 18, "ACGTACGTACGT");
@@ -166,9 +167,9 @@ void SimulatorTest::TestSurroundingModifiers(){
 	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
 	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
 
-	test_ref.reference_sequences_[0] = infix(species_reference_.ReferenceSequence(0), 0, 1022);
-	test_ref.reference_sequences_[0] += "ACGT";
-	test_ref.reference_sequences_[0] += infix(species_reference_.ReferenceSequence(0), 1022, 2000);
+	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 1022);
+	at(test_ref.reference_sequences_, 0) += "ACGT";
+	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1022, 2000);
 	test_ref.ForwardSurrounding(comp_surrounding, 0, 1004);
 	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
 	test_->InsertSurroundingBasesShiftingOnRightSide(surrounding, 28, "ACGT");
@@ -177,9 +178,9 @@ void SimulatorTest::TestSurroundingModifiers(){
 	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
 
 	// InsertSurroundingBasesShiftingOnLeftSide
-	test_ref.reference_sequences_[0] = infix(species_reference_.ReferenceSequence(0), 0, 1005);
-	test_ref.reference_sequences_[0] += "ACGT";
-	test_ref.reference_sequences_[0] += infix(species_reference_.ReferenceSequence(0), 1005, 2000);
+	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 1005);
+	at(test_ref.reference_sequences_, 0) += "ACGT";
+	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1005, 2000);
 	test_ref.ForwardSurrounding(comp_surrounding, 0, 1008);
 	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
 	test_->InsertSurroundingBasesShiftingOnLeftSide(surrounding, 10, "ACGT");
@@ -187,9 +188,9 @@ void SimulatorTest::TestSurroundingModifiers(){
 	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
 	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
 
-	test_ref.reference_sequences_[0] = infix(species_reference_.ReferenceSequence(0), 0, 1004);
-	test_ref.reference_sequences_[0] += "ACGT";
-	test_ref.reference_sequences_[0] += infix(species_reference_.ReferenceSequence(0), 1004, 2000);
+	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 1004);
+	at(test_ref.reference_sequences_, 0) += "ACGT";
+	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1004, 2000);
 	test_ref.ForwardSurrounding(comp_surrounding, 0, 1008);
 	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
 	test_->InsertSurroundingBasesShiftingOnLeftSide(surrounding, 9, "ACGT");
@@ -197,9 +198,9 @@ void SimulatorTest::TestSurroundingModifiers(){
 	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
 	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
 
-	test_ref.reference_sequences_[0] = infix(species_reference_.ReferenceSequence(0), 0, 1000);
-	test_ref.reference_sequences_[0] += "ACGT";
-	test_ref.reference_sequences_[0] += infix(species_reference_.ReferenceSequence(0), 1000, 2000);
+	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 1000);
+	at(test_ref.reference_sequences_, 0) += "ACGT";
+	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1000, 2000);
 	test_ref.ForwardSurrounding(comp_surrounding, 0, 1008);
 	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
 	test_->InsertSurroundingBasesShiftingOnLeftSide(surrounding, 5, "ACGT");
@@ -207,9 +208,9 @@ void SimulatorTest::TestSurroundingModifiers(){
 	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
 	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
 
-	test_ref.reference_sequences_[0] = infix(species_reference_.ReferenceSequence(0), 0, 995);
-	test_ref.reference_sequences_[0] += "ACGT";
-	test_ref.reference_sequences_[0] += infix(species_reference_.ReferenceSequence(0), 995, 2000);
+	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 995);
+	at(test_ref.reference_sequences_, 0) += "ACGT";
+	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 995, 2000);
 	test_ref.ForwardSurrounding(comp_surrounding, 0, 1008);
 	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
 	test_->InsertSurroundingBasesShiftingOnLeftSide(surrounding, 0, "ACGT");
@@ -344,15 +345,15 @@ void SimulatorTest::TestVariationInSimulateFromGivenBlock(){
 
 	Reference test_ref;
 	resize( test_ref.reference_sequences_, 1 );
-	test_ref.reference_sequences_[0] = infix(species_reference_.ReferenceSequence(0), 0, 455);
-	test_ref.reference_sequences_[0] += infix(species_reference_.ReferenceSequence(0), 456, 1003);
-	test_ref.reference_sequences_[0] += "AC";
-	test_ref.reference_sequences_[0] += infix(species_reference_.ReferenceSequence(0), 1003, 1004);
-	test_ref.reference_sequences_[0] += "TGA";
-	test_ref.reference_sequences_[0] += infix(species_reference_.ReferenceSequence(0), 1005, 1008);
-	test_ref.reference_sequences_[0] += infix(species_reference_.ReferenceSequence(0), 1009, 1012);
-	test_ref.reference_sequences_[0][1013] = 'C';
-	test_ref.reference_sequences_[0] += infix(species_reference_.ReferenceSequence(0), 1013, 2000);
+	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 455);
+	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 456, 1003);
+	at(test_ref.reference_sequences_, 0) += "AC";
+	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1003, 1004);
+	at(test_ref.reference_sequences_, 0) += "TGA";
+	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1005, 1008);
+	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1009, 1012);
+	at(at(test_ref.reference_sequences_, 0), 1013) = 'C';
+	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1013, 2000);
 	array<intSurrounding, Reference::num_surrounding_blocks_> comp_surrounding;
 
 	Simulator::VariantBiasVarModifiers bias_mod(1, 2);

@@ -75,7 +75,7 @@ namespace reseq{
 
 		test_->CalculateDispersionPlot();
 		EXPECT_EQ(1, test_->dispersion_list_.size()) << "Shrinkage of vector did not work properly or wrong values are inserted\n";
-		EXPECT_DOUBLE_EQ(0.2, test_->mean_list_[0]) << "Mean wrong\n";
-		EXPECT_DOUBLE_EQ(2.0/3, test_->dispersion_list_[0]) << "Dispersion wrong\n";
+		EXPECT_DOUBLE_EQ(0.2, test_->mean_list_.at(0)) << "Mean wrong\n";
+		EXPECT_DOUBLE_EQ(2.0/3, test_->dispersion_list_.at(0)) << "Dispersion wrong\n";
 	}
 }

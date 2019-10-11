@@ -74,7 +74,7 @@ void FragmentDuplicationStats::FinalizeDuplicationVector(const vector<vector<Vec
 				site_sum += tmp_duplication_number_by_gc_insert_length_.at(insert_length).at(gc).at(dup);
 			}
 			if(insert_length < site_count_by_insert_length_gc.size()){
-				duplication_number_by_gc_insert_length_.at(gc).at(insert_length).at(0) = 2*site_count_by_insert_length_gc.at(insert_length).at(gc) - site_sum;
+				duplication_number_by_gc_insert_length_[gc][insert_length][0] = 2*site_count_by_insert_length_gc.at(insert_length).at(gc) - site_sum;
 			}
 		}
 	}
@@ -88,7 +88,7 @@ void FragmentDuplicationStats::CalculateDispersionPlot(){
 	uintFragCount count;
 	double mean, var;
 
-	size_t needed_size=0;
+	uintNumFits needed_size=0;
 	for(auto &dup_by_len : duplication_number_by_gc_insert_length_ ){
 		needed_size += dup_by_len.size();
 	}

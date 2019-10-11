@@ -56,7 +56,7 @@ namespace reseq{
 
 			// Storage
 			std::array<std::vector<double>, kNumMargins> data_;
-			std::array<std::vector<double>::size_type, N> dim_size_;
+			std::array<uintMatrixIndex, N> dim_size_;
 
 			void CombineEndBinsToMinCount(std::array< std::vector<uintMatrixIndex>, N > &dim_indices, std::array<Vect<uintMatrixCount>, N> &dim_control);
 			void CombineBins(std::array<std::vector<uintMatrixIndex>, N> &initial_dim_indices_reduced, std::array<Vect<uintMatrixCount>, N> &dim_control);
@@ -67,9 +67,13 @@ namespace reseq{
 			// Google test
 			friend class reseq::ProbabilityEstimatesTest;
 		public:
+			DataStorage(){
+				dim_size_.fill(0);
+			}
+
 			bool SetUp(const std::array< std::pair< const Vect<Vect<uintMatrixCount>> *, bool>, N*(N-1)/2 > &margins, const Vect<SeqQualityStats<uintMatrixCount>> *alternative_margin, std::array< std::vector<uintMatrixIndex>, N > &dim_indices, std::array<std::vector<uintMatrixIndex>, N> &initial_dim_indices_reduced, std::mutex &print_mutex);
 
-			template<uintMarginId A, uintMarginId B> inline double get(std::vector<uintMatrixCount>::size_type index_a, std::vector<uintMatrixCount>::size_type index_b) const{
+			template<uintMarginId A, uintMarginId B> inline double get(uintMatrixIndex index_a, uintMatrixIndex index_b) const{
 				if( A > B ){
 					return data_.at(MapDim2To1<A,B,N>()).at(index_a*dim_size_.at(B)+index_b);
 				}
@@ -78,7 +82,7 @@ namespace reseq{
 				}
 			}
 
-			template<uintMarginId A> inline std::vector<uintMatrixCount>::size_type size() const{
+			template<uintMarginId A> inline uintMatrixIndex size() const{
 				return dim_size_.at(A);
 			}
 
@@ -94,7 +98,7 @@ namespace reseq{
 			static const uintMarginId kNumMargins = N*(N-1)/2;
 
 			std::array<std::vector<double>, kNumMargins> dim2_;
-			std::array<std::vector<double>::size_type, N> dim_size_;
+			std::array<uintMatrixIndex, N> dim_size_;
 
 			inline void ResizeMarginalSums(std::array< std::vector<double>, kNumMargins> &marginal_sums) const {
 				for(auto n=kNumMargins;n--;){
@@ -113,6 +117,10 @@ namespace reseq{
 			friend class reseq::ProbabilityEstimatesTest;
 
 		public:
+			LogArrayCalc(){
+				dim_size_.fill(0);
+			}
+
 			template<typename T> void SetUp(const std::array< std::vector<T>, N > &dim_indices){
 				// Fill in dim2_
 				uintMarginId dim_a(N), dim_b(N-1);
@@ -371,6 +379,9 @@ namespace reseq{
 			}
 
 		public:
+			LogArrayResult(){
+				limits_.fill({0,0});
+			}
 			void GetResults(const LogArrayCalc<N> &calc, const std::array< std::vector<uintMatrixIndex>, N > &dim_indices ){
 				if(dim_indices.at(0).size()){
 					// Order first parameter by increasing mean, so that when called from the back the values with the highest probability come first
@@ -517,8 +528,8 @@ namespace reseq{
 		template<uintMarginId G1, uintMarginId G2, uintMarginId L> double SumLogTerms(
 				const DataStorage<3> &data,
 				const LogArrayCalc<3> &mat,
-				std::vector<double>::size_type given_index1,
-				std::vector<double>::size_type given_index2
+				uintMatrixIndex given_index1,
+				uintMatrixIndex given_index2
 				){
 			double sum = 0.0;
 			for( uintMatrixIndex i = 0; i < data.size<L>(); ++i ){
@@ -530,8 +541,8 @@ namespace reseq{
 		template<uintMarginId G1, uintMarginId G2, uintMarginId L1, uintMarginId L2> double SumLogTerms(
 				const DataStorage<4> &data,
 				const LogArrayCalc<4> &mat,
-				std::vector<double>::size_type given_index1,
-				std::vector<double>::size_type given_index2
+				uintMatrixIndex given_index1,
+				uintMatrixIndex given_index2
 				){
 			double tmp_sum;
 			double sum = 0.0;
@@ -548,8 +559,8 @@ namespace reseq{
 		template<uintMarginId G1, uintMarginId G2, uintMarginId L1, uintMarginId L2, uintMarginId L3> double SumLogTerms(
 				const DataStorage<5> &data,
 				const LogArrayCalc<5> &mat,
-				std::vector<double>::size_type given_index1,
-				std::vector<double>::size_type given_index2
+				uintMatrixIndex given_index1,
+				uintMatrixIndex given_index2
 				){
 			double tmp_sum, tmp_sum2;
 			double sum = 0.0;
@@ -567,7 +578,7 @@ namespace reseq{
 			return sum * mat.template dim2<G1,G2>(given_index1,given_index2);
 		}
 
-		template<size_t N> class LogIPF{
+		template<uintMarginId N> class LogIPF{
 		private:
 			static const uintMarginId kNumMargins = N*(N-1)/2;
 
@@ -577,7 +588,7 @@ namespace reseq{
 			double precision_;
 			std::array< double, kNumMargins > margin_precision_;
 			uintMarginId last_margin_;
-			std::array< uintMarginId, kNumMargins > last_update_;
+			std::array< uintNumFits, kNumMargins > last_update_;
 			std::array< uint16_t, kNumMargins > update_dist_;
 			LogArrayCalc<N> estimates_;
 			std::array< std::vector<uintMatrixIndex>, N > dim_indices_; // dim_indices_[Dimension][IndexInFullDataVector] = IndexInOriginalVectFromStats : Set in DataStorage.SetUp and later used for LogArrayResult.GetResult
@@ -931,9 +942,11 @@ namespace reseq{
 				steps_(0),
 				needed_updates_(0),
 				precision_(std::numeric_limits<double>::max()),
+				last_margin_(0),
 				normalize_(false)
-				{
+			{
 				margin_precision_.fill(std::numeric_limits<double>::max());
+				last_update_.fill(0);
 				update_dist_.fill(2);
 			}
 
@@ -1248,7 +1261,7 @@ namespace reseq{
 		std::mutex print_mutex_;
 
 		// bookkeeping
-		std::atomic<std::vector<IPFThreadParams>::size_type> current_param_;
+		std::atomic<uintNumFits> current_param_;
 		std::atomic<bool> error_during_fitting_;
 		std::atomic<bool> precision_improved_;
 
@@ -1422,6 +1435,12 @@ namespace reseq{
 		friend class ProbabilityEstimatesTest;
 
 	public:
+		ProbabilityEstimates():
+			current_param_(0),
+			error_during_fitting_(false),
+			precision_improved_(false){
+		}
+
 		void PrepareResult();
 
 		const ProbabilityEstimatesSubClasses::LogArrayResult<5> &Quality(uintTempSeq template_segment, uintTileId tile_id, uintBaseCall base) const{

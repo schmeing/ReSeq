@@ -74,7 +74,7 @@ namespace reseq{
 		std::array<Vect<Vect<Vect<uintFragCount>>>, 2> gc_for_fragment_length_per_tile_reference_; // gc_for_fragment_length_per_tile_reference_[first/second][tileId][fragmentLength][percentageGC] = #reads
 
 		// Collected variables for plotting (based on raw reads)
-		std::array<std::array<Vect<Vect<Vect<uintNucCount>>>, 5>, 2> base_quality_for_sequence_per_tile_; // base_quality_for_sequence_per_tile_[first/second][tileId][qualityProbabilityMeanOfSequence][baseQuality] = #bases
+		std::array<std::array<Vect<Vect<Vect<uintNucCount>>>, 5>, 2> base_quality_for_sequence_per_tile_; // base_quality_for_sequence_per_tile_[first/second][base][tileId][qualityProbabilityMeanOfSequence][baseQuality] = #bases
 		std::array<std::array<Vect<Vect<Vect<uintNucCount>>>, 5>, 2> base_quality_for_preceding_quality_per_tile_; // base_quality_for_preceding_quality_per_tile_[first/second][base][tileId][qualityOfPrecedingBase][baseQuality] = #bases
 		std::array<std::array<Vect<Vect<SeqQualityStats<uintNucCount>>>, 5>, 2> base_quality_stats_per_tile_; // base_quality_stats_per_tile_[first/second][base][tileId][readPosition][quality] = #reads
 		std::array<std::array<Vect<Vect<Vect<uintNucCount>>>, 5>, 2> preceding_quality_for_sequence_per_tile_; // preceding_quality_for_sequence_per_tile_[first/second][currentBase][tileId][qualityProbabilityMeanOfSequence][precedingQuality] = #bases
@@ -206,55 +206,55 @@ namespace reseq{
 			}
 		}
 
-		// Getter functions
+		// Getter functions (tile_id might not exist if the parameter combination before does not exist in the data (like ref_base, dom_error combination), so use empty dummy if that is the case)
 		inline const Vect<SeqQualityStats<uintNucCount>> &BaseQualityStatsReference(uintTempSeq template_segment, uintTileId tile_id, uintBaseCall ref_base, uintBaseCall dom_error) const{
-			return base_quality_stats_per_tile_per_error_reference_.at(template_segment).at(ref_base).at(dom_error).at(tile_id);
+			return base_quality_stats_per_tile_per_error_reference_.at(template_segment).at(ref_base).at(dom_error)[tile_id];
 		}
 		inline const Vect<Vect<uintNucCount>> &ErrorRateForPositionReference(uintTempSeq template_segment, uintTileId tile_id, uintBaseCall base, uintBaseCall dom_error) const{
-			return error_rate_for_position_per_tile_per_error_reference_.at(template_segment).at(base).at(dom_error).at(tile_id);
+			return error_rate_for_position_per_tile_per_error_reference_.at(template_segment).at(base).at(dom_error)[tile_id];
 		}
 		inline const Vect<Vect<uintNucCount>> &BaseQualityForErrorRateReference(uintTempSeq template_segment, uintTileId tile_id, uintBaseCall base, uintBaseCall dom_error) const{
 			return base_quality_for_error_rate_per_tile_per_error_reference_.at(template_segment).at(base).at(dom_error)[tile_id];
 		}
 		inline const Vect<Vect<uintNucCount>> &BaseQualityForPrecedingQualityReference(uintTempSeq template_segment, uintTileId tile_id, uintBaseCall base) const{
-			return base_quality_for_preceding_quality_per_tile_reference_.at(template_segment).at(base).at(tile_id);
+			return base_quality_for_preceding_quality_per_tile_reference_.at(template_segment).at(base)[tile_id];
 		}
 		inline const Vect<Vect<uintNucCount>> &PrecedingQualityForErrorRateReference(uintTempSeq template_segment, uintTileId tile_id, uintBaseCall base) const{
-			return preceding_quality_for_error_rate_per_tile_reference_.at(template_segment).at(base).at(tile_id);
+			return preceding_quality_for_error_rate_per_tile_reference_.at(template_segment).at(base)[tile_id];
 		}
 		inline const Vect<Vect<uintNucCount>> &PrecedingQualityForPositionReference(uintTempSeq template_segment, uintTileId tile_id, uintBaseCall base) const{
-			return preceding_quality_for_position_per_tile_reference_.at(template_segment).at(base).at(tile_id);
+			return preceding_quality_for_position_per_tile_reference_.at(template_segment).at(base)[tile_id];
 		}
 		inline const Vect<Vect<uintNucCount>> &BaseQualityForSequenceQualityReference(uintTempSeq template_segment, uintTileId tile_id, uintBaseCall base) const{
-			return base_quality_for_sequence_quality_per_tile_reference_.at(template_segment).at(base).at(tile_id);
+			return base_quality_for_sequence_quality_per_tile_reference_.at(template_segment).at(base)[tile_id];
 		}
 		inline const Vect<Vect<uintNucCount>> &PrecedingQualityForSequenceQualityReference(uintTempSeq template_segment, uintTileId tile_id, uintBaseCall base) const{
-			return preceding_quality_for_sequence_quality_per_tile_reference_.at(template_segment).at(base).at(tile_id);
+			return preceding_quality_for_sequence_quality_per_tile_reference_.at(template_segment).at(base)[tile_id];
 		}
 		inline const Vect<Vect<uintNucCount>> &SequenceQualityForErrorRateReference(uintTempSeq template_segment, uintTileId tile_id, uintBaseCall base) const{
-			return sequence_quality_for_error_rate_per_tile_reference_.at(template_segment).at(base).at(tile_id);
+			return sequence_quality_for_error_rate_per_tile_reference_.at(template_segment).at(base)[tile_id];
 		}
 		inline const Vect<Vect<uintNucCount>> &SequenceQualityForPositionReference(uintTempSeq template_segment, uintTileId tile_id, uintBaseCall base) const{
-			return sequence_quality_for_position_per_tile_reference_.at(template_segment).at(base).at(tile_id);
+			return sequence_quality_for_position_per_tile_reference_.at(template_segment).at(base)[tile_id];
 		}
 
 		inline const Vect<SeqQualityStats<uintFragCount>> &SequenceQualityMeanForGCPerTileReference(uintTempSeq template_segment, uintTileId tile_id) const{
-			return sequence_quality_mean_for_gc_per_tile_reference_.at(template_segment).at(tile_id);
+			return sequence_quality_mean_for_gc_per_tile_reference_.at(template_segment)[tile_id];
 		}
 		inline const Vect<Vect<uintFragCount>> &SequenceQualityMeanForMeanErrorRatePerTileReference(uintTempSeq template_segment, uintTileId tile_id) const{
-			return sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(template_segment).at(tile_id);
+			return sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(template_segment)[tile_id];
 		}
 		inline const Vect<Vect<uintFragCount>> &SequenceQualityMeanForFragmentLengthPerTileReference(uintTempSeq template_segment, uintTileId tile_id) const{
-			return sequence_quality_mean_for_fragment_length_per_tile_reference_.at(template_segment).at(tile_id);
+			return sequence_quality_mean_for_fragment_length_per_tile_reference_.at(template_segment)[tile_id];
 		}
 		inline const Vect<Vect<uintFragCount>> &MeanErrorRateForGCPerTileReference(uintTempSeq template_segment, uintTileId tile_id) const{
-			return mean_error_rate_for_gc_per_tile_reference_.at(template_segment).at(tile_id);
+			return mean_error_rate_for_gc_per_tile_reference_.at(template_segment)[tile_id];
 		}
 		inline const Vect<Vect<uintFragCount>> &MeanErrorRateForFragmentLengthPerTileReference(uintTempSeq template_segment, uintTileId tile_id) const{
-			return mean_error_rate_for_fragment_length_per_tile_reference_.at(template_segment).at(tile_id);
+			return mean_error_rate_for_fragment_length_per_tile_reference_.at(template_segment)[tile_id];
 		}
 		inline const Vect<Vect<uintFragCount>> &GCForFragmentLengthPerTileReference(uintTempSeq template_segment, uintTileId tile_id) const{
-			return gc_for_fragment_length_per_tile_reference_.at(template_segment).at(tile_id);
+			return gc_for_fragment_length_per_tile_reference_.at(template_segment)[tile_id];
 		}
 
 		inline const Vect<Vect<uintFragCount>> &SequenceQualityMeanPaired(uintTileId tile_id) const{
@@ -290,13 +290,13 @@ namespace reseq{
 		}
 
 		inline const Vect<SeqQualityStats<uintNucCount>> &BaseQualityStatsReference(uintTempSeq template_segment, uintTileId tile_id, uintBaseCall ref_base) const{
-			return base_quality_stats_per_tile_reference_.at(template_segment).at(ref_base).at(tile_id);
+			return base_quality_stats_per_tile_reference_.at(template_segment).at(ref_base)[tile_id];
 		}
 		inline const Vect<Vect<uintNucCount>> &ErrorRateForPositionReference(uintTempSeq template_segment, uintTileId tile_id, uintBaseCall base) const{
-			return error_rate_for_position_per_tile_reference_.at(template_segment).at(base).at(tile_id);
+			return error_rate_for_position_per_tile_reference_.at(template_segment).at(base)[tile_id];
 		}
 		inline const Vect<Vect<uintNucCount>> &BaseQualityForErrorRateReference(uintTempSeq template_segment, uintTileId tile_id, uintBaseCall base) const{
-			return base_quality_for_error_rate_per_tile_reference_.at(template_segment).at(base).at(tile_id);
+			return base_quality_for_error_rate_per_tile_reference_.at(template_segment).at(base)[tile_id];
 		}
 
 		inline const Vect<SeqQualityStats<uintNucCount>> &BaseQualityStatsReference(uintTempSeq template_segment) const{
@@ -458,7 +458,7 @@ namespace reseq{
 				paired_seq_qual = seq_qual_stats.mean_;
 			}
 
-			for(auto nuc=5; nuc--; ){
+			for(auto nuc=tmp_sequence_quality_for_base_per_tile_.at(template_segment).size(); nuc--; ){
 				++tmp_sequence_quality_for_base_per_tile_.at(template_segment).at(nuc).at(tile_id).at(reseq::utilities::Percent( read_bases.at(nuc), read_length )).at(seq_qual_stats.mean_);
 			}
 			++tmp_sequence_quality_mean_for_gc_per_tile_.at(template_segment).at(tile_id).at(reseq::utilities::Percent( read_bases.at(1)+read_bases.at(2)+read_bases.at(4)/2, read_length )).at(seq_qual_stats.mean_);

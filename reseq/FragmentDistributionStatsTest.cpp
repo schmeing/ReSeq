@@ -27,6 +27,7 @@ using seqan::Dna5String;
 using seqan::length;
 
 #include "utilities.hpp"
+using reseq::utilities::at;
 using reseq::utilities::IntPow;
 using reseq::utilities::InvLogit2;
 using reseq::utilities::Percent;
@@ -70,10 +71,10 @@ void FragmentDistributionStatsTest::TestOutskirtContent(
 		uintNucCount cont_g,
 		uintNucCount cont_t,
 		const char * context ){
-	EXPECT_EQ(cont_a, test.outskirt_content_[template_segment][0][at_pos]) << "outskirt_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
-	EXPECT_EQ(cont_c, test.outskirt_content_[template_segment][1][at_pos]) << "outskirt_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
-	EXPECT_EQ(cont_g, test.outskirt_content_[template_segment][2][at_pos]) << "outskirt_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
-	EXPECT_EQ(cont_t, test.outskirt_content_[template_segment][3][at_pos]) << "outskirt_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_a, test.outskirt_content_.at(template_segment).at(0)[at_pos]) << "outskirt_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_c, test.outskirt_content_.at(template_segment).at(1)[at_pos]) << "outskirt_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_g, test.outskirt_content_.at(template_segment).at(2)[at_pos]) << "outskirt_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_t, test.outskirt_content_.at(template_segment).at(3)[at_pos]) << "outskirt_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
 }
 
 void FragmentDistributionStatsTest::TearDown(){
@@ -101,7 +102,7 @@ void FragmentDistributionStatsTest::CreateCoverageDataHelper(uintPercent gc_perc
 
 	// Start bias
 	double sur_bias = 0.0;
-	switch( static_cast<char>(species_reference_.ReferenceSequence(0)[start_pos]) ){
+	switch( static_cast<char>(at(species_reference_.ReferenceSequence(0), start_pos)) ){
 	case 'A':
 		sur_bias -= 0.4;
 		break;
@@ -119,7 +120,7 @@ void FragmentDistributionStatsTest::CreateCoverageDataHelper(uintPercent gc_perc
 
 	// End bias (must be reverse of start bias)
 	sur_bias = 0.0;
-	switch( static_cast<char>(species_reference_.ReferenceSequence(0)[start_pos+fragment_length-1]) ){
+	switch( static_cast<char>(at(species_reference_.ReferenceSequence(0), start_pos+fragment_length-1)) ){
 	case 'A':
 		sur_bias += 0.4;
 		break;
@@ -170,7 +171,7 @@ void FragmentDistributionStatsTest::CreateCoverageData(uintSeqLen fragment_lengt
 
 	CreateCoverageDataHelper(gc_perc, dist_ref_seq_ends, fragment_length, rgen);
 
-	const Dna5String &ref_seq(species_reference_[ref_seq_id]);
+	const Dna5String &ref_seq(species_reference_.ReferenceSequence(ref_seq_id));
 	for( uintSeqLen start_pos=dist_ref_seq_ends; start_pos < length(ref_seq)-fragment_length-dist_ref_seq_ends; ){
 		species_reference_.UpdateGC( gc, n_count, ref_seq_id, start_pos, start_pos+fragment_length );
 		gc_perc = SafePercent(gc, fragment_length-n_count);
@@ -181,7 +182,7 @@ void FragmentDistributionStatsTest::CreateCoverageData(uintSeqLen fragment_lengt
 
 void FragmentDistributionStatsTest::TestSrr490124Equality(const FragmentDistributionStats &test, const char *context){
 	EXPECT_EQ(1, test.abundance_.size() ) << "SRR490124-4pairs abundance_ wrong for " << context << '\n';
-	EXPECT_EQ(2, test.abundance_[0] ) << "SRR490124-4pairs abundance_ wrong for " << context << '\n';
+	EXPECT_EQ(2, test.abundance_.at(0) ) << "SRR490124-4pairs abundance_ wrong for " << context << '\n';
 
 	// samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '{if(1==NR%2){store=$4}else{print store, $4, $4-store+length($10)}}'
 	EXPECT_EQ(59, test.insert_lengths_.size()) << "SRR490124-4pairs insert_lengths_ wrong for " << context << '\n';
@@ -194,28 +195,28 @@ void FragmentDistributionStatsTest::TestSrr490124Equality(const FragmentDistribu
 	EXPECT_EQ(1, test.gc_fragment_content_[53]) << "SRR490124-4pairs gc_fragment_content_ wrong for " << context << '\n';
 
 	// cat <(samtools view ecoli-SRR490124-4pairs.bam -q 10 -f 144 -F 32 | awk '($4+2000>$8){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $8-10 "-" $4+length($10)-1+10)}' | seqtk seq) <(samtools view ecoli-SRR490124-4pairs.bam -q 10 -f 80 -F 32 | awk '($4+2000>$8){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $8-10 "-" $4+length($10)-1+10)}' | seqtk seq -r) | awk '(0==NR%2){print ">0", substr($0,1,10); print substr($0,length($0)-9,10); print ">1", substr($0,11,10); print substr($0,length($0)-19,10);print ">2", substr($0,21,10); print substr($0,length($0)-29,10);}' | seqtk seq -r | awk '{if(1==NR%2){sur=substr($0, 2, 1); print "start", sur, $2}else{print "end", sur, $0}}' | awk 'BEGIN{d["A"]=0;d["C"]=1;d["G"]=2;d["T"]=3}{mult=1;sur=0;for(i=length($3);i>0;i-=1){sur+=mult*d[substr($3,i,1)];mult*=4}; print $1, $2, $3, sur}' | sort
-	EXPECT_EQ(1, test.fragment_surroundings_[0][39619]) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
-	EXPECT_EQ(1, test.fragment_surroundings_[0][1009062]) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
-	EXPECT_EQ(1, test.fragment_surroundings_[1][561168]) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
-	EXPECT_EQ(1, test.fragment_surroundings_[1][996771]) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
-	EXPECT_EQ(1, test.fragment_surroundings_[2][307041]) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
-	EXPECT_EQ(1, test.fragment_surroundings_[2][856654]) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
-	EXPECT_EQ(1, test.fragment_surroundings_[0][607462]) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
-	EXPECT_EQ(1, test.fragment_surroundings_[0][983881]) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
-	EXPECT_EQ(1, test.fragment_surroundings_[1][354618]) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
-	EXPECT_EQ(1, test.fragment_surroundings_[1][765926]) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
-	EXPECT_EQ(1, test.fragment_surroundings_[2][333453]) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
-	EXPECT_EQ(1, test.fragment_surroundings_[2][405510]) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
+	EXPECT_EQ(1, test.fragment_surroundings_.at(0).at(39619)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
+	EXPECT_EQ(1, test.fragment_surroundings_.at(0).at(1009062)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
+	EXPECT_EQ(1, test.fragment_surroundings_.at(1).at(561168)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
+	EXPECT_EQ(1, test.fragment_surroundings_.at(1).at(996771)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
+	EXPECT_EQ(1, test.fragment_surroundings_.at(2).at(307041)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
+	EXPECT_EQ(1, test.fragment_surroundings_.at(2).at(856654)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
+	EXPECT_EQ(1, test.fragment_surroundings_.at(0).at(607462)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
+	EXPECT_EQ(1, test.fragment_surroundings_.at(0).at(983881)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
+	EXPECT_EQ(1, test.fragment_surroundings_.at(1).at(354618)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
+	EXPECT_EQ(1, test.fragment_surroundings_.at(1).at(765926)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
+	EXPECT_EQ(1, test.fragment_surroundings_.at(2).at(333453)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
+	EXPECT_EQ(1, test.fragment_surroundings_.at(2).at(405510)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
 
 	// samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(1==NR%2){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa " $3 ":" $4-20 "-" $4-1)}(0==NR%2){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa " $3 ":" $4+length($10) "-" $4+length($10)+19)}' | seqtk seq -r | awk '(2==NR%4){store=$0}(0==NR%4){print $0 store}' | awk '{for(pos=1;pos<=length($0);pos+=1){print substr($0,pos,1), pos-1}}' | sort | uniq -c | sort -k2,2 -k3,3n
-	EXPECT_EQ(0, test.outskirt_content_[0][0].size()) << "SRR490124-4pairs outskirt_content_[0][0].size() not correct for " << context << '\n';
-	EXPECT_EQ(0, test.outskirt_content_[0][1].size()) << "SRR490124-4pairs outskirt_content_[0][1].size() not correct for " << context << '\n';
-	EXPECT_EQ(0, test.outskirt_content_[0][2].size()) << "SRR490124-4pairs outskirt_content_[0][2].size() not correct for " << context << '\n';
-	EXPECT_EQ(0, test.outskirt_content_[0][3].size()) << "SRR490124-4pairs outskirt_content_[0][3].size() not correct for " << context << '\n';
-	EXPECT_EQ(37, test.outskirt_content_[1][0].size()) << "SRR490124-4pairs outskirt_content_[1][0].size() not correct for " << context << '\n';
-	EXPECT_EQ(36, test.outskirt_content_[1][1].size()) << "SRR490124-4pairs outskirt_content_[1][1].size() not correct for " << context << '\n';
-	EXPECT_EQ(40, test.outskirt_content_[1][2].size()) << "SRR490124-4pairs outskirt_content_[1][2].size() not correct for " << context << '\n';
-	EXPECT_EQ(37, test.outskirt_content_[1][3].size()) << "SRR490124-4pairs outskirt_content_[1][3].size() not correct for " << context << '\n';
+	EXPECT_EQ(0, test.outskirt_content_.at(0).at(0).size()) << "SRR490124-4pairs outskirt_content_[0][0].size() not correct for " << context << '\n';
+	EXPECT_EQ(0, test.outskirt_content_.at(0).at(1).size()) << "SRR490124-4pairs outskirt_content_[0][1].size() not correct for " << context << '\n';
+	EXPECT_EQ(0, test.outskirt_content_.at(0).at(2).size()) << "SRR490124-4pairs outskirt_content_[0][2].size() not correct for " << context << '\n';
+	EXPECT_EQ(0, test.outskirt_content_.at(0).at(3).size()) << "SRR490124-4pairs outskirt_content_[0][3].size() not correct for " << context << '\n';
+	EXPECT_EQ(37, test.outskirt_content_.at(1).at(0).size()) << "SRR490124-4pairs outskirt_content_[1][0].size() not correct for " << context << '\n';
+	EXPECT_EQ(36, test.outskirt_content_.at(1).at(1).size()) << "SRR490124-4pairs outskirt_content_[1][1].size() not correct for " << context << '\n';
+	EXPECT_EQ(40, test.outskirt_content_.at(1).at(2).size()) << "SRR490124-4pairs outskirt_content_[1][2].size() not correct for " << context << '\n';
+	EXPECT_EQ(37, test.outskirt_content_.at(1).at(3).size()) << "SRR490124-4pairs outskirt_content_[1][3].size() not correct for " << context << '\n';
 	// samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(1==NR%2){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa " $3 ":" $4-20 "-" $4-1)}(0==NR%2){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa " $3 ":" $4+length($10) "-" $4+length($10)+19)}' | seqtk seq -r | awk '(2==NR%4){store=$0}(0==NR%4){print $0 store}' | awk '{for(pos=1;pos<=length($0);pos+=1){print substr($0,pos,1), pos-1}}' | sort | uniq -c | sort -k3,3n -k2,2
 	TestOutskirtContent(test, 1, 0, 0, 0, 1, 1, context);
 	TestOutskirtContent(test, 1, 1, 0, 1, 1, 0, context);
@@ -256,9 +257,9 @@ void FragmentDistributionStatsTest::TestCrossDuplicates(const FragmentDistributi
 void FragmentDistributionStatsTest::TestCoverage(const FragmentDistributionStats &test){
 	// The tests below were done manually and are not updated yet with verification commands
 	EXPECT_EQ(1230, test.abundance_.size() ) << "abundance_ wrong in coverage test\n";
-	EXPECT_EQ(1, test.abundance_[2] ) << "abundance_ wrong in coverage test\n";
-	EXPECT_EQ(1, test.abundance_[3] ) << "abundance_ wrong in coverage test\n";
-	EXPECT_EQ(1, test.abundance_[8] ) << "abundance_ wrong in coverage test\n";
+	EXPECT_EQ(1, test.abundance_.at(2) ) << "abundance_ wrong in coverage test\n";
+	EXPECT_EQ(1, test.abundance_.at(3) ) << "abundance_ wrong in coverage test\n";
+	EXPECT_EQ(1, test.abundance_.at(8) ) << "abundance_ wrong in coverage test\n";
 }
 // Adapter with mapping quality 8 still used for adapters
 void FragmentDistributionStatsTest::TestAdapters(const FragmentDistributionStats &test){
@@ -279,25 +280,25 @@ void FragmentDistributionStatsTest::TestAdapters(const FragmentDistributionStats
 	EXPECT_EQ(1, test.gc_fragment_content_[53] );
 
 	// cat <(samtools view ecoli-SRR490124-adapter.bam -q 10 -f 144 -F 32 | awk '($4+2000>$8){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $8-10 "-" $4+length($10)-1+10)}' | seqtk seq) <(samtools view ecoli-SRR490124-adapter.bam -q 10 -f 80 -F 32 | awk '($4+2000>$8){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $8-10 "-" $4+length($10)-1+10)}' | seqtk seq -r) | awk '(0==NR%2){print ">0", substr($0,1,10); print substr($0,length($0)-9,10); print ">1", substr($0,11,10); print substr($0,length($0)-19,10);print ">2", substr($0,21,10); print substr($0,length($0)-29,10);}' | seqtk seq -r | awk '{if(1==NR%2){sur=substr($0, 2, 1); print "start", sur, $2}else{print "end", sur, $0}}' | awk 'BEGIN{d["A"]=0;d["C"]=1;d["G"]=2;d["T"]=3}{mult=1;sur=0;for(i=length($3);i>0;i-=1){sur+=mult*d[substr($3,i,1)];mult*=4}; print $1, $2, $3, sur}' | sort
-	EXPECT_EQ(1, test.fragment_surroundings_[0][817646]);
-	EXPECT_EQ(1, test.fragment_surroundings_[0][940919]);
-	EXPECT_EQ(1, test.fragment_surroundings_[1][10510]);
-	EXPECT_EQ(1, test.fragment_surroundings_[1][477197]);
-	EXPECT_EQ(1, test.fragment_surroundings_[2][495577]);
-	EXPECT_EQ(1, test.fragment_surroundings_[2][718722]);
-	EXPECT_EQ(1, test.fragment_surroundings_[0][301332]);
-	EXPECT_EQ(1, test.fragment_surroundings_[0][824719]);
-	EXPECT_EQ(1, test.fragment_surroundings_[1][339634]);
-	EXPECT_EQ(1, test.fragment_surroundings_[1][595486]);
-	EXPECT_EQ(1, test.fragment_surroundings_[2][158717]);
-	EXPECT_EQ(1, test.fragment_surroundings_[2][289540]);
+	EXPECT_EQ(1, test.fragment_surroundings_.at(0).at(817646));
+	EXPECT_EQ(1, test.fragment_surroundings_.at(0).at(940919));
+	EXPECT_EQ(1, test.fragment_surroundings_.at(1).at(10510));
+	EXPECT_EQ(1, test.fragment_surroundings_.at(1).at(477197));
+	EXPECT_EQ(1, test.fragment_surroundings_.at(2).at(495577));
+	EXPECT_EQ(1, test.fragment_surroundings_.at(2).at(718722));
+	EXPECT_EQ(1, test.fragment_surroundings_.at(0).at(301332));
+	EXPECT_EQ(1, test.fragment_surroundings_.at(0).at(824719));
+	EXPECT_EQ(1, test.fragment_surroundings_.at(1).at(339634));
+	EXPECT_EQ(1, test.fragment_surroundings_.at(1).at(595486));
+	EXPECT_EQ(1, test.fragment_surroundings_.at(2).at(158717));
+	EXPECT_EQ(1, test.fragment_surroundings_.at(2).at(289540));
 
 	// samtools view ecoli-SRR490124-adapter.bam -q 10 -f 80 -F 32 | awk '($4+2000>$8){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $8-20 "-" $4+length($10)-1+20)}' | seqtk seq -r | awk '(0==NR%2){print substr($0,1,20) substr($0,length($0)-19,20)}' | awk '{for(pos=1;pos<=length($0);++pos){print 1, substr($0,pos,1), pos-1}}' | sort -k1,2 -k3,3n
-	EXPECT_EQ(31, test.outskirt_content_[1][1].size() );
-	EXPECT_EQ(1, test.outskirt_content_[1][1][4] );
-	EXPECT_EQ(1, test.outskirt_content_[1][1][7] );
-	EXPECT_EQ(1, test.outskirt_content_[1][1][31] );
-	EXPECT_EQ(1, test.outskirt_content_[1][1][34] );
+	EXPECT_EQ(31, test.outskirt_content_.at(1).at(1).size() );
+	EXPECT_EQ(1, test.outskirt_content_.at(1).at(1)[4] );
+	EXPECT_EQ(1, test.outskirt_content_.at(1).at(1)[7] );
+	EXPECT_EQ(1, test.outskirt_content_.at(1).at(1)[31] );
+	EXPECT_EQ(1, test.outskirt_content_.at(1).at(1)[34] );
 }
 
 void FragmentDistributionStatsTest::BiasCalculationThread(FragmentDistributionStats &test, const Reference &reference, FragmentDuplicationStats &duplications, BiasCalculationVectors &thread_values, mutex &print_mutex){
@@ -309,7 +310,7 @@ namespace reseq{
 		LoadReference("reference-test.fa");
 		CreateTestObject(&species_reference_);
 
-		test_->abundance_[0] = 7084; // bias=1.0
+		test_->abundance_.at(0) = 7084; // bias=1.0
 
 		test_->insert_lengths_[10] = 7084; // bias=1.0
 		test_->insert_lengths_.Shrink();
@@ -320,98 +321,98 @@ namespace reseq{
 		test_->gc_fragment_content_.Shrink();
 
 		// Fragment start
-		test_->fragment_surroundings_[0][954112] = 1500; // TGGATTAAAA bias=1.0
-		test_->fragment_surroundings_[0][771557] = 192; // GTTACCTGCC bias=1.0
-		test_->fragment_surroundings_[0][756483] = 3200; // GTGAGTAAAT bias=1.0
-		test_->fragment_surroundings_[0][594450] = 2000; // GCACAGACAG bias=0.4
-		test_->fragment_surroundings_[0][258785] = 192; // ATTTAGTGAC bias=0.8
-		test_->fragment_surroundings_[1][8941] = 1500; // AAAGAGTGTC bias=1.0
-		test_->fragment_surroundings_[1][756483] = 192; // GTGAGTAAAT bias=1.0
-		test_->fragment_surroundings_[1][787452] = 2*3200; // TAAAATTTTA bias=0.8
-		test_->fragment_surroundings_[1][196668] = 2000; // ATAAAAATTA bias=1.0
-		test_->fragment_surroundings_[1][461635] = 192; // CTAAGTCAAT bias=1.0
-		test_->fragment_surroundings_[2][930377] = 1500; // TGATAGCAGC bias=1.0
-		test_->fragment_surroundings_[2][787452] = 192; // TAAAATTTTA bias=0.8
-		test_->fragment_surroundings_[2][1017802] = 3200; // TTGACTTAGG bias=1.0
-		test_->fragment_surroundings_[2][297745] = 2000; // CAGAGTACAC bias=1.0
-		test_->fragment_surroundings_[2][4080] = 192; // AAAATTTTAA bias=0.6
+		test_->fragment_surroundings_.at(0).at(954112) = 1500; // TGGATTAAAA bias=1.0
+		test_->fragment_surroundings_.at(0).at(771557) = 192; // GTTACCTGCC bias=1.0
+		test_->fragment_surroundings_.at(0).at(756483) = 3200; // GTGAGTAAAT bias=1.0
+		test_->fragment_surroundings_.at(0).at(594450) = 2000; // GCACAGACAG bias=0.4
+		test_->fragment_surroundings_.at(0).at(258785) = 192; // ATTTAGTGAC bias=0.8
+		test_->fragment_surroundings_.at(1).at(8941) = 1500; // AAAGAGTGTC bias=1.0
+		test_->fragment_surroundings_.at(1).at(756483) = 192; // GTGAGTAAAT bias=1.0
+		test_->fragment_surroundings_.at(1).at(787452) = 2*3200; // TAAAATTTTA bias=0.8
+		test_->fragment_surroundings_.at(1).at(196668) = 2000; // ATAAAAATTA bias=1.0
+		test_->fragment_surroundings_.at(1).at(461635) = 192; // CTAAGTCAAT bias=1.0
+		test_->fragment_surroundings_.at(2).at(930377) = 1500; // TGATAGCAGC bias=1.0
+		test_->fragment_surroundings_.at(2).at(787452) = 192; // TAAAATTTTA bias=0.8
+		test_->fragment_surroundings_.at(2).at(1017802) = 3200; // TTGACTTAGG bias=1.0
+		test_->fragment_surroundings_.at(2).at(297745) = 2000; // CAGAGTACAC bias=1.0
+		test_->fragment_surroundings_.at(2).at(4080) = 192; // AAAATTTTAA bias=0.6
 
 		// Fragment end
-		test_->fragment_surroundings_[0][649012] = 1500; // GCTGCTATCA bias=1.0
-		test_->fragment_surroundings_[0][787452] = 192; // TAAAATTTTA bias=0.8
-		test_->fragment_surroundings_[0][377552] = 3200; // CCTAAGTCAA bias=1.0
-		test_->fragment_surroundings_[0][766430] = 2000; // GTGTACTCTG bias=1.0
-		test_->fragment_surroundings_[0][983295] = 192; // TTAAAATTTT bias=1.0
-		test_->fragment_surroundings_[1][542591] = 1500; // GACACTCTTT bias=1.0
-		test_->fragment_surroundings_[1][258513] = 192; // ATTTACTCAC bias=1.0
-		//test_->fragment_surroundings_[1][787452] = 2*3200; // TAAAATTTTA bias=0.8; it is also a start surrounding
-		test_->fragment_surroundings_[1][802803] = 2000; // TAATTTTTAT bias=1.0
-		test_->fragment_surroundings_[1][254450] = 192; // ATTGACTTAG bias=1.0
-		test_->fragment_surroundings_[2][1044692] = 1500; // TTTTAATCCA bias=1.0
-		test_->fragment_surroundings_[2][674497] = 192; // GGCAGGTAAC bias=0.6
-		test_->fragment_surroundings_[2][258513] = 3200; // ATTTACTCAC bias=1.0
-		test_->fragment_surroundings_[2][505785] = 2000; // CTGTCTGTGC bias=1.0
-		test_->fragment_surroundings_[2][739075] = 192; // GTCACTAAAT bias=0.8
+		test_->fragment_surroundings_.at(0).at(649012) = 1500; // GCTGCTATCA bias=1.0
+		test_->fragment_surroundings_.at(0).at(787452) = 192; // TAAAATTTTA bias=0.8
+		test_->fragment_surroundings_.at(0).at(377552) = 3200; // CCTAAGTCAA bias=1.0
+		test_->fragment_surroundings_.at(0).at(766430) = 2000; // GTGTACTCTG bias=1.0
+		test_->fragment_surroundings_.at(0).at(983295) = 192; // TTAAAATTTT bias=1.0
+		test_->fragment_surroundings_.at(1).at(542591) = 1500; // GACACTCTTT bias=1.0
+		test_->fragment_surroundings_.at(1).at(258513) = 192; // ATTTACTCAC bias=1.0
+		//test_->fragment_surroundings_.at(1).at(787452) = 2*3200; // TAAAATTTTA bias=0.8; it is also a start surrounding
+		test_->fragment_surroundings_.at(1).at(802803) = 2000; // TAATTTTTAT bias=1.0
+		test_->fragment_surroundings_.at(1).at(254450) = 192; // ATTGACTTAG bias=1.0
+		test_->fragment_surroundings_.at(2).at(1044692) = 1500; // TTTTAATCCA bias=1.0
+		test_->fragment_surroundings_.at(2).at(674497) = 192; // GGCAGGTAAC bias=0.6
+		test_->fragment_surroundings_.at(2).at(258513) = 3200; // ATTTACTCAC bias=1.0
+		test_->fragment_surroundings_.at(2).at(505785) = 2000; // CTGTCTGTGC bias=1.0
+		test_->fragment_surroundings_.at(2).at(739075) = 192; // GTCACTAAAT bias=0.8
 
 		vector<double> separated_surroundings;
 		test_->SeparateSurroundingPositions(separated_surroundings, test_->fragment_surroundings_);
 		double mean = (192 + 3200 + 192+3200+2000+1500+2000 + 1500+192+192)/4.0;
-		EXPECT_DOUBLE_EQ((192-mean)/IntPow(4,9), separated_surroundings[0]);
-		EXPECT_DOUBLE_EQ((3200-mean)/IntPow(4,9), separated_surroundings[1]);
-		EXPECT_DOUBLE_EQ((192+3200+2000+1500+2000-mean)/IntPow(4,9), separated_surroundings[2]);
-		EXPECT_DOUBLE_EQ((1500+192+192-mean)/IntPow(4,9), separated_surroundings[3]);
+		EXPECT_DOUBLE_EQ((192-mean)/IntPow(4,9), separated_surroundings.at(0));
+		EXPECT_DOUBLE_EQ((3200-mean)/IntPow(4,9), separated_surroundings.at(1));
+		EXPECT_DOUBLE_EQ((192+3200+2000+1500+2000-mean)/IntPow(4,9), separated_surroundings.at(2));
+		EXPECT_DOUBLE_EQ((1500+192+192-mean)/IntPow(4,9), separated_surroundings.at(3));
 		mean = (1500+1500+192+3200 + 192+192 + 2000+2000 + 3200+192)/4.0;
-		EXPECT_DOUBLE_EQ((1500+1500+192+3200-mean)/IntPow(4,9), separated_surroundings[36]);
-		EXPECT_DOUBLE_EQ((192+192-mean)/IntPow(4,9), separated_surroundings[37]);
-		EXPECT_DOUBLE_EQ((2000+2000-mean)/IntPow(4,9), separated_surroundings[38]);
-		EXPECT_DOUBLE_EQ((3200+192-mean)/IntPow(4,9), separated_surroundings[39]);
+		EXPECT_DOUBLE_EQ((1500+1500+192+3200-mean)/IntPow(4,9), separated_surroundings.at(36));
+		EXPECT_DOUBLE_EQ((192+192-mean)/IntPow(4,9), separated_surroundings.at(37));
+		EXPECT_DOUBLE_EQ((2000+2000-mean)/IntPow(4,9), separated_surroundings.at(38));
+		EXPECT_DOUBLE_EQ((3200+192-mean)/IntPow(4,9), separated_surroundings.at(39));
 
 		mean = (1500+2000+192+192 + 192 + 192+1500 + 2*3200+2000)/4.0;
-		EXPECT_EQ((1500+2000+192+192-mean)/IntPow(4,9), separated_surroundings[40]);
-		EXPECT_EQ((192-mean)/IntPow(4,9), separated_surroundings[41]);
-		EXPECT_EQ((192+1500-mean)/IntPow(4,9), separated_surroundings[42]);
-		EXPECT_EQ((2*3200+2000-mean)/IntPow(4,9), separated_surroundings[43]);
+		EXPECT_EQ((1500+2000+192+192-mean)/IntPow(4,9), separated_surroundings.at(40));
+		EXPECT_EQ((192-mean)/IntPow(4,9), separated_surroundings.at(41));
+		EXPECT_EQ((192+1500-mean)/IntPow(4,9), separated_surroundings.at(42));
+		EXPECT_EQ((2*3200+2000-mean)/IntPow(4,9), separated_surroundings.at(43));
 		mean = (2*3200+2000 + 1500+192 + 192 + 192+192+1500+2000)/4.0;
-		EXPECT_EQ((2*3200+2000-mean)/IntPow(4,9), separated_surroundings[76]);
-		EXPECT_EQ((1500+192-mean)/IntPow(4,9), separated_surroundings[77]);
-		EXPECT_EQ((192-mean)/IntPow(4,9), separated_surroundings[78]);
-		EXPECT_EQ((192+192+1500+2000-mean)/IntPow(4,9), separated_surroundings[79]);
+		EXPECT_EQ((2*3200+2000-mean)/IntPow(4,9), separated_surroundings.at(76));
+		EXPECT_EQ((1500+192-mean)/IntPow(4,9), separated_surroundings.at(77));
+		EXPECT_EQ((192-mean)/IntPow(4,9), separated_surroundings.at(78));
+		EXPECT_EQ((192+192+1500+2000-mean)/IntPow(4,9), separated_surroundings.at(79));
 
 		mean = (192+3200 + 2000+2000 + 192+192 + 1500+192+3200+1500)/4.0;
-		EXPECT_EQ((192+3200-mean)/IntPow(4,9), separated_surroundings[80]);
-		EXPECT_EQ((2000+2000-mean)/IntPow(4,9), separated_surroundings[81]);
-		EXPECT_EQ((192+192-mean)/IntPow(4,9), separated_surroundings[82]);
-		EXPECT_EQ((1500+192+3200+1500-mean)/IntPow(4,9), separated_surroundings[83]);
+		EXPECT_EQ((192+3200-mean)/IntPow(4,9), separated_surroundings.at(80));
+		EXPECT_EQ((2000+2000-mean)/IntPow(4,9), separated_surroundings.at(81));
+		EXPECT_EQ((192+192-mean)/IntPow(4,9), separated_surroundings.at(82));
+		EXPECT_EQ((1500+192+3200+1500-mean)/IntPow(4,9), separated_surroundings.at(83));
 		mean = (192+192+1500 + 1500+2000+192+3200+2000 + 3200 + 192)/4.0;
-		EXPECT_EQ((192+192+1500-mean)/IntPow(4,9), separated_surroundings[116]);
-		EXPECT_EQ((1500+2000+192+3200+2000-mean)/IntPow(4,9), separated_surroundings[117]);
-		EXPECT_EQ((3200-mean)/IntPow(4,9), separated_surroundings[118]);
-		EXPECT_EQ((192-mean)/IntPow(4,9), separated_surroundings[119]);
+		EXPECT_EQ((192+192+1500-mean)/IntPow(4,9), separated_surroundings.at(116));
+		EXPECT_EQ((1500+2000+192+3200+2000-mean)/IntPow(4,9), separated_surroundings.at(117));
+		EXPECT_EQ((3200-mean)/IntPow(4,9), separated_surroundings.at(118));
+		EXPECT_EQ((192-mean)/IntPow(4,9), separated_surroundings.at(119));
 
 		array<double, 4*Reference::num_surrounding_blocks_*Reference::surrounding_range_> separated_bias;
 		separated_bias.fill(0.0);
 		for(uintSeqLen block=0; block <= 80; block += 40){
 			//ACGTTGCATA: 114252
-			separated_bias[block+0] = 0.9;
-			separated_bias[block+5] = 1.0;
-			separated_bias[block+10] = 1.0;
-			separated_bias[block+15] = 1.0;
-			separated_bias[block+19] = 1.0;
-			separated_bias[block+22] = 1.0;
-			separated_bias[block+25] = 1.0;
-			separated_bias[block+28] = 1.0;
-			separated_bias[block+35] = 1.0;
-			separated_bias[block+36] = 1.0;
+			separated_bias.at(block+0) = 0.9;
+			separated_bias.at(block+5) = 1.0;
+			separated_bias.at(block+10) = 1.0;
+			separated_bias.at(block+15) = 1.0;
+			separated_bias.at(block+19) = 1.0;
+			separated_bias.at(block+22) = 1.0;
+			separated_bias.at(block+25) = 1.0;
+			separated_bias.at(block+28) = 1.0;
+			separated_bias.at(block+35) = 1.0;
+			separated_bias.at(block+36) = 1.0;
 			//ACGTT[C]CATA: 113996
-			separated_bias[block+21] = 0.8;
+			separated_bias.at(block+21) = 0.8;
 		}
 
 		array<vector<double>, Reference::num_surrounding_blocks_> combined_bias;
 		test_->CombineSurroundingPositions(combined_bias, separated_bias);
 
 		for(uintSurBlockId block=0; block < combined_bias.size(); ++block){
-			EXPECT_DOUBLE_EQ(9.9, combined_bias[block][114252]);
-			EXPECT_DOUBLE_EQ(9.7, combined_bias[block][113996]);
+			EXPECT_DOUBLE_EQ(9.9, combined_bias.at(block).at(114252));
+			EXPECT_DOUBLE_EQ(9.7, combined_bias.at(block).at(113996));
 		}
 	}
 

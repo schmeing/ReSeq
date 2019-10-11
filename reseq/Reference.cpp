@@ -51,6 +51,7 @@ using seqan::VcfRecord;
 #include "CMakeConfig.h"
 //include "utilities.hpp"
 using reseq::utilities::ComplementedConstDna5String;
+using reseq::utilities::at;
 using reseq::utilities::IsN;
 using reseq::utilities::Percent;
 using reseq::utilities::ReverseComplementorDna;
@@ -64,8 +65,8 @@ bool Reference::CheckVcf() const{
 		++errors;
 	}
 	for(uintRefSeqId con=0; con < min(static_cast<uintRefSeqId>(length(contigs)), NumberSequences()); ++con){
-		if(errors < 20 && contigs[con] != ReferenceIdFirstPart(con)){
-			printErr << "Contigs at position " << con << " do not match between reference(" << ReferenceId(con) << ") and variant(" << contigs[con] << ") file." << std::endl;
+		if(errors < 20 && at(contigs, con) != ReferenceIdFirstPart(con)){
+			printErr << "Contigs at position " << con << " do not match between reference(" << ReferenceId(con) << ") and variant(" << at(contigs, con) << ") file." << std::endl;
 			++errors;
 		}
 	}
@@ -189,17 +190,17 @@ bool Reference::ReadVariants(uintRefSeqId end_ref_seq_id, bool positions_only){
 
 					pos=0;
 					chosen_var=0;
-					while(pos < length(genotype) && ':' != genotype[pos]){
-						if('|' == genotype[pos] || '/' == genotype[pos]){
+					while(pos < length(genotype) && ':' != at(genotype, pos)){
+						if('|' == at(genotype, pos) || '/' == at(genotype, pos)){
 							allele.at(cur_allele++) = chosen_var;
 							chosen_var = 0;
 						}
-						else if('0' <= genotype[pos] && '9' >= genotype[pos]){
+						else if('0' <= at(genotype, pos) && '9' >= at(genotype, pos)){
 							chosen_var *= 10;
-							chosen_var += genotype[pos] - 48;
+							chosen_var += at(genotype, pos) - 48;
 						}
 						else{
-							printErr << "Unallowed character '" << genotype[pos] << "' in genotype definition '" << genotype << "'" << std::endl;
+							printErr << "Unallowed character '" << at(genotype, pos) << "' in genotype definition '" << genotype << "'" << std::endl;
 							if(++errors >= kMaxErrorsShownPerFile){
 								printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
 								break;
@@ -247,7 +248,7 @@ bool Reference::ReadVariants(uintRefSeqId end_ref_seq_id, bool positions_only){
 				chosen_var = 1; // 0 is the reference sequence
 				// Split alternative sequences
 				for(pos = 0; pos < length(cur_vcf_record_.alt); ++pos){
-					if(',' == cur_vcf_record_.alt[pos]){
+					if(',' == at(cur_vcf_record_.alt, pos)){
 						alt_start_pos.push_back(pos+1); // Position after the ',' is the start of the next alternative
 
 						// Check which genotypes have this variant
@@ -295,8 +296,8 @@ bool Reference::ReadVariants(uintRefSeqId end_ref_seq_id, bool positions_only){
 							}
 							else if(pos < alt_start_pos.at(n_alt+1)-1 - alt_start_pos.at(n_alt)){
 								// Base Mutation
-								if(vcf_ref_var_[pos] != cur_vcf_record_.alt[alt_start_pos.at(n_alt)+pos]){
-									inserted_variant = cur_vcf_record_.alt[alt_start_pos.at(n_alt)+pos];
+								if(at(vcf_ref_var_, pos) != at(cur_vcf_record_.alt, alt_start_pos.at(n_alt)+pos)){
+									inserted_variant = at(cur_vcf_record_.alt, alt_start_pos.at(n_alt)+pos);
 								}
 								else{
 									continue; // If variant is identical to reference, we don't need to add it
@@ -390,17 +391,17 @@ reseq::intSurrounding Reference::ForwardSurroundingBlock( uintRefSeqId ref_seq_i
 	intSurrounding return_value(0);
 	if( pos+surrounding_range_ <= length(ref_seq) ){
 		for( auto ref_pos = pos; ref_pos < pos+surrounding_range_; ++ref_pos ){
-			return_value = (return_value << 2) + static_cast<uintBaseCall>(ref_seq[ref_pos]);
+			return_value = (return_value << 2) + static_cast<uintBaseCall>(at(ref_seq, ref_pos));
 		}
 	}
 	else{
 		// Surrounding outside of sequence at end
 		for( auto ref_pos = pos; ref_pos < length(ref_seq); ++ref_pos ){
-			return_value = (return_value << 2) + static_cast<uintBaseCall>(ref_seq[ref_pos]);
+			return_value = (return_value << 2) + static_cast<uintBaseCall>(at(ref_seq, ref_pos));
 		}
 		// Circle around the reference sequence and continue at the beginning
 		for( auto ref_pos = 0; ref_pos < (pos+surrounding_range_)%length(ref_seq); ++ref_pos ){
-			return_value = (return_value << 2) + static_cast<uintBaseCall>(ref_seq[ref_pos]);
+			return_value = (return_value << 2) + static_cast<uintBaseCall>(at(ref_seq, ref_pos));
 		}
 	}
 
@@ -414,18 +415,18 @@ reseq::intSurrounding Reference::ReverseSurroundingBlock( uintRefSeqId ref_seq_i
 	intSurrounding return_value(0);
 	if( pos+surrounding_range_ <= length(ref_seq) ){
 		for( auto ref_pos = pos+surrounding_range_; ref_pos-- > pos; ){
-			return_value = (return_value << 2) + static_cast<uintBaseCall>(ref_seq[ref_pos]);
+			return_value = (return_value << 2) + static_cast<uintBaseCall>(at(ref_seq, ref_pos));
 		}
 	}
 	else{
 		// Surrounding outside of sequence at end
 		// Circle around the reference sequence and start at the beginning
 		for( auto ref_pos = pos+surrounding_range_-length(ref_seq); ref_pos--; ){
-			return_value = (return_value << 2) + static_cast<uintBaseCall>(ref_seq[ref_pos]);
+			return_value = (return_value << 2) + static_cast<uintBaseCall>(at(ref_seq, ref_pos));
 		}
 		// Go back to the end
 		for( auto ref_pos = length(ref_seq); ref_pos-- > pos; ){
-			return_value = (return_value << 2) + static_cast<uintBaseCall>(ref_seq[ref_pos]);
+			return_value = (return_value << 2) + static_cast<uintBaseCall>(at(ref_seq, ref_pos));
 		}
 	}
 
@@ -463,7 +464,7 @@ Reference::Reference():
 
 const Prefix<const CharString>::Type Reference::ReferenceIdFirstPart( uintRefSeqId n ) const{
 	uintSeqLen pos=0; // declare before the for loop to be able to access it afterwards
-	for( ; pos < length(ReferenceId(n)) && ' ' != ReferenceId(n)[pos]; ++pos ); // loop until pos is at the first ' ' or at the end of the string
+	for( ; pos < length(ReferenceId(n)) && ' ' != at(ReferenceId(n), pos); ++pos ); // loop until pos is at the first ' ' or at the end of the string
 	return prefix(ReferenceId(n), pos);
 }
 
@@ -791,8 +792,8 @@ bool Reference::ReadFasta(const char *fasta_file){
 
 	uintErrorCount errors=0;
 	for( auto ref_seq_id = length(tmp_ref_seqs); ref_seq_id--;  ){
-		if( length(tmp_ref_seqs[ref_seq_id]) > numeric_limits<uintSeqLen>::max() ){
-			printErr << "Reference sequence " << reference_ids_[ref_seq_id] << " is " << length(tmp_ref_seqs[ref_seq_id]) << " bases long. Currently a maximum of " << numeric_limits<uintSeqLen>::max() << " is supported." << std::endl;
+		if( length(at(tmp_ref_seqs, ref_seq_id)) > numeric_limits<uintSeqLen>::max() ){
+			printErr << "Reference sequence " << at(reference_ids_, ref_seq_id) << " is " << length(at(tmp_ref_seqs, ref_seq_id)) << " bases long. Currently a maximum of " << numeric_limits<uintSeqLen>::max() << " is supported." << std::endl;
 
 			if(++errors >= kMaxErrorsShownPerFile){
 				printErr << "Maximum number of errors reached. Additional errors are not shown for this reference." << std::endl;
@@ -897,8 +898,8 @@ bool Reference::ReadFirstVariants(){
 		num_alleles_ = 0;
 		for( auto &genotype : cur_vcf_record_.genotypeInfos ){
 			uint16_t pos=0;
-			while(pos < length(genotype) && ':' != genotype[pos]){
-				if('|' == genotype[pos] || '/' == genotype[pos]){
+			while(pos < length(genotype) && ':' != at(genotype, pos)){
+				if('|' == at(genotype, pos) || '/' == at(genotype, pos)){
 					++num_alleles_; // Additional alleles in a population
 				}
 				++pos;

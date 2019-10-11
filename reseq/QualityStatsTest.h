@@ -19,7 +19,7 @@ namespace reseq{
 		virtual void TearDown();
 
 		template<typename T> static void TestSizeAtIndex_0_1_98_99(
-				T& vector,
+				const Vect<T> &vector,
 				size_t size0,
 				size_t size1,
 				size_t size98,
@@ -33,12 +33,12 @@ namespace reseq{
 			EXPECT_EQ(size99, vector[99].size()) << err_msg << context << '\n';
 		}
 
-		template<typename T> static void TestValueAtIndex_0_1_98_99(
-				T& vector,
-				size_t val0,
-				size_t val1,
-				size_t val98,
-				size_t val99,
+		template<typename T, typename U> static void TestValueAtIndex_0_1_98_99(
+				const Vect<T> &vector,
+				U val0,
+				U val1,
+				U val98,
+				U val99,
 				const char *context,
 				const char *err_msg
 				){

@@ -59,6 +59,7 @@ using seqan::Dna5;
 
 //include "utilities.hpp"
 using reseq::utilities::Complement;
+using reseq::utilities::at;
 using reseq::utilities::Divide;
 using reseq::utilities::IntPow;
 using reseq::utilities::IsN;
@@ -1593,7 +1594,7 @@ void FragmentDistributionStats::AcquireBiases(const BiasCalculationVectors &calc
 }
 
 bool FragmentDistributionStats::StoreBias(){
-	printInfo << "Acquired " << static_cast<uintPercentPrint>(Percent(current_bias_result_, tmp_gc_bias_.at(0).size())) << "% of the bias fits." << std::endl;
+	printInfo << "Acquired " << static_cast<uintPercentPrint>(Percent(current_bias_result_, static_cast<uintNumFits>(tmp_gc_bias_.at(0).size()))) << "% of the bias fits." << std::endl;
 
 	// Remove the nan at the end for not converged fits, this will affect all gc and sur biases in the same way so do it only once
 	uintNumFits used_size = tmp_gc_bias_.at(0).size();
@@ -1631,7 +1632,7 @@ bool FragmentDistributionStats::StoreBias(){
 		tmp_sur_bias_.at(sur).resize(used_size);
 
 		sort(tmp_sur_bias_.at(sur).begin(), tmp_sur_bias_.at(sur).end());
-		sur_median[sur] = tmp_sur_bias_.at(sur).at( tmp_sur_bias_.at(sur).size()/2 );
+		sur_median.at(sur) = tmp_sur_bias_.at(sur).at( tmp_sur_bias_.at(sur).size()/2 );
 
 		tmp_sur_bias_.at(sur).clear();
 		tmp_sur_bias_.at(sur).shrink_to_fit();
@@ -1645,7 +1646,7 @@ bool FragmentDistributionStats::StoreBias(){
 		tmp_dispersion_parameters_.at(par).resize(used_size);
 
 		sort(tmp_dispersion_parameters_.at(par).begin(), tmp_dispersion_parameters_.at(par).end());
-		dispersion_parameters_[par] = tmp_dispersion_parameters_.at(par).at( tmp_dispersion_parameters_.at(par).size()/2 );
+		dispersion_parameters_.at(par) = tmp_dispersion_parameters_.at(par).at( tmp_dispersion_parameters_.at(par).size()/2 );
 
 		tmp_dispersion_parameters_.at(par).clear();
 		tmp_dispersion_parameters_.at(par).shrink_to_fit();
@@ -1722,7 +1723,7 @@ void FragmentDistributionStats::BiasSumThread(
 		const FragmentDistributionStats &self,
 		const Reference &reference,
 		const vector<BiasCalculationParams> &params,
-		atomic<vector<BiasCalculationParams>::size_type> &current_param,
+		atomic<uintNumFits> &current_param,
 		vector<double> &insert_length_sum,
 		vector<double> &ref_seq_sum,
 		vector<vector<VectorAtomic<uintFragCount>>> &site_count_by_insert_length_gc,
@@ -1759,7 +1760,7 @@ void FragmentDistributionStats::BiasNormalizationThread(
 		const FragmentDistributionStats &self,
 		const Reference &reference,
 		const vector<BiasCalculationParams> &params,
-		atomic<vector<BiasCalculationParams>::size_type> &current_param,
+		atomic<uintNumFits> &current_param,
 		double &norm,
 		mutex &result_mutex,
 		double &max_bias){
@@ -1840,7 +1841,7 @@ void FragmentDistributionStats::FillInOutskirtContent( const Reference &referenc
 
 		for(; outskirt_pos-- > kOutskirtRange; ){
 			if( !IsN(ref_seq, ref_pos) ){
-				++tmp_outskirt_content_.at(true).at(Complement::Dna5(ref_seq[ref_pos])).at(outskirt_pos);
+				++tmp_outskirt_content_.at(true).at(Complement::Dna5(at(ref_seq, ref_pos))).at(outskirt_pos);
 			}
 			++ref_pos;
 		}
@@ -1858,7 +1859,7 @@ void FragmentDistributionStats::FillInOutskirtContent( const Reference &referenc
 
 		for(; outskirt_pos < kOutskirtRange; ++outskirt_pos){
 			if( !IsN(ref_seq, ref_pos) ){
-				++tmp_outskirt_content_.at(false).at(ref_seq[ref_pos]).at(outskirt_pos);
+				++tmp_outskirt_content_.at(false).at(at(ref_seq, ref_pos)).at(outskirt_pos);
 			}
 			++ref_pos;
 		}
@@ -1879,7 +1880,7 @@ void FragmentDistributionStats::FillInOutskirtContent( const Reference &referenc
 		outskirt_pos = kOutskirtRange;
 		for(;  outskirt_pos-- && ref_pos < reference.SequenceLength(record_start.rNextId);){
 			if( !IsN(ref_seq, ref_pos) ){
-				++tmp_outskirt_content_.at(true).at(Complement::Dna5(ref_seq[ref_pos])).at(outskirt_pos);
+				++tmp_outskirt_content_.at(true).at(Complement::Dna5(at(ref_seq, ref_pos))).at(outskirt_pos);
 			}
 			++ref_pos;
 		}
@@ -1888,7 +1889,7 @@ void FragmentDistributionStats::FillInOutskirtContent( const Reference &referenc
 		// Forward strand:Fill in postfragment-content
 		for(; outskirt_pos < 2*kOutskirtRange && ref_pos < reference.SequenceLength(record_start.rNextId); ++outskirt_pos){
 			if( !IsN(ref_seq, ref_pos) ){
-				++tmp_outskirt_content_.at(false).at(ref_seq[ref_pos]).at(outskirt_pos);
+				++tmp_outskirt_content_.at(false).at(at(ref_seq, ref_pos)).at(outskirt_pos);
 			}
 			++ref_pos;
 		}
@@ -1943,7 +1944,7 @@ void FragmentDistributionStats::Finalize(){
 
 void FragmentDistributionStats::CalculateInsertLengthAndRefSeqBias(const Reference &reference, uintNumThreads num_threads, vector<vector<VectorAtomic<uintFragCount>>> &site_count_by_insert_length_gc){
 	// Sum up the other biases for the insert length, reference sequences pairs
-	atomic<vector<BiasCalculationParams>::size_type> current_param(0);
+	atomic<uintNumFits> current_param(0);
 	vector<BiasCalculationParams> params;
 	FillParams(params, reference);
 
@@ -2183,7 +2184,7 @@ bool FragmentDistributionStats::UpdateRefSeqBias(RefSeqBiasSimulation model, con
 }
 
 double FragmentDistributionStats::CalculateBiasNormalization(double &max_bias, const Reference &reference, uintNumThreads num_threads, uintFragCount total_reads) const{
-	atomic<vector<BiasCalculationParams>::size_type> current_param(0);
+	atomic<uintNumFits> current_param(0);
 	vector<BiasCalculationParams> params;
 	FillParams(params, reference);
 

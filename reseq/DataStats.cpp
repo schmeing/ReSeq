@@ -43,7 +43,6 @@ using seqan::contigNames;
 using seqan::Dna;
 using seqan::Dna5;
 using seqan::Exception;
-using seqan::FormattedFileContext;
 using seqan::readRecord;
 using seqan::readHeader;
 
@@ -53,6 +52,7 @@ using reseq::utilities::ConstIupacStringReverseComplement;
 using reseq::utilities::ReversedConstCharString;
 using reseq::utilities::ReversedConstCigarString;
 using reseq::utilities::Complement;
+using reseq::utilities::at;
 using reseq::utilities::CreateDir;
 using reseq::utilities::Divide;
 using reseq::utilities::IsN;
@@ -121,6 +121,12 @@ bool DataStats::CheckForAdapters(const seqan::BamAlignmentRecord &record_first, 
 }
 
 void DataStats::EvalBaseLevelStats( CoverageStats::FullRecord *full_record, uintTempSeq template_segment, uintTileId tile_id, uintQual &paired_seq_qual ){
+	if(0 == full_record->num_pointers_to_element_){
+		printErr << "Accessing removed FullRecord: seqid(" << full_record->record_.rID << ") pos(" << full_record->record_.beginPos << ") name(" << full_record->record_.qName << ")" << std::endl;
+		throw std::out_of_range( "Accessing removed FullRecord" );
+		return;
+	}
+
 	const BamAlignmentRecord &record(full_record->record_);
 
 	uintSeqLen pos_reversed(length(record.seq));
@@ -146,12 +152,12 @@ void DataStats::EvalBaseLevelStats( CoverageStats::FullRecord *full_record, uint
 	for( uintReadLen pos = 0; pos < length(record.seq); ++pos){
 		// In case of reversed sequences base and qual are read in reverse from bamfile so pos represents the position in the fq file
 		if( hasFlagRC(record) ){
-			base = Complement::Dna5(record.seq[--pos_reversed]);
-			qual = record.qual[pos_reversed]-phred_quality_offset_;
+			base = Complement::Dna5(at(record.seq, --pos_reversed));
+			qual = at(record.qual, pos_reversed)-phred_quality_offset_;
 		}
 		else{
-			base = record.seq[pos];
-			qual = record.qual[pos]-phred_quality_offset_;
+			base = at(record.seq, pos);
+			qual = at(record.qual, pos)-phred_quality_offset_;
 		}
 
 		qualities_.AddRawBase(template_segment, base, tile_id, strand, qual, seq_qual_stats.mean_, last_qual, pos);
@@ -196,6 +202,12 @@ bool DataStats::EvalReferenceStatistics(
 		CoverageStats::FullRecord *record,
 		uintTempSeq template_segment,
 		CoverageStats::CoverageBlock *coverage_block ){
+	if(0 == record->num_pointers_to_element_){
+		printErr << "Accessing removed FullRecord: seqid(" << record->record_.rID << ") pos(" << record->record_.beginPos << ") name(" << record->record_.qName << ")" << std::endl;
+		throw std::out_of_range( "Accessing removed FullRecord" );
+		return false;
+	}
+
 	// Get gc on reference
 	array<uintNucCount, 5> seq_content_reference = {0,0,0,0,0};
 	auto cur_var = coverage_block->first_variant_id_;
@@ -205,7 +217,7 @@ bool DataStats::EvalReferenceStatistics(
 			++seq_content_reference.at(4);
 		}
 		else{
-			++seq_content_reference.at( reference_->ReferenceSequence(record->record_.rID)[ref_pos] );
+			++seq_content_reference.at( at(reference_->ReferenceSequence(record->record_.rID), ref_pos) );
 		}
 	}
 	auto gc_percent = SafePercent( seq_content_reference.at(1)+seq_content_reference.at(2), record->to_ref_pos_-record->from_ref_pos_-seq_content_reference.at(4) );
@@ -248,16 +260,16 @@ bool DataStats::EvalReferenceStatistics(
 				if(ref_pos < record->to_ref_pos_-record->from_ref_pos_){
 					// We are currently not comparing the adapter to the reference
 					if( hasFlagRC(record->record_) ){
-						base = reversed_seq[read_pos];
-						qual = reversed_qual[read_pos]-phred_quality_offset_;
+						base = at(reversed_seq, read_pos);
+						qual = at(reversed_qual,read_pos)-phred_quality_offset_;
 						full_ref_pos = record->to_ref_pos_-1-ref_pos;
-						ref_base = Complement::Dna5(reference_->ReferenceSequence(record->record_.rID)[full_ref_pos]);
+						ref_base = Complement::Dna5(at(reference_->ReferenceSequence(record->record_.rID), full_ref_pos));
 					}
 					else{
-						base = record->record_.seq[read_pos];
-						qual = record->record_.qual[read_pos]-phred_quality_offset_;
+						base = at(record->record_.seq, read_pos);
+						qual = at(record->record_.qual, read_pos)-phred_quality_offset_;
 						full_ref_pos = record->from_ref_pos_+ref_pos;
-						ref_base = reference_->ReferenceSequence(record->record_.rID)[full_ref_pos];
+						ref_base = at(reference_->ReferenceSequence(record->record_.rID), full_ref_pos);
 					}
 
 					if( IsN(ref_base) || CoverageStats::IsVariantPosition( cur_var, record->record_.rID, full_ref_pos, *reference_, hasFlagRC(record->record_) )){
@@ -306,11 +318,11 @@ bool DataStats::EvalReferenceStatistics(
 				for(indel_pos=0; indel_pos<cigar_element.count; ++indel_pos ){
 					if( hasFlagRC(record->record_) ){
 						full_ref_pos = record->to_ref_pos_-1-ref_pos;
-						ref_base = Complement::Dna5(reference_->ReferenceSequence(record->record_.rID)[full_ref_pos]);
+						ref_base = Complement::Dna5(at(reference_->ReferenceSequence(record->record_.rID), full_ref_pos));
 					}
 					else{
 						full_ref_pos = record->from_ref_pos_+ref_pos;
-						ref_base = reference_->ReferenceSequence(record->record_.rID)[full_ref_pos];
+						ref_base = at(reference_->ReferenceSequence(record->record_.rID), full_ref_pos);
 					}
 
 					if( !IsN(ref_base) && !CoverageStats::IsVariantPosition( cur_var, record->record_.rID, full_ref_pos, *reference_, hasFlagRC(record->record_) )){ // Don't do this stuff when we have an N
@@ -335,11 +347,11 @@ bool DataStats::EvalReferenceStatistics(
 			if(ref_pos < record->to_ref_pos_-record->from_ref_pos_){
 				if( hasFlagRC(record->record_) ){
 					full_ref_pos = record->to_ref_pos_-1-ref_pos;
-					ref_base = Complement::Dna5(reference_->ReferenceSequence(record->record_.rID)[full_ref_pos]);
+					ref_base = Complement::Dna5(at(reference_->ReferenceSequence(record->record_.rID), full_ref_pos));
 				}
 				else{
 					full_ref_pos = record->from_ref_pos_+ref_pos;
-					ref_base = reference_->ReferenceSequence(record->record_.rID)[full_ref_pos];
+					ref_base = at(reference_->ReferenceSequence(record->record_.rID), full_ref_pos);
 				}
 
 				if( IsN(ref_base) || CoverageStats::IsVariantPosition( cur_var, record->record_.rID, full_ref_pos, *reference_, hasFlagRC(record->record_) )){
@@ -349,10 +361,10 @@ bool DataStats::EvalReferenceStatistics(
 				else{
 					for(indel_pos=0; indel_pos<cigar_element.count; ++indel_pos ){
 						if( hasFlagRC(record->record_) ){
-							base = reversed_seq[read_pos];
+							base = at(reversed_seq, read_pos);
 						}
 						else{
-							base = record->record_.seq[read_pos];
+							base = at(record->record_.seq, read_pos);
 						}
 
 						errors_.AddInDel( indel_type, last_base, static_cast<ErrorStats::InDelDef>(static_cast<uintBaseCall>(base)+2), indel_pos, read_pos, gc_percent);
@@ -726,8 +738,8 @@ bool DataStats::PreRun(BamFileIn &bam, const char *bam_file, BamHeader &header, 
 
 					// Determine quality range
 					for( auto i=length(record.qual); i--;){
-						SetToMax(maximum_quality_, record.qual[i]);
-						SetToMin(minimum_quality_, record.qual[i]);
+						SetToMax(maximum_quality_, at(record.qual, i));
+						SetToMin(minimum_quality_, at(record.qual, i));
 					}
 
 					SetToMax(max_mapq, record.mapQ);
@@ -1028,14 +1040,14 @@ bool DataStats::ReadBam( const char *bam_file, const char *adapter_file, const c
 			}
 
 			if( success ){
-				const FormattedFileContext<BamFileIn, void>::Type &bam_context = context(bam);
+				const auto &bam_context = context(bam);
 
 				if( length(contigNames(bam_context)) == reference_->NumberSequences() ){
 					bool reference_ordering_identical = true;
 					for(auto i = length(contigNames(bam_context)); i--; ){
-						if( !(reference_->ReferenceIdFirstPart(i) == contigNames(bam_context)[i]) ){
+						if( !(reference_->ReferenceIdFirstPart(i) == at(contigNames(bam_context), i)) ){
 							reference_ordering_identical = false;
-							printErr << "The ordering of the reference sequences in the bam file is not identical to the reference file\n" << contigNames(bam_context)[i] << '\n' << reference_->ReferenceId(i) << std::endl;
+							printErr << "The ordering of the reference sequences in the bam file is not identical to the reference file\n" << at(contigNames(bam_context), i) << '\n' << reference_->ReferenceId(i) << std::endl;
 							success = false;
 							break;
 						}

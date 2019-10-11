@@ -23,6 +23,7 @@ using reseq::utilities::ConstIupacStringReverseComplement;
 using reseq::utilities::ReversedConstCharString;
 using reseq::utilities::ReversedConstCigarString;
 using reseq::utilities::Complement;
+using reseq::utilities::at;
 using reseq::utilities::Divide;
 using reseq::utilities::GetDominantLastX;
 using reseq::utilities::IsN;
@@ -70,6 +71,12 @@ void CoverageStats::PrepareVariantPositionCheck( intVariantId &cur_var, uintRefS
 }
 
 void CoverageStats::EvalRead( FullRecord *record, CoverageStats::CoverageBlock *coverage_block, const Reference &reference, QualityStats &qualities, ErrorStats &errors, uintQual phred_quality_offset){
+	if(0 == record->num_pointers_to_element_){
+		printErr << "Accessing removed FullRecord: seqid(" << record->record_.rID << ") pos(" << record->record_.beginPos << ") name(" << record->record_.qName << ")" << std::endl;
+		throw std::out_of_range( "Accessing removed FullRecord" );
+		return;
+	}
+
 	if(record->to_ref_pos_ > coverage_block->start_pos_){ // Fragments that did not made the filters have to_ref_pos_=0 and even if they are from valid fragments are reads added to the coverage blocks by maximum read length and not by its actual read length, so it might happen that they do not really reach the given block
 		ConstIupacStringReverseComplement reversed_seq(record->record_.seq);
 		ReversedConstCharString reversed_qual(record->record_.qual);
@@ -129,16 +136,16 @@ void CoverageStats::EvalRead( FullRecord *record, CoverageStats::CoverageBlock *
 					if(ref_pos < ref_pos_end){
 						// We are currently not comparing the adapter to the reference
 						if( hasFlagRC(record->record_) ){
-							base = reversed_seq[read_pos];
-							qual = reversed_qual[read_pos]-phred_quality_offset;
+							base = at(reversed_seq, read_pos);
+							qual = at(reversed_qual, read_pos)-phred_quality_offset;
 							full_ref_pos = record->to_ref_pos_-1-ref_pos;
-							ref_base = Complement::Dna5(reference.ReferenceSequence(record->record_.rID)[full_ref_pos]);
+							ref_base = Complement::Dna5(at(reference.ReferenceSequence(record->record_.rID), full_ref_pos));
 						}
 						else{
-							base = record->record_.seq[read_pos];
-							qual = record->record_.qual[read_pos]-phred_quality_offset;
+							base = at(record->record_.seq, read_pos);
+							qual = at(record->record_.qual, read_pos)-phred_quality_offset;
 							full_ref_pos = record->from_ref_pos_+ref_pos;
-							ref_base = reference.ReferenceSequence(record->record_.rID)[full_ref_pos];
+							ref_base = at(reference.ReferenceSequence(record->record_.rID), full_ref_pos);
 						}
 
 						if(ref_pos >= ref_pos_start){
@@ -178,11 +185,11 @@ void CoverageStats::EvalRead( FullRecord *record, CoverageStats::CoverageBlock *
 						// We are currently not comparing the adapter to the reference
 						if( hasFlagRC(record->record_) ){
 							full_ref_pos = record->to_ref_pos_-1-ref_pos;
-							ref_base = Complement::Dna5(reference.ReferenceSequence(record->record_.rID)[full_ref_pos]);
+							ref_base = Complement::Dna5(at(reference.ReferenceSequence(record->record_.rID), full_ref_pos));
 						}
 						else{
 							full_ref_pos = record->from_ref_pos_+ref_pos;
-							ref_base = reference.ReferenceSequence(record->record_.rID)[full_ref_pos];
+							ref_base = at(reference.ReferenceSequence(record->record_.rID), full_ref_pos);
 						}
 
 						if(ref_pos >= ref_pos_start){
@@ -212,14 +219,14 @@ void CoverageStats::EvalRead( FullRecord *record, CoverageStats::CoverageBlock *
 			case 'I':
 				if(ref_pos < ref_pos_end){
 					if( hasFlagRC(record->record_) ){
-						last_qual = reversed_qual[read_pos+cigar_element.count-1]-phred_quality_offset; // Directly fill last_qual as qual is not needed here
+						last_qual = at(reversed_qual, read_pos+cigar_element.count-1)-phred_quality_offset; // Directly fill last_qual as qual is not needed here
 						full_ref_pos = record->to_ref_pos_-1-ref_pos;
-						ref_base = Complement::Dna5(reference.ReferenceSequence(record->record_.rID)[full_ref_pos]);
+						ref_base = Complement::Dna5(at(reference.ReferenceSequence(record->record_.rID), full_ref_pos));
 					}
 					else{
-						last_qual = record->record_.qual[read_pos+cigar_element.count-1]-phred_quality_offset; // Directly fill last_qual as qual is not needed here
+						last_qual = at(record->record_.qual, read_pos+cigar_element.count-1)-phred_quality_offset; // Directly fill last_qual as qual is not needed here
 						full_ref_pos = record->from_ref_pos_+ref_pos;
-						ref_base = reference.ReferenceSequence(record->record_.rID)[full_ref_pos];
+						ref_base = at(reference.ReferenceSequence(record->record_.rID), full_ref_pos);
 					}
 
 					if( !IsN(ref_base) && !IsVariantPosition(cur_var, record->record_.rID, full_ref_pos, reference, hasFlagRC(record->record_))){
@@ -390,14 +397,14 @@ CoverageStats::CoverageBlock *CoverageStats::CreateBlock(uintRefSeqId seq_id, ui
 void CoverageStats::CountBlock(CoverageBlock *block, const Reference &reference){
 	auto cur_var = block->first_variant_id_;
 	for( uintSeqLen pos = 0; pos < block->coverage_.size(); ++pos ){
-		UpdateCoverageAtSinglePosition( block->coverage_.at(pos), reference.ReferenceSequence(block->sequence_id_)[block->start_pos_ + pos], IsVariantPosition( cur_var, block->sequence_id_, block->start_pos_ + pos, reference, false ) );
+		UpdateCoverageAtSinglePosition( block->coverage_.at(pos), at(reference.ReferenceSequence(block->sequence_id_), block->start_pos_ + pos), IsVariantPosition( cur_var, block->sequence_id_, block->start_pos_ + pos, reference, false ) );
 	}
 
 	// Enter error_rates_ and dominant_errors_ in forward direction
 	Dna5 ref_base, prev_ref_base(4), dom_ref_base5(4);
 	array<uintReadLen,5> seq_content_reference_last5 = {0,0,0,0,0};
 	if(block->start_pos_){
-		prev_ref_base = reference.ReferenceSequence(block->sequence_id_)[block->start_pos_ - 1];
+		prev_ref_base = at(reference.ReferenceSequence(block->sequence_id_), block->start_pos_ - 1);
 		GetDominantLastX( dom_ref_base5, seq_content_reference_last5, 5, reference.ReferenceSequence(block->sequence_id_), block->start_pos_ );
 	}
 	uintSeqLen gc_bases = min(block->start_pos_, gc_range_);
@@ -408,7 +415,7 @@ void CoverageStats::CountBlock(CoverageBlock *block, const Reference &reference)
 	cur_var = block->first_variant_id_;
 
 	for( uintSeqLen pos = 0; pos < tmp_errors_forward_.size(); ++pos ){
-		ref_base = reference.ReferenceSequence(block->sequence_id_)[block->start_pos_ + pos];
+		ref_base = at(reference.ReferenceSequence(block->sequence_id_), block->start_pos_ + pos);
 		gc_percent = SafePercent(gc,gc_bases-n_count);
 
 		// Enter values
@@ -476,7 +483,7 @@ void CoverageStats::CountBlock(CoverageBlock *block, const Reference &reference)
 		uintSeqLen ref_pos = reference.SequenceLength(block->sequence_id_) + tmp_errors_reverse_.size() - block->start_pos_ - block->coverage_.size() - last_pos - 1; // tmp_errors_reverse_.size() - block->coverage_.size() is the shift to the left of block->start_pos_ due to the non-handleable reverse errors taken from the previous block
 		seq_content_reference_last5.fill(0);
 		if(ref_pos){
-			prev_ref_base = reversed_seq[ref_pos - 1];
+			prev_ref_base = at(reversed_seq, ref_pos - 1);
 			GetDominantLastX( dom_ref_base5, seq_content_reference_last5, 5, reversed_seq, ref_pos );
 		}
 		else{
@@ -492,7 +499,7 @@ void CoverageStats::CountBlock(CoverageBlock *block, const Reference &reference)
 		PrepareVariantPositionCheck( cur_var, block->sequence_id_, block->start_pos_ + block->coverage_.size() - tmp_errors_reverse_.size() + last_pos, reference, true );
 
 		for( uintSeqLen pos = last_pos+1; pos--; ){
-			ref_base = reversed_seq[ref_pos];
+			ref_base = at(reversed_seq, ref_pos);
 			gc_percent = SafePercent(gc,gc_bases-n_count);
 
 			// Enter values
@@ -550,6 +557,12 @@ CoverageStats::CoverageBlock *CoverageStats::FindBlock(uintRefSeqId ref_seq_id, 
 }
 
 bool CoverageStats::EnsureSpace(uintRefSeqId ref_seq_id, uintSeqLen start_pos, uintSeqLen end_pos, FullRecord *record, Reference &reference, uintReadLen minimum_sequence_length){
+	if(0 == record->num_pointers_to_element_){
+		printErr << "Accessing removed FullRecord: seqid(" << record->record_.rID << ") pos(" << record->record_.beginPos << ") name(" << record->record_.qName << ")" << std::endl;
+		throw std::out_of_range( "Accessing removed FullRecord" );
+		return false;
+	}
+
 	// Make sure the variation for the given reference sequence is already loaded
 	if( reference.VariantPositionsLoaded() && !reference.VariantPositionsLoadedForSequence(ref_seq_id) ){
 		lock_guard<mutex> lock(variant_loading_mutex_);

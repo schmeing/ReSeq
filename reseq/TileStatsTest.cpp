@@ -46,7 +46,7 @@ void TileStatsTest::TestProperTileFormat(
 
 	EXPECT_TRUE( test_->GetTileId(tile_id, read_id_string) ) << error_msg;
 	EXPECT_EQ( expected_id, tile_id ) << error_msg;
-	EXPECT_EQ( expected_tile, test_->tiles_[tile_id] ) << "Tile wrongly determined for " + format + " format\n";
+	EXPECT_EQ( expected_tile, test_->tiles_.at(tile_id) ) << "Tile wrongly determined for " + format + " format\n";
 }
 
 void TileStatsTest::TestProperTileFormatWithGivenColonNumber(const char * read_id_string, const string &format, uintTileId expected_id){
@@ -87,7 +87,7 @@ void TileStatsTest::TestErroneousTileFormat(
 	}
 	EXPECT_TRUE( test_->GetTileId(tile_id, read_id_string) ) << error_msg;
 	EXPECT_EQ( expected_id, tile_id ) << error_msg;
-	EXPECT_EQ( 0, test_->tiles_[tile_id] ) << error_msg;
+	EXPECT_EQ( 0, test_->tiles_.at(tile_id) ) << error_msg;
 }
 
 void TileStatsTest::TearDown(){
@@ -97,7 +97,7 @@ void TileStatsTest::TearDown(){
 
 void TileStatsTest::TestSrr490124Equality(const TileStats &test, const char *context, bool test_tile_information){
 	EXPECT_EQ(1, test.tiles_.size()) << "SRR490124-4pairs tiles_ wrong for " << context << '\n';
-	EXPECT_EQ(1, test.tiles_[0]) << "SRR490124-4pairs tiles_ wrong for " << context << '\n';
+	EXPECT_EQ(1, test.tiles_.at(0)) << "SRR490124-4pairs tiles_ wrong for " << context << '\n';
 	EXPECT_EQ(1, test.tile_ids_.size()) << "SRR490124-4pairs tile_ids_ wrong for " << context << '\n';
 	EXPECT_EQ(0, test.tile_ids_.at(1)) << "SRR490124-4pairs tile_ids_ wrong for " << context << '\n';
 	if(test_tile_information){
@@ -106,13 +106,13 @@ void TileStatsTest::TestSrr490124Equality(const TileStats &test, const char *con
 	}
 
 	EXPECT_EQ(1, test.abundance_.size()) << "SRR490124-4pairs abundance_ wrong for " << context << '\n';
-	EXPECT_EQ(4, test.abundance_[0]) << "SRR490124-4pairs abundance_ wrong for " << context << '\n';
+	EXPECT_EQ(4, test.abundance_.at(0)) << "SRR490124-4pairs abundance_ wrong for " << context << '\n';
 }
 
 void TileStatsTest::TestTiles(const TileStats &test){
 	EXPECT_EQ(2, test.abundance_.size()) << "abundance_ wrong in tile test\n";
-	EXPECT_EQ(2, test.abundance_[0]) << "abundance_ wrong in tile test\n";
-	EXPECT_EQ(2, test.abundance_[1]) << "abundance_ wrong in tile test\n";
+	EXPECT_EQ(2, test.abundance_.at(0)) << "abundance_ wrong in tile test\n";
+	EXPECT_EQ(2, test.abundance_.at(1)) << "abundance_ wrong in tile test\n";
 }
 
 namespace reseq{
@@ -146,7 +146,7 @@ namespace reseq{
 				false,
 				1,
 				"Failed for read id without a colon with given colon number\n",
-				"The read id encoding changed and the id ended before colon number 3. Tile will be treated as 0: SomeReadIdWithoutAColon\n"
+				"The read id encoding changed and the id ended before colon number 2. Tile will be treated as 0: SomeReadIdWithoutAColon\n"
 				);
 		TestErroneousTileFormat(
 				"Some read id without a colon",

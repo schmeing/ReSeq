@@ -49,21 +49,21 @@ namespace reseq{
 		}
 
 		template<typename T> static void TestVectEquality(
-				const T &vector1,
-				const T &vector2,
+				const Vect<T> &vector1,
+				const Vect<T> &vector2,
 				const char *context,
 				const std::string &err_msg_part1,
 				const std::string &err_msg_part2
 				){
 			EXPECT_EQ(vector1.size(), vector2.size()) << err_msg_part1 << ".size()" << err_msg_part2 << context << '\n';
 			for( auto i=vector1.from(); i < vector1.to(); ++i ){
-				EXPECT_EQ(vector1[i], vector2[i]) << err_msg_part1 << '[' << i << ']' << err_msg_part2 << context << '\n';
+				EXPECT_EQ(vector1.at(i), vector2[i]) << err_msg_part1 << '[' << i << ']' << err_msg_part2 << context << '\n';
 			}
 		}
 
-		template<typename T> static void TestDoubleVectEquality(
-				const T &vector1,
-				const T &vector2,
+		static void TestDoubleVectEquality(
+				const Vect<double> &vector1,
+				const Vect<double> &vector2,
 				const char *context,
 				const std::string &err_msg_part1,
 				const std::string &err_msg_part2,
@@ -72,26 +72,26 @@ namespace reseq{
 			EXPECT_EQ(vector1.size(), vector2.size()) << err_msg_part1 << ".size()" << err_msg_part2 << context << '\n';
 			for( auto i=vector1.from(); i < vector1.to(); ++i ){
 				if( precision ){
-					EXPECT_NEAR(vector1[i], vector2[i], precision) << err_msg_part1 << '[' << i << ']' << err_msg_part2 << context << '\n';
+					EXPECT_NEAR(vector1.at(i), vector2[i], precision) << err_msg_part1 << '[' << i << ']' << err_msg_part2 << context << '\n';
 				}
 				else{
-					EXPECT_DOUBLE_EQ(vector1[i], vector2[i]) << err_msg_part1 << '[' << i << ']' << err_msg_part2 << context << '\n';
+					EXPECT_DOUBLE_EQ(vector1.at(i), vector2[i]) << err_msg_part1 << '[' << i << ']' << err_msg_part2 << context << '\n';
 				}
 			}
 		}
 
 		template<typename T> static void TestVectEquality2d(
-				const T &vector1,
-				const T &vector2,
+				const Vect<Vect<T>> &vector1,
+				const Vect<Vect<T>> &vector2,
 				const char *context,
 				const std::string &err_msg_part1,
 				const std::string &err_msg_part2
 				){
 			EXPECT_EQ(vector1.size(), vector2.size()) << err_msg_part1 << ".size()" << err_msg_part2 << context << '\n';
 			for( auto i=vector1.from(); i < vector1.to(); ++i ){
-				EXPECT_EQ(vector1[i].size(), vector2[i].size()) << err_msg_part1 << '[' << i << ']' << ".size()" << err_msg_part2 << context << '\n';
-				for( auto j=vector1[i].from(); j < vector1[i].to(); ++j ){
-					EXPECT_EQ(vector1[i][j], vector2[i][j]) << err_msg_part1 << '[' << i << ']' << '[' << j << ']' << err_msg_part2 << context << '\n';
+				EXPECT_EQ(vector1.at(i).size(), vector2[i].size()) << err_msg_part1 << '[' << i << ']' << ".size()" << err_msg_part2 << context << '\n';
+				for( auto j=vector1.at(i).from(); j < vector1.at(i).to(); ++j ){
+					EXPECT_EQ(vector1.at(i).at(j), vector2[i][j]) << err_msg_part1 << '[' << i << ']' << '[' << j << ']' << err_msg_part2 << context << '\n';
 				}
 			}
 		}

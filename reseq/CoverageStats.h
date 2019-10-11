@@ -350,7 +350,6 @@ namespace reseq{
 		bool Finalize(const Reference &reference, QualityStats &qualities, ErrorStats &errors, uintQual phred_quality_offset, uintReadLen minimum_sequence_length);
 		inline void SetAllZero(const Reference &reference){
 			coverage_[0] = reference.TotalSize();
-			error_coverage_[0] = reference.TotalSize();
 			for( int strand=2; strand--; ){
 				coverage_stranded_.at(strand)[0] = reference.TotalSize();
 			}

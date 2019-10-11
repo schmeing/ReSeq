@@ -7,6 +7,9 @@ using std::min;
 
 #include "reportingUtils.hpp"
 
+//include "utlities.hpp"
+using reseq::utilities::getConst;
+
 void ErrorStats::Prepare(uintTileId num_tiles, uintQual size_qual, uintReadLen size_pos, uintReadLen size_indel){
 	for( auto template_segment=2; template_segment--; ){
 		for( auto ref_base=4; ref_base--; ){
@@ -87,13 +90,13 @@ bool ErrorStats::Finalize(){
 
 				for(const auto &dom_error_vect : called_bases_by_base_quality_per_tile_.at(template_segment).at(ref_base)){
 					for(const auto &tile_id_vect : dom_error_vect){
-						cov_qual_count += tile_id_vect[called_base];
+						cov_qual_count += tile_id_vect[called_base]; // Called base might not exist for all dominant errors in all tiles (using const to not modify object)
 					}
 				}
 
 				for(auto qual=min(data_qual_count.from(), cov_qual_count.from()); qual<max(data_qual_count.to(), cov_qual_count.to()); ++qual){
-					if( data_qual_count[qual] != cov_qual_count[qual] ){
-						printErr << "Seg " << template_segment << " ref_base " << ref_base << " called_base " << called_base << " qual " << qual << ": DataStats(" << data_qual_count[qual] << ") CoverageStats(" << cov_qual_count[qual] << ")" << std::endl;
+					if( getConst(data_qual_count)[qual] != getConst(cov_qual_count)[qual] ){ // As we take the maximum range for both, the qualities might not exist in each one (const to not unnecessarily change the objects)
+						printErr << "Seg " << template_segment << " ref_base " << ref_base << " called_base " << called_base << " qual " << qual << ": DataStats(" << getConst(data_qual_count)[qual] << ") CoverageStats(" << getConst(cov_qual_count)[qual] << ")" << std::endl;
 						error = true;
 					}
 				}
@@ -165,9 +168,9 @@ void ErrorStats::PreparePlotting(){
 
 				// Fill vectors
 				for(auto dom_error = called_bases_by_base_quality_per_tile_.at(template_segment).at(ref_base).size(); dom_error--; ){
-					for(auto tile_id = called_bases_by_base_quality_per_tile_.at(template_segment).at(ref_base).at(dom_error).size(); tile_id--; ){
-						called_bases_by_base_quality_.at(template_segment).at(ref_base).at(called_base) += called_bases_by_base_quality_per_tile_.at(template_segment).at(ref_base).at(dom_error)[tile_id][called_base];
-						called_bases_by_position_.at(template_segment).at(ref_base).at(called_base) += called_bases_by_position_per_tile_.at(template_segment).at(ref_base).at(dom_error)[tile_id][called_base];
+					for(auto tile_id = called_bases_by_base_quality_per_tile_.at(template_segment).at(ref_base).at(dom_error).to(); tile_id-- > called_bases_by_base_quality_per_tile_.at(template_segment).at(ref_base).at(dom_error).from(); ){
+						called_bases_by_base_quality_.at(template_segment).at(ref_base).at(called_base) += getConst(called_bases_by_base_quality_per_tile_).at(template_segment).at(ref_base).at(dom_error).at(tile_id)[called_base]; // called_base might not exist in all tiles for all dom_errors (make const to not change object)
+						called_bases_by_position_.at(template_segment).at(ref_base).at(called_base) += getConst(called_bases_by_position_per_tile_).at(template_segment).at(ref_base).at(dom_error).at(tile_id)[called_base]; // called_base might not exist in all tiles for all dom_errors (make const to not change object)
 					}
 				}
 
@@ -191,28 +194,28 @@ void ErrorStats::PreparePlotting(){
 		for( uintBaseCall prev_call=6; prev_call--; ){
 			for(auto indel_pos=indel_by_indel_pos_.at(prev_indel).at(prev_call).to(); indel_pos-- > indel_by_indel_pos_.at(prev_indel).at(prev_call).from(); ){ // indel_pos=0 does not exist for prev_indel=1(deletion) as no indel is treated as prev_indel=0(insertion)
 				// Deletions
-				indel_error_by_length_.at(1)[indel_pos+1] += indel_by_indel_pos_.at(prev_indel).at(prev_call).at(indel_pos)[1];
+				indel_error_by_length_.at(1)[indel_pos+1] += getConst(indel_by_indel_pos_).at(prev_indel).at(prev_call).at(indel_pos)[1]; // There might be no deletions (make const to not change object)
 
 				// Insertions
-				for( uintBaseCall ins_nuc=2; ins_nuc<indel_by_indel_pos_.at(prev_indel).at(prev_call).at(indel_pos).to(); ++ins_nuc){
+				for( uintBaseCall ins_nuc=max(static_cast<size_t>(2), indel_by_indel_pos_.at(prev_indel).at(prev_call).at(indel_pos).from()); ins_nuc<indel_by_indel_pos_.at(prev_indel).at(prev_call).at(indel_pos).to(); ++ins_nuc){
 					indel_error_by_length_.at(0)[indel_pos+1] += indel_by_indel_pos_.at(prev_indel).at(prev_call).at(indel_pos).at(ins_nuc);
 				}
 			}
 
 			for(auto read_pos=indel_by_position_.at(prev_indel).at(prev_call).to(); read_pos-- > indel_by_position_.at(prev_indel).at(prev_call).from(); ){
 				// Deletions
-				indel_error_by_position_.at(1)[read_pos] += indel_by_position_.at(prev_indel).at(prev_call).at(read_pos)[1];
+				indel_error_by_position_.at(1)[read_pos] += getConst(indel_by_position_).at(prev_indel).at(prev_call).at(read_pos)[1]; // There might be no deletions (make const to not change object)
 				// Insertions
-				for( uintBaseCall ins_nuc=2; ins_nuc<indel_by_position_.at(prev_indel).at(prev_call).at(read_pos).to(); ++ins_nuc){
+				for( uintBaseCall ins_nuc=max(static_cast<size_t>(2), indel_by_position_.at(prev_indel).at(prev_call).at(read_pos).from()); ins_nuc<indel_by_position_.at(prev_indel).at(prev_call).at(read_pos).to(); ++ins_nuc){
 					indel_error_by_position_.at(0)[read_pos] += indel_by_position_.at(prev_indel).at(prev_call).at(read_pos).at(ins_nuc);
 				}
 			}
 
 			for(auto gc=indel_by_gc_.at(prev_indel).at(prev_call).to(); gc-- > indel_by_gc_.at(prev_indel).at(prev_call).from(); ){
 				// Deletions
-				indel_error_by_gc_.at(1)[gc] += indel_by_gc_.at(prev_indel).at(prev_call).at(gc)[1];
+				indel_error_by_gc_.at(1)[gc] += getConst(indel_by_gc_).at(prev_indel).at(prev_call).at(gc)[1]; // There might be no deletions (make const to not change object)
 				// Insertions
-				for( uintBaseCall ins_nuc=2; ins_nuc<indel_by_gc_.at(prev_indel).at(prev_call).at(gc).to(); ++ins_nuc){
+				for( uintBaseCall ins_nuc=max(static_cast<size_t>(2), indel_by_gc_.at(prev_indel).at(prev_call).at(gc).from()); ins_nuc<indel_by_gc_.at(prev_indel).at(prev_call).at(gc).to(); ++ins_nuc){
 					indel_error_by_gc_.at(0)[gc] += indel_by_gc_.at(prev_indel).at(prev_call).at(gc).at(ins_nuc);
 				}
 			}

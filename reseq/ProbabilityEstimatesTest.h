@@ -59,30 +59,30 @@ namespace reseq{
 			margins.resize(margin_def.size());
 			std::array<uintMatrixIndex, 5> pos;
 
-			for( pos[0]=counts.to(); counts.from() < pos[0]--; ){ // counting backwards to get the least amount of storage allocations
-				for( pos[1]=counts[pos[0]].to(); counts[pos[0]].from() < pos[1]--; ){
-					for( pos[2]=counts[pos[0]][pos[1]].to(); counts[pos[0]][pos[1]].from() < pos[2]--; ){
-						for( pos[3]=counts[pos[0]][pos[1]][pos[2]].to(); counts[pos[0]][pos[1]][pos[2]].from() < pos[3]--; ){
-							for( pos[4]=counts[pos[0]][pos[1]][pos[2]][pos[3]].to(); counts[pos[0]][pos[1]][pos[2]][pos[3]].from() < pos[4]--; ){
+			for( pos.at(0)=counts.to(); counts.from() < pos.at(0)--; ){ // counting backwards to get the least amount of storage allocations
+				for( pos.at(1)=counts.at(pos.at(0)).to(); counts.at(pos.at(0)).from() < pos.at(1)--; ){
+					for( pos.at(2)=counts.at(pos.at(0)).at(pos.at(1)).to(); counts.at(pos.at(0)).at(pos.at(1)).from() < pos.at(2)--; ){
+						for( pos.at(3)=counts.at(pos.at(0)).at(pos.at(1)).at(pos.at(2)).to(); counts.at(pos.at(0)).at(pos.at(1)).at(pos.at(2)).from() < pos.at(3)--; ){
+							for( pos.at(4)=counts.at(pos.at(0)).at(pos.at(1)).at(pos.at(2)).at(pos.at(3)).to(); counts.at(pos.at(0)).at(pos.at(1)).at(pos.at(2)).at(pos.at(3)).from() < pos.at(4)--; ){
 								// Fill all defined margins
 								uintMarginId dim1 = 0;
 								uintMarginId dim2 = 1;
 								for(uintMarginId i=0; i < margin_def.size(); ++i){
-									if(margin_def[i].second){
+									if(margin_def.at(i).second){
 										// Switch dimension1 and 2
 										auto tmp = dim1;
 										dim1 = dim2;
 										dim2 = tmp;
 									}
 
-									if(margin_def[i].first){
-										margin_quality_position[pos[dim1]][pos[dim2]] += counts[pos[0]][pos[1]][pos[2]][pos[3]][pos[4]];
+									if(margin_def.at(i).first){
+										margin_quality_position[pos.at(dim1)][pos.at(dim2)] += counts.at(pos.at(0)).at(pos.at(1)).at(pos.at(2)).at(pos.at(3)).at(pos.at(4));
 									}
 									else{
-										margins[i][pos[dim1]][pos[dim2]] += counts[pos[0]][pos[1]][pos[2]][pos[3]][pos[4]];
+										margins.at(i)[pos.at(dim1)][pos.at(dim2)] += counts.at(pos.at(0)).at(pos.at(1)).at(pos.at(2)).at(pos.at(3)).at(pos.at(4));
 									}
 
-									if(margin_def[i].second){
+									if(margin_def.at(i).second){
 										// Switch dimension1 and 2 back
 										auto tmp = dim1;
 										dim1 = dim2;
@@ -113,12 +113,12 @@ namespace reseq{
 		void IterativeProportionalFittingQual(uintBaseCall base, const std::vector<Vect<Vect<uintMatrixCount>>> &margins, const Vect<SeqQualityStats<uintMatrixCount>> &margin_quality_position);
 		void GetIPFResultQual( const ProbabilityEstimates &estimate, uintBaseCall base, Vect< Vect< Vect< Vect< Vect<double> > > > > &estimated_counts, const std::vector<Vect<Vect<uintMatrixCount>>> &margins);
 		template<uintMarginId U1, uintMarginId U2, uintMarginId L1, uintMarginId L2, uintMarginId L3> void IPFStepQual( uintBaseCall base, const ProbabilityEstimatesSubClasses::DataStorage<5> &data ){
-			test_.quality_[kTemplateSegment][0][base].IPFStep<U1,U2,L1,L2,L3>(data);
+			test_.quality_.at(kTemplateSegment).at(0).at(base).IPFStep<U1,U2,L1,L2,L3>(data);
 
 			double marginal_sum, marginal;
 			for( uintMatrixIndex dim1 = 0; dim1 < data.size<U1>(); ++dim1 ){
 				for( uintMatrixIndex dim2 = 0; dim2 < data.size<U2>(); dim2++ ){
-					marginal_sum = ProbabilityEstimatesSubClasses::SumLogTerms<U1,U2,L1,L2,L3>(data, test_.quality_[kTemplateSegment][0][base].estimates_, dim1, dim2);
+					marginal_sum = ProbabilityEstimatesSubClasses::SumLogTerms<U1,U2,L1,L2,L3>(data, test_.quality_.at(kTemplateSegment).at(0).at(base).estimates_, dim1, dim2);
 					marginal = data.get<U1,U2>(dim1, dim2);
 
 					EXPECT_NEAR( marginal, marginal_sum, kEpsilon ) << "margin<" << U1 << ',' << U2 << "> not correct directly after its fitting step\n";
@@ -127,38 +127,38 @@ namespace reseq{
 		}
 		void IPFStepWiseQual(uintBaseCall base, const std::vector<Vect<Vect<uintMatrixCount>>> &margins, const Vect<SeqQualityStats<uintMatrixCount>> &margin_quality_position);
 		uintNumFits GetIterationsQual( const ProbabilityEstimates &estimate, uintBaseCall base ){
-			return estimate.quality_[kTemplateSegment][0][base].steps_;
+			return estimate.quality_.at(kTemplateSegment).at(0).at(base).steps_;
 		}
 		double GetPrecisionQual( const ProbabilityEstimates &estimate, uintBaseCall base ){
-			return estimate.quality_[kTemplateSegment][0][base].precision_;
+			return estimate.quality_.at(kTemplateSegment).at(0).at(base).precision_;
 		}
 
 		void IterativeProportionalFittingBaseCall( const std::vector<Vect<Vect<uintMatrixCount>>> &margins, const Vect<SeqQualityStats<uintMatrixCount>> &margin_quality_position );
 		void GetIPFResultBaseCall( const ProbabilityEstimates &estimate, Vect< Vect< Vect< Vect< Vect<double> > > > > &comp_counts, std::vector<Vect<Vect<uintMatrixCount>>> &margins );
 		uintNumFits GetIterationsBaseCall( const ProbabilityEstimates &estimate ){
-			return estimate.base_call_[kTemplateSegment][0][0][0].steps_;
+			return estimate.base_call_.at(kTemplateSegment).at(0).at(0).at(0).steps_;
 		}
 		double GetPrecisionBaseCall( const ProbabilityEstimates &estimate ){
-			return estimate.base_call_[kTemplateSegment][0][0][0].precision_;
+			return estimate.base_call_.at(kTemplateSegment).at(0).at(0).at(0).precision_;
 		}
 
 		void IterativeProportionalFittingDomError( const std::vector<Vect<Vect<uintMatrixCount>>> &margins );
 		void GetIPFResultDomError( const ProbabilityEstimates &estimate, Vect< Vect< Vect< Vect< Vect<double> > > > > &comp_counts, std::vector<Vect<Vect<uintMatrixCount>>> &margins );
 		uintNumFits GetIterationsDomError( const ProbabilityEstimates &estimate ){
-			return estimate.dom_error_[0][0][0].steps_;
+			return estimate.dom_error_.at(0).at(0).at(0).steps_;
 		}
 		double GetPrecisionDomError( const ProbabilityEstimates &estimate ){
-			return estimate.dom_error_[0][0][0].precision_;
+			return estimate.dom_error_.at(0).at(0).at(0).precision_;
 		}
 
 		void SetMarginDefErrorRate(std::vector< std::pair<bool, bool> > &margin_def);
 		void IterativeProportionalFittingErrorRate( const std::vector<Vect<Vect<uintMatrixCount>>> &margins );
 		void GetIPFResultErrorRate( const ProbabilityEstimates &estimate, Vect< Vect< Vect< Vect< Vect<double> > > > > &comp_counts, std::vector<Vect<Vect<uintMatrixCount>>> &margins );
 		uintNumFits GetIterationsErrorRate( const ProbabilityEstimates &estimate ){
-			return estimate.error_rate_[0][0].steps_;
+			return estimate.error_rate_.at(0).at(0).steps_;
 		}
 		double GetPrecisionErrorRate( const ProbabilityEstimates &estimate ){
-			return estimate.error_rate_[0][0].precision_;
+			return estimate.error_rate_.at(0).at(0).precision_;
 		}
 	};
 }

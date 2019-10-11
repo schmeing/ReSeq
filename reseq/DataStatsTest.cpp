@@ -59,11 +59,11 @@ void DataStatsTest::TestSequenceContent(
 		uintNucCount cont_t,
 		uintNucCount cont_n,
 		const char * context ){
-	EXPECT_EQ(cont_a, test_->sequence_content_[template_segment][0][at_pos]) << "sequence_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
-	EXPECT_EQ(cont_c, test_->sequence_content_[template_segment][1][at_pos]) << "sequence_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
-	EXPECT_EQ(cont_g, test_->sequence_content_[template_segment][2][at_pos]) << "sequence_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
-	EXPECT_EQ(cont_t, test_->sequence_content_[template_segment][3][at_pos]) << "sequence_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
-	EXPECT_EQ(cont_n, test_->sequence_content_[template_segment][4][at_pos]) << "sequence_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_a, test_->sequence_content_.at(template_segment).at(0)[at_pos]) << "sequence_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_c, test_->sequence_content_.at(template_segment).at(1)[at_pos]) << "sequence_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_g, test_->sequence_content_.at(template_segment).at(2)[at_pos]) << "sequence_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_t, test_->sequence_content_.at(template_segment).at(3)[at_pos]) << "sequence_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_n, test_->sequence_content_.at(template_segment).at(4)[at_pos]) << "sequence_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
 }
 
 void DataStatsTest::TestSequenceContentReference(
@@ -75,10 +75,10 @@ void DataStatsTest::TestSequenceContentReference(
 		uintNucCount cont_g,
 		uintNucCount cont_t,
 		const char * context ){
-	EXPECT_EQ(cont_a, test_->sequence_content_reference_[template_segment][strand][0][at_pos]) << "sequence_content_reference_[" << template_segment << "][" << strand << "] position " << at_pos << " wrong for " << context << '\n';
-	EXPECT_EQ(cont_c, test_->sequence_content_reference_[template_segment][strand][1][at_pos]) << "sequence_content_reference_[" << template_segment << "][" << strand << "] position " << at_pos << " wrong for " << context << '\n';
-	EXPECT_EQ(cont_g, test_->sequence_content_reference_[template_segment][strand][2][at_pos]) << "sequence_content_reference_[" << template_segment << "][" << strand << "] position " << at_pos << " wrong for " << context << '\n';
-	EXPECT_EQ(cont_t, test_->sequence_content_reference_[template_segment][strand][3][at_pos]) << "sequence_content_reference_[" << template_segment << "][" << strand << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_a, test_->sequence_content_reference_.at(template_segment).at(strand).at(0)[at_pos]) << "sequence_content_reference_[" << template_segment << "][" << strand << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_c, test_->sequence_content_reference_.at(template_segment).at(strand).at(1)[at_pos]) << "sequence_content_reference_[" << template_segment << "][" << strand << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_g, test_->sequence_content_reference_.at(template_segment).at(strand).at(2)[at_pos]) << "sequence_content_reference_[" << template_segment << "][" << strand << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_t, test_->sequence_content_reference_.at(template_segment).at(strand).at(3)[at_pos]) << "sequence_content_reference_[" << template_segment << "][" << strand << "] position " << at_pos << " wrong for " << context << '\n';
 }
 
 void DataStatsTest::TestSrr490124Equality(const char *context, bool test_tile_information){
@@ -97,8 +97,8 @@ void DataStatsTest::TestSrr490124Equality(const char *context, bool test_tile_in
 
 	EXPECT_EQ(8, test_->total_number_reads_) << "SRR490124-4pairs total_number_reads_ wrong for " << context << '\n';
 	for( int templ_seg=2; templ_seg--; ){
-		EXPECT_EQ(1, test_->read_lengths_[templ_seg].size()) << "SRR490124-4pairs read_lengths_[" << templ_seg << "] wrong for " << context << '\n';
-		EXPECT_EQ(4, test_->read_lengths_[templ_seg][100]) << "SRR490124-4pairs read_lengths_[" << templ_seg << "] wrong for " << context << '\n';
+		EXPECT_EQ(1, test_->read_lengths_.at(templ_seg).size()) << "SRR490124-4pairs read_lengths_[" << templ_seg << "] wrong for " << context << '\n';
+		EXPECT_EQ(4, test_->read_lengths_.at(templ_seg)[100]) << "SRR490124-4pairs read_lengths_[" << templ_seg << "] wrong for " << context << '\n';
 	}
 
 	EXPECT_EQ(19, test_->proper_pair_mapping_quality_.size()) << "SRR490124-4pairs proper_pair_mapping_quality_ wrong for " << context << '\n';
@@ -110,32 +110,32 @@ void DataStatsTest::TestSrr490124Equality(const char *context, bool test_tile_in
 	EXPECT_EQ(1, test_->single_read_mapping_quality_[3]) << "SRR490124-4pairs single_read_mapping_quality_ wrong for " << context << '\n';
 
 	// samtools view ecoli-SRR490124-4pairs.sam | awk '{print int($2%256/128), gsub("G","",$10)+gsub("C","",$10)}' | sort -n
-	EXPECT_EQ(12, test_->gc_read_content_[0].size()) << "SRR490124-4pairs gc_read_content_[0] wrong for " << context << '\n';
-	EXPECT_EQ(1, test_->gc_read_content_[0][48]) << "SRR490124-4pairs gc_read_content_[0] wrong for " << context << '\n';
-	EXPECT_EQ(1, test_->gc_read_content_[0][52]) << "SRR490124-4pairs gc_read_content_[0] wrong for " << context << '\n';
-	EXPECT_EQ(1, test_->gc_read_content_[0][53]) << "SRR490124-4pairs gc_read_content_[0] wrong for " << context << '\n';
-	EXPECT_EQ(1, test_->gc_read_content_[0][59]) << "SRR490124-4pairs gc_read_content_[0] wrong for " << context << '\n';
-	EXPECT_EQ(20, test_->gc_read_content_[1].size()) << "SRR490124-4pairs gc_read_content_[1] wrong for " << context << '\n';
-	EXPECT_EQ(1, test_->gc_read_content_[1][37]) << "SRR490124-4pairs gc_read_content_[1] wrong for " << context << '\n';
-	EXPECT_EQ(2, test_->gc_read_content_[1][47]) << "SRR490124-4pairs gc_read_content_[1] wrong for " << context << '\n';
-	EXPECT_EQ(1, test_->gc_read_content_[1][56]) << "SRR490124-4pairs gc_read_content_[1] wrong for " << context << '\n';
+	EXPECT_EQ(12, test_->gc_read_content_.at(0).size()) << "SRR490124-4pairs gc_read_content_[0] wrong for " << context << '\n';
+	EXPECT_EQ(1, test_->gc_read_content_.at(0)[48]) << "SRR490124-4pairs gc_read_content_[0] wrong for " << context << '\n';
+	EXPECT_EQ(1, test_->gc_read_content_.at(0)[52]) << "SRR490124-4pairs gc_read_content_[0] wrong for " << context << '\n';
+	EXPECT_EQ(1, test_->gc_read_content_.at(0)[53]) << "SRR490124-4pairs gc_read_content_[0] wrong for " << context << '\n';
+	EXPECT_EQ(1, test_->gc_read_content_.at(0)[59]) << "SRR490124-4pairs gc_read_content_[0] wrong for " << context << '\n';
+	EXPECT_EQ(20, test_->gc_read_content_.at(1).size()) << "SRR490124-4pairs gc_read_content_[1] wrong for " << context << '\n';
+	EXPECT_EQ(1, test_->gc_read_content_.at(1)[37]) << "SRR490124-4pairs gc_read_content_[1] wrong for " << context << '\n';
+	EXPECT_EQ(2, test_->gc_read_content_.at(1)[47]) << "SRR490124-4pairs gc_read_content_[1] wrong for " << context << '\n';
+	EXPECT_EQ(1, test_->gc_read_content_.at(1)[56]) << "SRR490124-4pairs gc_read_content_[1] wrong for " << context << '\n';
 	// samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '{print int($2%256/128), $4}' | sort -n | awk '{system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $2 "-" $2+99)}' | seqtk seq | awk '(0==NR%2){print gsub("G","",$0)+gsub("C","",$0)}'
-	EXPECT_EQ(4, test_->gc_read_content_reference_[0].size()) << "SRR490124-4pairs gc_read_content_reference_[0] wrong for " << context << '\n';
-	EXPECT_EQ(1, test_->gc_read_content_reference_[0][54]) << "SRR490124-4pairs gc_read_content_reference_[0] wrong for " << context << '\n';
-	EXPECT_EQ(1, test_->gc_read_content_reference_[0][57]) << "SRR490124-4pairs gc_read_content_reference_[0] wrong for " << context << '\n';
-	EXPECT_EQ(7, test_->gc_read_content_reference_[1].size()) << "SRR490124-4pairs gc_read_content_reference_[1] wrong for " << context << '\n';
-	EXPECT_EQ(1, test_->gc_read_content_reference_[1][46]) << "SRR490124-4pairs gc_read_content_reference_[1] wrong for " << context << '\n';
-	EXPECT_EQ(1, test_->gc_read_content_reference_[1][52]) << "SRR490124-4pairs gc_read_content_reference_[1] wrong for " << context << '\n';
+	EXPECT_EQ(4, test_->gc_read_content_reference_.at(0).size()) << "SRR490124-4pairs gc_read_content_reference_[0] wrong for " << context << '\n';
+	EXPECT_EQ(1, test_->gc_read_content_reference_.at(0)[54]) << "SRR490124-4pairs gc_read_content_reference_[0] wrong for " << context << '\n';
+	EXPECT_EQ(1, test_->gc_read_content_reference_.at(0)[57]) << "SRR490124-4pairs gc_read_content_reference_[0] wrong for " << context << '\n';
+	EXPECT_EQ(7, test_->gc_read_content_reference_.at(1).size()) << "SRR490124-4pairs gc_read_content_reference_[1] wrong for " << context << '\n';
+	EXPECT_EQ(1, test_->gc_read_content_reference_.at(1)[46]) << "SRR490124-4pairs gc_read_content_reference_[1] wrong for " << context << '\n';
+	EXPECT_EQ(1, test_->gc_read_content_reference_.at(1)[52]) << "SRR490124-4pairs gc_read_content_reference_[1] wrong for " << context << '\n';
 	// samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '{print int($2%256/128), gsub("G","",$10)+gsub("C","",$10)}' | sort -n
-	EXPECT_EQ(7, test_->gc_read_content_mapped_[0].size()) << "SRR490124-4pairs gc_read_content_mapped_[0] wrong for " << context << '\n';
-	EXPECT_EQ(1, test_->gc_read_content_mapped_[0][53]) << "SRR490124-4pairs gc_read_content_mapped_[0] wrong for " << context << '\n';
-	EXPECT_EQ(1, test_->gc_read_content_mapped_[0][59]) << "SRR490124-4pairs gc_read_content_mapped_[0] wrong for " << context << '\n';
-	EXPECT_EQ(10, test_->gc_read_content_mapped_[1].size()) << "SRR490124-4pairs gc_read_content_mapped_[1] wrong for " << context << '\n';
-	EXPECT_EQ(1, test_->gc_read_content_mapped_[1][47]) << "SRR490124-4pairs gc_read_content_mapped_[1] wrong for " << context << '\n';
-	EXPECT_EQ(1, test_->gc_read_content_mapped_[1][56]) << "SRR490124-4pairs gc_read_content_mapped_[1] wrong for " << context << '\n';
+	EXPECT_EQ(7, test_->gc_read_content_mapped_.at(0).size()) << "SRR490124-4pairs gc_read_content_mapped_[0] wrong for " << context << '\n';
+	EXPECT_EQ(1, test_->gc_read_content_mapped_.at(0)[53]) << "SRR490124-4pairs gc_read_content_mapped_[0] wrong for " << context << '\n';
+	EXPECT_EQ(1, test_->gc_read_content_mapped_.at(0)[59]) << "SRR490124-4pairs gc_read_content_mapped_[0] wrong for " << context << '\n';
+	EXPECT_EQ(10, test_->gc_read_content_mapped_.at(1).size()) << "SRR490124-4pairs gc_read_content_mapped_[1] wrong for " << context << '\n';
+	EXPECT_EQ(1, test_->gc_read_content_mapped_.at(1)[47]) << "SRR490124-4pairs gc_read_content_mapped_[1] wrong for " << context << '\n';
+	EXPECT_EQ(1, test_->gc_read_content_mapped_.at(1)[56]) << "SRR490124-4pairs gc_read_content_mapped_[1] wrong for " << context << '\n';
 	for( int templ_seg=2; templ_seg--; ){
-		EXPECT_EQ(1, test_->n_content_[templ_seg].size()) << "SRR490124-4pairs n_content_[" << templ_seg << "] wrong for " << context << '\n';
-		EXPECT_EQ(4, test_->n_content_[templ_seg][0]) << "SRR490124-4pairs n_content_[" << templ_seg << "] wrong for " << context << '\n';
+		EXPECT_EQ(1, test_->n_content_.at(templ_seg).size()) << "SRR490124-4pairs n_content_[" << templ_seg << "] wrong for " << context << '\n';
+		EXPECT_EQ(4, test_->n_content_.at(templ_seg)[0]) << "SRR490124-4pairs n_content_[" << templ_seg << "] wrong for " << context << '\n';
 	}
 
 	// samtools view ecoli-SRR490124-4pairs.sam | awk '(0==int($2%256/128)){print ">a\n" $10}' | seqtk seq -r | awk '(0==NR%2){print substr($0,1,1)}' | sort | uniq -c
@@ -185,16 +185,16 @@ void DataStatsTest::TestSrr490124Equality(const char *context, bool test_tile_in
 	TestSequenceContentReference(1, 0, 98, 0, 1, 0, 1, context);
 	TestSequenceContentReference(1, 0, 99, 1, 0, 0, 1, context);
 	for(int base=4; base--; ){
-		EXPECT_EQ(0, test_->sequence_content_reference_[0][0][base].size()) << "SRR490124-4pairs sequence_content_reference_[0][0][" << base << "].size() not correct for " << context << '\n';
-		EXPECT_EQ(0, test_->sequence_content_reference_[1][1][base].size()) << "SRR490124-4pairs sequence_content_reference_[1][1][" << base << "].size() not correct for " << context << '\n';
+		EXPECT_EQ(0, test_->sequence_content_reference_.at(0).at(0).at(base).size()) << "SRR490124-4pairs sequence_content_reference_[0][0][" << base << "].size() not correct for " << context << '\n';
+		EXPECT_EQ(0, test_->sequence_content_reference_.at(1).at(1).at(base).size()) << "SRR490124-4pairs sequence_content_reference_[1][1][" << base << "].size() not correct for " << context << '\n';
 	}
 
 	// cat ecoli-SRR490124-4pairs-R1.fq ecoli-SRR490124-4pairs-R2.fq | awk -v FS="" '(2==NR%4){count=0;base="";for (i=1;i<=NF;i++){ if(base == $i){count+=1}else{if("" != base){print base, count};count=1;base=$i}};print base, count}' | sort | uniq -c
-	TestVectEquality({1,{107,20,9,5,0,0,3}}, test_->homopolymer_distribution_[0], context, "SRR490124-4pairs homopolymer_distribution_[0]", " not correct for ");
-	TestVectEquality({1,{131,30,3,3}}, test_->homopolymer_distribution_[1], context, "SRR490124-4pairs homopolymer_distribution_[1]", " not correct for ");
-	TestVectEquality({1,{122,21,5,2}}, test_->homopolymer_distribution_[2], context, "SRR490124-4pairs homopolymer_distribution_[2]", " not correct for ");
-	TestVectEquality({1,{93,31,5,4}}, test_->homopolymer_distribution_[3], context, "SRR490124-4pairs homopolymer_distribution_[3]", " not correct for ");
-	EXPECT_EQ(0, test_->homopolymer_distribution_[4].size()) << "SRR490124-4pairs homopolymer_distribution_[4].size() not correct for " << context << '\n';
+	TestVectEquality({1,{107,20,9,5,0,0,3}}, test_->homopolymer_distribution_.at(0), context, "SRR490124-4pairs homopolymer_distribution_[0]", " not correct for ");
+	TestVectEquality({1,{131,30,3,3}}, test_->homopolymer_distribution_.at(1), context, "SRR490124-4pairs homopolymer_distribution_[1]", " not correct for ");
+	TestVectEquality({1,{122,21,5,2}}, test_->homopolymer_distribution_.at(2), context, "SRR490124-4pairs homopolymer_distribution_[2]", " not correct for ");
+	TestVectEquality({1,{93,31,5,4}}, test_->homopolymer_distribution_.at(3), context, "SRR490124-4pairs homopolymer_distribution_[3]", " not correct for ");
+	EXPECT_EQ(0, test_->homopolymer_distribution_.at(4).size()) << "SRR490124-4pairs homopolymer_distribution_[4].size() not correct for " << context << '\n';
 }
 
 void DataStatsTest::TestTiles(){
@@ -202,13 +202,13 @@ void DataStatsTest::TestTiles(){
 	QualityStatsTest::TestTiles(test_->qualities_);
 
 	// samtools view ecoli-tiles.bam | awk 'BEGIN{sum=0}(0==int($2%256/128)){sum += gsub("N","",$10)}END{print sum}'
-	EXPECT_EQ(5, SumVect(test_->sequence_content_[0][4])) << "sequence_content_[0][4] wrong in tile test\n";
+	EXPECT_EQ(5, SumVect(test_->sequence_content_.at(0).at(4))) << "sequence_content_[0][4] wrong in tile test\n";
 	// samtools view ecoli-tiles.bam | awk '(0==int($2%256/128)){print substr($10,47,1)}' | sort | uniq -c
-	EXPECT_EQ(1, test_->sequence_content_[0][4][46]) << "sequence_content_[0][4] wrong in tile test\n";
-	EXPECT_EQ(1, test_->sequence_content_[0][4][66]) << "sequence_content_[0][4] wrong in tile test\n";
+	EXPECT_EQ(1, test_->sequence_content_.at(0).at(4)[46]) << "sequence_content_[0][4] wrong in tile test\n";
+	EXPECT_EQ(1, test_->sequence_content_.at(0).at(4)[66]) << "sequence_content_[0][4] wrong in tile test\n";
 
 	// cat ecoli-tiles-R1.fq ecoli-tiles-R2.fq | awk -v FS="" '(2==NR%4){count=0;base="";for (i=1;i<=NF;i++){ if(base == $i){count+=1}else{if("" != base){print base, count};count=1;base=$i}};print base, count}' | sort | uniq -c
-	TestVectEquality({2,{1,1}}, test_->homopolymer_distribution_[4], "tile test", "homopolymer_distribution_[4]", " not correct for ");
+	TestVectEquality({2,{1,1}}, test_->homopolymer_distribution_.at(4), "tile test", "homopolymer_distribution_[4]", " not correct for ");
 }
 
 void DataStatsTest::TestDuplicates(){
@@ -247,19 +247,19 @@ void DataStatsTest::TestVariants(){
 	ErrorStatsTest::TestVariants(test_->errors_);
 	QualityStatsTest::TestVariants(test_->qualities_);
 
-	EXPECT_EQ(3, test_->gc_read_content_reference_[0].size());
-	EXPECT_EQ(1, test_->gc_read_content_reference_[0][55]);
-	EXPECT_EQ(1, test_->gc_read_content_reference_[0][57]);
-	EXPECT_EQ(9, test_->gc_read_content_reference_[1].size());
-	EXPECT_EQ(1, test_->gc_read_content_reference_[1][46]);
-	EXPECT_EQ(1, test_->gc_read_content_reference_[1][54]);
+	EXPECT_EQ(3, test_->gc_read_content_reference_.at(0).size());
+	EXPECT_EQ(1, test_->gc_read_content_reference_.at(0)[55]);
+	EXPECT_EQ(1, test_->gc_read_content_reference_.at(0)[57]);
+	EXPECT_EQ(9, test_->gc_read_content_reference_.at(1).size());
+	EXPECT_EQ(1, test_->gc_read_content_reference_.at(1)[46]);
+	EXPECT_EQ(1, test_->gc_read_content_reference_.at(1)[54]);
 
-	EXPECT_EQ(6, test_->gc_read_content_mapped_[0].size());
-	EXPECT_EQ(1, test_->gc_read_content_mapped_[0][54]);
-	EXPECT_EQ(1, test_->gc_read_content_mapped_[0][59]);
-	EXPECT_EQ(11, test_->gc_read_content_mapped_[1].size());
-	EXPECT_EQ(1, test_->gc_read_content_mapped_[1][47]);
-	EXPECT_EQ(1, test_->gc_read_content_mapped_[1][57]);
+	EXPECT_EQ(6, test_->gc_read_content_mapped_.at(0).size());
+	EXPECT_EQ(1, test_->gc_read_content_mapped_.at(0)[54]);
+	EXPECT_EQ(1, test_->gc_read_content_mapped_.at(0)[59]);
+	EXPECT_EQ(11, test_->gc_read_content_mapped_.at(1).size());
+	EXPECT_EQ(1, test_->gc_read_content_mapped_.at(1)[47]);
+	EXPECT_EQ(1, test_->gc_read_content_mapped_.at(1)[57]);
 
 	TestSequenceContentReference(0, 1, 0, 0, 1, 0, 0, "variant test");
 	TestSequenceContentReference(0, 1, 1, 0, 1, 0, 1, "variant test");
@@ -283,8 +283,8 @@ void DataStatsTest::TestVariants(){
 	TestSequenceContentReference(1, 0, 98, 0, 1, 0, 1, "variant test");
 	TestSequenceContentReference(1, 0, 99, 0, 0, 0, 1, "variant test");
 	for(int base=4; base--; ){
-		EXPECT_EQ(0, test_->sequence_content_reference_[0][0][base].size());
-		EXPECT_EQ(0, test_->sequence_content_reference_[1][1][base].size());
+		EXPECT_EQ(0, test_->sequence_content_reference_.at(0).at(0).at(base).size());
+		EXPECT_EQ(0, test_->sequence_content_reference_.at(1).at(1).at(base).size());
 	}
 }
 
@@ -322,16 +322,16 @@ void DataStatsTest::TestAdapters(){
 	QualityStatsTest::TestAdapters(test_->qualities_);
 
 	// samtools view ecoli-SRR490124-adapter.bam -q 10 -f 81 -F 32 | awk '{print $6; system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $8 "-" $4+length($10)-1)}' | awk 'BEGIN{last=""}{if(">" == substr($0,1,1)){print ">" last; last=""}else{print last; last = $0}}END{print last}' | seqtk seq -r | awk '(1==NR%2){cigar = substr($0,2,length($0)-1)}(0==NR%2){pos=1; print_pos=0; num=0; for(i=1;i<=length(cigar);i+=1){e=substr(cigar,i,1);if(e ~ /^[0-9]/){num=num*10+e}else{if("M"==e){while(0<num && pos<=length($0)){print print_pos, substr($0,pos,1); ++print_pos; ++pos; --num}};if("D"==e){pos+=num};if("I"==e){print_pos+=num};num=0}}}' | sort -k2,2 -k1,1n | uniq -c
-	EXPECT_EQ(71, test_->sequence_content_reference_[0][1][0].size() );
-	EXPECT_EQ(78, test_->sequence_content_reference_[0][1][1].size() );
-	EXPECT_EQ(73, test_->sequence_content_reference_[0][1][2].size() );
-	EXPECT_EQ(77, test_->sequence_content_reference_[0][1][3].size() );
-	EXPECT_EQ(1, test_->sequence_content_reference_[0][1][3][4] );
+	EXPECT_EQ(71, test_->sequence_content_reference_.at(0).at(1).at(0).size() );
+	EXPECT_EQ(78, test_->sequence_content_reference_.at(0).at(1).at(1).size() );
+	EXPECT_EQ(73, test_->sequence_content_reference_.at(0).at(1).at(2).size() );
+	EXPECT_EQ(77, test_->sequence_content_reference_.at(0).at(1).at(3).size() );
+	EXPECT_EQ(1, test_->sequence_content_reference_.at(0).at(1).at(3)[4] );
 	// samtools view ecoli-SRR490124-adapter.bam -q 10 -f 161 -F 16 | awk '{print $6; system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $4 "-" $8+length($10)-1)}' | awk 'BEGIN{last=""}{if(">" == substr($0,1,1)){print ">" last; last=""}else{print last; last = $0}}END{print last}' | seqtk seq | awk '(1==NR%2){cigar = substr($0,2,length($0)-1)}(0==NR%2){pos=1; print_pos=0; num=0; for(i=1;i<=length(cigar);i+=1){e=substr(cigar,i,1);if(e ~ /^[0-9]/){num=num*10+e}else{if("M"==e){while(0<num && pos<=length($0)){print print_pos, substr($0,pos,1); ++print_pos; ++pos; --num}};if("D"==e){pos+=num};if("I"==e){print_pos+=num};num=0}}}' | sort -k2,2 -k1,1n | uniq -c
-	EXPECT_EQ(77, test_->sequence_content_reference_[1][0][0].size() );
-	EXPECT_EQ(73, test_->sequence_content_reference_[1][0][1].size() );
-	EXPECT_EQ(78, test_->sequence_content_reference_[1][0][2].size() );
-	EXPECT_EQ(71, test_->sequence_content_reference_[1][0][3].size() );
+	EXPECT_EQ(77, test_->sequence_content_reference_.at(1).at(0).at(0).size() );
+	EXPECT_EQ(73, test_->sequence_content_reference_.at(1).at(0).at(1).size() );
+	EXPECT_EQ(78, test_->sequence_content_reference_.at(1).at(0).at(2).size() );
+	EXPECT_EQ(71, test_->sequence_content_reference_.at(1).at(0).at(3).size() );
 }
 
 void DataStatsTest::TestNexteraAdapters(){
@@ -349,12 +349,12 @@ namespace reseq{
 
 		// Constructor
 		string error_msg = "Initializing of class member read_lengths_ failed\n";
-		EXPECT_TRUE( test_->read_lengths_[0].empty() ) << error_msg;
-		EXPECT_TRUE( test_->read_lengths_[1].empty() ) << error_msg;
+		EXPECT_TRUE( test_->read_lengths_.at(0).empty() ) << error_msg;
+		EXPECT_TRUE( test_->read_lengths_.at(1).empty() ) << error_msg;
 
 		for(int i=2;i--;){
 			for(int j=5;j--;){
-				EXPECT_TRUE( test_->sequence_content_[i][j].empty() ) << "Initializing of class member sequence_content_ failed\n";
+				EXPECT_TRUE( test_->sequence_content_.at(i).at(j).empty() ) << "Initializing of class member sequence_content_ failed\n";
 			}
 		}
 
@@ -376,9 +376,9 @@ namespace reseq{
 
 		// samtools view -o ecoli-SRR490124-4pairs.bam ecoli-SRR490124-4pairs.sam
 		LoadStats("ecoli-SRR490124-4pairs.bam");
-		TestSrr490124Equality("bamfile");
 		string save_test_file = string(PROJECT_SOURCE_DIR)+"/test/saveTest.reseq";
-		ASSERT_TRUE( test_->Save(save_test_file.c_str()) );
+		ASSERT_TRUE( test_->Save(save_test_file.c_str()) ); // Save before the test, so the test does not modify variables
+		TestSrr490124Equality("bamfile");
 
 		DeleteTestObject();
 		CreateTestObject(&species_reference_);

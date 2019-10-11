@@ -2,9 +2,12 @@
 using reseq::QualityStats;
 using reseq::SeqQualityStats;
 
+#include <functional>
+
 #include "reportingUtils.hpp"
 //include "utilities.hpp"
 using reseq::utilities::Divide;
+using reseq::utilities::getConst;
 using reseq::utilities::Percent;
 using reseq::utilities::SetToMax;
 using reseq::utilities::SetToMin;
@@ -42,7 +45,7 @@ void QualityStats::SumTiles(){
 		for( auto ref_base = base_quality_stats_per_tile_per_error_reference_.at(template_segment).size(); ref_base--; ){
 			for( auto dom_error = base_quality_stats_per_tile_per_error_reference_.at(template_segment).at(ref_base).size(); dom_error--; ){
 				for( auto tile_id = base_quality_stats_per_tile_per_error_reference_.at(template_segment).at(ref_base).at(dom_error).from(); tile_id < base_quality_stats_per_tile_per_error_reference_.at(template_segment).at(ref_base).at(dom_error).to(); ++tile_id ){
-					base_quality_stats_reference_.at(template_segment) += base_quality_stats_per_tile_per_error_reference_.at(template_segment).at(ref_base).at(dom_error)[tile_id];
+					base_quality_stats_reference_.at(template_segment) += base_quality_stats_per_tile_per_error_reference_.at(template_segment).at(ref_base).at(dom_error).at(tile_id);
 				}
 			}
 		}
@@ -72,13 +75,15 @@ void QualityStats::SumTiles(){
 		base_quality_for_preceding_quality_.at(template_segment).Clear();
 		for( auto called_base = 5; called_base--; ){
 			sequence_quality_tile_sum.Clear();
+
 			for( auto tile_id = base_quality_stats_per_tile_.at(template_segment).at(called_base).size(); tile_id--; ){
-				base_quality_stats_.at(template_segment) += base_quality_stats_per_tile_.at(template_segment).at(called_base)[tile_id];
+				base_quality_stats_.at(template_segment) += base_quality_stats_per_tile_.at(template_segment).at(called_base).at(tile_id);
 
-				base_quality_for_sequence_.at(template_segment) += base_quality_for_sequence_per_tile_.at(template_segment).at(called_base)[tile_id];
-				base_quality_for_preceding_quality_.at(template_segment) += base_quality_for_preceding_quality_per_tile_.at(template_segment).at(called_base)[tile_id];
-
-				sequence_quality_tile_sum += sequence_quality_for_base_per_tile_.at(template_segment).at(called_base)[tile_id];
+				base_quality_for_sequence_.at(template_segment) += base_quality_for_sequence_per_tile_.at(template_segment).at(called_base).at(tile_id);
+				base_quality_for_preceding_quality_.at(template_segment) += base_quality_for_preceding_quality_per_tile_.at(template_segment).at(called_base).at(tile_id);
+			}
+			for( auto tile_id = sequence_quality_for_base_per_tile_.at(template_segment).at(called_base).size(); tile_id--; ){ // Always has all nucleotides (including N), therefore it might have tiles that the previous one does not have for N
+				sequence_quality_tile_sum += sequence_quality_for_base_per_tile_.at(template_segment).at(called_base).at(tile_id);
 			}
 
 			average_sequence_quality_for_base_.at(template_segment).at(called_base).Clear();
@@ -129,7 +134,7 @@ void QualityStats::CalculateQualityStats(){
 			for( auto tile_id = base_quality_stats_per_tile_.at(template_segment).at(0).size(); tile_id--; ){
 				base_quality_stats_tile_sum.Clear();
 				for( auto base = base_quality_stats_per_tile_.at(template_segment).size(); base--; ){
-					base_quality_stats_tile_sum += base_quality_stats_per_tile_.at(template_segment).at(base)[tile_id][pos];
+					base_quality_stats_tile_sum += getConst(base_quality_stats_per_tile_).at(template_segment).at(base)[tile_id][pos]; // Tile and position might not exist for all bases, especially for the N, but make const to not modify Vect
 				}
 				base_quality_stats_tile_sum.Calculate();
 
@@ -157,12 +162,13 @@ void QualityStats::CalculateQualityStats(){
 		mean_sequence_quality_mean_by_fragment_length_.at(template_segment).Clear();
 		uintFragCount counts(0), sum(0), last_counts(0), last_sum(0);
 		uintSeqLen from, to(max_frag_length), last_to(max_frag_length);
+
 		for(uintSeqLen frag_length=max_frag_length; frag_length-- > min_frag_length; ){
 			from = frag_length;
-			for(uintTileId tile_id=sequence_quality_mean_for_fragment_length_per_tile_reference_.at(template_segment).to(); tile_id--; ){
-				for(uintQual qual=sequence_quality_mean_for_fragment_length_per_tile_reference_.at(template_segment).at(tile_id)[frag_length].from(); qual<sequence_quality_mean_for_fragment_length_per_tile_reference_.at(template_segment).at(tile_id)[frag_length].to(); ++qual){
-					counts += sequence_quality_mean_for_fragment_length_per_tile_reference_.at(template_segment).at(tile_id)[frag_length][qual];
-					sum += qual*sequence_quality_mean_for_fragment_length_per_tile_reference_.at(template_segment).at(tile_id)[frag_length][qual];
+			for( const auto &sq_mean_at_tile : sequence_quality_mean_for_fragment_length_per_tile_reference_.at(template_segment) ){
+				for(uintQual qual=sq_mean_at_tile[frag_length].from(); qual<sq_mean_at_tile[frag_length].to(); ++qual){
+					counts += sq_mean_at_tile[frag_length].at(qual); // Fragment length might not exist for this tile, as we go from min to max of all tiles, make Vect const, so we don't change it
+					sum += qual*sq_mean_at_tile[frag_length].at(qual);
 				}
 			}
 
@@ -179,7 +185,7 @@ void QualityStats::CalculateQualityStats(){
 			}
 		}
 
-		if(counts){ // Write out last fragment bin if it did not reach 100 counts
+		if(counts){ // Add last fragment bin to the previous bin if it did not reach 100 counts
 			for(uintSeqLen len = last_to; len-- > from;){
 				mean_sequence_quality_mean_by_fragment_length_.at(template_segment)[len] = Divide(sum+last_sum, counts+last_counts);
 			}
@@ -276,7 +282,6 @@ void QualityStats::Finalize(uintFragCount total_number_reads){
 			sequence_quality_for_position_per_tile_.at(template_segment).at(base).Acquire( tmp_sequence_quality_for_position_per_tile_.at(template_segment).at(base) );
 
 			sequence_quality_for_base_per_tile_.at(template_segment).at(base).Acquire( tmp_sequence_quality_for_base_per_tile_.at(template_segment).at(base) );
-
 			nucleotide_quality_.at(template_segment).at(base).Acquire( tmp_nucleotide_quality_.at(template_segment).at(base) );
 		}
 

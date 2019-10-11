@@ -375,17 +375,17 @@ template<uintMarginId N> bool DataStorage<N>::SetUp(const array< pair< const Vec
 
 				if(margins.at(n).first){
 					// Set data
-					data_.at(n).at(ia*dim_size_.at(dim_b)+ib) = static_cast<double>((*margins.at(n).first)[index_first][index_second])/sum_matrix;
+					data_.at(n).at(ia*dim_size_.at(dim_b)+ib) = static_cast<double>((*margins.at(n).first).at(index_first)[index_second])/sum_matrix; // Second index might not exist for all first indeces
 					// Set control
-					dim_control_a[ia] += (*margins.at(n).first)[index_first][index_second];
-					dim_control_b[ib] += (*margins.at(n).first)[index_first][index_second];
+					dim_control_a[ia] += (*margins.at(n).first).at(index_first)[index_second];
+					dim_control_b[ib] += (*margins.at(n).first).at(index_first)[index_second];
 				}
 				else{
 					// Set data
-					data_.at(n).at(ia*dim_size_.at(dim_b)+ib) = static_cast<double>((*alternative_margin)[index_first][index_second])/sum_matrix;
+					data_.at(n).at(ia*dim_size_.at(dim_b)+ib) = static_cast<double>((*alternative_margin).at(index_first)[index_second])/sum_matrix; // Second index might not exist for all first indeces
 					// Set control
-					dim_control_a[ia] += (*alternative_margin)[index_first][index_second];
-					dim_control_b[ib] += (*alternative_margin)[index_first][index_second];
+					dim_control_a[ia] += (*alternative_margin).at(index_first)[index_second];
+					dim_control_b[ib] += (*alternative_margin).at(index_first)[index_second];
 				}
 			}
 		}
