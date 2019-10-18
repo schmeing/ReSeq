@@ -921,7 +921,6 @@ bool Simulator::CreateUnit(uintRefSeqId ref_id, uintRefSeqBin first_block_id, Re
 	ResetSystematicErrorCounters(ref);
 	uintSeqLen start_pos(0), end_pos(ref.SequenceLength(unit->ref_seq_id_) - block->start_pos_);
 	while(block){
-printDebug << "Bases: " << sys_gc_bases_ << std::endl;
 		block->sys_errors_.reserve(end_pos - start_pos);
 		if(sys_from_file_){
 			ReadSystematicErrors(block->sys_errors_, start_pos, end_pos);
@@ -1394,26 +1393,66 @@ void Simulator::InsertSurroundingBasesShiftingOnRightSide(
 		array<intSurrounding, Reference::num_surrounding_blocks_> &surrounding,
 		uintSurPos pos,
 		DnaString new_bases){
-	// Convert new_bases to integer
-	intExtSurrounding shifted_bases = 0;
-	for(uintSurPos ins=0; ins<length(new_bases); ++ins){
-		shifted_bases = (shifted_bases << 2) + static_cast<intExtSurrounding>(at(new_bases, ins));
+	auto block = pos/Reference::surrounding_range_;
+	uintSurPos bases_to_insert = min(length(new_bases), static_cast<size_t>(Reference::surrounding_range_*Reference::num_surrounding_blocks_-pos));
+
+	// Shift right from current block to make room for new bases
+	auto shift_blocks = bases_to_insert/Reference::surrounding_range_; // For every Reference::surrounding_range_ in bases_to_insert we can shift whole blocks
+	auto shift_bases = bases_to_insert%Reference::surrounding_range_;
+	for(auto cur_block=Reference::num_surrounding_blocks_-shift_blocks; cur_block-- > block+1; ){
+		// First shift only the bases and ignore the blocks at the end that we completely remove
+		surrounding.at(cur_block) >>= 2*shift_bases; // Remove bases not longer needed
+		surrounding.at(cur_block) += surrounding.at(cur_block-1) % (1 << 2*shift_bases) * (1 << 2*(Reference::surrounding_range_-shift_bases)); // Add new bases from previous block
 	}
 
-	// Add everything that has to be shifted right from current block to make room for new bases
-	auto block = pos/Reference::surrounding_range_;
-	auto bit_in_block = 2*(Reference::surrounding_range_ - (pos%Reference::surrounding_range_) - 1);
-	shifted_bases = (shifted_bases << (bit_in_block+2)) + surrounding.at(block) % (1 << (bit_in_block+2));
+	uintSurPos inv_pos_in_block = Reference::surrounding_range_ - (pos%Reference::surrounding_range_);
+	intSurrounding tmp_sur = surrounding.at(block) % (1 << 2*inv_pos_in_block); // Store everything that needs to be shifted out of the start block
+	surrounding.at(block) >>= 2*inv_pos_in_block; // And remove it from the block
+	tmp_sur >>= 2*shift_bases; // Remove what was already shifted
 
-	// Modify insertion block
-	surrounding.at(block) = (surrounding.at(block) >> (bit_in_block+2) << (bit_in_block+2)) + (shifted_bases >> (2*length(new_bases)));
-	shifted_bases = shifted_bases % (1 << (2*length(new_bases)));
+	if(0 < shift_blocks && Reference::num_surrounding_blocks_ > block+shift_blocks){
+		for(auto cur_block=Reference::num_surrounding_blocks_; cur_block-- > block+shift_blocks+1; ){
+			// Now shift the blocks
+			surrounding.at(cur_block) = surrounding.at(cur_block-shift_blocks);
+		}
 
-	// Shift to bases from block to next until first block has been handled
-	while(++block < Reference::num_surrounding_blocks_){
-		shifted_bases = ( shifted_bases << (2*Reference::surrounding_range_) ) + surrounding.at(block);
-		surrounding.at(block) = shifted_bases >> (2*length(new_bases));
-		shifted_bases = shifted_bases % (1 << (2*length(new_bases)));
+		// Shift everything that has to be shifted right from starting block and was not already shifted above (Happens if the bases need to go into an empty block freed by the block shift)
+		surrounding.at(block+shift_blocks) = tmp_sur;
+	}
+
+	// Insert new bases in starting block
+	uintSurPos ins_pos=0;
+	uintSurPos bases_to_insert_into_this_block = min(bases_to_insert, inv_pos_in_block);
+	bases_to_insert -= bases_to_insert_into_this_block;
+	for(; bases_to_insert_into_this_block--; ){
+		surrounding.at(block) <<= 2;
+		surrounding.at(block) += static_cast<uintBaseCall>(at(new_bases, ins_pos++));
+	}
+
+	if(0 == shift_blocks && inv_pos_in_block > shift_bases){
+		// If the complete insertion happens in the starting block add the stuff back that was shifted out too much
+		surrounding.at(block) <<= 2*(inv_pos_in_block-shift_bases);
+		surrounding.at(block) += tmp_sur;
+	}
+	else{
+		while(0 < bases_to_insert){
+			bases_to_insert_into_this_block = min(bases_to_insert, Reference::surrounding_range_);
+			bases_to_insert -= bases_to_insert_into_this_block;
+
+			// Store the part of the block that is not overwritten by insertions
+			tmp_sur = surrounding.at(++block) % (1 << 2*(Reference::surrounding_range_-bases_to_insert_into_this_block));
+
+			// Insert new bases
+			surrounding.at(block) = 0;
+			for(auto i=bases_to_insert_into_this_block; i--; ){
+				surrounding.at(block) <<= 2;
+				surrounding.at(block) += static_cast<uintBaseCall>(at(new_bases, ins_pos++));
+			}
+
+			// Restore the bases that should not be overwritten
+			surrounding.at(block) <<= 2*(Reference::surrounding_range_-bases_to_insert_into_this_block);
+			surrounding.at(block) += tmp_sur;
+		}
 	}
 }
 
@@ -1421,26 +1460,70 @@ void Simulator::InsertSurroundingBasesShiftingOnLeftSide(
 		array<intSurrounding, Reference::num_surrounding_blocks_> &surrounding,
 		uintSurPos pos,
 		DnaString new_bases){
-	// Convert new_bases to integer
-	intExtSurrounding shifted_bases = 0;
-	for(uintSurPos ins=0; ins<length(new_bases); ++ins){
-		shifted_bases = (shifted_bases << 2) + static_cast<intExtSurrounding>(at(new_bases, ins));
+	auto block = pos/Reference::surrounding_range_;
+	uintSurPos bases_to_insert = min(length(new_bases), static_cast<size_t>(pos+1));
+
+	// Shift left from current block to make room for new bases
+	auto shift_blocks = bases_to_insert/Reference::surrounding_range_; // For every Reference::surrounding_range_ in bases_to_insert we can shift whole blocks
+	auto shift_bases = bases_to_insert%Reference::surrounding_range_;
+	for(uintSurBlockId cur_block=shift_blocks; cur_block < block; ++cur_block ){
+		// First shift only the bases and ignore the blocks at the beginning that we completely remove
+		surrounding.at(cur_block) %= 1 << 2*(Reference::surrounding_range_-shift_bases);// Remove bases not longer needed
+		surrounding.at(cur_block) <<= 2*shift_bases; // Shift remaining bases (do this after the removal to avoid overflow)
+		surrounding.at(cur_block) += surrounding.at(cur_block+1) >> 2*(Reference::surrounding_range_-shift_bases); // Add new bases from next block
 	}
 
-	// Add everything that has to be shifted left from current block to make room for new bases
-	auto block = pos/Reference::surrounding_range_;
-	auto bit_in_block = 2*(Reference::surrounding_range_ - (pos%Reference::surrounding_range_) - 1);
-	shifted_bases += static_cast<intExtSurrounding>(surrounding.at(block)) >> bit_in_block << (2*length(new_bases));
+	uintSurPos pos_in_block = pos%Reference::surrounding_range_+1; // 1-bases position in block
+	intSurrounding tmp_sur = surrounding.at(block) % (1 << 2*(Reference::surrounding_range_-pos_in_block)); // Store everything that needs to stay in the start block
+	if(pos_in_block > shift_bases){
+		// Keep the stuff that is after the shift on the left before the insertion
+		surrounding.at(block) >>= 2*(Reference::surrounding_range_-pos_in_block);
+		surrounding.at(block) %= 1 << 2*(pos_in_block-shift_bases); // Remove what was already shifted
+	}
+	else{
+		surrounding.at(block) = 0; // If everything was already shifted, we only need what's right of the insertion and that is in tmp_sur
+	}
 
-	// Modify insertion block
-	surrounding.at(block) = (surrounding.at(block) % (1 << bit_in_block) + (shifted_bases << bit_in_block))%Reference::SurroundingSize();
-	shifted_bases = shifted_bases >> (2*(pos%Reference::surrounding_range_ + 1));
+	if(0 < shift_blocks){
+		if(block >= shift_blocks){
+			for(uintSurBlockId cur_block=0; cur_block+shift_blocks < block; ++cur_block){
+				// Now shift the blocks
+				surrounding.at(cur_block) = surrounding.at(cur_block+shift_blocks);
+			}
 
-	// Shift to bases from block to next until first block has been handled
-	while(block--){
-		shifted_bases += static_cast<intExtSurrounding>(surrounding.at(block)) << (2*length(new_bases));
-		surrounding.at(block) = shifted_bases%Reference::SurroundingSize();
-		shifted_bases = shifted_bases >> (2*Reference::surrounding_range_);
+			// Shift everything that has to be shifted left from starting block and was not already shifted above (Happens if the bases need to go into an empty block freed by the block shift)
+			surrounding.at(block-shift_blocks) = surrounding.at(block) << 2*(Reference::surrounding_range_-(pos_in_block-shift_bases));
+		}
+		surrounding.at(block) = 0; // The not-shifted stuff to keep was moved to the proper shifted block, so now we can clean the start block surrounding
+	}
+
+	// Insert new bases in starting block
+	uintSurPos bases_to_insert_into_this_block = min(bases_to_insert, pos_in_block);
+	uintSurPos ins_pos_to = length(new_bases); // In case we do not insert all bases from new_bases, we need to keep track of this separately to bases_to_insert
+	for(uintSurPos ins_pos=ins_pos_to-bases_to_insert_into_this_block; ins_pos<ins_pos_to; ++ins_pos){
+		surrounding.at(block) <<= 2;
+		surrounding.at(block) += static_cast<uintBaseCall>(at(new_bases, ins_pos));
+	}
+	bases_to_insert -= bases_to_insert_into_this_block;
+	ins_pos_to -= bases_to_insert_into_this_block;
+
+	// Add back what was right of insertion
+	surrounding.at(block) <<= 2*(Reference::surrounding_range_-pos_in_block);
+	surrounding.at(block) += tmp_sur;
+
+	while(0 < bases_to_insert){
+		bases_to_insert_into_this_block = min(bases_to_insert, Reference::surrounding_range_);
+
+		// Leave only the part of the block that should not be overwritten by insertions
+		surrounding.at(--block) >>= 2*bases_to_insert_into_this_block;
+
+		// Insert new bases
+		for(uintSurPos ins_pos=ins_pos_to-bases_to_insert_into_this_block; ins_pos<ins_pos_to; ++ins_pos){
+			surrounding.at(block) <<= 2;
+			surrounding.at(block) += static_cast<uintBaseCall>(at(new_bases, ins_pos));
+		}
+		bases_to_insert -= bases_to_insert_into_this_block;
+		ins_pos_to -= bases_to_insert_into_this_block;
 	}
 }
 
@@ -1753,6 +1836,7 @@ void Simulator::VariantModEndSurrounding(
 				InsertSurroundingBasesShiftingOnRightSide(bias_mod.mod_surrounding_end_.at(allele), pos_shift, ReverseComplementorDna(infix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 1, bias_mod.start_variant_pos_-bias_mod.end_pos_shift_.at(allele)+1)));
 				pos_shift += bias_mod.start_variant_pos_-bias_mod.end_pos_shift_.at(allele);
 			}
+
 			HandleSurroundingVariantsBeforeCenter(bias_mod.mod_surrounding_end_.at(allele), last_position, pos_shift, cur_var, allele, ref_seq_id, ref, true);
 		}
 	}

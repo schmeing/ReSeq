@@ -137,86 +137,164 @@ void SimulatorTest::TestSurroundingModifiers(){
 	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
 
 	// InsertSurroundingBasesShiftingOnRightSide
-	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 1004);
-	at(test_ref.reference_sequences_, 0) += "AC";
-	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1004, 2000);
-	test_ref.ForwardSurrounding(comp_surrounding, 0, 1004);
-	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
-	test_->InsertSurroundingBasesShiftingOnRightSide(surrounding, 10, "AC");
-	EXPECT_EQ(comp_surrounding.at(0), surrounding.at(0));
-	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
-	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
-
-	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 1012);
-	at(test_ref.reference_sequences_, 0) += "ACGT";
-	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1012, 2000);
-	test_ref.ForwardSurrounding(comp_surrounding, 0, 1004);
-	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
-	test_->InsertSurroundingBasesShiftingOnRightSide(surrounding, 18, "ACGT");
-	EXPECT_EQ(comp_surrounding.at(0), surrounding.at(0));
-	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
-	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
-
-	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 1012);
-	at(test_ref.reference_sequences_, 0) += "ACGTACGTACGT";
-	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1012, 2000);
-	test_ref.ForwardSurrounding(comp_surrounding, 0, 1004);
-	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
-	test_->InsertSurroundingBasesShiftingOnRightSide(surrounding, 18, "ACGTACGTACGT");
-	EXPECT_EQ(comp_surrounding.at(0), surrounding.at(0));
-	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
-	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
-
-	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 1022);
-	at(test_ref.reference_sequences_, 0) += "ACGT";
-	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1022, 2000);
-	test_ref.ForwardSurrounding(comp_surrounding, 0, 1004);
-	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
-	test_->InsertSurroundingBasesShiftingOnRightSide(surrounding, 28, "ACGT");
-	EXPECT_EQ(comp_surrounding.at(0), surrounding.at(0));
-	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
-	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
+	for( uintSurPos ins_pos : array<int, 5>({9,10,18,19,28})){
+		for( auto ins_bases : array<const char *, 3>({"AC","ACGT","ACGTACGTACGT"})){
+			at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 994+ins_pos);
+			at(test_ref.reference_sequences_, 0) += ins_bases;
+			at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 994+ins_pos, 2000);
+			test_ref.ForwardSurrounding(comp_surrounding, 0, 1004);
+			species_reference_.ForwardSurrounding(surrounding, 0, 1004);
+			test_->InsertSurroundingBasesShiftingOnRightSide(surrounding, ins_pos, ins_bases);
+			EXPECT_EQ(comp_surrounding.at(0), surrounding.at(0)) << "ins_pos: " << ins_pos << " ins_bases: " << ins_bases << std::endl;
+			EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1)) << "ins_pos: " << ins_pos << " ins_bases: " << ins_bases << std::endl;
+			EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2)) << "ins_pos: " << ins_pos << " ins_bases: " << ins_bases << std::endl;
+		}
+	}
 
 	// InsertSurroundingBasesShiftingOnLeftSide
-	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 1005);
-	at(test_ref.reference_sequences_, 0) += "ACGT";
-	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1005, 2000);
-	test_ref.ForwardSurrounding(comp_surrounding, 0, 1008);
-	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
-	test_->InsertSurroundingBasesShiftingOnLeftSide(surrounding, 10, "ACGT");
-	EXPECT_EQ(comp_surrounding.at(0), surrounding.at(0));
-	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
-	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
+	for( uintSurPos ins_pos : array<int, 6>({20,19,10,9,5,0})){
+		for( auto ins_bases : array<const string, 2>({"ACGT","ACGTACGTACGT"})){
+			at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 995+ins_pos);
+			at(test_ref.reference_sequences_, 0) += ins_bases;
+			at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 995+ins_pos, 2000);
+			test_ref.ForwardSurrounding(comp_surrounding, 0, 1004+ins_bases.size());
+			species_reference_.ForwardSurrounding(surrounding, 0, 1004);
+			test_->InsertSurroundingBasesShiftingOnLeftSide(surrounding, ins_pos, ins_bases);
+			EXPECT_EQ(comp_surrounding.at(0), surrounding.at(0)) << "ins_pos: " << ins_pos << " ins_bases: " << ins_bases << std::endl;
+			EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1)) << "ins_pos: " << ins_pos << " ins_bases: " << ins_bases << std::endl;
+			EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2)) << "ins_pos: " << ins_pos << " ins_bases: " << ins_bases << std::endl;
+		}
+	}
+}
 
-	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 1004);
-	at(test_ref.reference_sequences_, 0) += "ACGT";
-	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1004, 2000);
-	test_ref.ForwardSurrounding(comp_surrounding, 0, 1008);
-	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
-	test_->InsertSurroundingBasesShiftingOnLeftSide(surrounding, 9, "ACGT");
-	EXPECT_EQ(comp_surrounding.at(0), surrounding.at(0));
-	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
-	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
+void SimulatorTest::TestSurroundingModifiersExtremCases(){
+	array<intSurrounding, Reference::num_surrounding_blocks_> surrounding;
+	intSurrounding comp_surrounding_full_t, comp_surrounding_full_a, comp_surrounding_start_a, comp_surrounding_end_a;
 
-	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 1000);
-	at(test_ref.reference_sequences_, 0) += "ACGT";
-	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1000, 2000);
-	test_ref.ForwardSurrounding(comp_surrounding, 0, 1008);
-	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
-	test_->InsertSurroundingBasesShiftingOnLeftSide(surrounding, 5, "ACGT");
-	EXPECT_EQ(comp_surrounding.at(0), surrounding.at(0));
-	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
-	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
+	comp_surrounding_full_t = Reference::SurroundingSize()-1;
+	comp_surrounding_full_a = 0;
+	comp_surrounding_start_a = (Reference::SurroundingSize()>>2)-1;
+	comp_surrounding_end_a = comp_surrounding_full_t-3;
 
-	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 995);
-	at(test_ref.reference_sequences_, 0) += "ACGT";
-	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 995, 2000);
-	test_ref.ForwardSurrounding(comp_surrounding, 0, 1008);
-	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
-	test_->InsertSurroundingBasesShiftingOnLeftSide(surrounding, 0, "ACGT");
-	EXPECT_EQ(comp_surrounding.at(0), surrounding.at(0));
-	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
-	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
+	surrounding.at(0) = comp_surrounding_full_t;
+	surrounding.at(1) = comp_surrounding_full_t;
+	surrounding.at(2) = comp_surrounding_full_t;
+
+	// ChangeSurroundingBase
+	for( auto block=Reference::num_surrounding_blocks_; block--; ){
+		test_->ChangeSurroundingBase(surrounding, block*Reference::surrounding_range_, 'A');
+		EXPECT_EQ(comp_surrounding_start_a, surrounding.at(block)) << "Block " << block << std::endl;
+		test_->ChangeSurroundingBase(surrounding, block*Reference::surrounding_range_, 'T');
+		EXPECT_EQ(comp_surrounding_full_t, surrounding.at(block)) << "Block " << block << std::endl;
+		test_->ChangeSurroundingBase(surrounding, (block+1)*Reference::surrounding_range_-1, 'A');
+		EXPECT_EQ(comp_surrounding_end_a, surrounding.at(block)) << "Block " << block << std::endl;
+		test_->ChangeSurroundingBase(surrounding, (block+1)*Reference::surrounding_range_-1, 'T');
+		EXPECT_EQ(comp_surrounding_full_t, surrounding.at(block)) << "Block " << block << std::endl;
+	}
+
+	// DeleteSurroundingBaseShiftingOnRightSide + InsertSurroundingBasesShiftingOnRightSide
+	DnaString full_sur_sized_t, full_sur_sized_a;
+	for(auto i=Reference::num_surrounding_blocks_*Reference::surrounding_range_; i--; ){
+		full_sur_sized_t += 'T';
+		full_sur_sized_a += 'A';
+	}
+
+	for( auto block=Reference::num_surrounding_blocks_; block--; ){
+		for(auto pos : array<uintSurPos, 2>{static_cast<uintSurPos>(block*Reference::surrounding_range_), static_cast<uintSurPos>((block+1)*Reference::surrounding_range_-1)}){
+			test_->DeleteSurroundingBaseShiftingOnRightSide(surrounding, pos, 'A');
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(0)) << "Block " << block << " Pos " << pos << std::endl;
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(1)) << "Block " << block << " Pos " << pos << std::endl;
+			EXPECT_EQ(comp_surrounding_end_a, surrounding.at(2)) << "Block " << block << " Pos " << pos << std::endl;
+			test_->InsertSurroundingBasesShiftingOnRightSide(surrounding, pos, "T");
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(0)) << "Block " << block << " Pos " << pos << std::endl;
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(1)) << "Block " << block << " Pos " << pos << std::endl;
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(2)) << "Block " << block << " Pos " << pos << std::endl;
+
+			test_->DeleteSurroundingBaseShiftingOnRightSide(surrounding, pos, 'T');
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(0)) << "Block " << block << " Pos " << pos << std::endl;
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(1)) << "Block " << block << " Pos " << pos << std::endl;
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(2)) << "Block " << block << " Pos " << pos << std::endl;
+			test_->InsertSurroundingBasesShiftingOnRightSide(surrounding, pos, "T");
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(0)) << "Block " << block << " Pos " << pos << std::endl;
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(1)) << "Block " << block << " Pos " << pos << std::endl;
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(2)) << "Block " << block << " Pos " << pos << std::endl;
+
+			test_->InsertSurroundingBasesShiftingOnRightSide(surrounding, pos, full_sur_sized_t);
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(0)) << "Block " << block << " Pos " << pos << std::endl;
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(1)) << "Block " << block << " Pos " << pos << std::endl;
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(2)) << "Block " << block << " Pos " << pos << std::endl;
+			test_->InsertSurroundingBasesShiftingOnRightSide(surrounding, pos, full_sur_sized_a);
+			for( auto comp_block=Reference::num_surrounding_blocks_; comp_block--; ){
+				if(comp_block<block){
+					EXPECT_EQ(comp_surrounding_full_t, surrounding.at(comp_block)) << "Block " << block << " CompBlock " << comp_block << " Pos " << pos << std::endl;
+				}
+				else if(comp_block==block){
+					if(block*Reference::surrounding_range_ == pos){
+						EXPECT_EQ(comp_surrounding_full_a, surrounding.at(comp_block)) << "Block " << block << " CompBlock " << comp_block << " Pos " << pos << std::endl;
+					}
+					else{
+						EXPECT_EQ(comp_surrounding_end_a, surrounding.at(comp_block)) << "Block " << block << " CompBlock " << comp_block << " Pos " << pos << std::endl;
+					}
+				}
+				else{
+					EXPECT_EQ(comp_surrounding_full_a, surrounding.at(comp_block)) << "Block " << block << " CompBlock " << comp_block << " Pos " << pos << std::endl;
+				}
+			}
+			test_->InsertSurroundingBasesShiftingOnRightSide(surrounding, pos, full_sur_sized_t);
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(0)) << "Block " << block << " Pos " << pos << std::endl;
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(1)) << "Block " << block << " Pos " << pos << std::endl;
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(2)) << "Block " << block << " Pos " << pos << std::endl;
+		}
+	}
+
+	// DeleteSurroundingBaseShiftingOnLeftSide + InsertSurroundingBasesShiftingOnLeftSide
+	for( auto block=Reference::num_surrounding_blocks_; block--; ){
+		for(auto pos : array<uintSurPos, 2>{static_cast<uintSurPos>(block*Reference::surrounding_range_), static_cast<uintSurPos>((block+1)*Reference::surrounding_range_-1)}){
+			test_->DeleteSurroundingBaseShiftingOnLeftSide(surrounding, pos, 'A');
+			EXPECT_EQ(comp_surrounding_start_a, surrounding.at(0)) << "Block " << block << " Pos " << pos << std::endl;
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(1)) << "Block " << block << " Pos " << pos << std::endl;
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(2)) << "Block " << block << " Pos " << pos << std::endl;
+			test_->InsertSurroundingBasesShiftingOnLeftSide(surrounding, pos, "T");
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(0)) << "Block " << block << " Pos " << pos << std::endl;
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(1)) << "Block " << block << " Pos " << pos << std::endl;
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(2)) << "Block " << block << " Pos " << pos << std::endl;
+
+			test_->DeleteSurroundingBaseShiftingOnLeftSide(surrounding, pos, 'T');
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(0)) << "Block " << block << " Pos " << pos << std::endl;
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(1)) << "Block " << block << " Pos " << pos << std::endl;
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(2)) << "Block " << block << " Pos " << pos << std::endl;
+			test_->InsertSurroundingBasesShiftingOnLeftSide(surrounding, pos, "T");
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(0)) << "Block " << block << " Pos " << pos << std::endl;
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(1)) << "Block " << block << " Pos " << pos << std::endl;
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(2)) << "Block " << block << " Pos " << pos << std::endl;
+
+			test_->InsertSurroundingBasesShiftingOnLeftSide(surrounding, pos, full_sur_sized_t);
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(0)) << "Block " << block << " Pos " << pos << std::endl;
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(1)) << "Block " << block << " Pos " << pos << std::endl;
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(2)) << "Block " << block << " Pos " << pos << std::endl;
+			test_->InsertSurroundingBasesShiftingOnLeftSide(surrounding, pos, full_sur_sized_a);
+			for( auto comp_block=Reference::num_surrounding_blocks_; comp_block--; ){
+				if(comp_block<block){
+					EXPECT_EQ(comp_surrounding_full_a, surrounding.at(comp_block)) << "Block " << block << " CompBlock " << comp_block << " Pos " << pos << std::endl;
+				}
+				else if(comp_block==block){
+					if(block*Reference::surrounding_range_ == pos){
+						EXPECT_EQ(comp_surrounding_start_a, surrounding.at(comp_block)) << "Block " << block << " CompBlock " << comp_block << " Pos " << pos << std::endl;
+					}
+					else{
+						EXPECT_EQ(comp_surrounding_full_a, surrounding.at(comp_block)) << "Block " << block << " CompBlock " << comp_block << " Pos " << pos << std::endl;
+					}
+				}
+				else{
+					EXPECT_EQ(comp_surrounding_full_t, surrounding.at(comp_block)) << "Block " << block << " CompBlock " << comp_block << " Pos " << pos << std::endl;
+				}
+			}
+			test_->InsertSurroundingBasesShiftingOnLeftSide(surrounding, pos, full_sur_sized_t);
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(0)) << "Block " << block << " Pos " << pos << std::endl;
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(1)) << "Block " << block << " Pos " << pos << std::endl;
+			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(2)) << "Block " << block << " Pos " << pos << std::endl;
+		}
+	}
 }
 
 void SimulatorTest::TestVariationInInnerLoopOfSimulateFromGivenBlock(
@@ -504,6 +582,7 @@ namespace reseq{
 		LoadReference("ecoli-GCF_000005845.2_ASM584v2_genomic.fa");
 
 		TestSurroundingModifiers();
+		TestSurroundingModifiersExtremCases();
 		TestVariationInSimulateFromGivenBlock();
 	}
 }

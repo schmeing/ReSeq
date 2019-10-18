@@ -90,7 +90,7 @@ inline bool Reference::ReadFirstVcfRecord(){
 bool Reference::ReadVariants(uintRefSeqId end_ref_seq_id, bool positions_only){
 	// Read the file record by record until variant is for sequence end_ref_seq_id or later
 	uintErrorCount errors=0;
-
+	bool tmp_success = true;
 	uintSeqLen start_pos, end_pos(0);
 
 	uintSeqLen pos;
@@ -115,209 +115,217 @@ bool Reference::ReadVariants(uintRefSeqId end_ref_seq_id, bool positions_only){
 					printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
 					break;
 				}
-				else{
-					continue;
-				}
-			}
-			if(cur_vcf_record_.beginPos >= SequenceLength(cur_vcf_record_.rID)){
-				printErr << "Variant starting in reference sequence " << cur_vcf_record_.rID << " at position " << start_pos << " starts after the end of the reference sequence." << std::endl;
-				if(++errors >= kMaxErrorsShownPerFile){
-					printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
-					break;
-				}
-				else{
-					continue;
-				}
-			}
-
-			start_pos = cur_vcf_record_.beginPos;
-
-			if(old_ref_id == cur_vcf_record_.rID){
-				if(start_pos < end_pos){
-					printErr << "Variant starting in reference sequence " << cur_vcf_record_.rID << " at position " << start_pos << " overlaps with a previous variant." << std::endl;
-					if(++errors >= kMaxErrorsShownPerFile){
-						printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
-						break;
-					}
-					else{
-						continue;
-					}
-				}
 			}
 			else{
-				old_ref_id = cur_vcf_record_.rID;
-			}
-
-			end_pos = start_pos + length(cur_vcf_record_.ref);
-
-			if(positions_only){
-				for(auto pos=start_pos; pos<end_pos; ++pos){
-					variant_positions_.at(cur_vcf_record_.rID).push_back(pos);
-				}
-			}
-			else{
-				Dna5String vcf_ref_var_ = cur_vcf_record_.ref;
-				if( utilities::HasN(vcf_ref_var_) ){
-					printErr << "Variant starting in reference sequence " << cur_vcf_record_.rID << " at position " << start_pos << " has an reference column containing ambiguous bases (e.g. N). Please change or remove them, but make sure the reference file stays consistent with this column." << std::endl;
+				if(cur_vcf_record_.beginPos >= SequenceLength(cur_vcf_record_.rID)){
+					printErr << "Variant starting in reference sequence " << cur_vcf_record_.rID << " at position " << start_pos << " starts after the end of the reference sequence." << std::endl;
 					if(++errors >= kMaxErrorsShownPerFile){
 						printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
 						break;
 					}
 				}
+				else{
+					start_pos = cur_vcf_record_.beginPos;
 
-
-				if( vcf_ref_var_ != infix(ReferenceSequence(cur_vcf_record_.rID), start_pos, end_pos) ){
-					printErr << "The specified reference in vcf file '" << vcf_ref_var_ << "' is not identical with the specified reference sequence " << cur_vcf_record_.rID << " at position " << start_pos << ": '" << infix(ReferenceSequence(cur_vcf_record_.rID), start_pos, end_pos ) << "'." << std::endl;
-					if(++errors >= kMaxErrorsShownPerFile){
-						printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
-						break;
-					}
-					else{
-						continue;
-					}
-				}
-
-				// Get genotypes
-				cur_allele = 0;
-				for( auto &genotype : cur_vcf_record_.genotypeInfos ){
-					if(cur_allele >= num_alleles_){
-						printErr << "Found to many alleles in genotype definition '";
-						for( auto &genotype : cur_vcf_record_.genotypeInfos ){
-							std::cout << ' ' << genotype;
-						}
-						std::cout << "'" << std::endl;
-					}
-
-					pos=0;
-					chosen_var=0;
-					while(pos < length(genotype) && ':' != at(genotype, pos)){
-						if('|' == at(genotype, pos) || '/' == at(genotype, pos)){
-							allele.at(cur_allele++) = chosen_var;
-							chosen_var = 0;
-						}
-						else if('0' <= at(genotype, pos) && '9' >= at(genotype, pos)){
-							chosen_var *= 10;
-							chosen_var += at(genotype, pos) - 48;
-						}
-						else{
-							printErr << "Unallowed character '" << at(genotype, pos) << "' in genotype definition '" << genotype << "'" << std::endl;
+					if(old_ref_id == cur_vcf_record_.rID){
+						if(start_pos < end_pos){
+							printErr << "Variant starting in reference sequence " << cur_vcf_record_.rID << " at position " << start_pos << " overlaps with a previous variant." << std::endl;
 							if(++errors >= kMaxErrorsShownPerFile){
 								printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
 								break;
 							}
-							else{
-								continue;
-							}
 						}
-						++pos;
-					}
-					allele.at(cur_allele++) = chosen_var;
-				}
-
-				if(cur_allele < num_alleles_){
-					printErr << "Could not find enough alleles in genotype definition '";
-					for( auto &genotype : cur_vcf_record_.genotypeInfos ){
-						std::cout << ' ' << genotype;
-					}
-					std::cout << "'" << std::endl;
-					if(++errors >= kMaxErrorsShownPerFile){
-						printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
-						break;
 					}
 					else{
-						continue;
+						old_ref_id = cur_vcf_record_.rID;
 					}
-				}
 
-				// Find variations for the genotypes
-				gt_has_var.clear();
-				alt_start_pos.clear();
-				alt_start_pos.push_back(0);
+					end_pos = start_pos + length(cur_vcf_record_.ref);
+					Dna5String vcf_ref_var_ = cur_vcf_record_.ref;
 
-				if(length(cur_vcf_record_.alt) > numeric_limits<uintSeqLen>::max()){
-					printErr << "Variant starting in reference sequence " << cur_vcf_record_.rID << " at position " << start_pos << " has an alternative column of length " << length(cur_vcf_record_.alt) << ", but currently only a maximum of " << numeric_limits<uintSeqLen>::max() << " characters are supported." << std::endl;
-					if(++errors >= kMaxErrorsShownPerFile){
-						printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
-						break;
-					}
-					else{
-						continue;
-					}
-				}
-
-				chosen_var = 1; // 0 is the reference sequence
-				// Split alternative sequences
-				for(pos = 0; pos < length(cur_vcf_record_.alt); ++pos){
-					if(',' == at(cur_vcf_record_.alt, pos)){
-						alt_start_pos.push_back(pos+1); // Position after the ',' is the start of the next alternative
-
-						// Check which genotypes have this variant
-						gt_has_var.push_back(0);
-						for(cur_allele=num_alleles_; cur_allele--; ){ // Has to be backwards, because allele 0 is in the rightmost bit
-							gt_has_var.back() = gt_has_var.back() << 1;
-							if(allele.at(cur_allele) == chosen_var){
-								++gt_has_var.back();
-							}
-						}
-						++chosen_var;
-					}
-				}
-				alt_start_pos.push_back(pos+1); // To be in line with the one after the ',' we use here one after the end (which itself is one after the last character)
-
-				// Check which genotypes have the final variant
-				gt_has_var.push_back(0);
-				for(cur_allele=num_alleles_; cur_allele--; ){ // Has to be backwards, because allele 0 is in the rightmost bit
-					gt_has_var.back() = gt_has_var.back() << 1;
-					if(allele.at(cur_allele) == chosen_var){
-						++gt_has_var.back();
-					}
-					else if(allele.at(cur_allele) > chosen_var){
-						if(++errors <= kMaxErrorsShownPerFile){
-							printErr << "Variant number " << allele.at(cur_allele) << " does not exist for sequence id " << cur_vcf_record_.rID << " and position " << cur_vcf_record_.beginPos << std::endl;
-						}
-						if(errors >= kMaxErrorsShownPerFile){
+					if( utilities::HasN(vcf_ref_var_) ){
+						printErr << "Variant starting in reference sequence " << cur_vcf_record_.rID << " at position " << start_pos << " has an reference column containing ambiguous bases (e.g. N). Please change or remove them, but make sure the reference file stays consistent with this column." << std::endl;
+						if(++errors >= kMaxErrorsShownPerFile){
 							printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
+							break;
 						}
 					}
-				}
-				++chosen_var;
-
-				// Enter variants into vector (split into single reference positions)
-				Dna5String inserted_variant;
-				for(pos = 0; pos < length(vcf_ref_var_); ++pos){
-					for(uintAlleleId n_alt = 0; n_alt < gt_has_var.size(); ++n_alt){
-						// Check if any genotype has this variant
-						if(gt_has_var.at(n_alt)){
-							// Enter record into variations vector
-							if(pos+1 == length(vcf_ref_var_) && pos+1 < alt_start_pos.at(n_alt+1)-1 - alt_start_pos.at(n_alt)){
-								// Insertion
-								inserted_variant = infix(cur_vcf_record_.alt, alt_start_pos.at(n_alt)+pos, alt_start_pos.at(n_alt+1)-1);
-
+					else{
+						if( vcf_ref_var_ != infix(ReferenceSequence(cur_vcf_record_.rID), start_pos, end_pos) ){
+							printErr << "The specified reference in vcf file '" << vcf_ref_var_ << "' is not identical with the specified reference sequence " << cur_vcf_record_.rID << " at position " << start_pos << ": '" << infix(ReferenceSequence(cur_vcf_record_.rID), start_pos, end_pos ) << "'." << std::endl;
+							if(++errors >= kMaxErrorsShownPerFile){
+								printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
+								break;
 							}
-							else if(pos < alt_start_pos.at(n_alt+1)-1 - alt_start_pos.at(n_alt)){
-								// Base Mutation
-								if(at(vcf_ref_var_, pos) != at(cur_vcf_record_.alt, alt_start_pos.at(n_alt)+pos)){
-									inserted_variant = at(cur_vcf_record_.alt, alt_start_pos.at(n_alt)+pos);
-								}
-								else{
-									continue; // If variant is identical to reference, we don't need to add it
-								}
-							}
-							else{
-								// Deletion
-								inserted_variant = Dna5String("");
-							}
+						}
+					}
 
-							if( utilities::HasN(inserted_variant) ){
-								if(++errors <= kMaxErrorsShownPerFile){
-									printErr << "Variant starting in reference sequence " << cur_vcf_record_.rID << " at position " << start_pos << " has an alternative column containing ambiguous bases (e.g. N). Please change or remove them." << std::endl;
+					if(positions_only){
+						for(auto pos=start_pos; pos<end_pos; ++pos){
+							variant_positions_.at(cur_vcf_record_.rID).push_back(pos);
+						}
+					}
+					else{
+						// Get genotypes
+						tmp_success = true;
+						cur_allele = 0;
+						for( auto &genotype : cur_vcf_record_.genotypeInfos ){
+							if(cur_allele >= num_alleles_){
+								tmp_success = false;
+								printErr << "Found to many alleles in genotype definition '";
+								for( auto &genotype : cur_vcf_record_.genotypeInfos ){
+									std::cout << ' ' << genotype;
 								}
-								if(errors >= kMaxErrorsShownPerFile){
+								std::cout << "'" << std::endl;
+								if(++errors >= kMaxErrorsShownPerFile){
 									printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
 								}
+								break;
 							}
 
-							InsertVariant(cur_vcf_record_.rID, start_pos+pos, inserted_variant, gt_has_var.at(n_alt));
+							pos=0;
+							chosen_var=0;
+							while(pos < length(genotype) && ':' != at(genotype, pos)){
+								if('|' == at(genotype, pos) || '/' == at(genotype, pos)){
+									allele.at(cur_allele++) = chosen_var;
+									chosen_var = 0;
+								}
+								else if('0' <= at(genotype, pos) && '9' >= at(genotype, pos)){
+									chosen_var *= 10;
+									chosen_var += at(genotype, pos) - 48;
+								}
+								else{
+									tmp_success = false;
+									printErr << "Unallowed character '" << at(genotype, pos) << "' in genotype definition '" << genotype << "'" << std::endl;
+									if(++errors >= kMaxErrorsShownPerFile){
+										printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
+										break;
+									}
+								}
+								++pos;
+							}
+
+							if(errors >= kMaxErrorsShownPerFile){
+								break;
+							}
+
+							if(tmp_success){
+								allele.at(cur_allele++) = chosen_var;
+							}
+							else{
+								allele.at(cur_allele++) = 0;
+							}
+						}
+
+						if(errors >= kMaxErrorsShownPerFile){
+							break;
+						}
+
+						if(cur_allele < num_alleles_){
+							tmp_success = false;
+							printErr << "Could not find enough alleles in genotype definition '";
+							for( auto &genotype : cur_vcf_record_.genotypeInfos ){
+								std::cout << ' ' << genotype;
+							}
+							std::cout << "'" << std::endl;
+							if(++errors >= kMaxErrorsShownPerFile){
+								printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
+								break;
+							}
+						}
+
+						if(tmp_success){
+							// Find variations for the genotypes
+							gt_has_var.clear();
+							alt_start_pos.clear();
+							alt_start_pos.push_back(0);
+
+							if(length(cur_vcf_record_.alt) > numeric_limits<uintSeqLen>::max()){
+								printErr << "Variant starting in reference sequence " << cur_vcf_record_.rID << " at position " << start_pos << " has an alternative column of length " << length(cur_vcf_record_.alt) << ", but currently only a maximum of " << numeric_limits<uintSeqLen>::max() << " characters are supported." << std::endl;
+								if(++errors >= kMaxErrorsShownPerFile){
+									printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
+									break;
+								}
+							}
+							else{
+								chosen_var = 1; // 0 is the reference sequence
+								// Split alternative sequences
+								for(pos = 0; pos < length(cur_vcf_record_.alt); ++pos){
+									if(',' == at(cur_vcf_record_.alt, pos)){
+										alt_start_pos.push_back(pos+1); // Position after the ',' is the start of the next alternative
+
+										// Check which genotypes have this variant
+										gt_has_var.push_back(0);
+										for(cur_allele=num_alleles_; cur_allele--; ){ // Has to be backwards, because allele 0 is in the rightmost bit
+											gt_has_var.back() = gt_has_var.back() << 1;
+											if(allele.at(cur_allele) == chosen_var){
+												++gt_has_var.back();
+											}
+										}
+										++chosen_var;
+									}
+								}
+								alt_start_pos.push_back(pos+1); // To be in line with the one after the ',' we use here one after the end (which itself is one after the last character)
+
+								// Check which genotypes have the final variant
+								gt_has_var.push_back(0);
+								for(cur_allele=num_alleles_; cur_allele--; ){ // Has to be backwards, because allele 0 is in the rightmost bit
+									gt_has_var.back() = gt_has_var.back() << 1;
+									if(allele.at(cur_allele) == chosen_var){
+										++gt_has_var.back();
+									}
+									else if(allele.at(cur_allele) > chosen_var){
+										if(++errors <= kMaxErrorsShownPerFile){
+											printErr << "Variant number " << allele.at(cur_allele) << " does not exist for sequence id " << cur_vcf_record_.rID << " and position " << cur_vcf_record_.beginPos << std::endl;
+										}
+										if(errors >= kMaxErrorsShownPerFile){
+											printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
+										}
+									}
+								}
+								++chosen_var;
+
+								// Enter variants into vector (split into single reference positions)
+								Dna5String inserted_variant;
+								for(pos = 0; pos < length(vcf_ref_var_); ++pos){
+									for(uintAlleleId n_alt = 0; n_alt < gt_has_var.size(); ++n_alt){
+										// Check if any genotype has this variant
+										if(gt_has_var.at(n_alt)){
+											// Enter record into variations vector
+											if(pos+1 == length(vcf_ref_var_) && pos+1 < alt_start_pos.at(n_alt+1)-1 - alt_start_pos.at(n_alt)){
+												// Insertion
+												inserted_variant = infix(cur_vcf_record_.alt, alt_start_pos.at(n_alt)+pos, alt_start_pos.at(n_alt+1)-1);
+
+											}
+											else if(pos < alt_start_pos.at(n_alt+1)-1 - alt_start_pos.at(n_alt)){
+												// Base Mutation
+												if(at(vcf_ref_var_, pos) != at(cur_vcf_record_.alt, alt_start_pos.at(n_alt)+pos)){
+													inserted_variant = at(cur_vcf_record_.alt, alt_start_pos.at(n_alt)+pos);
+												}
+												else{
+													continue; // If variant is identical to reference, we don't need to add it
+												}
+											}
+											else{
+												// Deletion
+												inserted_variant = Dna5String("");
+											}
+
+											if( utilities::HasN(inserted_variant) ){
+												if(++errors <= kMaxErrorsShownPerFile){
+													printErr << "Variant starting in reference sequence " << cur_vcf_record_.rID << " at position " << start_pos << " has an alternative column containing ambiguous bases (e.g. N). Please change or remove them." << std::endl;
+												}
+												if(errors >= kMaxErrorsShownPerFile){
+													printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
+												}
+											}
+											else{
+												InsertVariant(cur_vcf_record_.rID, start_pos+pos, inserted_variant, gt_has_var.at(n_alt));
+											}
+										}
+									}
+								}
+							}
 						}
 					}
 				}

@@ -781,7 +781,7 @@ void ProbabilityEstimates::IterativeProportionalFitting(
 
 			// Write the description for printing
 			stringstream descriptor;
-			descriptor << "Quality segment " << template_segment << ", tile_id " << tile_id << ", ref_base " << ref_base;
+			descriptor << "Quality segment " << static_cast<uintTempSeqPrint>(template_segment) << ", tile_id " << tile_id << ", ref_base " << ref_base;
 
 			// Run the iterative proportional fitting
 			quality_.at(template_segment).at(tile_id).at(ref_base).IterativeProportionalFitting(
@@ -806,7 +806,7 @@ void ProbabilityEstimates::IterativeProportionalFitting(
 
 			// Write the description for printing
 			stringstream descriptor;
-			descriptor << "Sequence quality segment " << template_segment << ", tile_id " << tile_id;
+			descriptor << "Sequence quality segment " << static_cast<uintTempSeqPrint>(template_segment) << ", tile_id " << tile_id;
 
 			// Run the iterative proportional fitting
 			sequence_quality_.at(template_segment).at(tile_id).IterativeProportionalFitting(
@@ -831,7 +831,7 @@ void ProbabilityEstimates::IterativeProportionalFitting(
 
 			// Write the description for printing
 			stringstream descriptor;
-			descriptor << "Base-call segment " << template_segment << ", tile_id " << tile_id << ", ref_base " << ref_base << ", dom_error " << dom_error;
+			descriptor << "Base-call segment " << static_cast<uintTempSeqPrint>(template_segment) << ", tile_id " << tile_id << ", ref_base " << ref_base << ", dom_error " << dom_error;
 
 			// Run the iterative proportional fitting
 			base_call_.at(template_segment).at(tile_id).at(ref_base).at(dom_error).IterativeProportionalFitting(

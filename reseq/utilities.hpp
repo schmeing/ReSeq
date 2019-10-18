@@ -39,10 +39,11 @@ namespace reseq{
 	typedef uint16_t uintMarginId; // Id or size for probability margin or dimension
 	typedef uint16_t uintNumThreads; // Id for probability margin
 	typedef uint16_t uintPercentPrint; // Percent values for printing (so they are not printed as characters)
-	typedef uint16_t uintQualPrint; // Quality values
+	typedef uint16_t uintQualPrint; // Quality values for printing (so they are not printed as characters)
 	typedef uint16_t uintReadLen; // Position on read, length of sequence
 	typedef uint16_t uintSurBlockId; // Surrounding block number, id, etc.
 	typedef uint16_t uintSurPos; // Position in surrounding
+	typedef uint16_t uintTempSeqPrint; // Template segment, strand (0,1) for printing (so they are not printed as characters)
 	typedef uint16_t uintTile; // Tile encoding (e.g. 2308)
 	typedef uint16_t uintTileId; // Tile ids
 

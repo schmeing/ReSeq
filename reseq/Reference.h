@@ -56,7 +56,7 @@ namespace reseq{
 #endif //SWIG
 
 		static const uintSurBlockId num_surrounding_blocks_ = 3; // Number of surrounding blocks
-		static const uintSeqLen surrounding_range_ = 10; // Length of a single surrounding block
+		static const uintSurPos surrounding_range_ = 10; // Length of a single surrounding block
 		static const int16_t surrounding_start_pos_ = -10; // Position where the surrounding should start relative to the first base in the fragment (so -10 is 10 bases before the fragment) [-num_surrounding_blocks_*surrounding_range_ < surrounding_start_pos_ <= 0]
 		static uintSeqLen SurroundingSize(){
 			return 1 << 2*surrounding_range_;
