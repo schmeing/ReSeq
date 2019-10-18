@@ -1,6 +1,5 @@
 #!/usr/bin/python
 
-
 import getopt
 from itertools import izip
 from math import ceil
@@ -112,11 +111,14 @@ def num_subplots( num_plots ):
 def finalizePlot(xtitle, ytitle):
     plt.xlabel(xtitle, fontsize=text_size)
     plt.ylabel(ytitle, fontsize=text_size)
+    plt.tight_layout()
     return
 
-def finalizeMultiPlot(fig, xtitle, ytitle):
-    fig.text(0.5, 0.04, xtitle, ha='center', va='center', fontsize=text_size)
-    fig.text(0.06, 0.5, ytitle, ha='center', va='center', rotation='vertical', fontsize=text_size)
+def finalizeMultiPlot(fig, axs, xtitle, ytitle):
+    fig.tight_layout(rect=[0.04, 0.04, 1, 1])
+
+    fig.text(0.54, 0.04, xtitle, ha='center', va='center', fontsize=text_size)
+    fig.text(0.04, 0.54, ytitle, ha='center', va='center', rotation='vertical', fontsize=text_size)
     return
 
 def finalizeMultiPlotWithColorbar(fig, xtitle, ytitle, cmap, norm, horizontal):
@@ -202,6 +204,7 @@ def plot(pdf, xtitle, ytitle, names, hists, zero_padding=True, log=False, shift_
         if plot_legend:
             plt.legend(loc=legend, shadow=True)
             pass
+
         pdf.savefig()
         pass
     return
@@ -409,7 +412,7 @@ def plotTileQuality(pdf, xtitle, ytitle, ztitle, names, tile_dicts):
         
         # Add colorbar and axis titles
         finalizeMultiPlotWithColorbar(fig, xtitle, ytitle, RdWeGn, z_axis_norm, (num_x_subplots > num_y_subplots))
-    
+
         pdf.savefig()
     return
 
@@ -439,7 +442,7 @@ def plotSequenceQualities(pdf, xtitle, ytitle, names, means, minima, first_quart
     ax_third_quartile.set_title("Third quartile", fontsize=text_size)
     ax_maximum.set_title("Maximum", fontsize=text_size)
     
-    finalizeMultiPlot(fig, xtitle, ytitle)
+    finalizeMultiPlot(fig, [ax_mean, ax_first_quartile, ax_minimum, ax_median, ax_third_quartile, ax_maximum], xtitle, ytitle)
     
     pdf.savefig()
     return
@@ -527,7 +530,7 @@ def plot2dQuality(pdf, xtitle, ytitle, names, quals, axis_lable_dist = 5):
             subplot_x %= num_x_subplots
             pass
     
-        finalizeMultiPlot(fig, xtitle, ytitle)
+        finalizeMultiPlot(fig, axs, xtitle, ytitle)
 
         pdf.savefig()
         pass
@@ -644,7 +647,7 @@ def nucleotidePlot(pdf, xtitle, ytitle, names, hists, zero_padding=True, log=Fal
             axs[N/2, N%2].set_ylim([min_y, max_y])
             pass
     
-        finalizeMultiPlot(fig, xtitle, ytitle)
+        finalizeMultiPlot(fig, axs.flatten, xtitle, ytitle)
         if plot_legend:
             if( "" == legend ):
                 axs[Nlegend/2, Nlegend%2].legend(bbox_to_anchor=(1.1, 1.1))
@@ -776,7 +779,7 @@ def plotCalledBases( pdf, xtitle, ytitle, names, called_bases, total_bases, incl
         ax.set_ylim([min_y_value-1,100])
         pass
 
-    finalizeMultiPlot(fig, xtitle, ytitle)
+    finalizeMultiPlot(fig, axs, xtitle, ytitle)
     pdf.savefig()
 
     return
@@ -816,7 +819,7 @@ def plotMeanVsDispersion(pdf, xtitle, ytitle, names, mean_lists, dispersion_list
         subplot_x %= num_x_subplots
         pass
 
-    finalizeMultiPlot(fig, xtitle, ytitle)
+    finalizeMultiPlot(fig, axs, xtitle, ytitle)
 
     pdf.savefig()
 
@@ -856,56 +859,23 @@ def plotDataStats(statsFiles, oFile):
         with PdfPages(oFile) as pdf:
             plt.ioff()
             print "Start plotting files: ", clock()
-
-            #plot( pdf, "Read length (first)", "# reads", names, [st.ReadLengths(0) for st in stats] )
-            #plot( pdf, "Read length (second)", "# reads", names, [st.ReadLengths(1) for st in stats] )
-            plot( pdf, "Insert length", "% read pairs", names, [st.InsertLengths() for st in stats], normalize=True )
- 
-            plotTileAbundance( pdf, "Adapters (first)", "# adapters", names, [[counts for counts in st.AdapterCount(0) if 0 < counts] for st in stats], [[st.AdapterName(0, i) for i,counts in enumerate(st.AdapterCount(0)) if 0 < counts] for st in stats] )
-            plotTileAbundance( pdf, "Adapters (second)", "# adapters", names, [[counts for counts in st.AdapterCount(1) if 0 < counts] for st in stats], [[st.AdapterName(1, i) for i,counts in enumerate(st.AdapterCount(1)) if 0 < counts] for st in stats] )
+            
+            plot( pdf, "Coverage", "# bases of reference", names, [st.Coverage() for st in stats], zero_padding=False, cov_plot=True )
+            #plot( pdf, "Coverage + strand", "# bases of reference", names, [st.CoverageStranded(False) for st in stats], zero_padding=False )
+            #plot( pdf, "Coverage - strand", "# bases of reference", names, [st.CoverageStranded(True) for st in stats], zero_padding=False )
+            plot( pdf, "Coverage + strand / total Coverage [%]", "# bases of reference", names, [st.CoverageStrandedPercent(False) for st in stats], zero_padding=False )
+            plot( pdf, "Coverage - strand / total Coverage [%]", "# bases of reference", names, [st.CoverageStrandedPercent(True) for st in stats], zero_padding=False )
+            #plot( pdf, "Coverage + strand / total Coverage [%]", "# bases of reference (min cov 10)", names, [st.CoverageStrandedPercentMinCov10(False) for st in stats], zero_padding=False )
+            #plot( pdf, "Coverage - strand / total Coverage [%]", "# bases of reference (min cov 10)", names, [st.CoverageStrandedPercentMinCov10(True) for st in stats], zero_padding=False )
+            #plot( pdf, "Coverage + strand / total Coverage [%]", "# bases of reference (min cov 20)", names, [st.CoverageStrandedPercentMinCov20(False) for st in stats], zero_padding=False )
+            #plot( pdf, "Coverage - strand / total Coverage [%]", "# bases of reference (min cov 20)", names, [st.CoverageStrandedPercentMinCov20(True) for st in stats], zero_padding=False )
+            
             plot( pdf, "Fragment duplication number", "% fragments", names, [st.FragmentDuplicationNumber() for st in stats], log=True, normalize=True )
- 
-            print "Plotted read information: ", clock()
-   
-            plotBaseQualities( pdf, "Read position (first)", "Quality", names, [st.BaseQualityMean(0) for st in stats], [st.BaseQualityMinimum(0) for st in stats], [st.BaseQualityFirstQuartile(0) for st in stats], [st.BaseQualityMedian(0) for st in stats], [st.BaseQualityThirdQuartile(0) for st in stats], [st.BaseQualityMaximum(0) for st in stats] )
-            plotBaseQualities( pdf, "Read position (second)", "Quality", names, [st.BaseQualityMean(1) for st in stats], [st.BaseQualityMinimum(1) for st in stats], [st.BaseQualityFirstQuartile(1) for st in stats], [st.BaseQualityMedian(1) for st in stats], [st.BaseQualityThirdQuartile(1) for st in stats], [st.BaseQualityMaximum(1) for st in stats] )
-
-            #plotBaseQualities( pdf, "Read position (first)", "Quality (mapped reads)", names, [st.BaseQualityMeanReference(0) for st in stats], [st.BaseQualityMinimumReference(0) for st in stats], [st.BaseQualityFirstQuartileReference(0) for st in stats], [st.BaseQualityMedianReference(0) for st in stats], [st.BaseQualityThirdQuartileReference(0) for st in stats], [st.BaseQualityMaximumReference(0) for st in stats] )
-            #plotBaseQualities( pdf, "Read position (second)", "Quality (mapped reads)", names, [st.BaseQualityMeanReference(1) for st in stats], [st.BaseQualityMinimumReference(1) for st in stats], [st.BaseQualityFirstQuartileReference(1) for st in stats], [st.BaseQualityMedianReference(1) for st in stats], [st.BaseQualityThirdQuartileReference(1) for st in stats], [st.BaseQualityMaximumReference(1) for st in stats] )
- 
-            #plot(pdf, "Read position (+ strand)", "Quality", names, [st.BaseQualityMeanPerStrand(0) for st in stats], zero_padding=False, shift_x=1)
-            #plot(pdf, "Read position (- strand)", "Quality", names, [st.BaseQualityMeanPerStrand(1) for st in stats], zero_padding=False, shift_x=1)
- 
-            plotTileAbundance( pdf, "Tile", "# read pairs", names, [st.TileAbundance() for st in stats], [st.TileNames() for st in stats] )
-            plotTileQuality( pdf, "Read position (first)", "Tile", "Quality mean difference", names, [{ tile : st.TileQualityMeanDifference(0, tile_id) for tile_id, tile in enumerate( st.TileNames() ) } for st in stats ] )
-            plotTileQuality( pdf, "Read position (second)", "Tile", "Quality mean difference", names, [{ tile : st.TileQualityMeanDifference(1, tile_id) for tile_id, tile in enumerate( st.TileNames() ) } for st in stats ] )
- 
-            plotSequenceQualities( pdf, "Sequence quality (first)", "% reads", names, [st.SequenceQualityMean(0) for st in stats], [st.SequenceQualityMinimum(0) for st in stats], [st.SequenceQualityFirstQuartile(0) for st in stats], [st.SequenceQualityMedian(0) for st in stats], [st.SequenceQualityThirdQuartile(0) for st in stats], [st.SequenceQualityMaximum(0) for st in stats] )
-            plotSequenceQualities( pdf, "Sequence quality (second)", "% reads", names, [st.SequenceQualityMean(1) for st in stats], [st.SequenceQualityMinimum(1) for st in stats], [st.SequenceQualityFirstQuartile(1) for st in stats], [st.SequenceQualityMedian(1) for st in stats], [st.SequenceQualityThirdQuartile(1) for st in stats], [st.SequenceQualityMaximum(1) for st in stats] )
- 
-            plot( pdf, "Mean sequence quality (first)", "% reads", names, [st.SequenceQualityMean(0) for st in stats], zero_padding=False, normalize=True, legend='upper left' )
-            plot( pdf, "Mean sequence quality (second)", "% reads", names, [st.SequenceQualityMean(1) for st in stats], zero_padding=False, normalize=True, legend='upper left' )
- 
-            plot( pdf, "Sequence error probability mean (first)", "% reads", names, [st.SequenceQualityProbabilityMean(0) for st in stats], zero_padding=False, normalize=True )
-            plot( pdf, "Sequence error probability mean (second)", "% reads", names, [st.SequenceQualityProbabilityMean(1) for st in stats], zero_padding=False, normalize=True )           
- 
-            plot2dQuality( pdf, "Sequence quality (first)", "Base quality", names, [ ( st.BaseQualityForSequenceStart(0), [st.BaseQualityForSequence(0, sq) for sq in xrange( st.BaseQualityForSequenceStart(0), st.BaseQualityForSequenceEnd(0) )] ) for st in stats] )
-            plot2dQuality( pdf, "Sequence quality (second)", "Base quality", names, [ ( st.BaseQualityForSequenceStart(1), [st.BaseQualityForSequence(1, sq) for sq in xrange( st.BaseQualityForSequenceStart(1), st.BaseQualityForSequenceEnd(1) )] ) for st in stats] )
-            plot2dQuality( pdf, "Preceding quality (first)", "Following quality", names, [ ( st.BaseQualityForPrecedingQualityStart(0), [st.BaseQualityForPrecedingQuality(0, sq) for sq in xrange( st.BaseQualityForPrecedingQualityStart(0), st.BaseQualityForPrecedingQualityEnd(0) )] ) for st in stats] )
-            plot2dQuality( pdf, "Preceding quality (second)", "Following quality", names, [ ( st.BaseQualityForPrecedingQualityStart(1), [st.BaseQualityForPrecedingQuality(1, sq) for sq in xrange( st.BaseQualityForPrecedingQualityStart(1), st.BaseQualityForPrecedingQualityEnd(1) )] ) for st in stats] )
-            plot2dQuality( pdf, "Sequence quality (first)", "Sequence quality (second)", names, [ ( st.SequenceQualityPairsStart(), [st.SequenceQualityPairs(sq) for sq in xrange( st.SequenceQualityPairsStart(), st.SequenceQualityPairsEnd() )] ) for st in stats] )
-            plot(pdf, "Fragment length", "Mean Sequence Quality (first)", names, [st.MeanSequenceQualityMeanByFragmentLength(0) for st in stats], legend='lower right' )
-            plot(pdf, "Fragment length", "Mean Sequence Quality (second)", names, [st.MeanSequenceQualityMeanByFragmentLength(1) for st in stats], legend='lower right' )
- 
-            plot2dQuality( pdf, "Distance to start of error region", "Error rate", names, [ ( st.ErrorRatesByDistanceStart(), [st.ErrorRatesByDistance(dist) for dist in xrange( st.ErrorRatesByDistanceStart(), st.ErrorRatesByDistanceEnd() )] ) for st in stats] )
-            plot2dQuality( pdf, "GC", "Error rate", names, [ ( st.ErrorRatesByGCStart(), [st.ErrorRatesByGC(gc) for gc in xrange( st.ErrorRatesByGCStart(), st.ErrorRatesByGCEnd() )] ) for st in stats] )
- 
-            nucleotidePlot( pdf, "Nucleotide content (first) [%]", "Average sequence quality", names, [ [st.AverageSequenceQualityForBase(0, n) for st in stats] for n in xrange(4)], Nlegend=1, legend='' )
-            nucleotidePlot( pdf, "Nucleotide content (second) [%]", "Average sequence quality", names, [ [st.AverageSequenceQualityForBase(1, n) for st in stats] for n in xrange(4)], Nlegend=1, legend='' )
-            plot( pdf, "GC content (first)", "Average sequence quality", names, [st.AverageSequenceQualityForGC(0) for st in stats], zero_padding=False)
-            plot( pdf, "GC content (second)", "Average sequence quality", names, [st.AverageSequenceQualityForGC(1) for st in stats], zero_padding=False)
-            print "Plotted quality information: ", clock()
- 
+            plotMeanVsDispersion( pdf, "Mean", "Dispersion", names, [st.MeanList() for st in stats], [st.DispersionList() for st in stats] )
+            
+            plot( pdf, "Reference sequence", "# pairs", names, [(0,st.Abundance()) for st in stats] )
+            plot( pdf, "Insert length", "% read pairs", names, [st.InsertLengths() for st in stats], normalize=True )
+            
             plot( pdf, "GC read content[%] (first)", "% reads", names, [st.GCReadContent(0) for st in stats], zero_padding=False, normalize=True )
             plot( pdf, "GC read content[%] (second)", "% reads", names, [st.GCReadContent(1) for st in stats], zero_padding=False, normalize=True )
             #plot( pdf, "GC read content on reference[%] (first)", "% reads", names, [st.GCReadContentReference(0) for st in stats], zero_padding=False, normalize=True )
@@ -927,34 +897,56 @@ def plotDataStats(statsFiles, oFile):
             nucleotidePlot( pdf, "position before(-)/after(+) fragment (reverse)", "% A/C/G/T at position", names, [ [st.OutskirtContent(1,n) for st in stats] for n in xrange(4)], zero_padding=False, shift_x=-20, pos_normalize=True )
             plot( pdf, "Read position (first)", "# N", names, [st.SequenceContent(0,4) for st in stats], zero_padding=False, shift_x=1, legend='upper left' )
             plot( pdf, "Read position (second)", "# N", names, [st.SequenceContent(1,4) for st in stats], zero_padding=False, shift_x=1, legend='upper left' )
+            
+            print "Plotted coverage information: ", clock()
+            
+            
+            plotBaseQualities( pdf, "Read position (first)", "Quality", names, [st.BaseQualityMean(0) for st in stats], [st.BaseQualityMinimum(0) for st in stats], [st.BaseQualityFirstQuartile(0) for st in stats], [st.BaseQualityMedian(0) for st in stats], [st.BaseQualityThirdQuartile(0) for st in stats], [st.BaseQualityMaximum(0) for st in stats] )
+            plotBaseQualities( pdf, "Read position (second)", "Quality", names, [st.BaseQualityMean(1) for st in stats], [st.BaseQualityMinimum(1) for st in stats], [st.BaseQualityFirstQuartile(1) for st in stats], [st.BaseQualityMedian(1) for st in stats], [st.BaseQualityThirdQuartile(1) for st in stats], [st.BaseQualityMaximum(1) for st in stats] )
+            #plotBaseQualities( pdf, "Read position (first)", "Quality (mapped reads)", names, [st.BaseQualityMeanReference(0) for st in stats], [st.BaseQualityMinimumReference(0) for st in stats], [st.BaseQualityFirstQuartileReference(0) for st in stats], [st.BaseQualityMedianReference(0) for st in stats], [st.BaseQualityThirdQuartileReference(0) for st in stats], [st.BaseQualityMaximumReference(0) for st in stats] )
+            #plotBaseQualities( pdf, "Read position (second)", "Quality (mapped reads)", names, [st.BaseQualityMeanReference(1) for st in stats], [st.BaseQualityMinimumReference(1) for st in stats], [st.BaseQualityFirstQuartileReference(1) for st in stats], [st.BaseQualityMedianReference(1) for st in stats], [st.BaseQualityThirdQuartileReference(1) for st in stats], [st.BaseQualityMaximumReference(1) for st in stats] )
+            #plot(pdf, "Read position (+ strand)", "Quality", names, [st.BaseQualityMeanPerStrand(0) for st in stats], zero_padding=False, shift_x=1)
+            #plot(pdf, "Read position (- strand)", "Quality", names, [st.BaseQualityMeanPerStrand(1) for st in stats], zero_padding=False, shift_x=1)
+            
+            plot( pdf, "Mean sequence quality (first)", "% reads", names, [st.SequenceQualityMean(0) for st in stats], zero_padding=False, normalize=True, legend='upper left' )
+            plot( pdf, "Mean sequence quality (second)", "% reads", names, [st.SequenceQualityMean(1) for st in stats], zero_padding=False, normalize=True, legend='upper left' )
+            plotSequenceQualities( pdf, "Sequence quality (first)", "% reads", names, [st.SequenceQualityMean(0) for st in stats], [st.SequenceQualityMinimum(0) for st in stats], [st.SequenceQualityFirstQuartile(0) for st in stats], [st.SequenceQualityMedian(0) for st in stats], [st.SequenceQualityThirdQuartile(0) for st in stats], [st.SequenceQualityMaximum(0) for st in stats] )
+            plotSequenceQualities( pdf, "Sequence quality (second)", "% reads", names, [st.SequenceQualityMean(1) for st in stats], [st.SequenceQualityMinimum(1) for st in stats], [st.SequenceQualityFirstQuartile(1) for st in stats], [st.SequenceQualityMedian(1) for st in stats], [st.SequenceQualityThirdQuartile(1) for st in stats], [st.SequenceQualityMaximum(1) for st in stats] )
+            plot( pdf, "Sequence error probability mean (first)", "% reads", names, [st.SequenceQualityProbabilityMean(0) for st in stats], zero_padding=False, normalize=True )
+            plot( pdf, "Sequence error probability mean (second)", "% reads", names, [st.SequenceQualityProbabilityMean(1) for st in stats], zero_padding=False, normalize=True )           
  
-            nucleotidePlot( pdf, "Homopolymer length", "# A-/C-/G-/T-mers", names, [ [st.HomopolymerDistribution(n) for st in stats] for n in xrange(4)], log=True )
-            #plot( pdf, "Homopolymer length", "# N-mers", names, [st.HomopolymerDistribution(4) for st in stats], log=True )
-            #for qual in [2,4,20,39,40]:
-            #    plot( pdf, "Homoqualimer length (quality={})".format(qual), "# qualimers", names, [st.HomoqualityDistribution(qual) for st in stats], log=True )
-            #    pass
+            plot2dQuality( pdf, "Sequence quality (first)", "Base quality", names, [ ( st.BaseQualityForSequenceStart(0), [st.BaseQualityForSequence(0, sq) for sq in xrange( st.BaseQualityForSequenceStart(0), st.BaseQualityForSequenceEnd(0) )] ) for st in stats] )
+            plot2dQuality( pdf, "Sequence quality (second)", "Base quality", names, [ ( st.BaseQualityForSequenceStart(1), [st.BaseQualityForSequence(1, sq) for sq in xrange( st.BaseQualityForSequenceStart(1), st.BaseQualityForSequenceEnd(1) )] ) for st in stats] )
+            plot2dQuality( pdf, "Preceding quality (first)", "Following quality", names, [ ( st.BaseQualityForPrecedingQualityStart(0), [st.BaseQualityForPrecedingQuality(0, sq) for sq in xrange( st.BaseQualityForPrecedingQualityStart(0), st.BaseQualityForPrecedingQualityEnd(0) )] ) for st in stats] )
+            plot2dQuality( pdf, "Preceding quality (second)", "Following quality", names, [ ( st.BaseQualityForPrecedingQualityStart(1), [st.BaseQualityForPrecedingQuality(1, sq) for sq in xrange( st.BaseQualityForPrecedingQualityStart(1), st.BaseQualityForPrecedingQualityEnd(1) )] ) for st in stats] )
+            plot2dQuality( pdf, "Sequence quality (first)", "Sequence quality (second)", names, [ ( st.SequenceQualityPairsStart(), [st.SequenceQualityPairs(sq) for sq in xrange( st.SequenceQualityPairsStart(), st.SequenceQualityPairsEnd() )] ) for st in stats] )
+            plot(pdf, "Fragment length", "Mean Sequence Quality (first)", names, [st.MeanSequenceQualityMeanByFragmentLength(0) for st in stats], legend='lower right' )
+            plot(pdf, "Fragment length", "Mean Sequence Quality (second)", names, [st.MeanSequenceQualityMeanByFragmentLength(1) for st in stats], legend='lower right' )
  
+            plot2dQuality( pdf, "Distance to start of error region", "Error rate", names, [ ( st.ErrorRatesByDistanceStart(), [st.ErrorRatesByDistance(dist) for dist in xrange( st.ErrorRatesByDistanceStart(), st.ErrorRatesByDistanceEnd() )] ) for st in stats] )
+            plot2dQuality( pdf, "GC", "Error rate", names, [ ( st.ErrorRatesByGCStart(), [st.ErrorRatesByGC(gc) for gc in xrange( st.ErrorRatesByGCStart(), st.ErrorRatesByGCEnd() )] ) for st in stats] )
+ 
+            nucleotidePlot( pdf, "Nucleotide content (first) [%]", "Average sequence quality", names, [ [st.AverageSequenceQualityForBase(0, n) for st in stats] for n in xrange(4)], Nlegend=1, legend='' )
+            nucleotidePlot( pdf, "Nucleotide content (second) [%]", "Average sequence quality", names, [ [st.AverageSequenceQualityForBase(1, n) for st in stats] for n in xrange(4)], Nlegend=1, legend='' )
+            plot( pdf, "GC content (first)", "Average sequence quality", names, [st.AverageSequenceQualityForGC(0) for st in stats], zero_padding=False)
+            plot( pdf, "GC content (second)", "Average sequence quality", names, [st.AverageSequenceQualityForGC(1) for st in stats], zero_padding=False)
+            
             nucleotidePlot( pdf, "Base quality (first)", "% of A/C/G/T bases", names, [ [st.NucleotideQuality(0,n) for st in stats] for n in xrange(4)], normalize=True, zero_padding=False )
             nucleotidePlot( pdf, "Base quality (second)", "% of A/C/G/T bases", names, [ [st.NucleotideQuality(1,n) for st in stats] for n in xrange(4)], normalize=True, zero_padding=False )
+            
             #plot( pdf, "Base quality (first)", "# N", names, [st.NucleotideQuality(0,4) for st in stats] )
             #plot( pdf, "Base quality (second)", "# N", names, [st.NucleotideQuality(1,4) for st in stats] )
-            print "Plotted nucleotide information: ", clock()
+            
+            #for qual in [2,4,20,39,40]:
+            #    plot( pdf, "Quality {} in read (first)".format(qual), "% reads", names, [st.SequenceQualityContent(0,qual) for st in stats], log=True, normalize=True )
+            #    plot( pdf, "Quality {} in read (second)".format(qual), "% reads", names, [st.SequenceQualityContent(1,qual) for st in stats], log=True, normalize=True )
+            #    pass
+            
+            plotTileQuality( pdf, "Read position (first)", "Tile", "Quality mean difference", names, [{ tile : st.TileQualityMeanDifference(0, tile_id) for tile_id, tile in enumerate( st.TileNames() ) } for st in stats ] )
+            plotTileQuality( pdf, "Read position (second)", "Tile", "Quality mean difference", names, [{ tile : st.TileQualityMeanDifference(1, tile_id) for tile_id, tile in enumerate( st.TileNames() ) } for st in stats ] )
  
-            #plot( pdf, "Proper pair mapping quality", "# reads", names, [st.ProperPairMappingQuality() for st in stats], legend='upper left' )
-            #plot( pdf, "Improper pair mapping quality", "# reads", names, [st.ImproperPairMappingQuality() for st in stats], legend='upper left' )
-            #plot( pdf, "Single read mapping quality", "# reads", names, [st.SingleReadMappingQuality() for st in stats], legend='upper left' )
- 
-            plot( pdf, "Reference sequence", "# pairs", names, [(0,st.Abundance()) for st in stats] )
- 
-            plot( pdf, "Coverage", "# bases of reference", names, [st.Coverage() for st in stats], zero_padding=False, cov_plot=True )
-            #plot( pdf, "Coverage + strand", "# bases of reference", names, [st.CoverageStranded(False) for st in stats], zero_padding=False )
-            #plot( pdf, "Coverage - strand", "# bases of reference", names, [st.CoverageStranded(True) for st in stats], zero_padding=False )
-            plot( pdf, "Coverage + strand / total Coverage [%]", "# bases of reference", names, [st.CoverageStrandedPercent(False) for st in stats], zero_padding=False )
-            plot( pdf, "Coverage - strand / total Coverage [%]", "# bases of reference", names, [st.CoverageStrandedPercent(True) for st in stats], zero_padding=False )
-            #plot( pdf, "Coverage + strand / total Coverage [%]", "# bases of reference (min cov 10)", names, [st.CoverageStrandedPercentMinCov10(False) for st in stats], zero_padding=False )
-            #plot( pdf, "Coverage - strand / total Coverage [%]", "# bases of reference (min cov 10)", names, [st.CoverageStrandedPercentMinCov10(True) for st in stats], zero_padding=False )
-            #plot( pdf, "Coverage + strand / total Coverage [%]", "# bases of reference (min cov 20)", names, [st.CoverageStrandedPercentMinCov20(False) for st in stats], zero_padding=False )
-            #plot( pdf, "Coverage - strand / total Coverage [%]", "# bases of reference (min cov 20)", names, [st.CoverageStrandedPercentMinCov20(True) for st in stats], zero_padding=False )
+            print "Plotted quality information: ", clock()
+            
             plot( pdf, "Error Coverage", "# bases of reference", names, [st.ErrorCoverage() for st in stats], zero_padding=False, log=True )
             plot( pdf, "Error Coverage / Base Coverage [%]", "# bases of reference", names, [st.ErrorCoveragePercent() for st in stats], zero_padding=False, log=True )
             #plot( pdf, "Error Coverage / Base Coverage [%]", "# bases of reference (min cov 10)", names, [st.ErrorCoveragePercentMinCov10() for st in stats], zero_padding=False, log=True )
@@ -962,9 +954,9 @@ def plotDataStats(statsFiles, oFile):
             plot2dQuality( pdf, "Error Coverage + strand", "Error Coverage - strand", names, [ ( 0, [( 0, [st.ErrorCoveragePercentStranded(i, j) for j in xrange( 101 )]) for i in xrange( 101 )] ) for st in stats], axis_lable_dist = 10 )
             #plot2dQuality( pdf, "Error Coverage + strand (min cov 10)", "Error Coverage - strand (min cov 10)", names, [ ( 0, [( 0, [st.ErrorCoveragePercentStrandedMinCov10(i, j) for j in xrange( 101 )]) for i in xrange( 101 )] ) for st in stats], axis_lable_dist = 10 )
             #plot2dQuality( pdf, "Error Coverage + strand (min cov 20)", "Error Coverage - strand (min cov 20)", names, [ ( 0, [( 0, [st.ErrorCoveragePercentStrandedMinCov20(i, j) for j in xrange( 101 )]) for i in xrange( 101 )] ) for st in stats], axis_lable_dist = 10 )
-            plotMeanVsDispersion( pdf, "Mean", "Dispersion", names, [st.MeanList() for st in stats], [st.DispersionList() for st in stats] )
-            print "Plotted mapping information: ", clock()
- 
+            plot( pdf, "Errors in read (first)", "% reads", names, [st.ErrorsPerRead(0) for st in stats], log=True, normalize=True )
+            plot( pdf, "Errors in read (second)", "% reads", names, [st.ErrorsPerRead(1) for st in stats], log=True, normalize=True )
+            
             plotCalledBases( pdf, "Base Quality (first)", "% Called", names, [ [ [st.CalledBasesByBaseQuality(0, i, j) for j in range(5)] for i in range(4)] for st in stats], [ [st.NucleotideQuality(0,n) for n in xrange(5)] for st in stats], False )
             #plotCalledBases( pdf, "Base Quality (first)", "% Called", names, [ [ [st.CalledBasesByBaseQuality(0, i, j) for j in range(5)] for i in range(4)] for st in stats], [ [st.NucleotideQuality(0,n) for n in xrange(5)] for st in stats] )
             plotCalledBases( pdf, "Base Quality (second)", "% Called", names, [ [ [st.CalledBasesByBaseQuality(1, i, j) for j in range(5)] for i in range(4)] for st in stats], [ [st.NucleotideQuality(1,n) for n in xrange(5)] for st in stats], False )
@@ -973,26 +965,39 @@ def plotDataStats(statsFiles, oFile):
             #plotCalledBases( pdf, "Position (first)", "% Called", names, [ [ [st.CalledBasesByPosition(0, i, j) for j in range(5)] for i in range(4)] for st in stats], [ [st.SequenceContent(0,n) for n in xrange(5)] for st in stats] )
             plotCalledBases( pdf, "Position (second)", "% Called", names, [ [ [st.CalledBasesByPosition(1, i, j) for j in range(5)] for i in range(4)] for st in stats], [ [st.SequenceContent(1,n) for n in xrange(5)] for st in stats], False )
             #plotCalledBases( pdf, "Position (second)", "% Called", names, [ [ [st.CalledBasesByPosition(1, i, j) for j in range(5)] for i in range(4)] for st in stats], [ [st.SequenceContent(1,n) for n in xrange(5)] for st in stats] )
- 
+            
             #for prev_nuc in range(4):
             #    plotCalledBases( pdf, "Base Quality (first) call {}".format(prev_nuc), "% Called", names, [ [ [st.CalledBasesByBaseQualityPerPreviousCalledBase(0, i, j, prev_nuc) for j in range(5)] for i in range(4)] for st in stats], [ [st.NucleotideQuality(0,n) for n in xrange(5)] for st in stats], False )
             #    pass
-
-            plot( pdf, "Errors in read (first)", "% reads", names, [st.ErrorsPerRead(0) for st in stats], log=True, normalize=True )
-            plot( pdf, "Errors in read (second)", "% reads", names, [st.ErrorsPerRead(1) for st in stats], log=True, normalize=True )
-
+            
+            nucleotidePlot( pdf, "Homopolymer length", "# A-/C-/G-/T-mers", names, [ [st.HomopolymerDistribution(n) for st in stats] for n in xrange(4)], log=True )
+            #plot( pdf, "Homopolymer length", "# N-mers", names, [st.HomopolymerDistribution(4) for st in stats], log=True )
+            #for qual in [2,4,20,39,40]:
+            #    plot( pdf, "Homoqualimer length (quality={})".format(qual), "# qualimers", names, [st.HomoqualityDistribution(qual) for st in stats], log=True )
+            #    pass
+            
             plot( pdf, "Length of Insertion", "# insertions", names, [st.InDelErrorByLength(0) for st in stats] )
             plot( pdf, "Read position", "# inserted bases", names, [st.InDelErrorByPosition(0) for st in stats] )
             plot( pdf, "Read GC", "# inserted bases", names, [st.InDelErrorByGC(0) for st in stats] )
             plot( pdf, "Length of Deletion", "# deletions", names, [st.InDelErrorByLength(1) for st in stats] )
             plot( pdf, "Read position", "# deleted bases", names, [st.InDelErrorByPosition(1) for st in stats] )
             plot( pdf, "Read GC", "# deleted bases", names, [st.InDelErrorByGC(1) for st in stats] )
+            
+            print "Plotted base calling information: ", clock()
+            
+            #plot( pdf, "Read length (first)", "# reads", names, [st.ReadLengths(0) for st in stats] )
+            #plot( pdf, "Read length (second)", "# reads", names, [st.ReadLengths(1) for st in stats] )
+            
+            #plot( pdf, "Proper pair mapping quality", "# reads", names, [st.ProperPairMappingQuality() for st in stats], legend='upper left' )
+            #plot( pdf, "Improper pair mapping quality", "# reads", names, [st.ImproperPairMappingQuality() for st in stats], legend='upper left' )
+            #plot( pdf, "Single read mapping quality", "# reads", names, [st.SingleReadMappingQuality() for st in stats], legend='upper left' )
+            
+            plotTileAbundance( pdf, "Tile", "# read pairs", names, [st.TileAbundance() for st in stats], [st.TileNames() for st in stats] )
+            
+            plotTileAbundance( pdf, "Adapters (first)", "# adapters", names, [[counts for counts in st.AdapterCount(0) if 0 < counts] for st in stats], [[st.AdapterName(0, i) for i,counts in enumerate(st.AdapterCount(0)) if 0 < counts] for st in stats] )
+            plotTileAbundance( pdf, "Adapters (second)", "# adapters", names, [[counts for counts in st.AdapterCount(1) if 0 < counts] for st in stats], [[st.AdapterName(1, i) for i,counts in enumerate(st.AdapterCount(1)) if 0 < counts] for st in stats] )
 
-            #for qual in [2,4,20,39,40]:
-            #    plot( pdf, "Quality {} in read (first)".format(qual), "% reads", names, [st.SequenceQualityContent(0,qual) for st in stats], log=True, normalize=True )
-            #    plot( pdf, "Quality {} in read (second)".format(qual), "% reads", names, [st.SequenceQualityContent(1,qual) for st in stats], log=True, normalize=True )
-            #    pass
-            print "Plotted error information: ", clock()
+            print "Plotted other information: ", clock()
             pass
         pass
 
