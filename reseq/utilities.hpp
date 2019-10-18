@@ -36,6 +36,7 @@ namespace reseq{
 	typedef uint16_t uintBaseCall; // Base call in case it is converted from seqan::Dna5(or other) to int
 	typedef uint16_t uintDupCount; // Count of fragments at a given site
 	typedef uint16_t uintErrorCount; // Count of errors that occurred during execution
+	typedef uint16_t uintInDelTypePrint; // InDel Type (0,1) for printing (so they are not printed as characters)
 	typedef uint16_t uintMarginId; // Id or size for probability margin or dimension
 	typedef uint16_t uintNumThreads; // Id for probability margin
 	typedef uint16_t uintPercentPrint; // Percent values for printing (so they are not printed as characters)

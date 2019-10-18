@@ -906,7 +906,7 @@ void ProbabilityEstimates::IterativeProportionalFitting(
 
 			// Write the description for printing
 			stringstream descriptor;
-			descriptor << "InDel type " << template_segment << ", last_call " << last_ref_base;
+			descriptor << "InDel type " << static_cast<uintInDelTypePrint>(template_segment) << ", last_call " << last_ref_base;
 
 			// Run the iterative proportional fitting
 			indels_.at(template_segment).at(last_ref_base).IterativeProportionalFitting(
