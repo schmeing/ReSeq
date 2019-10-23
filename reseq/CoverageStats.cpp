@@ -76,8 +76,9 @@ void CoverageStats::EvalRead( FullRecord *record, CoverageStats::CoverageBlock *
 		throw std::out_of_range( "Accessing removed FullRecord" );
 		return;
 	}
-
-	if(record->to_ref_pos_ > coverage_block->start_pos_){ // Fragments that did not made the filters have to_ref_pos_=0 and even if they are from valid fragments are reads added to the coverage blocks by maximum read length and not by its actual read length, so it might happen that they do not really reach the given block
+	// 1: Fragments that did not made the filters have to_ref_pos_=0 and even if they are from valid fragments are reads added to the coverage blocks by maximum read length and not by its actual read length, so it might happen that they do not really reach the given block
+	// 2: Because of potential soft-clipping reads are added to coverage blocks before beginPos, which they might not belong to
+	if(record->to_ref_pos_ > coverage_block->start_pos_ && record->from_ref_pos_ < coverage_block->start_pos_+coverage_block->coverage_.size()){
 		ConstIupacStringReverseComplement reversed_seq(record->record_.seq);
 		ReversedConstCharString reversed_qual(record->record_.qual);
 		ReversedConstCigarString rev_cigar(record->record_.cigar);
@@ -132,6 +133,7 @@ void CoverageStats::EvalRead( FullRecord *record, CoverageStats::CoverageBlock *
 			case 'M':
 			case '=':
 			case 'X':
+			case 'S': // Treat soft-clipping as match, so that bwa and bowtie2 behave the same
 				for(auto i=cigar_element.count; i--; ){
 					if(ref_pos < ref_pos_end){
 						// We are currently not comparing the adapter to the reference

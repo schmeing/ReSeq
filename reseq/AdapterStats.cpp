@@ -41,9 +41,34 @@ using seqan::SeqFileIn;
 using reseq::utilities::at;
 using reseq::utilities::SetToMax;
 
+inline reseq::uintSeqLen AdapterStats::GetStartPosOnReference(const BamAlignmentRecord &record){
+	uintSeqLen start_pos = record.beginPos;
+
+	if('S' == at(record.cigar, 0).operation){
+		if(at(record.cigar, 0).count < start_pos){
+			start_pos -= at(record.cigar, 0).count;
+		}
+		else{
+			start_pos = 0;
+		}
+	}
+	else if('H' == at(record.cigar, 0).operation){
+		if( 2 <= length(record.cigar) && 'S' == at(record.cigar, 1).operation){
+			if(at(record.cigar, 1).count < start_pos){
+				start_pos -= at(record.cigar, 1).count;
+			}
+			else{
+				start_pos = 0;
+			}
+		}
+	}
+
+	return start_pos;
+}
+
 reseq::uintReadLen AdapterStats::CountErrors(uintReadLen &last_error_pos, const BamAlignmentRecord &record, const Reference &reference){
 	uintReadLen num_errors(0), read_pos(0);
-	auto ref_pos = record.beginPos;
+	auto ref_pos = GetStartPosOnReference(record);
 	auto &ref_seq = reference.ReferenceSequence(record.rID);
 
 	for( const auto &cigar_element : record.cigar ){
@@ -51,8 +76,9 @@ reseq::uintReadLen AdapterStats::CountErrors(uintReadLen &last_error_pos, const 
 		case 'M':
 		case '=':
 		case 'X':
+		case 'S': // Treat soft-clipping as match, so that bwa and bowtie2 behave the same
 			for(auto i=cigar_element.count; i--; ){
-				if( at(ref_seq, ref_pos++) != at(record.seq, read_pos++) ){
+				if( ref_pos >= length(ref_seq) || at(ref_seq, ref_pos++) != at(record.seq, read_pos++) ){
 					if( !hasFlagRC(record) || !num_errors ){ // In case of a normal read always overwrite errors to get the last; in case of a reversed read stop after the first
 						last_error_pos = read_pos - 1;
 					}

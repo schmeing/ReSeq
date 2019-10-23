@@ -422,7 +422,9 @@ namespace reseq{
 			++tmp_preceding_quality_for_sequence_per_tile_.at(template_segment).at(called_base).at(tile_id).at(seq_qual).at(last_qual);
 			++tmp_preceding_quality_for_position_per_tile_.at(template_segment).at(called_base).at(tile_id).at(read_pos).at(last_qual);
 
-			++tmp_base_quality_stats_per_strand_.at(strand).at(read_pos).at(quality);
+			if(strand < 2){
+				++tmp_base_quality_stats_per_strand_.at(strand).at(read_pos).at(quality);
+			}
 			++tmp_nucleotide_quality_.at(template_segment).at(called_base).at(quality);
 		}
 		inline void AddRawHomoqualimer(uintQual quality, uintReadLen length){

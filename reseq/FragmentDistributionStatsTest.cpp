@@ -71,10 +71,10 @@ void FragmentDistributionStatsTest::TestOutskirtContent(
 		uintNucCount cont_g,
 		uintNucCount cont_t,
 		const char * context ){
-	EXPECT_EQ(cont_a, test.outskirt_content_.at(template_segment).at(0)[at_pos]) << "outskirt_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
-	EXPECT_EQ(cont_c, test.outskirt_content_.at(template_segment).at(1)[at_pos]) << "outskirt_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
-	EXPECT_EQ(cont_g, test.outskirt_content_.at(template_segment).at(2)[at_pos]) << "outskirt_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
-	EXPECT_EQ(cont_t, test.outskirt_content_.at(template_segment).at(3)[at_pos]) << "outskirt_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_a, test.outskirt_content_.at(template_segment).at(0)[at_pos]) << "outskirt_content_[" << static_cast<uintTempSeqPrint>(template_segment) << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_c, test.outskirt_content_.at(template_segment).at(1)[at_pos]) << "outskirt_content_[" << static_cast<uintTempSeqPrint>(template_segment) << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_g, test.outskirt_content_.at(template_segment).at(2)[at_pos]) << "outskirt_content_[" << static_cast<uintTempSeqPrint>(template_segment) << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_t, test.outskirt_content_.at(template_segment).at(3)[at_pos]) << "outskirt_content_[" << static_cast<uintTempSeqPrint>(template_segment) << "] position " << at_pos << " wrong for " << context << '\n';
 }
 
 void FragmentDistributionStatsTest::TearDown(){

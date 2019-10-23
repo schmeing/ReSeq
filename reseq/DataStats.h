@@ -142,9 +142,9 @@ namespace reseq{
 		bool IsSecondRead( CoverageStats::FullRecord *record, CoverageStats::FullRecord *&record_first, CoverageStats::CoverageBlock *&block );
 
 		bool CheckForAdapters(const seqan::BamAlignmentRecord &record_first, const seqan::BamAlignmentRecord &record_second);
-		void EvalBaseLevelStats( CoverageStats::FullRecord *full_record, uintTempSeq template_segment, uintTileId tile_id, uintQual &paired_seq_qual );
+		void EvalBaseLevelStats( CoverageStats::FullRecord *full_record, uintTempSeq template_segment, uintTempSeq strand, uintTileId tile_id, uintQual &paired_seq_qual );
 		bool EvalReferenceStatistics( CoverageStats::FullRecord *record, uintTempSeq template_segment, CoverageStats::CoverageBlock *coverage_block );
-		bool EvalRecord( std::pair<CoverageStats::FullRecord *, CoverageStats::FullRecord *> &record );
+		bool EvalRecord( std::pair<CoverageStats::FullRecord *, CoverageStats::FullRecord *> record ); // Don't use a reference hear, so it isn't affected by a pointer switch
 
 		bool SignsOfPairsWithNamesNotIdentical();
 		void PrepareReadIn(uintQual size_mapping_quality, uintReadLen size_indel);
@@ -244,9 +244,10 @@ namespace reseq{
 		}
 		static uintReadLen GetReadLengthOnReference(const seqan::BamAlignmentRecord &record);
 		static uintReadLen GetReadLengthOnReference(const seqan::BamAlignmentRecord &record, uintReadLen &max_indel);
-		inline bool InProperDirection( const seqan::BamAlignmentRecord &record_first, uintSeqLen end_pos ) const{
+		inline void GetReadPosOnReference(uintSeqLen &start_pos, uintSeqLen &end_pos, const seqan::BamAlignmentRecord &record) const;
+		inline bool InProperDirection( const seqan::BamAlignmentRecord &record_first, uintSeqLen end_pos_second, uintSeqLen start_pos_first, uintSeqLen start_pos_second  ) const{
 			// Proper forward reverse direction or read sized pair (proper direction is only checked if they are on same scaffold, so no check needed for that)
-			return (!hasFlagRC(record_first) && hasFlagNextRC(record_first) && maximum_insert_length_ >= end_pos - record_first.beginPos) || record_first.beginPos == record_first.pNext;
+			return (!hasFlagRC(record_first) && hasFlagNextRC(record_first) && maximum_insert_length_ >= end_pos_second - start_pos_first) || start_pos_first == start_pos_second;
 		}
 
 		bool ReadBam( const char *bam_file, const char *adapter_file, const char *adapter_matrix, const std::string &variant_file, uintSeqLen max_ref_seq_bin_size, uintNumThreads num_threads, bool calculate_bias = true ); // Fill the class with the information from a bam file

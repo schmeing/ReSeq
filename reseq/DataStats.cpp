@@ -89,7 +89,8 @@ bool DataStats::IsSecondRead( CoverageStats::FullRecord *record, CoverageStats::
 	if( insert_info.second ){
 		// Insertion worked, so it is the first read
 		if( PotentiallyValid(record->record_) ){
-			coverage_.AddFragment( record->record_.rID, record->record_.beginPos, block );
+			// Use record->record_.beginPos-maximum_read_length_on_reference_ as start, because of potentially soft-clipped bases at the beginning
+			coverage_.AddFragment( record->record_.rID, (record->record_.beginPos>maximum_read_length_on_reference_?record->record_.beginPos-maximum_read_length_on_reference_:0), block );
 		}
 
 		return false;
@@ -120,7 +121,7 @@ bool DataStats::CheckForAdapters(const seqan::BamAlignmentRecord &record_first, 
 	}
 }
 
-void DataStats::EvalBaseLevelStats( CoverageStats::FullRecord *full_record, uintTempSeq template_segment, uintTileId tile_id, uintQual &paired_seq_qual ){
+void DataStats::EvalBaseLevelStats( CoverageStats::FullRecord *full_record, uintTempSeq template_segment, uintTempSeq strand, uintTileId tile_id, uintQual &paired_seq_qual ){
 	if(0 == full_record->num_pointers_to_element_){
 		printErr << "Accessing removed FullRecord: seqid(" << full_record->record_.rID << ") pos(" << full_record->record_.beginPos << ") name(" << full_record->record_.qName << ")" << std::endl;
 		throw std::out_of_range( "Accessing removed FullRecord" );
@@ -130,8 +131,6 @@ void DataStats::EvalBaseLevelStats( CoverageStats::FullRecord *full_record, uint
 	const BamAlignmentRecord &record(full_record->record_);
 
 	uintSeqLen pos_reversed(length(record.seq));
-
-	uintTempSeq strand = (hasFlagRC(record) && hasFlagFirst(record)) || (!hasFlagRC(record) && hasFlagLast(record));
 
 	SeqQualityStats<uintNucCount> seq_qual_stats;
 	seq_qual_stats[maximum_quality_]; // Resize to maximum quality
@@ -256,6 +255,7 @@ bool DataStats::EvalReferenceStatistics(
 		case 'M':
 		case '=':
 		case 'X':
+		case 'S': // Treat soft-clipping as match, so that bwa and bowtie2 behave the same
 			for(auto i=cigar_element.count; i--; ){
 				if(ref_pos < record->to_ref_pos_-record->from_ref_pos_){
 					// We are currently not comparing the adapter to the reference
@@ -387,7 +387,7 @@ bool DataStats::EvalReferenceStatistics(
 	return true;
 }
 
-bool DataStats::EvalRecord( pair<CoverageStats::FullRecord *, CoverageStats::FullRecord *> &record ){
+bool DataStats::EvalRecord( pair<CoverageStats::FullRecord *, CoverageStats::FullRecord *> record ){
 	// Start handling pair by determining tile(and counting it) and template segment
 	uintTileId tile_id;
 	if( !tiles_.GetTileId(tile_id, record.first->record_.qName) ){
@@ -399,10 +399,23 @@ bool DataStats::EvalRecord( pair<CoverageStats::FullRecord *, CoverageStats::Ful
 		template_segment = 1;
 	}
 
+	uintTempSeq strand;
+	if(hasFlagUnmapped(record.first->record_)){
+		if(hasFlagUnmapped(record.second->record_)){
+			strand = 2; // Invalid strand as we cannot know it without mapping
+		}
+		else{
+			strand = (hasFlagRC(record.second->record_) && hasFlagFirst(record.second->record_)) || (!hasFlagRC(record.second->record_) && hasFlagLast(record.second->record_));
+		}
+	}
+	else{
+		strand = (hasFlagRC(record.first->record_) && hasFlagFirst(record.first->record_)) || (!hasFlagRC(record.first->record_) && hasFlagLast(record.first->record_));
+	}
+
 	// Base level stats
 	uintQual paired_seq_qual(0);
-	EvalBaseLevelStats( record.first, (template_segment+1)%2, tile_id, paired_seq_qual );
-	EvalBaseLevelStats( record.second, template_segment, tile_id, paired_seq_qual );
+	EvalBaseLevelStats( record.first, (template_segment+1)%2, strand, tile_id, paired_seq_qual );
+	EvalBaseLevelStats( record.second, template_segment, strand, tile_id, paired_seq_qual );
 
 	// Mapping and Reference stats
 	if( hasFlagUnmapped(record.first->record_) || hasFlagNextUnmapped(record.first->record_) ){
@@ -438,50 +451,64 @@ bool DataStats::EvalRecord( pair<CoverageStats::FullRecord *, CoverageStats::Ful
 		else{
 			if( record.first->record_.rID == record.second->record_.rID ){
 				if( reference_->SequenceLength(record.first->record_.rID) > maximum_insert_length_+2*Reference::kMinDistToRefSeqEnds ){
-					auto read_length_on_reference_first = GetReadLengthOnReference(record.first->record_);
-					auto end_pos_first = record.first->record_.beginPos + read_length_on_reference_first;
+					uintSeqLen start_pos_first, start_pos_second, end_pos_first, end_pos_second;
+					GetReadPosOnReference(start_pos_first, end_pos_first, record.first->record_);
+					GetReadPosOnReference(start_pos_second, end_pos_second, record.second->record_);
 
-					auto read_length_on_reference_second = GetReadLengthOnReference(record.second->record_);
-					auto end_pos_second = record.second->record_.beginPos + read_length_on_reference_second;
+					if(start_pos_second < start_pos_first){
+						// Switch records as the soft-trimming changed order in bam sort
+						auto tmp = record.first;
+						record.first = record.second;
+						record.second = tmp;
 
-					if(Reference::kMinDistToRefSeqEnds <= min(record.first->record_.beginPos, record.second->record_.beginPos) && reference_->SequenceLength(record.first->record_.rID)-max(end_pos_first, end_pos_second) >= Reference::kMinDistToRefSeqEnds ){
+						template_segment = (template_segment+1)%2;
+
+						auto tmp2 = start_pos_first;
+						start_pos_first = start_pos_second;
+						start_pos_second = tmp2;
+						tmp2 = end_pos_first;
+						end_pos_first = end_pos_second;
+						end_pos_second = tmp2;
+					}
+
+					if(Reference::kMinDistToRefSeqEnds <= min(start_pos_first, start_pos_second) && reference_->SequenceLength(record.first->record_.rID)-max(end_pos_first, end_pos_second) >= Reference::kMinDistToRefSeqEnds ){
 						bool adapter_detected(false);
-						if(hasFlagRC(record.first->record_) && !hasFlagRC(record.second->record_) && end_pos_first > record.second->record_.beginPos && end_pos_first - record.second->record_.beginPos > read_length_on_reference_first/2 ){
+						if(hasFlagRC(record.first->record_) && !hasFlagRC(record.second->record_) && end_pos_first > start_pos_second && end_pos_first - start_pos_second > (end_pos_first - start_pos_first)/2 ){
 							uintReadLen adapter_position_first, adapter_position_second;
 							// Reads in proper direction for adapters (reverse-forward) and overlap is large enough (minimum half of the read length)
 							adapters_.Detect(adapter_position_first, adapter_position_second, record.first->record_, record.second->record_, *reference_, true); // Call it just to insert the adapter stats, position is better known from mapping
 							adapter_detected = true;
 						}
 
-						if(InProperDirection( record.first->record_, end_pos_second ) || adapter_detected){
+						if(InProperDirection( record.first->record_, end_pos_second, start_pos_first, start_pos_second ) || adapter_detected){
 							reads_used_ += 2;
 
 							CoverageStats::CoverageBlock *coverage_block;
 							// Pair stats
 							uintSeqLen insert_length;
 							if(adapter_detected){
-								insert_length = end_pos_first - record.second->record_.beginPos;
+								insert_length = end_pos_first - start_pos_second;
 
-								fragment_distribution_.AddGCContent(reference_->GCContent(record.second->record_.rID, record.second->record_.beginPos, end_pos_first));
-								fragment_distribution_.FillInOutskirtContent(*reference_, record.second->record_, end_pos_first); // Use second record here as it is forward, so if it is sequenced second, fragment is reversed
-								coverage_block = coverage_.FindBlock( record.second->record_.rID, record.second->record_.beginPos );
+								fragment_distribution_.AddGCContent(reference_->GCContent(record.second->record_.rID, start_pos_second, end_pos_first));
+								fragment_distribution_.FillInOutskirtContent(*reference_, record.second->record_, start_pos_second, end_pos_first); // Use second record here as it is forward, so if it is sequenced second, fragment is reversed
+								coverage_block = coverage_.FindBlock( record.second->record_.rID, start_pos_second );
 
-								record.first->from_ref_pos_ = record.second->record_.beginPos;
-								record.second->from_ref_pos_ = record.second->record_.beginPos;
+								record.first->from_ref_pos_ = start_pos_second;
+								record.second->from_ref_pos_ = start_pos_second;
 								record.first->to_ref_pos_ = end_pos_first;
 								record.second->to_ref_pos_ = end_pos_first;
 
 								fragment_distribution_.AddFragmentSite(record.first->record_.rID, insert_length, record.first->from_ref_pos_, template_segment, *reference_); // If second record(must be forward to be accepted due to adapter) is sequenced second, fragment is reversed
 							}
 							else{
-								insert_length = end_pos_second - record.first->record_.beginPos;
+								insert_length = end_pos_second - start_pos_first;
 
-								fragment_distribution_.AddGCContent(reference_->GCContent(record.first->record_.rID, record.first->record_.beginPos, end_pos_second));
-								fragment_distribution_.FillInOutskirtContent(*reference_, record.first->record_, end_pos_second);
-								coverage_block = coverage_.FindBlock( record.first->record_.rID, record.first->record_.beginPos );
+								fragment_distribution_.AddGCContent(reference_->GCContent(record.first->record_.rID, start_pos_first, end_pos_second));
+								fragment_distribution_.FillInOutskirtContent(*reference_, record.first->record_, start_pos_first, end_pos_second);
+								coverage_block = coverage_.FindBlock( record.first->record_.rID, start_pos_first );
 
-								record.first->from_ref_pos_ = record.first->record_.beginPos;
-								record.second->from_ref_pos_ = record.second->record_.beginPos;
+								record.first->from_ref_pos_ = start_pos_first;
+								record.second->from_ref_pos_ = start_pos_second;
 								record.first->to_ref_pos_ = end_pos_first;
 								record.second->to_ref_pos_ = end_pos_second;
 
@@ -578,11 +605,7 @@ void DataStats::PrepareReadIn(uintQual size_mapping_quality, uintReadLen size_in
 }
 
 bool DataStats::FinishReadIn(){
-	// Collect ambigous adapters into a single one
-	adapters_.Finalize();
-	if( !coverage_.Finalize(*reference_, qualities_, errors_, phred_quality_offset_, maximum_insert_length_+2*Reference::kMinDistToRefSeqEnds) ){
-		return false;
-	}
+	adapters_.Finalize(); // Collect ambigous adapters into a single one
 	if( !errors_.Finalize() ){
 		return false;
 	}
@@ -703,48 +726,49 @@ bool DataStats::PreRun(BamFileIn &bam, const char *bam_file, BamHeader &header, 
 
 			if( IsValidRecord(record) ){
 				if( OrderOfBamFileCorrect(record, last_record_pos) ){
-					if(hasFlagFirst(record)){
-						tiles_.EnterTile(record.qName); // Names of records in a pair are identical, so tile must only be identified once
+					if( !hasFlagSecondary(record) && !hasFlagSupplementary(record) ){ // Ignore supplementary reads
+						if(hasFlagFirst(record)){
+							tiles_.EnterTile(record.qName); // Names of records in a pair are identical, so tile must only be identified once
 
-						++read_lengths_.at(0)[ length(record.qual) ];
-					}
-					else{
-						++read_lengths_.at(1)[ length(record.qual) ];
-					}
+							++read_lengths_.at(0)[ length(record.qual) ];
+						}
+						else{
+							++read_lengths_.at(1)[ length(record.qual) ];
+						}
 
-					// Determine read length range on reference
-					if(!hasFlagUnmapped(record)){
-						read_length_on_reference = GetReadLengthOnReference(record, size_indel);
-						SetToMax(maximum_read_length_on_reference_, read_length_on_reference);
-						SetToMin(minimum_read_length_on_reference_, read_length_on_reference);
+						// Determine read length range on reference
+						if(!hasFlagUnmapped(record)){
+							read_length_on_reference = GetReadLengthOnReference(record, size_indel);
+							SetToMax(maximum_read_length_on_reference_, read_length_on_reference);
+							SetToMin(minimum_read_length_on_reference_, read_length_on_reference);
 
-						auto ref_bin = fragment_distribution_.GetRefSeqBin(record.rID, record.beginPos, *reference_);
-						++reads_per_ref_seq_bin_.at(ref_bin);
+							auto ref_bin = fragment_distribution_.GetRefSeqBin(record.rID, record.beginPos, *reference_);
+							++reads_per_ref_seq_bin_.at(ref_bin);
 
-						// Check if it is close to the border of a bin in which case add it to the other bin as well
-						if(record.beginPos+maximum_insert_length_ < reference_->SequenceLength(record.rID)){
-							auto ref_bin2 = fragment_distribution_.GetRefSeqBin(record.rID, record.beginPos+maximum_insert_length_, *reference_);
-							if(ref_bin2 != ref_bin){
-								++reads_per_ref_seq_bin_.at(ref_bin2);
+							// Check if it is close to the border of a bin in which case add it to the other bin as well
+							if(record.beginPos+maximum_insert_length_ < reference_->SequenceLength(record.rID)){
+								auto ref_bin2 = fragment_distribution_.GetRefSeqBin(record.rID, record.beginPos+maximum_insert_length_, *reference_);
+								if(ref_bin2 != ref_bin){
+									++reads_per_ref_seq_bin_.at(ref_bin2);
+								}
+							}
+							if(record.beginPos>=maximum_insert_length_){
+								auto ref_bin2 = fragment_distribution_.GetRefSeqBin(record.rID, record.beginPos-maximum_insert_length_, *reference_);
+								if(ref_bin2 != ref_bin){
+									++reads_per_ref_seq_bin_.at(ref_bin2);
+								}
 							}
 						}
-						if(record.beginPos>=maximum_insert_length_){
-							auto ref_bin2 = fragment_distribution_.GetRefSeqBin(record.rID, record.beginPos-maximum_insert_length_, *reference_);
-							if(ref_bin2 != ref_bin){
-								++reads_per_ref_seq_bin_.at(ref_bin2);
-							}
+
+						// Determine quality range
+						for( auto i=length(record.qual); i--;){
+							SetToMax(maximum_quality_, at(record.qual, i));
+							SetToMin(minimum_quality_, at(record.qual, i));
 						}
+
+						SetToMax(max_mapq, record.mapQ);
+						SetToMin(min_mapq, record.mapQ);
 					}
-
-					// Determine quality range
-					for( auto i=length(record.qual); i--;){
-						SetToMax(maximum_quality_, at(record.qual, i));
-						SetToMin(minimum_quality_, at(record.qual, i));
-					}
-
-					SetToMax(max_mapq, record.mapQ);
-					SetToMin(min_mapq, record.mapQ);
-
 				}
 				else{
 					error = true;
@@ -821,16 +845,22 @@ bool DataStats::ReadRecords( BamFileIn &bam, bool &not_done, ThreadData &thread_
 			record = new CoverageStats::FullRecord;
 			readRecord(record->record_, bam);
 
-			if(!hasFlagUnmapped(record->record_) && reference_->SequenceLength(record->record_.rID) > maximum_insert_length_+2*Reference::kMinDistToRefSeqEnds){
-				if( !coverage_.EnsureSpace(record->record_.rID, record->record_.beginPos, record->record_.beginPos+maximum_read_length_on_reference_, record, *reference_, maximum_insert_length_+2*Reference::kMinDistToRefSeqEnds) ){
-					return false;
-				}
+			if( hasFlagSecondary(record->record_) || hasFlagSupplementary(record->record_) ){
+				delete record;
 			}
+			else{
+				if(!hasFlagUnmapped(record->record_) && reference_->SequenceLength(record->record_.rID) > maximum_insert_length_+2*Reference::kMinDistToRefSeqEnds){
+					// Use record->record_.beginPos-maximum_read_length_on_reference_ as start, because of potentially soft-clipped bases at the beginning
+					if( !coverage_.EnsureSpace(record->record_.rID, (record->record_.beginPos>maximum_read_length_on_reference_?record->record_.beginPos-maximum_read_length_on_reference_:0), record->record_.beginPos+maximum_read_length_on_reference_, record, *reference_, maximum_insert_length_+2*Reference::kMinDistToRefSeqEnds) ){
+						return false;
+					}
+				}
 
-			// Work with the pairs and not individual reads, so first combine reads to pairs, by storing first and then processing both reads at the same time
-			CoverageStats::FullRecord *record_first;
-			if( IsSecondRead(record, record_first, cov_block) ){
-				thread_data.rec_store_.emplace_back(record_first, record);
+				// Work with the pairs and not individual reads, so first combine reads to pairs, by storing first and then processing both reads at the same time
+				CoverageStats::FullRecord *record_first;
+				if( IsSecondRead(record, record_first, cov_block) ){
+					thread_data.rec_store_.emplace_back(record_first, record);
+				}
 			}
 
 			if( total_number_reads_ > kBatchSize && !(read_records_%(total_number_reads_/20)) ){
@@ -859,7 +889,7 @@ void DataStats::ReadThread( DataStats &self, BamFileIn &bam, uintSeqLen max_seq_
 	uintSeqLen still_needed_position(0);
 	while(not_done && self.reading_success_){
 		// ReadRecords:
-		// Reads in records and bundles the to batches of paired records
+		// Reads in records and bundles them to batches of paired records
 		// Registers reads as unprocessed in coverage blocks
 		// Adds pointers of all potentially valid reads to each block they potentially overlap (read length on reference yet unknown)
 		if( self.ReadRecords(bam, not_done, thread_data) ){
@@ -869,14 +899,14 @@ void DataStats::ReadThread( DataStats &self, BamFileIn &bam, uintSeqLen max_seq_
 				// EvalRecord:
 				// Apply multiple filters to check whether fragments are valid
 				// Set to_ref_pos for valid reads, that to_ref_pos==0 is used in coverage_.CleanUp to remove the non-valid reads
-				// Enters valid fragments into duplication check
 				// Calculate all the statistics that are independent of other reads
 				// Fills the coverage information in the coverage blocks
 				if(self.EvalRecord(rec)){
 					if( self.PotentiallyValid(rec.first->record_) ){
 						// coverage_.RemoveFragment
 						// Marks the reads as processed, so the fully processed coverage blocks can be handled after all reads are processed
-						self.coverage_.RemoveFragment( rec.first->record_.rID, rec.first->record_.beginPos, cov_block, processed_fragments );
+						// Use record->record_.beginPos-maximum_read_length_on_reference_ as start, because of potentially soft-clipped bases at the beginning
+						self.coverage_.RemoveFragment( rec.first->record_.rID, (rec.first->record_.beginPos>self.maximum_read_length_on_reference_?rec.first->record_.beginPos-self.maximum_read_length_on_reference_:0), cov_block, processed_fragments );
 					}
 
 					// Reduce count of in use pointers to records and if 0 remove them
@@ -912,6 +942,11 @@ void DataStats::ReadThread( DataStats &self, BamFileIn &bam, uintSeqLen max_seq_
 			self.finish_threads_ = true;
 		}
 		self.finish_threads_cv_.notify_all();
+
+		// This finalization might take a bit of time so do it already here
+		if( !self.coverage_.Finalize(*self.reference_, self.qualities_, self.errors_, self.phred_quality_offset_, self.maximum_insert_length_+2*Reference::kMinDistToRefSeqEnds) ){
+			self.reading_success_ = false;
+		}
 	}
 	else{
 		unique_lock<mutex> lock(self.finish_threads_mutex_);
@@ -945,7 +980,6 @@ DataStats::DataStats(Reference *ref, uintSeqLen maximum_insert_length, uintQual 
 }
 
 bool DataStats::IsValidRecord(const BamAlignmentRecord &record){
-	// Non-valid with warnings
 	if( !hasFlagMultiple(record) ){
 		printErr << "Read '" << record.qName << "' is not paired." << std::endl;
 		return false;
@@ -960,10 +994,6 @@ bool DataStats::IsValidRecord(const BamAlignmentRecord &record){
 	}
 	if(length(record.seq)!=length(record.qual)){
 		printErr << "Read '" << record.qName << "' does not have the same length for the sequence and its quality." << std::endl;
-		return false;
-	}
-	if( hasFlagSecondary(record) || hasFlagSupplementary(record) ){ // Only primary mappings are valid
-		printErr << "Read '" << record.qName << "' is not a primary mapping." << std::endl;
 		return false;
 	}
 
@@ -1006,6 +1036,44 @@ reseq::uintReadLen DataStats::GetReadLengthOnReference(const BamAlignmentRecord 
 		}
 	}
 	return real_read_length;
+}
+
+inline void DataStats::GetReadPosOnReference(uintSeqLen &start_pos, uintSeqLen &end_pos, const BamAlignmentRecord &record) const{
+	end_pos = GetReadLengthOnReference(record); // start_pos will be added after it is corrected for soft-clipping
+	start_pos = record.beginPos;
+
+	if('S' == at(record.cigar, 0).operation){
+		if(at(record.cigar, 0).count < start_pos){
+			start_pos -= at(record.cigar, 0).count;
+		}
+		else{
+			start_pos = 0;
+		}
+	}
+	else if('H' == at(record.cigar, 0).operation){
+		end_pos -= at(record.cigar, 0).count;
+
+		if( 2 <= length(record.cigar) && 'S' == at(record.cigar, 1).operation){
+			if(at(record.cigar, 1).count < start_pos){
+				start_pos -= at(record.cigar, 1).count;
+			}
+			else{
+				start_pos = 0;
+			}
+		}
+	}
+
+	end_pos += start_pos;
+
+	if( 'H' == at(record.cigar, length(record.cigar)-1).operation && 2 <= length(record.cigar) ){
+		end_pos -= at(record.cigar, length(record.cigar)-1).count;
+	}
+
+	if( reference_->SequenceLength( record.rID ) < end_pos ){
+		end_pos = reference_->SequenceLength( record.rID ); // Can occur due to soft-clipping at the end
+	}
+
+	return;
 }
 
 // Deactivation of pcr calculation only for speeding up of tests

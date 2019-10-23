@@ -81,7 +81,7 @@ void DataStatsTest::TestSequenceContentReference(
 	EXPECT_EQ(cont_t, test_->sequence_content_reference_.at(template_segment).at(strand).at(3)[at_pos]) << "sequence_content_reference_[" << template_segment << "][" << strand << "] position " << at_pos << " wrong for " << context << '\n';
 }
 
-void DataStatsTest::TestSrr490124Equality(const char *context, bool test_tile_information){
+void DataStatsTest::TestSrr490124Equality(const char *context, bool test_tile_information, bool bwa){
 	EXPECT_TRUE( test_->reference_ ) << "SRR490124-4pairs reference_ wrong for " << context << '\n';
 	EXPECT_EQ(1, test_->reference_->NumberSequences() ) << "SRR490124-4pairs reference_ wrong for " << context << '\n';
 	EXPECT_TRUE(test_->reference_->ReferenceIdFirstPart(0) == "NC_000913.3") << test_->reference_->ReferenceIdFirstPart(0) << " wrong for SRR490124-4pairs reference_ for " << context << '\n';
@@ -101,13 +101,24 @@ void DataStatsTest::TestSrr490124Equality(const char *context, bool test_tile_in
 		EXPECT_EQ(4, test_->read_lengths_.at(templ_seg)[100]) << "SRR490124-4pairs read_lengths_[" << templ_seg << "] wrong for " << context << '\n';
 	}
 
-	EXPECT_EQ(19, test_->proper_pair_mapping_quality_.size()) << "SRR490124-4pairs proper_pair_mapping_quality_ wrong for " << context << '\n';
-	EXPECT_EQ(2, test_->proper_pair_mapping_quality_[6]) << "SRR490124-4pairs proper_pair_mapping_quality_ wrong for " << context << '\n';
-	EXPECT_EQ(2, test_->proper_pair_mapping_quality_[23]) << "SRR490124-4pairs proper_pair_mapping_quality_ wrong for " << context << '\n';
-	EXPECT_EQ(2, test_->proper_pair_mapping_quality_[24]) << "SRR490124-4pairs proper_pair_mapping_quality_ wrong for " << context << '\n';
-	EXPECT_EQ(0, test_->improper_pair_mapping_quality_.size()) << "SRR490124-4pairs improper_pair_mapping_quality_ wrong for " << context << '\n';
-	EXPECT_EQ(1, test_->single_read_mapping_quality_.size()) << "SRR490124-4pairs single_read_mapping_quality_ wrong for " << context << '\n';
-	EXPECT_EQ(1, test_->single_read_mapping_quality_[3]) << "SRR490124-4pairs single_read_mapping_quality_ wrong for " << context << '\n';
+	if(bwa){
+		EXPECT_EQ(0, test_->proper_pair_mapping_quality_.size()) << "SRR490124-4pairs proper_pair_mapping_quality_ wrong for " << context << '\n';
+		EXPECT_EQ(61, test_->improper_pair_mapping_quality_.size()) << "SRR490124-4pairs improper_pair_mapping_quality_ wrong for " << context << '\n';
+		EXPECT_EQ(1, test_->improper_pair_mapping_quality_[0]) << "SRR490124-4pairs improper_pair_mapping_quality_ wrong for " << context << '\n';
+		EXPECT_EQ(1, test_->improper_pair_mapping_quality_[1]) << "SRR490124-4pairs improper_pair_mapping_quality_ wrong for " << context << '\n';
+		EXPECT_EQ(4, test_->improper_pair_mapping_quality_[60]) << "SRR490124-4pairs improper_pair_mapping_quality_ wrong for " << context << '\n';
+		EXPECT_EQ(1, test_->single_read_mapping_quality_.size()) << "SRR490124-4pairs single_read_mapping_quality_ wrong for " << context << '\n';
+		EXPECT_EQ(1, test_->single_read_mapping_quality_[60]) << "SRR490124-4pairs single_read_mapping_quality_ wrong for " << context << '\n';
+	}
+	else{
+		EXPECT_EQ(19, test_->proper_pair_mapping_quality_.size()) << "SRR490124-4pairs proper_pair_mapping_quality_ wrong for " << context << '\n';
+		EXPECT_EQ(2, test_->proper_pair_mapping_quality_[6]) << "SRR490124-4pairs proper_pair_mapping_quality_ wrong for " << context << '\n';
+		EXPECT_EQ(2, test_->proper_pair_mapping_quality_[23]) << "SRR490124-4pairs proper_pair_mapping_quality_ wrong for " << context << '\n';
+		EXPECT_EQ(2, test_->proper_pair_mapping_quality_[24]) << "SRR490124-4pairs proper_pair_mapping_quality_ wrong for " << context << '\n';
+		EXPECT_EQ(0, test_->improper_pair_mapping_quality_.size()) << "SRR490124-4pairs improper_pair_mapping_quality_ wrong for " << context << '\n';
+		EXPECT_EQ(1, test_->single_read_mapping_quality_.size()) << "SRR490124-4pairs single_read_mapping_quality_ wrong for " << context << '\n';
+		EXPECT_EQ(1, test_->single_read_mapping_quality_[3]) << "SRR490124-4pairs single_read_mapping_quality_ wrong for " << context << '\n';
+	}
 
 	// samtools view ecoli-SRR490124-4pairs.sam | awk '{print int($2%256/128), gsub("G","",$10)+gsub("C","",$10)}' | sort -n
 	EXPECT_EQ(12, test_->gc_read_content_.at(0).size()) << "SRR490124-4pairs gc_read_content_[0] wrong for " << context << '\n';
@@ -387,6 +398,11 @@ namespace reseq{
 		test_->PrepareTesting();
 		TestSrr490124Equality("save and reload", false);
 		EXPECT_EQ( 0, remove(save_test_file.c_str()) ) << "Error deleting file: " << save_test_file << '\n';
+
+		DeleteTestObject();
+		CreateTestObject(&species_reference_);
+		LoadStats("ecoli-SRR490124-4pairs-bwa.bam");
+		TestSrr490124Equality("bwa", true, true);
 
 		DeleteTestObject();
 		CreateTestObject(&species_reference_);

@@ -503,7 +503,7 @@ namespace reseq{
 		}
 
 		void Prepare( const Reference &ref, uintSeqLen maximum_insert_length, const std::vector<uintFragCount> &reads_per_ref_seq_bin );
-		void FillInOutskirtContent( const Reference &reference, const seqan::BamAlignmentRecord &record_start, uintSeqLen fragment_end_pos );
+		void FillInOutskirtContent( const Reference &reference, const seqan::BamAlignmentRecord &record_start, uintSeqLen fragment_start_pos, uintSeqLen fragment_end_pos );
 
 		void HandleReferenceSequencesUntil(uintRefSeqId still_needed_reference_sequence, uintSeqLen still_needed_position, ThreadData &thread, const Reference &reference, FragmentDuplicationStats &duplications, std::mutex &print_mutex);
 		void FinishThreads(ThreadData &thread, const Reference &reference, FragmentDuplicationStats &duplications, std::mutex &print_mutex);

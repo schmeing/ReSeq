@@ -1813,9 +1813,9 @@ void FragmentDistributionStats::Prepare( const Reference &ref, uintSeqLen maximu
 	PrepareBiasCalculation( ref, maximum_insert_length, reads_per_ref_seq_bin );
 }
 
-void FragmentDistributionStats::FillInOutskirtContent( const Reference &reference, const BamAlignmentRecord &record_start, uintSeqLen fragment_end_pos ){
+void FragmentDistributionStats::FillInOutskirtContent( const Reference &reference, const BamAlignmentRecord &record_start, uintSeqLen fragment_start_pos, uintSeqLen fragment_end_pos ){
 	bool reversed_fragment = hasFlagLast(record_start); // record is forward, so if it is sequenced last, fragment is reversed
-	auto ref_pos = record_start.beginPos;
+	auto ref_pos = fragment_start_pos;
 	uintSeqLen outskirt_pos;
 	auto &ref_seq = reference.ReferenceSequence(record_start.rID);
 

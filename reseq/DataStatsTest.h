@@ -24,7 +24,7 @@ namespace reseq{
 		void TestSequenceContent(uintTempSeq template_segment, uintReadLen at_pos, uintNucCount cont_a, uintNucCount cont_c, uintNucCount cont_g, uintNucCount cont_t, uintNucCount cont_n, const char * context );
 		void TestSequenceContentReference(uintTempSeq template_segment, uintTempSeq strand, uintReadLen at_pos, uintNucCount cont_a, uintNucCount cont_c, uintNucCount cont_g, uintNucCount cont_t, const char * context );
 
-		void TestSrr490124Equality(const char *context, bool test_tile_information=true);
+		void TestSrr490124Equality(const char *context, bool test_tile_information=true, bool bwa=false);
 		void TestTiles();
 		void TestDuplicates();
 		void TestVariants();

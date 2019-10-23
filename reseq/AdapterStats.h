@@ -43,6 +43,7 @@ namespace reseq{
 		std::array<std::vector<uintFragCount>, 2> significant_count_; // significant_count_[templateSegment][AdapterID] = #adapters (All adapters not appearing often are set to zero)
 		
 		// Helper functions
+		static inline uintSeqLen GetStartPosOnReference(const seqan::BamAlignmentRecord &record);
 		static uintReadLen CountErrors(uintReadLen &last_error_pos, const seqan::BamAlignmentRecord &record, const Reference &reference);
 		bool VerifyInsert(const seqan::CharString &read1, const seqan::CharString &read2, intSeqShift pos1, intSeqShift pos2);
 		static bool AdaptersAmbigous(const seqan::DnaString &adaper1, const seqan::DnaString &adaper2, uintReadLen max_length);
