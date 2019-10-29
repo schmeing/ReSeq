@@ -12,9 +12,6 @@ endif(NOT CMAKE_BUILD_TYPE)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Adding libraries from LD_LIBRARY_PATH
-link_directories( $ENV{LD_LIBRARY_PATH} )
-
 # Testing framework
 add_subdirectory(googletest)
 SET( GTEST_ROOT "${PROJECT_SOURCE_DIR}/googletest/googletest/" )
@@ -32,6 +29,13 @@ SET( BOOST_LIBRARY_FLAGS "-lboost_serialization -lboost_program_options -lboost_
 # Suppress warnings of deprecated std::auto_ptr used in boost
 SET( BOOST_LIBRARY_FLAGS "${BOOST_LIBRARY_FLAGS} -Wno-deprecated-declarations" )
 SET( CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} ${BOOST_LIBRARY_FLAGS}" )
+# Fix FindBoost issue with not giving ${Boost_LIBRARY_DIRS}
+if(NOT $ENV{BOOST_ROOT} STREQUAL "")
+	link_directories("$ENV{BOOST_ROOT}/lib/")
+endif()
+if(NOT $ENV{BOOST_LIBRARYDIR} STREQUAL "")
+	link_directories($ENV{BOOST_LIBRARYDIR})
+endif()
 
 # Add NLopt
 SET( CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -Wdeprecated-declarations" )
