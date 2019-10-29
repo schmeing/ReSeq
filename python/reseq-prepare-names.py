@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python2
 # Changes read names, so that pairs have identical names and tiles are not stripped of during the mapping
 
 import getopt

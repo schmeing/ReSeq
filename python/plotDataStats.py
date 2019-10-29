@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python2
 
 import getopt
 from itertools import izip
@@ -14,7 +14,10 @@ import os
 import sys
 from time import clock
 
-sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../build/pyMods/")
+if os.path.isdir(os.path.dirname(os.path.realpath(__file__)) + "/../build/pyMods/"):
+    sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../build/pyMods/")
+if os.path.isdir(os.path.dirname(os.path.realpath(__file__)) + "/../lib/"):
+    sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../lib/")
 import DataStats
 
 text_size = 20
