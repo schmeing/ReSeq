@@ -38,4 +38,22 @@ if (PYTHON)
 	INSTALL(FILES ${PROJECT_SOURCE_DIR}/python/plotDataStats.py ${PROJECT_SOURCE_DIR}/python/reseq-prepare-names.py
 		DESTINATION bin
 		PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+		
+	# Solve issue that the wrapper file created by swig is not recreated if the included headers change
+	# https://stackoverflow.com/questions/39358420/cmake-swig-dependicies
+	
+	# Removes generated file (if any of the dependent files are changed)
+	add_custom_command(
+		OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/swig.stamp
+		COMMAND ${CMAKE_COMMAND} -E remove ${swig_generated_file_fullname}
+		COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/swig.stamp
+		DEPENDS ../reseq/DataStatsInterface.h ../reseq/Reference.h ../reseq/Surrounding.h ../reseq/utilities.hpp ../reseq/Vect.hpp  # The dependent files
+		COMMENT "Removing old SWIG generated file" VERBATIM)
+
+	# Custom target for establishing dependency
+	add_custom_target(
+		swigtrick
+		DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/swig.stamp)
+
+	add_dependencies(_DataStats swigtrick)
 endif()
