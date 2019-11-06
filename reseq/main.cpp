@@ -64,6 +64,7 @@ using reseq::utilities::TrueRandom;
 #include "ReferenceTest.h"
 #include "SeqQualityStatsTest.h"
 #include "SimulatorTest.h"
+#include "SurroundingTest.h"
 #include "TileStatsTest.h"
 #include "VectTest.h"
 #include "utilitiesTest.h"
@@ -753,7 +754,7 @@ int main(int argc, char *argv[]) {
 				return_code = RunGoogleTests("utilitiesTest.*:VectTest.*", tests_already_run);
 
 				if(0 == return_code){
-					return_code = RunGoogleTests("SeqQualityStatsTest.*:ReferenceTest.*", tests_already_run);
+					return_code = RunGoogleTests("SeqQualityStatsTest.*:ReferenceTest.*:SurroundingTest.*", tests_already_run);
 
 					if(0 == return_code){
 						 // Test all remaining classes

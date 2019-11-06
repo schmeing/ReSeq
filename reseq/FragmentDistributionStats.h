@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <vector>
 
+#include <boost/serialization/array.hpp>
 #include <boost/serialization/vector.hpp>
 
 #include "nlopt.hpp"
@@ -98,18 +99,18 @@ namespace reseq{
 		uintFragCount total_sites_;
 
 		std::array<uintFragCount, 101> gc_count_;
-		std::array<uintFragCount, 4*Reference::num_surrounding_blocks_*Reference::surrounding_range_> sur_count_;
+		std::array<uintFragCount, 4*Surrounding::Length()> sur_count_;
 
 		std::array<uintFragCount, 101> gc_sites_;
-		std::array<uintFragCount, 4*Reference::num_surrounding_blocks_*Reference::surrounding_range_> sur_sites_;
+		std::array<uintFragCount, 4*Surrounding::Length()> sur_sites_;
 
 		std::array<uintPercent, kGCSplineDf> gc_knots_;
 		std::array<double, 101> gc_bias_pois_;
 		std::array<double, 101> gc_bias_spline_;
 		std::array<double, 101> gc_bias_;
 
-		std::array<double, 4*Reference::num_surrounding_blocks_*Reference::surrounding_range_> sur_bias_pois_;
-		std::array<double, 4*Reference::num_surrounding_blocks_*Reference::surrounding_range_> sur_bias_;
+		std::array<double, 4*Surrounding::Length()> sur_bias_pois_;
+		std::array<double, 4*Surrounding::Length()> sur_bias_;
 
 		std::vector<double> dispersion_;
 
@@ -133,8 +134,8 @@ namespace reseq{
 		std::array<double, 101> gc_bias_no_logit_;
 		std::array<double, 101> gc_bias_grad_;
 		std::array<std::pair<double, double>, 101> gc_bias_sum_;
-		std::array<std::array<std::pair<double, double>, 4*Reference::num_surrounding_blocks_*Reference::surrounding_range_>, 101> grad_gc_bias_sum_;
-		std::array<double, 4*Reference::num_surrounding_blocks_*Reference::surrounding_range_> sur_grad_;
+		std::array<std::array<std::pair<double, double>, 4*Surrounding::Length()>, 101> grad_gc_bias_sum_;
+		std::array<double, 4*Surrounding::Length()> sur_grad_;
 
 		std::array<std::array<std::array<double, kGCSplineDf>, kGCSplineDf-1>, 3> lin_comb_gc_splines_;
 
@@ -152,13 +153,13 @@ namespace reseq{
 		std::array<uintFragCount, kMaxDuplications+2> duplication_count_part_;
 
 		BiasCalculationVectors():
-			optimizer_poisson_(nlopt::LD_LBFGS,4*(Reference::num_surrounding_blocks_*Reference::surrounding_range_) + (kSurSum?1:0) ),
-			optimizer_nbinom_(nlopt::LD_LBFGS, 4*Reference::num_surrounding_blocks_*Reference::surrounding_range_ + (kSurSum?1:0) + kGCSplineDf + 1 + 2),
+			optimizer_poisson_(nlopt::LD_LBFGS,4*Surrounding::Length() + (kSurSum?1:0) ),
+			optimizer_nbinom_(nlopt::LD_LBFGS, 4*Surrounding::Length() + (kSurSum?1:0) + kGCSplineDf + 1 + 2),
 			optimizer_spline_(nlopt::LD_LBFGS, kGCSplineDf+1)
 		{
 			dispersion_.reserve(2);
 
-			fit_pars_.reserve(4*Reference::num_surrounding_blocks_*Reference::surrounding_range_ + (kSurSum?1:0) + kGCSplineDf + 1 + 2);
+			fit_pars_.reserve(4*Surrounding::Length() + (kSurSum?1:0) + kGCSplineDf + 1 + 2);
 			bounds_.reserve(fit_pars_.capacity());
 			gc_spline_pars_.resize(1+kGCSplineDf);
 
@@ -183,7 +184,7 @@ namespace reseq{
 			optimizer_spline_.set_lower_bounds(bounds_);
 		}
 
-		void AddCountsFromSite(const FragmentSite &site, std::array<uintFragCount, 101> &gc_count, std::array<uintFragCount, 4*Reference::num_surrounding_blocks_*Reference::surrounding_range_> &sur_count);
+		void AddCountsFromSite(const FragmentSite &site, std::array<uintFragCount, 101> &gc_count, std::array<uintFragCount, 4*Surrounding::Length()> &sur_count);
 		void GetCounts();
 		void RemoveUnnecessarySites();
 		void AddBaseValue(uintDupCount count);
@@ -222,12 +223,15 @@ namespace reseq{
 	class FragmentDistributionStats{
 	public:
 		class ThreadData{
-			friend class FragmentDistributionStats;
-			FRIEND_TEST(FragmentDistributionStatsTest, BiasCalculation);
 		private:
 			std::vector<uintSeqLen> num_sites_per_insert_length_;
 			std::vector<std::pair<uintSeqLen, std::pair<uintRefSeqBin, uintSeqLen>>> bias_calc_tmp_params_;
 			BiasCalculationVectors bias_calc_vects_;
+
+			friend class FragmentDistributionStats;
+
+			// Google test
+			friend class FragmentDistributionStatsTest;
 		public:
 			ThreadData( uintSeqLen maximum_insert_length, uintSeqLen max_seq_bin_len ){
 				bias_calc_tmp_params_.reserve( maximum_insert_length );
@@ -251,7 +255,7 @@ namespace reseq{
 		std::vector<utilities::VectorAtomic<uintFragCount>> tmp_abundance_;
 		std::vector<utilities::VectorAtomic<uintFragCount>> tmp_insert_lengths_;
 		std::vector<utilities::VectorAtomic<uintFragCount>> tmp_gc_fragment_content_;
-		std::array< std::vector<utilities::VectorAtomic<uintFragCount>>, Reference::num_surrounding_blocks_> tmp_fragment_surroundings_;
+		SurroundingCountAtomic tmp_fragment_surroundings_;
 
 		std::array<std::array<std::vector<utilities::VectorAtomic<uintFragCount>>, 4>, 2> tmp_outskirt_content_;
 
@@ -264,7 +268,7 @@ namespace reseq{
 		std::vector<bool> ref_seq_in_nxx_;
 		std::vector<uintRefSeqBin> ref_seq_start_bin_;
 		std::array<std::vector<double>, 101> tmp_gc_bias_; // tmp_gc_bias_[GC][#Fit]
-		std::array<std::vector<double>, 4*Reference::num_surrounding_blocks_*Reference::surrounding_range_> tmp_sur_bias_; // tmp_sur_bias_[SurBase][#Fit]
+		std::array<std::vector<double>, 4*Surrounding::Length()> tmp_sur_bias_; // tmp_sur_bias_[SurBase][#Fit]
 		std::array<std::vector<double>, 2> tmp_dispersion_parameters_; // tmp_dispersion_parameters_[dispPar][#Fit]
 
 		std::array<std::atomic_flag, kMaxBinsQueuedForBiasCalc> claimed_bias_bins_;
@@ -279,7 +283,7 @@ namespace reseq{
 		std::vector<uintFragCount> abundance_; // abundance_[referenceID] = #numberOfPairsMapToIt
 		Vect<uintFragCount> insert_lengths_; // insert_lengths_[length] = #pairs
 		Vect<uintFragCount> gc_fragment_content_; // gc_fragment_content_[gcContent(%)] = #fragments
-		std::array< std::vector<uintFragCount>, Reference::num_surrounding_blocks_> fragment_surroundings_; // fragment_surroundings[BlockNumber][(262144*nucAt0+...+(256*nucAt5)+(64*nucAt6)+(16*nucAt7)+(4*nucAt8)+(nucAt9)] = #fragments (always facing inwards, Block0 is outside fragment, Block1 first in fragment ..., value 262144 is first base in block/fragment(block1), 256 is 5th base in block, ...)
+		SurroundingCount fragment_surroundings_;
 
 		// Collected variables for dispersion calculation
 		Vect<Vect<uintFragCount>> site_count_; // site_count_[GCcontent(%)][FragmentLength] = #SitesInReference
@@ -291,7 +295,7 @@ namespace reseq{
 		std::vector<double> ref_seq_bias_; // ref_seq_bias_[referenceID] = #numberOfPairsMapToIt/#PossibilitiesInReference
 		Vect<double> insert_lengths_bias_; // insert_lengths_bias_[length] = #pairs/#PossibilitiesInReference
 		Vect<double> gc_fragment_content_bias_; // gc_fragment_content_bias_[gcContent(%)] = #fragments/#
-		std::array< std::vector<double>, Reference::num_surrounding_blocks_> fragment_surroundings_bias_; // fragment_surroundings_bias_[BlockNumber][(262144*nucAt0+...+(256*nucAt5)+(64*nucAt6)+(16*nucAt7)+(4*nucAt8)+(nucAt9)] = #fragments/#PossibilitiesInReference
+		SurroundingBias fragment_surroundings_bias_;
 
 		std::array<double, 2> dispersion_parameters_;
 
@@ -316,94 +320,6 @@ namespace reseq{
 		void UpdateBiasCalculationParams(uintRefSeqBin ref_seq_bin, uint32_t queue_spot, std::vector<std::pair<uintSeqLen, std::pair<uintRefSeqBin, uintSeqLen>>> &tmp_params, std::mutex &print_mutex );
 		void FillParams(std::vector<BiasCalculationParams> &params, const Reference &reference) const;
 
-		template<typename T> inline void SeparateSurroundingPositions(std::vector<double> &separated, const std::array<std::vector<T>, Reference::num_surrounding_blocks_> &combined) const{
-			separated.clear();
-			separated.resize(4*combined.size()*surrounding_range_, 0.0);
-
-			std::vector<uintBaseCall> bases;
-			uintSeqLen pos;
-			for( uintSurBlockId block=0; block < combined.size(); ++block ){
-				bases.clear();
-				bases.resize(surrounding_range_+1, 0); // We need a buffer to catch the final increase in the loop so +1 here
-				for(intSurrounding sur=0; sur < combined.at(block).size(); ++sur){
-					// Add surrounding bias to the corresponding base at each position
-					for(pos=0; pos < surrounding_range_; ++pos){
-						separated.at(bases.at(surrounding_range_-1-pos)+pos*4+block*surrounding_range_*4) += combined.at(block).at(sur);
-					}
-
-					// Update the current bases we are at: If a position exceeds valid bases, set it back to A and increase next position
-					// bases[0] is for pos=surrounding_range_-1
-					pos=0;
-					while( ++(bases.at(pos)) > 3 ){
-						bases.at(pos++) = 0;
-					}
-				}
-			}
-
-			// Normalize separated values
-			if(BiasCalculationVectors::kSurSum){
-				for(auto sur_pos = 0; sur_pos < Reference::num_surrounding_blocks_*Reference::surrounding_range_; ++sur_pos){
-					double sur_sum(0.0);
-					for(auto sur = 4*sur_pos; sur < 4*sur_pos+4; ++sur){
-						sur_sum += separated.at(sur);
-					}
-					sur_sum /= 4;
-					for(auto sur = 4*sur_pos; sur < 4*sur_pos+4; ++sur){
-						separated.at(sur) -= sur_sum;
-						separated.at(sur) /= utilities::IntPow(4,surrounding_range_-1);
-					}
-				}
-			}
-			else if(BiasCalculationVectors::kSurMult){
-				for(auto sur_pos = 0; sur_pos < Reference::num_surrounding_blocks_*Reference::surrounding_range_; ++sur_pos){
-					double sur_sum = 0.0;
-					for(auto base = 0; base < 4; ++base){
-						sur_sum += separated.at(4*sur_pos+base);
-					}
-					for(auto base = 0; base < 4; ++base){
-						separated.at(4*sur_pos+base) *= 4/sur_sum;
-					}
-				}
-			}
-		}
-		template<typename T> inline void CombineSurroundingPositions(std::array<std::vector<T>, Reference::num_surrounding_blocks_> &combined, const std::array<T, 4*Reference::num_surrounding_blocks_*Reference::surrounding_range_> &separated) const{
-			auto tmp_size = Reference::SurroundingSize();
-			for( auto &block : combined ){
-				block.clear();
-				if(BiasCalculationVectors::kSurSum){
-					block.resize(tmp_size, 0.0);
-				}
-				else if(BiasCalculationVectors::kSurMult){
-					block.resize(tmp_size, 1.0);
-				}
-			}
-
-			std::vector<uintBaseCall> bases;
-			uintSeqLen pos;
-			for( uintSurBlockId block=0; block < combined.size(); ++block ){
-				bases.clear();
-				bases.resize(surrounding_range_+1, 0); // We need a buffer to catch the final increase in the loop so +1 here
-				for(intSurrounding sur=0; sur < combined.at(block).size(); ++sur){
-					// Bias for a surrounding is the sum/product of all biases from the given bases at its positions
-					for(pos=0; pos < surrounding_range_; ++pos){
-						if(BiasCalculationVectors::kSurSum){
-							combined.at(block).at(sur) += separated.at(bases.at(surrounding_range_-1-pos)+pos*4+block*surrounding_range_*4);
-						}
-						else if(BiasCalculationVectors::kSurMult){
-							combined.at(block).at(sur) *= separated.at(bases.at(surrounding_range_-1-pos)+pos*4+block*surrounding_range_*4);
-						}
-					}
-
-					// Update the current bases we are at: If a position exceeds valid bases, set it back to A and increase next position
-					// bases[0] is for pos=surrounding_range_-1
-					pos=0;
-					while( ++(bases.at(pos)) > 3 ){
-						bases.at(pos++) = 0;
-					}
-				}
-			}
-		}
-
 		void CountDuplicates(FragmentDuplicationStats &duplications, const BiasCalculationParamsSplitSeqs &params, const Reference &reference);
 		void AddFragmentsToSites(std::vector<FragmentSite> &sites, const std::vector<uintRefLenCalc> &fragment_positions, uintSeqLen min_dist_to_ref_seq_ends);
 		void CalculateBiasByBin(BiasCalculationVectors &tmp_calc, const Reference &reference, FragmentDuplicationStats &duplications, uintRefSeqBin ref_seq_bin, uintSeqLen insert_length);
@@ -420,8 +336,6 @@ namespace reseq{
 		// Boost archive functions
 		friend class boost::serialization::access;
 		template<class Archive> void serialize(Archive & ar, const unsigned int UNUSED(version)){
-			ar & surrounding_range_;
-
 			ar & abundance_;
 			ar & insert_lengths_;
 			ar & gc_fragment_content_;
@@ -460,14 +374,12 @@ namespace reseq{
 		const std::vector<uintFragCount> &Abundance() const{ return abundance_; }
 		const Vect<uintFragCount> &InsertLengths() const{ return insert_lengths_; }
 		const Vect<uintFragCount> &GCFragmentContent() const{ return gc_fragment_content_; }
-		const std::vector<uintFragCount> &FragmentSurroundings(uintSurBlockId block_number) const{ return fragment_surroundings_.at(block_number); }
 
 		const Vect<Vect<uintFragCount>> &SiteCount() const{ return site_count_; }
 
 		const std::vector<double> &RefSeqBias() const{ return ref_seq_bias_; }
 		const Vect<double> &InsertLengthsBias() const{ return insert_lengths_bias_; }
 		const Vect<double> &GCFragmentContentBias() const{ return gc_fragment_content_bias_; }
-		const std::vector<double> &FragmentSurroundingsBias(uintSurBlockId block_number) const{ return fragment_surroundings_bias_.at(block_number); }
 		
 		const Vect<uintFragCount> &OutskirtContent(uintTempSeq direction, uintBaseCall nucleotide) const{ return outskirt_content_.at(direction).at(nucleotide); }
 		const std::vector<double> &FragmentSurroundingBiasByBase(uintBaseCall nucleotide) const{ return fragment_surrounding_bias_by_base_.at(nucleotide); }
@@ -517,9 +429,7 @@ namespace reseq{
 
 		static uintDupCount NegativeBinomial(double p, double r, double probability_chosen);
 		double Dispersion(double bias) const{ return BiasCalculationVectors::GetDispersion( bias, dispersion_parameters_.at(0), dispersion_parameters_.at(1) ); }
-		uintDupCount GetFragmentCounts(const Reference &reference, double bias_normalization, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintPercent gc, const std::array<intSurrounding, Reference::num_surrounding_blocks_> &fragment_start, const std::array<intSurrounding, Reference::num_surrounding_blocks_> &fragment_end, double probability_chosen, double non_zero_threshold=0.0) const;
-		void NegativeBinomial(std::vector<uintDupCount> &counts, std::vector<std::pair<double,uintAlleleId>> &probabilities_chosen, uintAlleleId current, double p, double r) const;
-		void GetFragmentCounts(std::vector<uintDupCount> &counts, std::vector<std::pair<double,uintAlleleId>> &probabilities_chosen, const Reference &reference, double bias_normalization, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintPercent gc, const std::array<intSurrounding, Reference::num_surrounding_blocks_> &fragment_start, const std::array<intSurrounding, Reference::num_surrounding_blocks_> &fragment_end, double non_zero_threshold) const;
+		uintDupCount GetFragmentCounts(const Reference &reference, double bias_normalization, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintPercent gc, const Surrounding &fragment_start, const Surrounding &fragment_end, double probability_chosen, double non_zero_threshold=0.0) const;
 
 		void PreparePlotting();
 	};

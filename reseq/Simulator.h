@@ -18,6 +18,7 @@
 #include "FragmentDistributionStats.h"
 #include "ProbabilityEstimates.h"
 #include "Reference.h"
+#include "Surrounding.h"
 #include "utilities.hpp"
 
 namespace reseq{
@@ -42,7 +43,7 @@ namespace reseq{
 			intSeqShift fragment_length_extension_; // Extension after the ReferenceSequence needed for Variants
 
 			// Surroundings
-			std::vector<std::array<intSurrounding, Reference::num_surrounding_blocks_>> mod_surrounding_start_, mod_surrounding_end_; // Contain the modified surroundings for the given allele if variation exists
+			std::vector<Surrounding> mod_surrounding_start_, mod_surrounding_end_; // Contain the modified surroundings for the given allele if variation exists
 
 			VariantBiasVarModifiers(intVariantId first_variant_id, uintAlleleId num_alleles):
 					first_variant_id_(first_variant_id),
@@ -407,17 +408,12 @@ namespace reseq{
 		}
 		inline bool VariantInsideCurrentFragment( intVariantId cur_var_id, uintSeqLen cur_end_position, intSeqShift end_pos_shift, uintRefSeqId ref_seq_id, const Reference &ref ) const;
 		void HandleGCModAndEndPosShiftForNewVariants( VariantBiasVarModifiers &bias_mod, uintAlleleId allele, uintRefSeqId ref_seq_id, const Reference &ref, uintSeqLen cur_end_position ) const;
-		static void ChangeSurroundingBase( std::array<intSurrounding, Reference::num_surrounding_blocks_> &surrounding, uintSurPos pos, seqan::Dna new_base );
-		static void DeleteSurroundingBaseShiftingOnRightSide( std::array<intSurrounding, Reference::num_surrounding_blocks_> &surrounding, uintSurPos pos, seqan::Dna new_end_base );
-		static void DeleteSurroundingBaseShiftingOnLeftSide( std::array<intSurrounding, Reference::num_surrounding_blocks_> &surrounding, uintSurPos pos, seqan::Dna new_end_base );
-		static void InsertSurroundingBasesShiftingOnRightSide( std::array<intSurrounding, Reference::num_surrounding_blocks_> &surrounding, uintSurPos pos, seqan::DnaString new_bases );
-		static void InsertSurroundingBasesShiftingOnLeftSide( std::array<intSurrounding, Reference::num_surrounding_blocks_> &surrounding, uintSurPos pos, seqan::DnaString new_bases );
-		void HandleSurroundingVariantsBeforeCenter(std::array<intSurrounding, Reference::num_surrounding_blocks_> &mod_surrounding, uintSeqLen center_position, intSeqShift initial_pos_shift, intVariantId center_var, uintAlleleId allele, uintRefSeqId ref_seq_id, const Reference &ref, bool reverse) const;
-		void HandleSurroundingVariantsAfterCenter(std::array<intSurrounding, Reference::num_surrounding_blocks_> &mod_surrounding, uintSeqLen center_position, intSeqShift initial_pos_shift, intVariantId center_var, uintAlleleId allele, uintRefSeqId ref_seq_id, const Reference &ref, bool reverse) const;
-		void VariantModStartSurrounding(VariantBiasVarModifiers &bias_mod, uintAlleleId allele, uintRefSeqId ref_seq_id, const Reference &ref, uintSeqLen cur_start_position, const std::array<intSurrounding, Reference::num_surrounding_blocks_> &surrounding_start) const;
-		void PrepareBiasModForCurrentStartPos( VariantBiasVarModifiers &bias_mod, uintRefSeqId ref_seq_id, const Reference &ref, uintSeqLen cur_start_position, uintSeqLen cur_end_position, std::array<intSurrounding, Reference::num_surrounding_blocks_> &surrounding_start ) const;
-		void VariantModEndSurrounding(VariantBiasVarModifiers &bias_mod, uintAlleleId allele, uintRefSeqId ref_seq_id, const Reference &ref, uintSeqLen cur_end_position, const std::array<intSurrounding, Reference::num_surrounding_blocks_> &surrounding_end) const;
-		void UpdateBiasModForCurrentFragmentLength( VariantBiasVarModifiers &bias_mod, uintRefSeqId ref_seq_id, const Reference &ref, uintSeqLen cur_start_position, uintSeqLen cur_end_position, std::array<intSurrounding, Reference::num_surrounding_blocks_> &surrounding_end ) const;
+		void HandleSurroundingVariantsBeforeCenter(Surrounding &mod_surrounding, uintSeqLen center_position, intSeqShift initial_pos_shift, intVariantId center_var, uintAlleleId allele, uintRefSeqId ref_seq_id, const Reference &ref, bool reverse) const;
+		void HandleSurroundingVariantsAfterCenter(Surrounding &mod_surrounding, uintSeqLen center_position, intSeqShift initial_pos_shift, intVariantId center_var, uintAlleleId allele, uintRefSeqId ref_seq_id, const Reference &ref, bool reverse) const;
+		void VariantModStartSurrounding(VariantBiasVarModifiers &bias_mod, uintAlleleId allele, uintRefSeqId ref_seq_id, const Reference &ref, uintSeqLen cur_start_position, const Surrounding &surrounding_start) const;
+		void PrepareBiasModForCurrentStartPos( VariantBiasVarModifiers &bias_mod, uintRefSeqId ref_seq_id, const Reference &ref, uintSeqLen cur_start_position, uintSeqLen cur_end_position, Surrounding &surrounding_start ) const;
+		void VariantModEndSurrounding(VariantBiasVarModifiers &bias_mod, uintAlleleId allele, uintRefSeqId ref_seq_id, const Reference &ref, uintSeqLen cur_end_position, const Surrounding &surrounding_end) const;
+		void UpdateBiasModForCurrentFragmentLength( VariantBiasVarModifiers &bias_mod, uintRefSeqId ref_seq_id, const Reference &ref, uintSeqLen cur_start_position, uintSeqLen cur_end_position, Surrounding &surrounding_end ) const;
 		void CheckForInsertedBasesToStartFrom( VariantBiasVarModifiers &bias_mod, uintRefSeqId ref_seq_id, uintSeqLen cur_start_position, const Reference &ref ) const;
 		void CheckForFragmentLengthExtension( VariantBiasVarModifiers &bias_mod, uintSeqLen fragment_length, uintSeqLen fragment_length_to, const Reference &ref, const DataStats &stats ) const;
 		void GetOrgSeq(SimPair &sim_reads, bool strand, uintAlleleId allele, uintSeqLen fragment_length, uintSeqLen cur_start_position, uintSeqLen cur_end_position, uintRefSeqId ref_seq_id, const Reference &ref, const DataStats &stats, const VariantBiasVarModifiers &bias_mod) const;

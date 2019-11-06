@@ -20,6 +20,11 @@ namespace reseq{
 		void TestInsertVariant();
 		void TestVariationLoading();
 		void TestVariationPositionLoading();
+		void TestLoadingAndAccess();
+		void TestGC();
+		void TestSumBias();
+		void TestGetFragmentSites();
+		void TestReplaceN();
 	};
 }
 

@@ -61,7 +61,6 @@ using seqan::Dna5;
 using reseq::utilities::Complement;
 using reseq::utilities::at;
 using reseq::utilities::Divide;
-using reseq::utilities::IntPow;
 using reseq::utilities::IsN;
 using reseq::utilities::Percent;
 using reseq::utilities::SetToMax;
@@ -74,23 +73,13 @@ constexpr double BiasCalculationVectors::kLowerBound;
 constexpr double BiasCalculationVectors::kUpperBound;
 constexpr double BiasCalculationVectors::kBaseValue;
 
-void BiasCalculationVectors::AddCountsFromSite(const FragmentSite &site, array<uintFragCount, 101> &gc_count, array<uintFragCount, 4*Reference::num_surrounding_blocks_*Reference::surrounding_range_> &sur_count){
+void BiasCalculationVectors::AddCountsFromSite(const FragmentSite &site, array<uintFragCount, 101> &gc_count, array<uintFragCount, 4*Surrounding::Length()> &sur_count){
 	if(0 < site.count_forward_ + site.count_reverse_){
 		gc_count.at(site.gc_) += site.count_forward_ + site.count_reverse_;
 
-		for(uintSurBlockId block = Reference::num_surrounding_blocks_; block--;){
-			auto sur_start = site.start_surrounding_.at(block);
-			auto sur_end = site.end_surrounding_.at(block);
-
-			for(uintSeqLen sur_pos = Reference::surrounding_range_; sur_pos--; ){
-				auto base_pos = 4*(block*Reference::surrounding_range_ + sur_pos);
-
-				sur_count.at(base_pos + sur_start%4) += site.count_forward_ + site.count_reverse_;
-				sur_count.at(base_pos + sur_end%4) += site.count_forward_ + site.count_reverse_;
-
-				sur_start /= 4;
-				sur_end /= 4;
-			}
+		for(uintSurPos sur_pos = Surrounding::Length(); sur_pos--; ){
+			sur_count.at(4*sur_pos + site.start_surrounding_.BaseAt(sur_pos)) += site.count_forward_ + site.count_reverse_;
+			sur_count.at(4*sur_pos + site.end_surrounding_.BaseAt(sur_pos)) += site.count_forward_ + site.count_reverse_;
 		}
 	}
 }
@@ -98,14 +87,11 @@ void BiasCalculationVectors::AddCountsFromSite(const FragmentSite &site, array<u
 void BiasCalculationVectors::GetCounts(){
 	gc_count_.fill(0);
 	sur_count_.fill(0);
-	//duplication_count_.fill(0);
+
 	for(auto &site : sites_){
 		if(0.0 != site.bias_){
 			AddCountsFromSite(site, gc_count_, sur_count_);
 		}
-
-//		++duplication_count_.at(min(site.count_forward_, kMaxDuplications+1));
-//		++duplication_count_.at(min(site.count_reverse_, kMaxDuplications+1));
 	}
 
 	total_counts_ = SumVect(gc_count_);
@@ -121,21 +107,14 @@ void BiasCalculationVectors::RemoveUnnecessarySites(){
 		if(0.0 != sites_.at(cur_site).bias_){ // Filter out sides where at least one surrounding couldn't be determined
 			zero_site = false; // sites with zero for gc are ok as we use splines there
 
-			for(uintSurBlockId block = Reference::num_surrounding_blocks_; block--;){
-				auto sur_start = sites_.at(cur_site).start_surrounding_.at(block);
-				auto sur_end = sites_.at(cur_site).end_surrounding_.at(block);
-
-				for(uintSeqLen sur_pos = Reference::surrounding_range_; sur_pos--; ){
-					auto base_pos = 4*(block*Reference::surrounding_range_ + sur_pos);
-					if( !sur_count_.at(base_pos + sur_start%4) ){
-						zero_site = true;
-					}
-					if( !sur_count_.at(base_pos + sur_end%4) && sur_start%4 != sur_end%4 ){
-						zero_site = true;
-					}
-
-					sur_start /= 4;
-					sur_end /= 4;
+			for(uintSurPos sur_pos = Surrounding::Length(); sur_pos--; ){
+				if( !sur_count_.at(4*sur_pos + sites_.at(cur_site).start_surrounding_.BaseAt(sur_pos)) ){
+					zero_site = true;
+					break;
+				}
+				if( !sur_count_.at(4*sur_pos + sites_.at(cur_site).end_surrounding_.BaseAt(sur_pos)) ){
+					zero_site = true;
+					break;
 				}
 			}
 
@@ -144,19 +123,9 @@ void BiasCalculationVectors::RemoveUnnecessarySites(){
 
 				gc_sites_.at(sites_.at(cur_site).gc_) += 2;
 
-				for(uintSurBlockId block = Reference::num_surrounding_blocks_; block--;){
-					auto sur_start = sites_.at(cur_site).start_surrounding_.at(block);
-					auto sur_end = sites_.at(cur_site).end_surrounding_.at(block);
-
-					for(uintSeqLen sur_pos = Reference::surrounding_range_; sur_pos--; ){
-						auto base_pos = 4*(block*Reference::surrounding_range_ + sur_pos);
-
-						sur_sites_.at(base_pos + sur_start%4) += 2;
-						sur_sites_.at(base_pos + sur_end%4) += 2;
-
-						sur_start /= 4;
-						sur_end /= 4;
-					}
+				for(uintSurPos sur_pos = Surrounding::Length(); sur_pos--; ){
+					sur_sites_.at(4*sur_pos + sites_.at(cur_site).start_surrounding_.BaseAt(sur_pos)) += 2;
+					sur_sites_.at(4*sur_pos + sites_.at(cur_site).end_surrounding_.BaseAt(sur_pos)) += 2;
 				}
 			}
 		}
@@ -218,7 +187,7 @@ void BiasCalculationVectors::NormGC(){
 
 void BiasCalculationVectors::NormSurroundings(const vector<double> &x){
 	if(kSurSum){
-		for(auto sur_pos = 0; sur_pos < Reference::num_surrounding_blocks_*Reference::surrounding_range_; ++sur_pos){
+		for(auto sur_pos = 0; sur_pos < Surrounding::Length(); ++sur_pos){
 			auto from = 1+sur_pos*4;
 			auto to = 1+(sur_pos+1)*4;
 
@@ -244,7 +213,7 @@ void BiasCalculationVectors::NormSurroundings(const vector<double> &x){
 		}
 	}
 	else if(kSurMult){
-		for(auto sur_pos = 0; sur_pos < Reference::num_surrounding_blocks_*Reference::surrounding_range_; ++sur_pos){
+		for(auto sur_pos = 0; sur_pos < Surrounding::Length(); ++sur_pos){
 			double sur_sum = 0.0;
 			uintBaseCall valid_sur = 0;
 			for(auto base = 0; base < 4; ++base){
@@ -262,7 +231,7 @@ void BiasCalculationVectors::NormSurroundings(const vector<double> &x){
 
 void BiasCalculationVectors::UnnormSurroundingGradients(vector<double> &grad, const vector<double> &x){
 	if(kSurMult){
-		for(auto sur_pos = 0; sur_pos < Reference::num_surrounding_blocks_*Reference::surrounding_range_; ++sur_pos){
+		for(auto sur_pos = 0; sur_pos < Surrounding::Length(); ++sur_pos){
 			auto from = sur_pos*4;
 			auto to = (sur_pos+1)*4;
 
@@ -282,7 +251,7 @@ void BiasCalculationVectors::UnnormSurroundingGradients(vector<double> &grad, co
 		}
 	}
 	else if(kSurSum){
-		for(auto sur_pos = 0; sur_pos < Reference::num_surrounding_blocks_*Reference::surrounding_range_; ++sur_pos){
+		for(auto sur_pos = 0; sur_pos < Surrounding::Length(); ++sur_pos){
 			auto from = sur_pos*4;
 			auto to = (sur_pos+1)*4;
 
@@ -331,24 +300,14 @@ pair<double, double> BiasCalculationVectors::SurBiasAtSiteSplit(const FragmentSi
 		bias = {0.0, 0.0};
 	}
 
-	for(uintSurBlockId block = Reference::num_surrounding_blocks_; block--;){
-		auto sur_start = site.start_surrounding_.at(block);
-		auto sur_end = site.end_surrounding_.at(block);
-
-		for(uintSeqLen sur_pos = Reference::surrounding_range_; sur_pos--; ){
-			auto base_pos = 4*(block*Reference::surrounding_range_ + sur_pos);
-
-			if(kSurSum){
-				bias.first += sur_bias_.at(base_pos + sur_start%4);
-				bias.second += sur_bias_.at(base_pos + sur_end%4);
-			}
-			else if(kSurMult){
-				bias.first *= sur_bias_.at(base_pos + sur_start%4);
-				bias.second *= sur_bias_.at(base_pos + sur_end%4);
-			}
-
-			sur_start /= 4;
-			sur_end /= 4;
+	for(uintSurPos sur_pos = Surrounding::Length(); sur_pos--; ){
+		if(kSurSum){
+			bias.first += sur_bias_.at(4*sur_pos + site.start_surrounding_.BaseAt(sur_pos));
+			bias.second += sur_bias_.at(4*sur_pos + site.end_surrounding_.BaseAt(sur_pos));
+		}
+		else if(kSurMult){
+			bias.first *= sur_bias_.at(4*sur_pos + site.start_surrounding_.BaseAt(sur_pos));
+			bias.second *= sur_bias_.at(4*sur_pos + site.end_surrounding_.BaseAt(sur_pos));
 		}
 	}
 
@@ -791,34 +750,22 @@ double BiasCalculationVectors::LogLikelihoodPoisson(const vector<double> &x, vec
 			auto cur_grad_start = InvLogit2(-bias_split.first)/2;
 			auto cur_grad_end = InvLogit2(-bias_split.second)/2;
 
-			intSurrounding sur_start, sur_end;
-			for(uintSurBlockId block = Reference::num_surrounding_blocks_; block--;){
-				sur_start = site.start_surrounding_.at(block);
-				sur_end = site.end_surrounding_.at(block);
+			for(uintSurPos sur_pos = Surrounding::Length(); sur_pos--; ){
+				auto i_start = 4*sur_pos + site.start_surrounding_.BaseAt(sur_pos);
+				auto i_end = 4*sur_pos + site.end_surrounding_.BaseAt(sur_pos);
 
-				for(uintSeqLen sur_pos = Reference::surrounding_range_; sur_pos--; ){
-					auto base_pos = 4*(block*Reference::surrounding_range_ + sur_pos);
-					auto i_start = base_pos + sur_start%4;
-					auto i_end = base_pos + sur_end%4;
-
-					if(BiasCalculationVectors::kSurMult){
-						calc.grad_gc_bias_sum_.at(site.gc_).at(i_start).first += bias/calc.sur_bias_.at(i_start);
-						calc.grad_gc_bias_sum_.at(site.gc_).at(i_end).first += bias/calc.sur_bias_.at(i_end);
-					}
-					else if(BiasCalculationVectors::kSurSum){
-						calc.grad_gc_bias_sum_.at(site.gc_).at(i_start).first += bias*cur_grad_start;
-						calc.grad_gc_bias_sum_.at(site.gc_).at(i_end).first += bias*cur_grad_end;
-					}
+				if(BiasCalculationVectors::kSurMult){
+					calc.grad_gc_bias_sum_.at(site.gc_).at(i_start).first += bias/calc.sur_bias_.at(i_start);
+					calc.grad_gc_bias_sum_.at(site.gc_).at(i_end).first += bias/calc.sur_bias_.at(i_end);
+				}
+				else if(BiasCalculationVectors::kSurSum){
+					calc.grad_gc_bias_sum_.at(site.gc_).at(i_start).first += bias*cur_grad_start;
+					calc.grad_gc_bias_sum_.at(site.gc_).at(i_end).first += bias*cur_grad_end;
 
 					if(site.count_forward_+site.count_reverse_){
-						if(BiasCalculationVectors::kSurSum){
-							calc.sur_grad_.at(i_start) += (site.count_forward_+site.count_reverse_)*cur_grad_start;
-							calc.sur_grad_.at(i_end) += (site.count_forward_+site.count_reverse_)*cur_grad_end;
-						}
+						calc.sur_grad_.at(i_start) += (site.count_forward_+site.count_reverse_)*cur_grad_start;
+						calc.sur_grad_.at(i_end) += (site.count_forward_+site.count_reverse_)*cur_grad_end;
 					}
-
-					sur_start /= 4;
-					sur_end /= 4;
 				}
 			}
 		}
@@ -919,27 +866,14 @@ void BiasCalculationVectors::LogLikelihoodNbinomSite(double &loglike, double &a,
 		auto cur_grad_start = InvLogit2(-bias_split.first)/2;
 		auto cur_grad_end = InvLogit2(-bias_split.second)/2;
 
-		intSurrounding sur_start, sur_end;
-		for(uintSurBlockId block = Reference::num_surrounding_blocks_; block--;){
-			sur_start = site.start_surrounding_.at(block);
-			sur_end = site.end_surrounding_.at(block);
-
-			for(uintSeqLen sur_pos = Reference::surrounding_range_; sur_pos--; ){
-				auto base_pos = 4*(block*Reference::surrounding_range_ + sur_pos);
-				auto i_start = base_pos + sur_start%4;
-				auto i_end = base_pos + sur_end%4;
-
-				if(kSurMult){
-					grad.at(i_start) += grad_term1; // Division by bias later
-					grad.at(i_end) += grad_term1;
-				}
-				else if(kSurSum){
-					sur_grad_.at(i_start) += grad_term1*cur_grad_start;
-					sur_grad_.at(i_end) += grad_term1*cur_grad_end;
-				}
-
-				sur_start /= 4;
-				sur_end /= 4;
+		for(uintSurPos sur_pos = Surrounding::Length(); sur_pos--; ){
+			if(kSurMult){
+				grad.at(4*sur_pos + site.start_surrounding_.BaseAt(sur_pos)) += grad_term1; // Division by bias later
+				grad.at(4*sur_pos + site.end_surrounding_.BaseAt(sur_pos)) += grad_term1;
+			}
+			else if(kSurSum){
+				sur_grad_.at(4*sur_pos + site.start_surrounding_.BaseAt(sur_pos)) += grad_term1*cur_grad_start;
+				sur_grad_.at(4*sur_pos + site.end_surrounding_.BaseAt(sur_pos)) += grad_term1*cur_grad_end;
 			}
 		}
 	}
@@ -1227,7 +1161,7 @@ void FragmentDistributionStats::PrepareBiasCalculation( const Reference &ref, ui
 		for(auto k = 0; k < BiasCalculationVectors::kGCSplineDf; ++k){
 			myfile << ", " << "GCknot" << k;
 		}
-		for(auto sur = 0; sur < 4*Reference::num_surrounding_blocks_*Reference::surrounding_range_; ++sur){
+		for(auto sur = 0; sur < 4*Surrounding::Length(); ++sur){
 			char base;
 			switch(sur%4){
 			case 0:
@@ -1627,7 +1561,7 @@ bool FragmentDistributionStats::StoreBias(){
 
 	// Surrounding bias
 	// Calculate Median
-	std::array<double, 4*Reference::num_surrounding_blocks_*Reference::surrounding_range_> sur_median;
+	std::array<double, 4*Surrounding::Length()> sur_median;
 	for(uintNumFits sur=0; sur<tmp_sur_bias_.size(); ++sur){
 		tmp_sur_bias_.at(sur).resize(used_size);
 
@@ -1638,7 +1572,7 @@ bool FragmentDistributionStats::StoreBias(){
 		tmp_sur_bias_.at(sur).shrink_to_fit();
 	}
 
-	CombineSurroundingPositions(fragment_surroundings_bias_, sur_median);
+	fragment_surroundings_bias_.CombinePositions(sur_median);
 
 	// Dispersion parameters
 	// Calculate Median
@@ -1795,14 +1729,9 @@ reseq::uintRefSeqBin FragmentDistributionStats::CreateRefBins( const Reference &
 }
 
 void FragmentDistributionStats::Prepare( const Reference &ref, uintSeqLen maximum_insert_length, const vector<uintFragCount> &reads_per_ref_seq_bin ){
-	surrounding_range_ = ref.SurroundingRange();
-
 	tmp_abundance_.resize(ref.NumberSequences());
 	tmp_insert_lengths_.resize(maximum_insert_length+1);
 	tmp_gc_fragment_content_.resize(101);
-	for( auto &tmp_sur : tmp_fragment_surroundings_){
-		tmp_sur.resize(Reference::SurroundingSize());
-	}
 
 	for(auto strand=2; strand--; ){
 		for(auto nuc=4; nuc--; ){
@@ -1820,13 +1749,9 @@ void FragmentDistributionStats::FillInOutskirtContent( const Reference &referenc
 	auto &ref_seq = reference.ReferenceSequence(record_start.rID);
 
 	// Fill in fragment start
-	array<intSurrounding, Reference::num_surrounding_blocks_> surroundings;
+	Surrounding surroundings;
 	reference.ForwardSurroundingWithN(surroundings, record_start.rID, ref_pos);
-	for( auto block = surroundings.size(); block--; ){
-		if(0 <= surroundings.at(block)){
-			++(tmp_fragment_surroundings_.at(block).at( surroundings.at(block) ));
-		}
-	}
+	tmp_fragment_surroundings_.Count(surroundings);
 
 	if(reversed_fragment){
 		// Reverse strand: Fill in postfragment-content
@@ -1869,11 +1794,7 @@ void FragmentDistributionStats::FillInOutskirtContent( const Reference &referenc
 
 	// Fill in fragment end
 	reference.ReverseSurroundingWithN(surroundings, record_start.rNextId, ref_pos-1);
-	for( auto block = surroundings.size(); block--; ){
-		if(0 <= surroundings.at(block)){
-			++(tmp_fragment_surroundings_.at(block).at( surroundings.at(block) ));
-		}
-	}
+	tmp_fragment_surroundings_.Count(surroundings);
 
 	if(reversed_fragment){
 		// Reverse strand: Fill in prefragment-content
@@ -1931,9 +1852,8 @@ void FragmentDistributionStats::Finalize(){
 	Acquire(abundance_, tmp_abundance_);
 	insert_lengths_.Acquire(tmp_insert_lengths_);
 	gc_fragment_content_.Acquire(tmp_gc_fragment_content_);
-	for(auto i=fragment_surroundings_.size(); i--; ){
-		Acquire(fragment_surroundings_.at(i), tmp_fragment_surroundings_.at(i));
-	}
+
+	fragment_surroundings_.Acquire(tmp_fragment_surroundings_);
 
 	for(auto strand=2; strand--; ){
 		for(auto nuc=4; nuc--; ){
@@ -2224,18 +2144,12 @@ reseq::uintDupCount FragmentDistributionStats::NegativeBinomial(double p, double
 	return count;
 }
 
-reseq::uintDupCount FragmentDistributionStats::GetFragmentCounts(const Reference &reference, double bias_normalization, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintPercent gc, const array<intSurrounding, Reference::num_surrounding_blocks_> &fragment_start, const array<intSurrounding, Reference::num_surrounding_blocks_> &fragment_end, double probability_chosen, double non_zero_threshold) const{
+reseq::uintDupCount FragmentDistributionStats::GetFragmentCounts(const Reference &reference, double bias_normalization, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintPercent gc, const Surrounding &fragment_start, const Surrounding &fragment_end, double probability_chosen, double non_zero_threshold) const{
 	if(probability_chosen < non_zero_threshold){
 		return 0;
 	}
 	else{
-		array<double, 3> start_bias, end_bias;
-		for(auto block = start_bias.size(); block--; ){
-			start_bias.at(block) = fragment_surroundings_bias_.at(block).at(fragment_start.at(block));
-			end_bias.at(block) = fragment_surroundings_bias_.at(block).at(fragment_end.at(block));
-		}
-
-		double bias( reference.Bias( ref_seq_bias_.at(ref_seq_id), insert_lengths_bias_[fragment_length], gc_fragment_content_bias_[gc], start_bias, end_bias ) );
+		double bias( reference.Bias( ref_seq_bias_.at(ref_seq_id), insert_lengths_bias_[fragment_length], gc_fragment_content_bias_[gc], fragment_surroundings_bias_.Bias(fragment_start), fragment_surroundings_bias_.Bias(fragment_end) ) );
 
 		if(0.0 < bias){
 			double mean( bias * bias_normalization );
@@ -2249,62 +2163,16 @@ reseq::uintDupCount FragmentDistributionStats::GetFragmentCounts(const Reference
 	}
 }
 
-void FragmentDistributionStats::NegativeBinomial(vector<uintDupCount> &counts, vector<pair<double,uintAlleleId>> &probabilities_chosen, uintAlleleId current, double p, double r) const{
-	// (1-p)^r * mult_{i=1}^{k}[p * (r+i-1)/i]
-	double probability_count( pow(1-p, r) ), probability_sum(probability_count);
-	uintDupCount count(0);
-
-	while(current < counts.size()){
-		while(probability_sum < probabilities_chosen.at(current).first){
-			probability_count *= p * ((r-1) / ++count + 1);
-			probability_sum += probability_count;
-		}
-
-		counts.at( probabilities_chosen.at(current++).second ) = count;
-	}
-}
-
-void FragmentDistributionStats::GetFragmentCounts(vector<uintDupCount> &counts, vector<pair<double,uintAlleleId>> &probabilities_chosen, const Reference &reference, double bias_normalization, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintPercent gc, const array<intSurrounding, Reference::num_surrounding_blocks_> &fragment_start, const array<intSurrounding, Reference::num_surrounding_blocks_> &fragment_end, double non_zero_threshold) const{
-	sort(probabilities_chosen.begin(), probabilities_chosen.end());
-	uintAlleleId current = 0;
-
-	while(current < counts.size() && probabilities_chosen.at(current).first < non_zero_threshold){
-		counts.at( probabilities_chosen.at(current++).second ) = 0;
-	}
-
-	if(current < counts.size()){
-		array<double, 3> start_bias, end_bias;
-		for(auto block = start_bias.size(); block--; ){
-			start_bias.at(block) = fragment_surroundings_bias_.at(block).at(fragment_start.at(block));
-			end_bias.at(block) = fragment_surroundings_bias_.at(block).at(fragment_end.at(block));
-		}
-
-		double bias( reference.Bias( ref_seq_bias_.at(ref_seq_id), insert_lengths_bias_[fragment_length], gc_fragment_content_bias_[gc], start_bias, end_bias ) );
-
-		if(0.0 < bias){
-			double mean( bias * bias_normalization );
-			double dispersion( Dispersion(mean) );
-
-			NegativeBinomial(counts, probabilities_chosen, current, mean/(mean+dispersion), dispersion);
-		}
-		else{
-			for(auto &count : counts){
-				count = 0;
-			}
-		}
-	}
-}
-
 void FragmentDistributionStats::PreparePlotting(){
-	vector<double> separated_bias;
-	SeparateSurroundingPositions(separated_bias, fragment_surroundings_bias_);
+	array<double, 4*Surrounding::Length()> separated_bias;
+	fragment_surroundings_bias_.SeparatePositions(separated_bias);
 
 	for( auto &sur_vect : fragment_surrounding_bias_by_base_ ){
-		sur_vect.resize(separated_bias.size()/4, 0.0);
+		sur_vect.resize(Surrounding::Length(), 0.0);
 	}
 
 	// Split by nucleotide
-	for( uintNumFits i=0; i < separated_bias.size(); ++i){
+	for( uintSurPos i=0; i < separated_bias.size(); ++i){
 		fragment_surrounding_bias_by_base_.at(i%4).at(i/4) = separated_bias.at(i);
 	}
 }

@@ -49,12 +49,16 @@ using seqan::VcfHeader;
 using seqan::VcfRecord;
 
 #include "CMakeConfig.h"
+//include "Surrounding.h"
+using reseq::Surrounding;
+using reseq::SurroundingBias;
 //include "utilities.hpp"
 using reseq::utilities::ComplementedConstDna5String;
 using reseq::utilities::at;
 using reseq::utilities::IsN;
 using reseq::utilities::Percent;
 using reseq::utilities::ReverseComplementorDna;
+
 
 bool Reference::CheckVcf() const{
 	auto contigs = contigNames(context(vcf_file_));
@@ -392,71 +396,15 @@ void Reference::CloseVcfFile(){
 	close(vcf_file_);
 }
 
-reseq::intSurrounding Reference::ForwardSurroundingBlock( uintRefSeqId ref_seq_id, uintSeqLen sur_start_pos, uintSurBlockId block ) const{
-	const Dna5String &ref_seq(ReferenceSequence(ref_seq_id));
-
-	uintSeqLen pos = (SequenceLength(ref_seq_id) + sur_start_pos + block*surrounding_range_ + surrounding_start_pos_)%SequenceLength(ref_seq_id);
-	intSurrounding return_value(0);
-	if( pos+surrounding_range_ <= length(ref_seq) ){
-		for( auto ref_pos = pos; ref_pos < pos+surrounding_range_; ++ref_pos ){
-			return_value = (return_value << 2) + static_cast<uintBaseCall>(at(ref_seq, ref_pos));
-		}
-	}
-	else{
-		// Surrounding outside of sequence at end
-		for( auto ref_pos = pos; ref_pos < length(ref_seq); ++ref_pos ){
-			return_value = (return_value << 2) + static_cast<uintBaseCall>(at(ref_seq, ref_pos));
-		}
-		// Circle around the reference sequence and continue at the beginning
-		for( auto ref_pos = 0; ref_pos < (pos+surrounding_range_)%length(ref_seq); ++ref_pos ){
-			return_value = (return_value << 2) + static_cast<uintBaseCall>(at(ref_seq, ref_pos));
-		}
-	}
-
-	return return_value;
-}
-
-reseq::intSurrounding Reference::ReverseSurroundingBlock( uintRefSeqId ref_seq_id, uintSeqLen sur_start_pos, uintSurBlockId block ) const{
-	ComplementedConstDna5String ref_seq(ReferenceSequence(ref_seq_id));
-
-	uintSeqLen pos = (SequenceLength(ref_seq_id) + sur_start_pos+1 - surrounding_start_pos_ - (block+1)*surrounding_range_)%SequenceLength(ref_seq_id);
-	intSurrounding return_value(0);
-	if( pos+surrounding_range_ <= length(ref_seq) ){
-		for( auto ref_pos = pos+surrounding_range_; ref_pos-- > pos; ){
-			return_value = (return_value << 2) + static_cast<uintBaseCall>(at(ref_seq, ref_pos));
-		}
-	}
-	else{
-		// Surrounding outside of sequence at end
-		// Circle around the reference sequence and start at the beginning
-		for( auto ref_pos = pos+surrounding_range_-length(ref_seq); ref_pos--; ){
-			return_value = (return_value << 2) + static_cast<uintBaseCall>(at(ref_seq, ref_pos));
-		}
-		// Go back to the end
-		for( auto ref_pos = length(ref_seq); ref_pos-- > pos; ){
-			return_value = (return_value << 2) + static_cast<uintBaseCall>(at(ref_seq, ref_pos));
-		}
-	}
-
-	return return_value;
-}
-
-
 inline void Reference::AddFragmentSite(
 		std::vector<FragmentSite> &sites,
 		uintSeqLen fragment_length,
 		uintSeqLen gc,
 		uintSeqLen n_count,
-		const array<intSurrounding, num_surrounding_blocks_> &start_sur,
-		const array<intSurrounding, num_surrounding_blocks_> &end_sur
+		const Surrounding &start_sur,
+		const Surrounding &end_sur
 		) const{
-	bool valid = n_count <= kMaxNInFragmentSite;
-	for(auto block = start_sur.size(); block--; ){
-		if( 0 > start_sur.at(block) || 0 > end_sur.at(block) ){
-			valid = false;
-		}
-	}
-	if(valid){
+	if(n_count <= kMaxNInFragmentSite && start_sur.Valid() && end_sur.Valid()){
 		uintPercent gc_perc = Percent(gc, fragment_length-n_count);
 		sites.emplace_back(gc_perc, start_sur, end_sur);
 	}
@@ -627,23 +575,18 @@ double Reference::SumBias(
 		uintSeqLen fragment_length,
 		double general_bias,
 		const Vect<double> &gc_bias,
-		const array<vector<double>, num_surrounding_blocks_> &sur_bias) const{
+		const SurroundingBias &sur_bias) const{
 	// Ignores kMinDistToRefSeqEnds and does not account for N's as it is used for simulation only
 	double tot(0.0);
 
 	uintSeqLen n_count(0);
 	uintSeqLen gc = GCContentAbsolut(n_count, ref_seq_id, 0, fragment_length);
-	array<intSurrounding, num_surrounding_blocks_> start_sur, end_sur;
-	array<double, num_surrounding_blocks_> start_bias, end_bias;
+
+	Surrounding start_sur, end_sur;
 	ForwardSurrounding(start_sur, ref_seq_id, 0);
 	ReverseSurrounding(end_sur, ref_seq_id, fragment_length-1);
 
-	for(auto block = start_bias.size(); block--; ){
-		start_bias.at(block) = sur_bias.at(block).at(start_sur.at(block));
-		end_bias.at(block) = sur_bias.at(block).at(end_sur.at(block));
-	}
-
-	double bias = Bias(general_bias, gc_bias[Percent(gc, fragment_length)], start_bias, end_bias);
+	double bias = Bias(general_bias, gc_bias[Percent(gc, fragment_length)], sur_bias.Bias(start_sur), sur_bias.Bias(end_sur));
 	if(bias > max_bias){
 		max_bias = bias;
 	}
@@ -652,15 +595,10 @@ double Reference::SumBias(
 	const Dna5String &ref_seq(ReferenceSequence(ref_seq_id));
 	for( uintSeqLen start_pos=0; start_pos < length(ref_seq)-fragment_length; ){
 		UpdateGC( gc, n_count, ref_seq, start_pos, start_pos+fragment_length );
-		UpdateReverseSurrounding( end_sur, ref_seq, start_pos+fragment_length );
-		UpdateForwardSurrounding( start_sur, ref_seq, ++start_pos );
+		end_sur.UpdateReverse( ref_seq, start_pos+fragment_length );
+		start_sur.UpdateForward( ref_seq, ++start_pos );
 
-		for(auto block = start_bias.size(); block--; ){
-			start_bias.at(block) = sur_bias.at(block).at(start_sur.at(block));
-			end_bias.at(block) = sur_bias.at(block).at(end_sur.at(block));
-		}
-
-		double bias = Bias(general_bias, gc_bias[Percent(gc, fragment_length)], start_bias, end_bias);
+		double bias = Bias(general_bias, gc_bias[Percent(gc, fragment_length)], sur_bias.Bias(start_sur), sur_bias.Bias(end_sur));
 		if(bias > max_bias){
 			max_bias = bias;
 		}
@@ -676,62 +614,31 @@ double Reference::SumBias(
 		uintSeqLen fragment_length,
 		double general_bias,
 		const Vect<double> &gc_bias,
-		const array<vector<double>, num_surrounding_blocks_> &sur_bias) const{
+		const SurroundingBias &sur_bias) const{
 	// Uses kMinDistToRefSeqEnds as it is used for stats creation
 	double tot(0.0);
 
 	uintSeqLen n_count(0);
 	uintSeqLen gc = GCContentAbsolut(n_count, ref_seq_id, kMinDistToRefSeqEnds, kMinDistToRefSeqEnds+fragment_length);
-	array<intSurrounding, num_surrounding_blocks_> start_sur, end_sur;
-	array<double, num_surrounding_blocks_> start_bias, end_bias;
+
+	Surrounding start_sur, end_sur;
 	ForwardSurroundingWithN(start_sur, ref_seq_id, kMinDistToRefSeqEnds);
 	ReverseSurroundingWithN(end_sur, ref_seq_id, kMinDistToRefSeqEnds+fragment_length-1);
 
-	bool valid=true;
-	for(auto block = start_bias.size(); block--; ){
-		if( 0 > start_sur.at(block) ){
-			valid = false;
-		}
-		else{
-			start_bias.at(block) = sur_bias.at(block).at(start_sur.at(block));
-		}
-		if( 0 > end_sur.at(block) ){
-			valid = false;
-		}
-		else{
-			end_bias.at(block) = sur_bias.at(block).at(end_sur.at(block));
-		}
-	}
-
-	if(valid){
-		tot += Bias(general_bias, gc_bias[Percent(gc, fragment_length)], start_bias, end_bias);
+	if(start_sur.Valid() && end_sur.Valid()){
+		tot += Bias(general_bias, gc_bias[Percent(gc, fragment_length)], sur_bias.Bias(start_sur), sur_bias.Bias(end_sur));
 		++gc_sites.at(Percent(gc, fragment_length));
 	}
 
 	const Dna5String &ref_seq(ReferenceSequence(ref_seq_id));
 	for( uintSeqLen start_pos=kMinDistToRefSeqEnds; start_pos < seqan::length(ref_seq)-fragment_length-kMinDistToRefSeqEnds; ){
 		UpdateGC( gc, n_count, ref_seq, start_pos, start_pos+fragment_length );
-		UpdateReverseSurroundingWithN( end_sur, ref_seq, start_pos+fragment_length, ref_seq_id );
-		UpdateForwardSurroundingWithN( start_sur, ref_seq, ++start_pos, ref_seq_id );
+		end_sur.UpdateReverseWithN( ref_seq, start_pos+fragment_length );
+		start_sur.UpdateForwardWithN( ref_seq, ++start_pos );
 
-		valid=true;
-		for(auto block = start_bias.size(); block--; ){
-			if( 0 > start_sur.at(block) ){
-				valid = false;
-			}
-			else{
-				start_bias.at(block) = sur_bias.at(block).at(start_sur.at(block));
-			}
-			if( 0 > end_sur.at(block) ){
-				valid = false;
-			}
-			else{
-				end_bias.at(block) = sur_bias.at(block).at(end_sur.at(block));
-			}
-		}
-		if(valid){
+		if(start_sur.Valid() && end_sur.Valid()){
 			// If 0==fragment_length-n_count surrounding would be invalid, so no check needed
-			tot += Bias(general_bias, gc_bias[Percent(gc, fragment_length)], start_bias, end_bias);
+			tot += Bias(general_bias, gc_bias[Percent(gc, fragment_length)], sur_bias.Bias(start_sur), sur_bias.Bias(end_sur));
 			++gc_sites.at(Percent(gc, fragment_length));
 		}
 	}
@@ -749,7 +656,8 @@ void Reference::GetFragmentSites( vector<FragmentSite> &sites, uintRefSeqId ref_
 
 	uintSeqLen n_count(0);
 	uintSeqLen gc = GCContentAbsolut(n_count, ref_seq_id, start_pos, start_pos+fragment_length);
-	array<intSurrounding, num_surrounding_blocks_> start_sur, end_sur;
+
+	Surrounding start_sur, end_sur;
 	ForwardSurroundingWithN(start_sur, ref_seq_id, start_pos);
 	ReverseSurroundingWithN(end_sur, ref_seq_id, start_pos+fragment_length-1);
 
@@ -757,8 +665,8 @@ void Reference::GetFragmentSites( vector<FragmentSite> &sites, uintRefSeqId ref_
 
 	for( uintSeqLen frag_start=start_pos; frag_start < end_pos; ){
 		UpdateGC( gc, n_count, ref_seq, frag_start, frag_start+fragment_length );
-		UpdateReverseSurroundingWithN( end_sur, ref_seq, frag_start+fragment_length, ref_seq_id );
-		UpdateForwardSurroundingWithN( start_sur, ref_seq, ++frag_start, ref_seq_id );
+		end_sur.UpdateReverseWithN( ref_seq, frag_start+fragment_length );
+		start_sur.UpdateForwardWithN( ref_seq, ++frag_start );
 
 		AddFragmentSite( sites, fragment_length, gc, n_count, start_sur, end_sur );
 	}

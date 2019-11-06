@@ -1340,195 +1340,10 @@ void Simulator::HandleGCModAndEndPosShiftForNewVariants(
 	}
 }
 
-void Simulator::ChangeSurroundingBase(
-		array<intSurrounding, Reference::num_surrounding_blocks_> &surrounding,
-		uintSurPos pos,
-		Dna new_base){
-	auto bit_in_block = 2*(Reference::surrounding_range_ - (pos%Reference::surrounding_range_) - 1);
-	// ~ = bit-wise not
-	surrounding.at(pos/Reference::surrounding_range_) = ( surrounding.at(pos/Reference::surrounding_range_) & ~(3 << bit_in_block) ) + ( static_cast<intSurrounding>(new_base) << bit_in_block );
-}
 
-void Simulator::DeleteSurroundingBaseShiftingOnRightSide(
-		array<intSurrounding, Reference::num_surrounding_blocks_> &surrounding,
-		uintSurPos pos,
-		Dna new_end_base){
-	intSurrounding new_base = new_end_base;
-	auto del_block = pos/Reference::surrounding_range_;
-
-	// Add base at end and shift bases from end block to block with deletion
-	for(auto block=Reference::num_surrounding_blocks_; --block > del_block; ){
-		surrounding.at(block) = (surrounding.at(block) << 2) + new_base;
-		new_base = surrounding.at(block) / Reference::SurroundingSize();
-		surrounding.at(block) = surrounding.at(block) % Reference::SurroundingSize();
-	}
-
-	// Remove deleted base and add shifted base
-	auto bit_in_block = 2*(Reference::surrounding_range_ - (pos%Reference::surrounding_range_) - 1);
-	new_base += ( surrounding.at(del_block) % (1 << bit_in_block) ) << 2;
-	surrounding.at(del_block) = ( surrounding.at(del_block) >> (bit_in_block+2) << (bit_in_block+2) ) + new_base;
-}
-
-void Simulator::DeleteSurroundingBaseShiftingOnLeftSide(
-		array<intSurrounding, Reference::num_surrounding_blocks_> &surrounding,
-		uintSurPos pos,
-		Dna new_end_base){
-	intSurrounding new_base = new_end_base;
-	auto del_block = pos/Reference::surrounding_range_;
-
-	// Add base in front and shift bases from first block to block with deletion
-	for(uintSurBlockId block=0; block < del_block; ++block){
-		surrounding.at(block) += new_base*Reference::SurroundingSize();
-		new_base = surrounding.at(block)%4;
-		surrounding.at(block) = surrounding.at(block) >> 2;
-	}
-
-	// Add shifted base and remove deleted base
-	auto bit_in_block = 2*(Reference::surrounding_range_ - (pos%Reference::surrounding_range_) - 1);
-	surrounding.at(del_block) += new_base*Reference::SurroundingSize();
-	surrounding.at(del_block) = ( surrounding.at(del_block) >> (bit_in_block+2) << (bit_in_block) ) + surrounding.at(del_block) % (1 << bit_in_block);
-}
-
-void Simulator::InsertSurroundingBasesShiftingOnRightSide(
-		array<intSurrounding, Reference::num_surrounding_blocks_> &surrounding,
-		uintSurPos pos,
-		DnaString new_bases){
-	auto block = pos/Reference::surrounding_range_;
-	uintSurPos bases_to_insert = min(length(new_bases), static_cast<size_t>(Reference::surrounding_range_*Reference::num_surrounding_blocks_-pos));
-
-	// Shift right from current block to make room for new bases
-	auto shift_blocks = bases_to_insert/Reference::surrounding_range_; // For every Reference::surrounding_range_ in bases_to_insert we can shift whole blocks
-	auto shift_bases = bases_to_insert%Reference::surrounding_range_;
-	for(auto cur_block=Reference::num_surrounding_blocks_-shift_blocks; cur_block-- > block+1; ){
-		// First shift only the bases and ignore the blocks at the end that we completely remove
-		surrounding.at(cur_block) >>= 2*shift_bases; // Remove bases not longer needed
-		surrounding.at(cur_block) += surrounding.at(cur_block-1) % (1 << 2*shift_bases) * (1 << 2*(Reference::surrounding_range_-shift_bases)); // Add new bases from previous block
-	}
-
-	uintSurPos inv_pos_in_block = Reference::surrounding_range_ - (pos%Reference::surrounding_range_);
-	intSurrounding tmp_sur = surrounding.at(block) % (1 << 2*inv_pos_in_block); // Store everything that needs to be shifted out of the start block
-	surrounding.at(block) >>= 2*inv_pos_in_block; // And remove it from the block
-	tmp_sur >>= 2*shift_bases; // Remove what was already shifted
-
-	if(0 < shift_blocks && Reference::num_surrounding_blocks_ > block+shift_blocks){
-		for(auto cur_block=Reference::num_surrounding_blocks_; cur_block-- > block+shift_blocks+1; ){
-			// Now shift the blocks
-			surrounding.at(cur_block) = surrounding.at(cur_block-shift_blocks);
-		}
-
-		// Shift everything that has to be shifted right from starting block and was not already shifted above (Happens if the bases need to go into an empty block freed by the block shift)
-		surrounding.at(block+shift_blocks) = tmp_sur;
-	}
-
-	// Insert new bases in starting block
-	uintSurPos ins_pos=0;
-	uintSurPos bases_to_insert_into_this_block = min(bases_to_insert, inv_pos_in_block);
-	bases_to_insert -= bases_to_insert_into_this_block;
-	for(; bases_to_insert_into_this_block--; ){
-		surrounding.at(block) <<= 2;
-		surrounding.at(block) += static_cast<uintBaseCall>(at(new_bases, ins_pos++));
-	}
-
-	if(0 == shift_blocks && inv_pos_in_block > shift_bases){
-		// If the complete insertion happens in the starting block add the stuff back that was shifted out too much
-		surrounding.at(block) <<= 2*(inv_pos_in_block-shift_bases);
-		surrounding.at(block) += tmp_sur;
-	}
-	else{
-		while(0 < bases_to_insert){
-			bases_to_insert_into_this_block = min(bases_to_insert, Reference::surrounding_range_);
-			bases_to_insert -= bases_to_insert_into_this_block;
-
-			// Store the part of the block that is not overwritten by insertions
-			tmp_sur = surrounding.at(++block) % (1 << 2*(Reference::surrounding_range_-bases_to_insert_into_this_block));
-
-			// Insert new bases
-			surrounding.at(block) = 0;
-			for(auto i=bases_to_insert_into_this_block; i--; ){
-				surrounding.at(block) <<= 2;
-				surrounding.at(block) += static_cast<uintBaseCall>(at(new_bases, ins_pos++));
-			}
-
-			// Restore the bases that should not be overwritten
-			surrounding.at(block) <<= 2*(Reference::surrounding_range_-bases_to_insert_into_this_block);
-			surrounding.at(block) += tmp_sur;
-		}
-	}
-}
-
-void Simulator::InsertSurroundingBasesShiftingOnLeftSide(
-		array<intSurrounding, Reference::num_surrounding_blocks_> &surrounding,
-		uintSurPos pos,
-		DnaString new_bases){
-	auto block = pos/Reference::surrounding_range_;
-	uintSurPos bases_to_insert = min(length(new_bases), static_cast<size_t>(pos+1));
-
-	// Shift left from current block to make room for new bases
-	auto shift_blocks = bases_to_insert/Reference::surrounding_range_; // For every Reference::surrounding_range_ in bases_to_insert we can shift whole blocks
-	auto shift_bases = bases_to_insert%Reference::surrounding_range_;
-	for(uintSurBlockId cur_block=shift_blocks; cur_block < block; ++cur_block ){
-		// First shift only the bases and ignore the blocks at the beginning that we completely remove
-		surrounding.at(cur_block) %= 1 << 2*(Reference::surrounding_range_-shift_bases);// Remove bases not longer needed
-		surrounding.at(cur_block) <<= 2*shift_bases; // Shift remaining bases (do this after the removal to avoid overflow)
-		surrounding.at(cur_block) += surrounding.at(cur_block+1) >> 2*(Reference::surrounding_range_-shift_bases); // Add new bases from next block
-	}
-
-	uintSurPos pos_in_block = pos%Reference::surrounding_range_+1; // 1-bases position in block
-	intSurrounding tmp_sur = surrounding.at(block) % (1 << 2*(Reference::surrounding_range_-pos_in_block)); // Store everything that needs to stay in the start block
-	if(pos_in_block > shift_bases){
-		// Keep the stuff that is after the shift on the left before the insertion
-		surrounding.at(block) >>= 2*(Reference::surrounding_range_-pos_in_block);
-		surrounding.at(block) %= 1 << 2*(pos_in_block-shift_bases); // Remove what was already shifted
-	}
-	else{
-		surrounding.at(block) = 0; // If everything was already shifted, we only need what's right of the insertion and that is in tmp_sur
-	}
-
-	if(0 < shift_blocks){
-		if(block >= shift_blocks){
-			for(uintSurBlockId cur_block=0; cur_block+shift_blocks < block; ++cur_block){
-				// Now shift the blocks
-				surrounding.at(cur_block) = surrounding.at(cur_block+shift_blocks);
-			}
-
-			// Shift everything that has to be shifted left from starting block and was not already shifted above (Happens if the bases need to go into an empty block freed by the block shift)
-			surrounding.at(block-shift_blocks) = surrounding.at(block) << 2*(Reference::surrounding_range_-(pos_in_block-shift_bases));
-		}
-		surrounding.at(block) = 0; // The not-shifted stuff to keep was moved to the proper shifted block, so now we can clean the start block surrounding
-	}
-
-	// Insert new bases in starting block
-	uintSurPos bases_to_insert_into_this_block = min(bases_to_insert, pos_in_block);
-	uintSurPos ins_pos_to = length(new_bases); // In case we do not insert all bases from new_bases, we need to keep track of this separately to bases_to_insert
-	for(uintSurPos ins_pos=ins_pos_to-bases_to_insert_into_this_block; ins_pos<ins_pos_to; ++ins_pos){
-		surrounding.at(block) <<= 2;
-		surrounding.at(block) += static_cast<uintBaseCall>(at(new_bases, ins_pos));
-	}
-	bases_to_insert -= bases_to_insert_into_this_block;
-	ins_pos_to -= bases_to_insert_into_this_block;
-
-	// Add back what was right of insertion
-	surrounding.at(block) <<= 2*(Reference::surrounding_range_-pos_in_block);
-	surrounding.at(block) += tmp_sur;
-
-	while(0 < bases_to_insert){
-		bases_to_insert_into_this_block = min(bases_to_insert, Reference::surrounding_range_);
-
-		// Leave only the part of the block that should not be overwritten by insertions
-		surrounding.at(--block) >>= 2*bases_to_insert_into_this_block;
-
-		// Insert new bases
-		for(uintSurPos ins_pos=ins_pos_to-bases_to_insert_into_this_block; ins_pos<ins_pos_to; ++ins_pos){
-			surrounding.at(block) <<= 2;
-			surrounding.at(block) += static_cast<uintBaseCall>(at(new_bases, ins_pos));
-		}
-		bases_to_insert -= bases_to_insert_into_this_block;
-		ins_pos_to -= bases_to_insert_into_this_block;
-	}
-}
 
 void Simulator::HandleSurroundingVariantsBeforeCenter(
-		array<intSurrounding, Reference::num_surrounding_blocks_> &mod_surrounding,
+		Surrounding &mod_surrounding,
 		uintSeqLen center_position,
 		intSeqShift initial_pos_shift,
 		intVariantId center_var,
@@ -1547,7 +1362,7 @@ void Simulator::HandleSurroundingVariantsBeforeCenter(
 			sur_pos = static_cast<intSeqShift>(ref.Variants(ref_seq_id).at(cur_var).position_) - center_position + pos_shift;
 		}
 
-		if( 0 > sur_pos || Reference::num_surrounding_blocks_*Reference::surrounding_range_ <= sur_pos ){
+		if( 0 > sur_pos || Surrounding::Length() <= sur_pos ){
 			break;
 		}
 
@@ -1555,41 +1370,41 @@ void Simulator::HandleSurroundingVariantsBeforeCenter(
 			if(0 == length(ref.Variants(ref_seq_id).at(cur_var).var_seq_)){
 				// Deletion
 				if(reverse){
-					auto new_base_pos = static_cast<intSeqShift>(center_position) + pos_shift - static_cast<intSeqShift>(Reference::num_surrounding_blocks_ * Reference::surrounding_range_);
+					auto new_base_pos = static_cast<intSeqShift>(center_position) + pos_shift - static_cast<intSeqShift>(Surrounding::Length());
 					if(0 > new_base_pos){
-						DeleteSurroundingBaseShiftingOnRightSide(mod_surrounding, sur_pos, Complement::Dna(at(ref.ReferenceSequence(ref_seq_id), ref.SequenceLength(ref_seq_id) + new_base_pos)));
+						mod_surrounding.DeleteSurroundingBaseShiftingOnRightSide(sur_pos, Complement::Dna(at(ref.ReferenceSequence(ref_seq_id), ref.SequenceLength(ref_seq_id) + new_base_pos)));
 					}
 					else{
-						DeleteSurroundingBaseShiftingOnRightSide(mod_surrounding, sur_pos, Complement::Dna(at(ref.ReferenceSequence(ref_seq_id), new_base_pos)));
+						mod_surrounding.DeleteSurroundingBaseShiftingOnRightSide(sur_pos, Complement::Dna(at(ref.ReferenceSequence(ref_seq_id), new_base_pos)));
 					}
 					--pos_shift;
 				}
 				else{
 					if(++pos_shift > center_position){
-						DeleteSurroundingBaseShiftingOnLeftSide(mod_surrounding, sur_pos, at(ref.ReferenceSequence(ref_seq_id), ref.SequenceLength(ref_seq_id) + center_position - pos_shift));
+						mod_surrounding.DeleteSurroundingBaseShiftingOnLeftSide(sur_pos, at(ref.ReferenceSequence(ref_seq_id), ref.SequenceLength(ref_seq_id) + center_position - pos_shift));
 					}
 					else{
-						DeleteSurroundingBaseShiftingOnLeftSide(mod_surrounding, sur_pos, at(ref.ReferenceSequence(ref_seq_id), center_position - pos_shift));
+						mod_surrounding.DeleteSurroundingBaseShiftingOnLeftSide(sur_pos, at(ref.ReferenceSequence(ref_seq_id), center_position - pos_shift));
 					}
 				}
 			}
 			else{
 				// Base modification (Insertions may also include a base modification and we skip checking first if we exchange it with the same)
 				if(reverse){
-					ChangeSurroundingBase(mod_surrounding, sur_pos, Complement::Dna(at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0)));
+					mod_surrounding.ChangeSurroundingBase(sur_pos, Complement::Dna(at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0)));
 				}
 				else{
-					ChangeSurroundingBase(mod_surrounding, sur_pos, at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0));
+					mod_surrounding.ChangeSurroundingBase(sur_pos, at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0));
 				}
 
 				if(1 < length(ref.Variants(ref_seq_id).at(cur_var).var_seq_)){
 					// Insertion (First base is the already handled)
 					if(reverse){
-						InsertSurroundingBasesShiftingOnRightSide(mod_surrounding, sur_pos, ReverseComplementorDna(suffix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 1)));
+						mod_surrounding.InsertSurroundingBasesShiftingOnRightSide(sur_pos, ReverseComplementorDna(suffix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 1)));
 						pos_shift += length(ref.Variants(ref_seq_id).at(cur_var).var_seq_)-1;
 					}
 					else{
-						InsertSurroundingBasesShiftingOnLeftSide(mod_surrounding, sur_pos, suffix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 1));
+						mod_surrounding.InsertSurroundingBasesShiftingOnLeftSide(sur_pos, suffix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 1));
 						pos_shift -= length(ref.Variants(ref_seq_id).at(cur_var).var_seq_)-1;
 					}
 				}
@@ -1599,7 +1414,7 @@ void Simulator::HandleSurroundingVariantsBeforeCenter(
 }
 
 void Simulator::HandleSurroundingVariantsAfterCenter(
-		array<intSurrounding, Reference::num_surrounding_blocks_> &mod_surrounding,
+		Surrounding &mod_surrounding,
 		uintSeqLen center_position,
 		intSeqShift initial_pos_shift,
 		intVariantId center_var,
@@ -1617,7 +1432,7 @@ void Simulator::HandleSurroundingVariantsAfterCenter(
 			sur_pos = static_cast<intSeqShift>(ref.Variants(ref_seq_id).at(cur_var).position_) - center_position + pos_shift;
 		}
 
-		if( 0 > sur_pos || Reference::num_surrounding_blocks_*Reference::surrounding_range_ <= sur_pos ){
+		if( 0 > sur_pos || Surrounding::Length() <= sur_pos ){
 			break;
 		}
 
@@ -1626,33 +1441,33 @@ void Simulator::HandleSurroundingVariantsAfterCenter(
 				// Deletion
 				if(reverse){
 					++pos_shift;
-					DeleteSurroundingBaseShiftingOnLeftSide(mod_surrounding, sur_pos, Complement::Dna(at(ref.ReferenceSequence(ref_seq_id), (center_position + pos_shift)%ref.SequenceLength(ref_seq_id))));
+					mod_surrounding.DeleteSurroundingBaseShiftingOnLeftSide(sur_pos, Complement::Dna(at(ref.ReferenceSequence(ref_seq_id), (center_position + pos_shift)%ref.SequenceLength(ref_seq_id))));
 				}
 				else{
-					DeleteSurroundingBaseShiftingOnRightSide(mod_surrounding, sur_pos, at(ref.ReferenceSequence(ref_seq_id), (center_position - pos_shift + Reference::num_surrounding_blocks_ * Reference::surrounding_range_)%ref.SequenceLength(ref_seq_id)));
+					mod_surrounding.DeleteSurroundingBaseShiftingOnRightSide(sur_pos, at(ref.ReferenceSequence(ref_seq_id), (center_position - pos_shift + Surrounding::Length())%ref.SequenceLength(ref_seq_id)));
 					--pos_shift;
 				}
 			}
 			else{
 				// Base modification (Insertions may also include a base modification and we skip checking first if we exchange it with the same)
 				if(reverse){
-					ChangeSurroundingBase(mod_surrounding, sur_pos, Complement::Dna(at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0)));
+					mod_surrounding.ChangeSurroundingBase(sur_pos, Complement::Dna(at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0)));
 				}
 				else{
-					ChangeSurroundingBase(mod_surrounding, sur_pos, at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0));
+					mod_surrounding.ChangeSurroundingBase(sur_pos, at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0));
 				}
 
 				if(1 < length(ref.Variants(ref_seq_id).at(cur_var).var_seq_)){
 					// Insertion (First base is the already handled)
 					if(reverse){
 						if(sur_pos){
-							InsertSurroundingBasesShiftingOnLeftSide(mod_surrounding, sur_pos-1, ReverseComplementorDna(suffix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 1)));
+							mod_surrounding.InsertSurroundingBasesShiftingOnLeftSide(sur_pos-1, ReverseComplementorDna(suffix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 1)));
 							pos_shift -= length(ref.Variants(ref_seq_id).at(cur_var).var_seq_)-1;
 						}
 					}
 					else{
-						if(sur_pos+1 < Reference::num_surrounding_blocks_*Reference::surrounding_range_){
-							InsertSurroundingBasesShiftingOnRightSide(mod_surrounding, sur_pos+1, suffix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 1));
+						if(sur_pos+1 < Surrounding::Length()){
+							mod_surrounding.InsertSurroundingBasesShiftingOnRightSide(sur_pos+1, suffix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 1));
 							pos_shift += length(ref.Variants(ref_seq_id).at(cur_var).var_seq_)-1;
 						}
 					}
@@ -1668,35 +1483,33 @@ void Simulator::VariantModStartSurrounding(
 		uintRefSeqId ref_seq_id,
 		const Reference &ref,
 		uintSeqLen cur_start_position,
-		const array<intSurrounding, Reference::num_surrounding_blocks_> &surrounding_start) const{
+		const Surrounding &surrounding_start) const{
 	// Variants in the roll around are ignored for variant modifications of surrounding (but to fill in deletions still use the proper roll around base)
 	// Copy reference surrounding into allele
-	for(auto block=surrounding_start.size(); block--; ){
-		bias_mod.mod_surrounding_start_.at(allele).at(block) = surrounding_start.at(block);
-	}
+	bias_mod.mod_surrounding_start_.at(allele) = surrounding_start;
 
 	if(ref.Variants(ref_seq_id).size()){
 		// Handle variants before center (Shifting to/from the left)
-		intSeqShift pos_shift = -Reference::surrounding_start_pos_;
+		intSeqShift pos_shift = Surrounding::kStartPos;
 		auto cur_var = bias_mod.first_variant_id_;
 		if(bias_mod.start_variant_pos_){
 			// Handle the base substitution (as the insertion might include it)
-			ChangeSurroundingBase(bias_mod.mod_surrounding_start_.at(allele), pos_shift, at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0) );
+			bias_mod.mod_surrounding_start_.at(allele).ChangeSurroundingBase(pos_shift, at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0) );
 			// Partial insertion (as the rest is shifted to the right)
-			InsertSurroundingBasesShiftingOnLeftSide(bias_mod.mod_surrounding_start_.at(allele), pos_shift, infix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 1, bias_mod.start_variant_pos_+1));
+			bias_mod.mod_surrounding_start_.at(allele).InsertSurroundingBasesShiftingOnLeftSide(pos_shift, infix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 1, bias_mod.start_variant_pos_+1));
 			pos_shift -= bias_mod.start_variant_pos_;
 		}
 
 		HandleSurroundingVariantsBeforeCenter(bias_mod.mod_surrounding_start_.at(allele), cur_start_position, pos_shift, cur_var, allele, ref_seq_id, ref, false);
 
 		// Handle variants after center (Shifting to/from the right)
-		pos_shift = -Reference::surrounding_start_pos_;
+		pos_shift = Surrounding::kStartPos;
 		cur_var = bias_mod.first_variant_id_;
 		if(bias_mod.start_variant_pos_){
 			if(length(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_) > bias_mod.start_variant_pos_+1){
 				// Partial insertion (as the rest is shifted to the left)
-				if(pos_shift+1 < Reference::num_surrounding_blocks_*Reference::surrounding_range_){
-					InsertSurroundingBasesShiftingOnRightSide(bias_mod.mod_surrounding_start_.at(allele), pos_shift+1, suffix(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_, bias_mod.start_variant_pos_+1));
+				if(pos_shift+1 < Surrounding::Length()){
+					bias_mod.mod_surrounding_start_.at(allele).InsertSurroundingBasesShiftingOnRightSide(pos_shift+1, suffix(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_, bias_mod.start_variant_pos_+1));
 					pos_shift += length(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_) - bias_mod.start_variant_pos_ - 1;
 				}
 			}
@@ -1715,7 +1528,7 @@ void Simulator::PrepareBiasModForCurrentStartPos(
 		const Reference &ref,
 		uintSeqLen cur_start_position,
 		uintSeqLen cur_end_position,
-		array<intSurrounding, Reference::num_surrounding_blocks_> &surrounding_start) const{
+		Surrounding &surrounding_start) const{
 	if(ref.VariantsLoaded()){
 		// Store the modifications from the reference sequence to select correct biases for counts generation
 		bias_mod.unhandled_variant_id_.clear();
@@ -1769,24 +1582,22 @@ void Simulator::VariantModEndSurrounding(
 		uintRefSeqId ref_seq_id,
 		const Reference &ref,
 		uintSeqLen cur_end_position,
-		const array<intSurrounding, Reference::num_surrounding_blocks_> &surrounding_end) const{
+		const Surrounding &surrounding_end) const{
 	// Variants in the roll around are ignored for variant modifications of surrounding (but to fill in deletions still use the proper roll around base)
 	// Copy reference surrounding into allele if it doesn't need to much shifting afterwards
 	auto last_position = cur_end_position - 1 + bias_mod.end_pos_shift_.at(allele) + bias_mod.fragment_length_extension_;
 	if( last_position < ref.SequenceLength(ref_seq_id) ){
 		if( -5 < bias_mod.end_pos_shift_.at(allele) + bias_mod.fragment_length_extension_ && bias_mod.end_pos_shift_.at(allele) + bias_mod.fragment_length_extension_ < 5 ){
-			for(auto block=surrounding_end.size(); block--; ){
-				bias_mod.mod_surrounding_end_.at(allele).at(block) = surrounding_end.at(block);
-			}
+			bias_mod.mod_surrounding_end_.at(allele) = surrounding_end;
 
 			if(0 < bias_mod.end_pos_shift_.at(allele) + bias_mod.fragment_length_extension_){
 				for( auto up_pos = cur_end_position; up_pos <= last_position; ++up_pos ){
-					ref.UpdateReverseSurrounding( bias_mod.mod_surrounding_end_.at(allele), ref.ReferenceSequence(ref_seq_id), up_pos );
+					bias_mod.mod_surrounding_end_.at(allele).UpdateReverse( ref.ReferenceSequence(ref_seq_id), up_pos );
 				}
 			}
 			else{
 				for( auto up_pos = cur_end_position-1; up_pos-- > last_position; ){
-					ref.RollBackReverseSurrounding( bias_mod.mod_surrounding_end_.at(allele), ref.ReferenceSequence(ref_seq_id), up_pos );
+					bias_mod.mod_surrounding_end_.at(allele).RollBackReverse( ref.ReferenceSequence(ref_seq_id), up_pos );
 				}
 			}
 		}
@@ -1796,18 +1607,18 @@ void Simulator::VariantModEndSurrounding(
 
 		if(ref.Variants(ref_seq_id).size()){
 			// Handle variants after center (Shifting to/from the left)
-			intSeqShift pos_shift = -Reference::surrounding_start_pos_;
+			intSeqShift pos_shift = Surrounding::kStartPos;
 			auto cur_var = bias_mod.unhandled_variant_id_.at(allele); // At the variants where pos == last_position if exists or after it otherwise
 			if( bias_mod.unhandled_bases_in_variant_.at(allele) ){
 				// Partial insertion (as the rest is shifted to the right)
-				InsertSurroundingBasesShiftingOnLeftSide(bias_mod.mod_surrounding_end_.at(allele), pos_shift, ReverseComplementorDna(suffix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, length(ref.Variants(ref_seq_id).at(cur_var).var_seq_)-bias_mod.unhandled_bases_in_variant_.at(allele))));
+				bias_mod.mod_surrounding_end_.at(allele).InsertSurroundingBasesShiftingOnLeftSide(pos_shift, ReverseComplementorDna(suffix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, length(ref.Variants(ref_seq_id).at(cur_var).var_seq_)-bias_mod.unhandled_bases_in_variant_.at(allele))));
 				pos_shift -= bias_mod.unhandled_bases_in_variant_.at(allele);
 				++cur_var; // This insertion is handled, do not handle at again in HandleSurroundingVariantsAfterCenter
 			}
 			else if( bias_mod.start_variant_pos_ && ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).position_ == last_position && length(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_) > bias_mod.start_variant_pos_-bias_mod.end_pos_shift_.at(allele)+1){
 				if(pos_shift){
 					// Partial insertion (as the rest is shifted to the right)
-					InsertSurroundingBasesShiftingOnLeftSide(bias_mod.mod_surrounding_end_.at(allele), pos_shift-1, ReverseComplementorDna(suffix(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_, bias_mod.start_variant_pos_-bias_mod.end_pos_shift_.at(allele)+1)));
+					bias_mod.mod_surrounding_end_.at(allele).InsertSurroundingBasesShiftingOnLeftSide(pos_shift-1, ReverseComplementorDna(suffix(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_, bias_mod.start_variant_pos_-bias_mod.end_pos_shift_.at(allele)+1)));
 					pos_shift -= length(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_) - (bias_mod.start_variant_pos_ - bias_mod.end_pos_shift_.at(allele) + 1);
 				}
 			}
@@ -1815,25 +1626,25 @@ void Simulator::VariantModEndSurrounding(
 			HandleSurroundingVariantsAfterCenter(bias_mod.mod_surrounding_end_.at(allele), last_position, pos_shift, cur_var, allele, ref_seq_id, ref, true);
 
 			// Handle variants before center (Shifting to/from the right)
-			pos_shift = -Reference::surrounding_start_pos_;
+			pos_shift = Surrounding::kStartPos;
 			cur_var = bias_mod.unhandled_variant_id_.at(allele); // At the variants where pos == last_position if exists or after it otherwise
 			if( bias_mod.unhandled_bases_in_variant_.at(allele) ){
-				if(pos_shift+1 < Reference::num_surrounding_blocks_*Reference::surrounding_range_){
+				if(pos_shift+1 < Surrounding::Length()){
 					// Handle the base substitution (as the insertion might include it)
-					ChangeSurroundingBase(bias_mod.mod_surrounding_end_.at(allele), pos_shift+1, Complement::Dna(at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0)) );
+					bias_mod.mod_surrounding_end_.at(allele).ChangeSurroundingBase(pos_shift+1, Complement::Dna(at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0)) );
 
 					// Partial insertion (as the rest is shifted to the left)
-					InsertSurroundingBasesShiftingOnRightSide(bias_mod.mod_surrounding_end_.at(allele), pos_shift+1, ReverseComplementorDna(infix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 1, length(ref.Variants(ref_seq_id).at(cur_var).var_seq_)-bias_mod.unhandled_bases_in_variant_.at(allele))));
+					bias_mod.mod_surrounding_end_.at(allele).InsertSurroundingBasesShiftingOnRightSide(pos_shift+1, ReverseComplementorDna(infix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 1, length(ref.Variants(ref_seq_id).at(cur_var).var_seq_)-bias_mod.unhandled_bases_in_variant_.at(allele))));
 					pos_shift += length(ref.Variants(ref_seq_id).at(cur_var).var_seq_)-bias_mod.unhandled_bases_in_variant_.at(allele)-1;
 				}
 			}
 			else if( bias_mod.start_variant_pos_ && ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).position_ == last_position ){
 				cur_var = bias_mod.first_variant_id_;
 				// Handle the base substitution (as the insertion might include it)
-				ChangeSurroundingBase(bias_mod.mod_surrounding_end_.at(allele), pos_shift, Complement::Dna(at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0)) );
+				bias_mod.mod_surrounding_end_.at(allele).ChangeSurroundingBase(pos_shift, Complement::Dna(at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0)) );
 
 				// Partial insertion (as the rest is shifted to the left)
-				InsertSurroundingBasesShiftingOnRightSide(bias_mod.mod_surrounding_end_.at(allele), pos_shift, ReverseComplementorDna(infix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 1, bias_mod.start_variant_pos_-bias_mod.end_pos_shift_.at(allele)+1)));
+				bias_mod.mod_surrounding_end_.at(allele).InsertSurroundingBasesShiftingOnRightSide(pos_shift, ReverseComplementorDna(infix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 1, bias_mod.start_variant_pos_-bias_mod.end_pos_shift_.at(allele)+1)));
 				pos_shift += bias_mod.start_variant_pos_-bias_mod.end_pos_shift_.at(allele);
 			}
 
@@ -1848,7 +1659,7 @@ void Simulator::UpdateBiasModForCurrentFragmentLength(
 		const Reference &ref,
 		uintSeqLen cur_start_position,
 		uintSeqLen cur_end_position,
-		array<intSurrounding, Reference::num_surrounding_blocks_> &surrounding_end) const{
+		Surrounding &surrounding_end) const{
 	if(ref.VariantsLoaded()){
 		if(bias_mod.start_variant_pos_ && cur_end_position-cur_start_position <= length(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_)-bias_mod.start_variant_pos_){
 			// Still in start variant insertion
@@ -1988,7 +1799,7 @@ bool Simulator::SimulateFromGivenBlock(
 	uintSeqLen gc, tmp_gc(0);
 
 	uintSeqLen cur_end_position, fragment_length_to;
-	array<intSurrounding, Reference::num_surrounding_blocks_> surrounding_start, surrounding_end;
+	Surrounding surrounding_start, surrounding_end;
 
 	// Take the surrounding shifted by 1 as the first thing the loop does is shifting it back
 	ref.ForwardSurrounding( surrounding_start, unit.ref_seq_id_, ( 0<block.start_pos_ ? block.start_pos_-1 : ref.SequenceLength(unit.ref_seq_id_)-1 ) );
@@ -1996,7 +1807,7 @@ bool Simulator::SimulateFromGivenBlock(
 	for( auto cur_start_position = block.start_pos_; cur_start_position < block.start_pos_ + kBlockSize && cur_start_position < ref.SequenceLength(unit.ref_seq_id_); ++cur_start_position ){
 		fragment_length_to = min(static_cast<uintSeqLen>(stats.FragmentDistribution().InsertLengths().to()), ref.SequenceLength(unit.ref_seq_id_)-cur_start_position+1); //+1 because it is one after the last acceptable fragment length
 
-		ref.UpdateForwardSurrounding( surrounding_start, ref.ReferenceSequence(unit.ref_seq_id_), cur_start_position );
+		surrounding_start.UpdateForward( ref.ReferenceSequence(unit.ref_seq_id_), cur_start_position );
 
 		do{ //while(bias_mod.start_variant_pos_)
 			cur_end_position = max(static_cast<uintSeqLen>(1),static_cast<uintSeqLen>(stats.FragmentDistribution().InsertLengths().from()))-1 + cur_start_position;
@@ -2018,7 +1829,7 @@ bool Simulator::SimulateFromGivenBlock(
 						++gc;
 					}
 
-					ref.UpdateReverseSurrounding( surrounding_end, ref.ReferenceSequence(unit.ref_seq_id_), cur_end_position++ );
+					surrounding_end.UpdateReverse( ref.ReferenceSequence(unit.ref_seq_id_), cur_end_position++ );
 
 					do{ //while( bias_mod.fragment_length_extension_ )
 						UpdateBiasModForCurrentFragmentLength( bias_mod, unit.ref_seq_id_, ref, cur_start_position, cur_end_position, surrounding_end );

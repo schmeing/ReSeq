@@ -10,8 +10,10 @@
 #include <seqan/seq_io.h>
 #include <seqan/vcf_io.h>
 
+#include "Surrounding.h"
 #include "utilities.hpp"
 #include "Vect.hpp"
+
 
 namespace reseq{
 	struct FragmentSite;
@@ -54,13 +56,6 @@ namespace reseq{
 			friend class ReferenceTest;
 		};
 #endif //SWIG
-
-		static const uintSurBlockId num_surrounding_blocks_ = 3; // Number of surrounding blocks
-		static const uintSurPos surrounding_range_ = 10; // Length of a single surrounding block
-		static const int16_t surrounding_start_pos_ = -10; // Position where the surrounding should start relative to the first base in the fragment (so -10 is 10 bases before the fragment) [-num_surrounding_blocks_*surrounding_range_ < surrounding_start_pos_ <= 0]
-		static uintSeqLen SurroundingSize(){
-			return 1 << 2*surrounding_range_;
-		}
 
 		static const uintSeqLen kMinDistToRefSeqEnds = 50; // Minimum distance from reference sequence ends to be taken into account for statistics so mapping issues at the border are avoided
 
@@ -137,43 +132,18 @@ namespace reseq{
 			}
 		}
 
-		intSurrounding ForwardSurroundingBlock( uintRefSeqId ref_seq_id, uintSeqLen sur_start_pos, uintSurBlockId block ) const;
-		intSurrounding ReverseSurroundingBlock( uintRefSeqId ref_seq_id, uintSeqLen sur_start_pos, uintSurBlockId block ) const;
-
-		inline uintBaseCall NewForwardSurroundingBase(const seqan::Dna5String &ref_seq, uintSeqLen new_fragment_start, uintSurBlockId block) const{
-			return utilities::at(ref_seq, (length(ref_seq) + (block+1)*surrounding_range_ + new_fragment_start-1 + surrounding_start_pos_)%length(ref_seq) );
+		static inline double Bias( double general, double gc, double start_sur, double end_sur ){
+			return general * gc * start_sur * end_sur;
 		}
 
-		inline uintBaseCall NewReverseSurroundingBase(const seqan::Dna5String &ref_seq, uintSeqLen new_fragment_end, uintSurBlockId block) const{
-			return utilities::Complement::Dna5( utilities::at(ref_seq, (length(ref_seq) + new_fragment_end - surrounding_start_pos_ - block*surrounding_range_)%length(ref_seq) ));
-		}
-
-		static inline double Bias( double general, double gc, const std::array<double, num_surrounding_blocks_> &start_sur, const std::array<double, num_surrounding_blocks_> &end_sur ){
-			double bias = general * gc;
-			double sur_start(0.0), sur_end(0.0);
-			for(auto block = num_surrounding_blocks_; block--;){
-				sur_start += start_sur.at(block);
-				sur_end += end_sur.at(block);
-			}
-			bias *= utilities::InvLogit2(sur_start) * utilities::InvLogit2(sur_end);
-			return  bias;
-		}
-
-		void AddFragmentSite(std::vector<FragmentSite> &sites, uintSeqLen fragment_length, uintSeqLen gc, uintSeqLen n_count, const std::array<intSurrounding, num_surrounding_blocks_> &start_sur, const std::array<intSurrounding, num_surrounding_blocks_> &end_sur) const;
+		void AddFragmentSite(std::vector<FragmentSite> &sites, uintSeqLen fragment_length, uintSeqLen gc, uintSeqLen n_count, const Surrounding &start_sur, const Surrounding &end_sur) const;
 
 		// Google test
 		friend class ReferenceTest;
 		friend class SimulatorTest;
-		FRIEND_TEST(ReferenceTest, Functionality);
+		friend class SurroundingTest;
 	public:
 		Reference();
-
-		inline uint16_t SurroundingRange() const{
-			return surrounding_range_;
-		}
-		inline uint16_t SurroundingStartPos() const{
-			return surrounding_start_pos_;
-		}
 
 		inline uintRefSeqId NumberSequences() const{
 			return length(reference_ids_);
@@ -254,145 +224,34 @@ namespace reseq{
 			uintSeqLen n_count(0);
 			auto gc = GCContentAbsolut(n_count, seq_id, start_pos, end_pos);
 
-			return reseq::utilities::SafePercent(gc, end_pos-start_pos-n_count);
+			return utilities::SafePercent(gc, end_pos-start_pos-n_count);
 		}
 
-		void ForwardSurrounding(std::array<intSurrounding, num_surrounding_blocks_> &surroundings, uintRefSeqId ref_seq_id, uintSeqLen pos ) const{
-			// Other blocks
-			for(auto block=0; block < num_surrounding_blocks_; ++block){
-				// Add SequenceLength(ref_seq_id) to avoid negative positions if block reaches over lower sequence ends so it wraps around and start at the end
-				// The higher sequence end is covered by the called function as long as the given position is still a valid position and not higher or equal to the length
-				surroundings.at(block) = ForwardSurroundingBlock(ref_seq_id, pos, block);
-			}
+		void ForwardSurrounding(Surrounding &surrounding, uintRefSeqId ref_seq_id, uintSeqLen pos ) const{
+			surrounding.Forward(ReferenceSequence(ref_seq_id), pos);
 		}
 
-		void ForwardSurroundingWithN(std::array<intSurrounding, num_surrounding_blocks_> &surroundings, uintRefSeqId ref_seq_id, uintSeqLen pos ) const{
-			const seqan::Dna5String &ref_seq(ReferenceSequence(ref_seq_id));
-			uintBaseCall new_value;
-			uintSeqLen block_pos(pos+surrounding_start_pos_);
-			for(auto block=0; block < num_surrounding_blocks_; ++block){
-				surroundings.at(block) = 0;
-				for( auto ref_pos = block_pos; ref_pos < block_pos+surrounding_range_; ++ref_pos ){
-					new_value = utilities::at(ref_seq, ref_pos);
-					if(utilities::IsN(new_value)){
-						surroundings.at(block) = static_cast<intSurrounding>(block_pos)-ref_pos-1;
-						for( auto ref_pos2 = block_pos+surrounding_range_; --ref_pos2 > ref_pos; ){
-							if(utilities::IsN(ref_seq, ref_pos2)){
-								surroundings.at(block) = static_cast<intSurrounding>(block_pos)-ref_pos2-1;
-								break; // Last N is only interesting one
-							}
-						}
-						break; // We don't need to calculate surrounding anymore as it is invalidated by N
-					}
-					else{
-						surroundings.at(block) = (surroundings.at(block) << 2) + new_value;
-					}
-				}
-				block_pos += surrounding_range_;
-			}
+		void ReverseSurrounding(Surrounding &surrounding, uintRefSeqId ref_seq_id, uintSeqLen pos ) const{
+			surrounding.Reverse(ReferenceSequence(ref_seq_id), pos);
 		}
 
-		void ReverseSurrounding(std::array<intSurrounding, num_surrounding_blocks_> &surroundings, uintRefSeqId ref_seq_id, uintSeqLen pos ) const{
-			for(auto block=0; block < num_surrounding_blocks_; ++block){
-				surroundings.at(block) = ReverseSurroundingBlock(ref_seq_id, pos, block);
-			}
+		void ForwardSurroundingWithN(Surrounding &surrounding, uintRefSeqId ref_seq_id, uintSeqLen pos ) const{
+			surrounding.ForwardWithN(ReferenceSequence(ref_seq_id), pos);
 		}
 
-		void ReverseSurroundingWithN(std::array<intSurrounding, num_surrounding_blocks_> &surroundings, uintRefSeqId ref_seq_id, uintSeqLen pos ) const{
-			utilities::ComplementedConstDna5String ref_seq(ReferenceSequence(ref_seq_id));
-			uintBaseCall new_value;
-			uintSeqLen block_pos(pos+1-surrounding_start_pos_-surrounding_range_);
-			for(auto block=0; block < num_surrounding_blocks_; ++block){
-				surroundings.at(block) = 0;
-				for( auto ref_pos = block_pos+surrounding_range_; ref_pos-- > block_pos; ){
-					new_value = utilities::at(ref_seq, ref_pos);
-					if(utilities::IsN(new_value)){
-						surroundings.at(block) = static_cast<intSurrounding>(block_pos)-ref_pos-1;
-						break; // We don't need to calculate surrounding anymore as it is invalidated by N and we already have last N
-					}
-					else{
-						surroundings.at(block) = (surroundings.at(block) << 2) + new_value;
-					}
-				}
-				block_pos -= surrounding_range_;
-			}
-		}
-
-		inline void UpdateForwardSurrounding( std::array<intSurrounding, num_surrounding_blocks_> &sur, const seqan::Dna5String &ref_seq, uintSeqLen new_fragment_start ) const{
-			for(auto block=sur.size(); block--; ){
-				sur.at(block) = (sur.at(block) << 2)%SurroundingSize() + NewForwardSurroundingBase(ref_seq, new_fragment_start, block);
-			}
-		}
-
-		inline void UpdateForwardSurroundingWithN( std::array<intSurrounding, num_surrounding_blocks_> &sur, const seqan::Dna5String &ref_seq, uintSeqLen new_fragment_start, uintSeqLen ref_seq_id ) const{
-			uintBaseCall new_base;
-			for(auto block=sur.size(); block--; ){
-				new_base = NewForwardSurroundingBase(ref_seq, new_fragment_start, block);
-
-				if(utilities::IsN(new_base)){
-					sur.at(block) = -surrounding_range_; // Wait surrounding_range_ positions until calculating surrounding again
-				}
-				else if(0 > sur.at(block)){
-					if(-1 == sur.at(block)){
-						// Calculate current surrounding
-						sur.at(block) = ForwardSurroundingBlock(ref_seq_id, new_fragment_start, block);
-					}
-					else{
-						++(sur.at(block));
-					}
-				}
-				else{
-					// No N: Update surrounding normally
-					sur.at(block) = (sur.at(block) << 2)%SurroundingSize() + new_base;
-				}
-			}
-		}
-
-		inline void UpdateReverseSurrounding( std::array<intSurrounding, num_surrounding_blocks_> &sur, const seqan::Dna5String &ref_seq, uintSeqLen new_fragment_end ) const{
-			for(auto block=sur.size(); block--; ){
-				sur.at(block) = (sur.at(block) + NewReverseSurroundingBase(ref_seq, new_fragment_end, block)*SurroundingSize())/4;
-			}
-		}
-
-		inline void UpdateReverseSurroundingWithN( std::array<intSurrounding, num_surrounding_blocks_> &sur, const seqan::Dna5String &ref_seq, uintSeqLen new_fragment_end, uintSeqLen ref_seq_id ) const{
-			uintBaseCall new_base;
-			for(auto block=sur.size(); block--; ){
-				new_base = NewReverseSurroundingBase(ref_seq, new_fragment_end, block);
-
-				if(utilities::IsN(new_base)){
-					sur.at(block) = -surrounding_range_; // Wait surrounding_range_ positions until calculating surrounding again
-				}
-				else if(0 > sur.at(block)){
-					if(-1 == sur.at(block)){
-						// Calculate current surrounding
-						sur.at(block) = ReverseSurroundingBlock(ref_seq_id, new_fragment_end, block);
-					}
-					else{
-						++(sur.at(block));
-					}
-				}
-				else{
-					// No N: Update surrounding normally
-					sur.at(block) = (sur.at(block) + new_base*SurroundingSize())/4;
-				}
-			}
-		}
-
-		inline void RollBackReverseSurrounding( std::array<intSurrounding, num_surrounding_blocks_> &sur, const seqan::Dna5String &ref_seq, uintSeqLen new_fragment_end ) const{
-			for(auto block=sur.size(); block--; ){
-				sur.at(block) = ((sur.at(block)<<2) + static_cast<uintBaseCall>(utilities::Complement::Dna5(utilities::at(ref_seq, (length(ref_seq)+new_fragment_end-surrounding_start_pos_-(block+1)*surrounding_range_+1)%length(ref_seq)))))%SurroundingSize();
-			}
+		void ReverseSurroundingWithN(Surrounding &surrounding, uintRefSeqId ref_seq_id, uintSeqLen pos ) const{
+			surrounding.ReverseWithN(ReferenceSequence(ref_seq_id), pos);
 		}
 
 #ifndef SWIG // This part is not needed for the python plotting and swig can't handle the decltype in Vect and SeqQualityStats
-		static inline double Bias( double normalization, double ref_seq, double fragment_length, double gc, const std::array<double, num_surrounding_blocks_> &start_sur, const std::array<double, num_surrounding_blocks_> &end_sur ){
+		static inline double Bias( double normalization, double ref_seq, double fragment_length, double gc, double start_sur, double end_sur ){
 			return Bias(ref_seq*fragment_length*normalization, gc, start_sur, end_sur);
 		}
-		static inline double Bias( double ref_seq, double fragment_length, double gc, const std::array<double, num_surrounding_blocks_> &start_sur, const std::array<double, num_surrounding_blocks_> &end_sur ){
+		static inline double Bias( double ref_seq, double fragment_length, double gc, double start_sur, double end_sur ){
 			return Bias(ref_seq*fragment_length, gc, start_sur, end_sur);
 		}
-		double SumBias(std::vector<utilities::VectorAtomic<uintFragCount>> &gc_sites, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, double general_bias, const Vect<double> &gc_bias, const std::array<std::vector<double>, num_surrounding_blocks_> &sur_bias) const;
-		double SumBias(double &max_bias, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, double general_bias, const Vect<double> &gc_bias, const std::array<std::vector<double>, num_surrounding_blocks_> &sur_bias) const;
+		double SumBias(std::vector<utilities::VectorAtomic<uintFragCount>> &gc_sites, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, double general_bias, const Vect<double> &gc_bias, const SurroundingBias &sur_bias) const;
+		double SumBias(double &max_bias, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, double general_bias, const Vect<double> &gc_bias, const SurroundingBias &sur_bias) const;
 		void GetFragmentSites(std::vector<FragmentSite> &sites, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintSeqLen start, uintSeqLen end) const;
 #endif //SWIG
 
@@ -426,13 +285,13 @@ namespace reseq{
 
 	struct FragmentSite{
 		uintPercent gc_;
-		std::array<intSurrounding, Reference::num_surrounding_blocks_> start_surrounding_;
-		std::array<intSurrounding, Reference::num_surrounding_blocks_> end_surrounding_;
+		Surrounding start_surrounding_;
+		Surrounding end_surrounding_;
 		uintDupCount count_forward_;
 		uintDupCount count_reverse_;
 		double bias_;
 
-		FragmentSite(uintPercent gc, const std::array<intSurrounding, Reference::num_surrounding_blocks_> &start_sur, const std::array<intSurrounding, Reference::num_surrounding_blocks_> &end_sur):
+		FragmentSite(uintPercent gc, const Surrounding &start_sur, const Surrounding &end_sur):
 			gc_(gc),
 			start_surrounding_(start_sur),
 			end_surrounding_(end_sur),
@@ -443,8 +302,6 @@ namespace reseq{
 
 		FragmentSite(): // Placeholder
 			gc_(0),
-			start_surrounding_({0,0,0}),
-			end_surrounding_({0,0,0}),
 			count_forward_(0),
 			count_reverse_(0),
 			bias_(0.0)

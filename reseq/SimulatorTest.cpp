@@ -62,241 +62,6 @@ void SimulatorTest::TestCoverageConversion(){
 	EXPECT_NEAR( coverage, test_->NumberPairsToCoverage(total_pairs, total_ref_size, average_read_length, adapter_part), 0.01 );
 }
 
-void SimulatorTest::TestSurroundingModifiers(){
-	Reference test_ref;
-	resize( test_ref.reference_sequences_, 1 );
-	array<intSurrounding, Reference::num_surrounding_blocks_> surrounding, comp_surrounding;
-
-	// samtools faidx ../test/ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:1001-1020
-	// GTTGCGAGATTTGGACGGAC
-
-	// ChangeSurroundingBase
-	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 2000);
-	at(at(test_ref.reference_sequences_, 0), 1004) = 'C';
-	test_ref.ForwardSurrounding(comp_surrounding, 0, 1004);
-	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
-	test_->ChangeSurroundingBase(surrounding, 10, 'C');
-	EXPECT_EQ(comp_surrounding.at(0), surrounding.at(0));
-	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
-	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
-
-	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 2000);
-	at(at(test_ref.reference_sequences_, 0), 1003) = 'C';
-	test_ref.ForwardSurrounding(comp_surrounding, 0, 1004);
-	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
-	test_->ChangeSurroundingBase(surrounding, 9, 'C');
-	EXPECT_EQ(comp_surrounding.at(0), surrounding.at(0));
-	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
-	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
-
-	// DeleteSurroundingBaseShiftingOnRightSide
-	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 1004);
-	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1005, 2000);
-	test_ref.ForwardSurrounding(comp_surrounding, 0, 1004);
-	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
-	test_->DeleteSurroundingBaseShiftingOnRightSide(surrounding, 10, at(at(species_reference_.reference_sequences_, 0), 1024));
-	EXPECT_EQ(comp_surrounding.at(0), surrounding.at(0));
-	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
-	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
-
-	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 1008);
-	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1009, 2000);
-	test_ref.ForwardSurrounding(comp_surrounding, 0, 1004);
-	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
-	test_->DeleteSurroundingBaseShiftingOnRightSide(surrounding, 14, at(at(species_reference_.reference_sequences_, 0), 1024));
-	EXPECT_EQ(comp_surrounding.at(0), surrounding.at(0));
-	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
-	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
-
-	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 1015);
-	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1016, 2000);
-	test_ref.ForwardSurrounding(comp_surrounding, 0, 1004);
-	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
-	test_->DeleteSurroundingBaseShiftingOnRightSide(surrounding, 21, at(at(species_reference_.reference_sequences_, 0), 1024));
-	EXPECT_EQ(comp_surrounding.at(0), surrounding.at(0));
-	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
-	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
-
-	// DeleteSurroundingBaseShiftingOnLeftSide
-	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 1003);
-	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1004, 2000);
-	test_ref.ForwardSurrounding(comp_surrounding, 0, 1003);
-	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
-	test_->DeleteSurroundingBaseShiftingOnLeftSide(surrounding, 9, at(at(species_reference_.reference_sequences_, 0), 993));
-	EXPECT_EQ(comp_surrounding.at(0), surrounding.at(0));
-	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
-	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
-
-	at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 1000);
-	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1001, 2000);
-	test_ref.ForwardSurrounding(comp_surrounding, 0, 1003);
-	species_reference_.ForwardSurrounding(surrounding, 0, 1004);
-	test_->DeleteSurroundingBaseShiftingOnLeftSide(surrounding, 6, at(at(species_reference_.reference_sequences_, 0), 993));
-	EXPECT_EQ(comp_surrounding.at(0), surrounding.at(0));
-	EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1));
-	EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2));
-
-	// InsertSurroundingBasesShiftingOnRightSide
-	for( uintSurPos ins_pos : array<int, 5>({9,10,18,19,28})){
-		for( auto ins_bases : array<const char *, 3>({"AC","ACGT","ACGTACGTACGT"})){
-			at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 994+ins_pos);
-			at(test_ref.reference_sequences_, 0) += ins_bases;
-			at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 994+ins_pos, 2000);
-			test_ref.ForwardSurrounding(comp_surrounding, 0, 1004);
-			species_reference_.ForwardSurrounding(surrounding, 0, 1004);
-			test_->InsertSurroundingBasesShiftingOnRightSide(surrounding, ins_pos, ins_bases);
-			EXPECT_EQ(comp_surrounding.at(0), surrounding.at(0)) << "ins_pos: " << ins_pos << " ins_bases: " << ins_bases << std::endl;
-			EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1)) << "ins_pos: " << ins_pos << " ins_bases: " << ins_bases << std::endl;
-			EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2)) << "ins_pos: " << ins_pos << " ins_bases: " << ins_bases << std::endl;
-		}
-	}
-
-	// InsertSurroundingBasesShiftingOnLeftSide
-	for( uintSurPos ins_pos : array<int, 6>({20,19,10,9,5,0})){
-		for( auto ins_bases : array<const string, 2>({"ACGT","ACGTACGTACGT"})){
-			at(test_ref.reference_sequences_, 0) = infix(species_reference_.ReferenceSequence(0), 0, 995+ins_pos);
-			at(test_ref.reference_sequences_, 0) += ins_bases;
-			at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 995+ins_pos, 2000);
-			test_ref.ForwardSurrounding(comp_surrounding, 0, 1004+ins_bases.size());
-			species_reference_.ForwardSurrounding(surrounding, 0, 1004);
-			test_->InsertSurroundingBasesShiftingOnLeftSide(surrounding, ins_pos, ins_bases);
-			EXPECT_EQ(comp_surrounding.at(0), surrounding.at(0)) << "ins_pos: " << ins_pos << " ins_bases: " << ins_bases << std::endl;
-			EXPECT_EQ(comp_surrounding.at(1), surrounding.at(1)) << "ins_pos: " << ins_pos << " ins_bases: " << ins_bases << std::endl;
-			EXPECT_EQ(comp_surrounding.at(2), surrounding.at(2)) << "ins_pos: " << ins_pos << " ins_bases: " << ins_bases << std::endl;
-		}
-	}
-}
-
-void SimulatorTest::TestSurroundingModifiersExtremCases(){
-	array<intSurrounding, Reference::num_surrounding_blocks_> surrounding;
-	intSurrounding comp_surrounding_full_t, comp_surrounding_full_a, comp_surrounding_start_a, comp_surrounding_end_a;
-
-	comp_surrounding_full_t = Reference::SurroundingSize()-1;
-	comp_surrounding_full_a = 0;
-	comp_surrounding_start_a = (Reference::SurroundingSize()>>2)-1;
-	comp_surrounding_end_a = comp_surrounding_full_t-3;
-
-	surrounding.at(0) = comp_surrounding_full_t;
-	surrounding.at(1) = comp_surrounding_full_t;
-	surrounding.at(2) = comp_surrounding_full_t;
-
-	// ChangeSurroundingBase
-	for( auto block=Reference::num_surrounding_blocks_; block--; ){
-		test_->ChangeSurroundingBase(surrounding, block*Reference::surrounding_range_, 'A');
-		EXPECT_EQ(comp_surrounding_start_a, surrounding.at(block)) << "Block " << block << std::endl;
-		test_->ChangeSurroundingBase(surrounding, block*Reference::surrounding_range_, 'T');
-		EXPECT_EQ(comp_surrounding_full_t, surrounding.at(block)) << "Block " << block << std::endl;
-		test_->ChangeSurroundingBase(surrounding, (block+1)*Reference::surrounding_range_-1, 'A');
-		EXPECT_EQ(comp_surrounding_end_a, surrounding.at(block)) << "Block " << block << std::endl;
-		test_->ChangeSurroundingBase(surrounding, (block+1)*Reference::surrounding_range_-1, 'T');
-		EXPECT_EQ(comp_surrounding_full_t, surrounding.at(block)) << "Block " << block << std::endl;
-	}
-
-	// DeleteSurroundingBaseShiftingOnRightSide + InsertSurroundingBasesShiftingOnRightSide
-	DnaString full_sur_sized_t, full_sur_sized_a;
-	for(auto i=Reference::num_surrounding_blocks_*Reference::surrounding_range_; i--; ){
-		full_sur_sized_t += 'T';
-		full_sur_sized_a += 'A';
-	}
-
-	for( auto block=Reference::num_surrounding_blocks_; block--; ){
-		for(auto pos : array<uintSurPos, 2>{static_cast<uintSurPos>(block*Reference::surrounding_range_), static_cast<uintSurPos>((block+1)*Reference::surrounding_range_-1)}){
-			test_->DeleteSurroundingBaseShiftingOnRightSide(surrounding, pos, 'A');
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(0)) << "Block " << block << " Pos " << pos << std::endl;
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(1)) << "Block " << block << " Pos " << pos << std::endl;
-			EXPECT_EQ(comp_surrounding_end_a, surrounding.at(2)) << "Block " << block << " Pos " << pos << std::endl;
-			test_->InsertSurroundingBasesShiftingOnRightSide(surrounding, pos, "T");
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(0)) << "Block " << block << " Pos " << pos << std::endl;
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(1)) << "Block " << block << " Pos " << pos << std::endl;
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(2)) << "Block " << block << " Pos " << pos << std::endl;
-
-			test_->DeleteSurroundingBaseShiftingOnRightSide(surrounding, pos, 'T');
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(0)) << "Block " << block << " Pos " << pos << std::endl;
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(1)) << "Block " << block << " Pos " << pos << std::endl;
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(2)) << "Block " << block << " Pos " << pos << std::endl;
-			test_->InsertSurroundingBasesShiftingOnRightSide(surrounding, pos, "T");
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(0)) << "Block " << block << " Pos " << pos << std::endl;
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(1)) << "Block " << block << " Pos " << pos << std::endl;
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(2)) << "Block " << block << " Pos " << pos << std::endl;
-
-			test_->InsertSurroundingBasesShiftingOnRightSide(surrounding, pos, full_sur_sized_t);
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(0)) << "Block " << block << " Pos " << pos << std::endl;
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(1)) << "Block " << block << " Pos " << pos << std::endl;
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(2)) << "Block " << block << " Pos " << pos << std::endl;
-			test_->InsertSurroundingBasesShiftingOnRightSide(surrounding, pos, full_sur_sized_a);
-			for( auto comp_block=Reference::num_surrounding_blocks_; comp_block--; ){
-				if(comp_block<block){
-					EXPECT_EQ(comp_surrounding_full_t, surrounding.at(comp_block)) << "Block " << block << " CompBlock " << comp_block << " Pos " << pos << std::endl;
-				}
-				else if(comp_block==block){
-					if(block*Reference::surrounding_range_ == pos){
-						EXPECT_EQ(comp_surrounding_full_a, surrounding.at(comp_block)) << "Block " << block << " CompBlock " << comp_block << " Pos " << pos << std::endl;
-					}
-					else{
-						EXPECT_EQ(comp_surrounding_end_a, surrounding.at(comp_block)) << "Block " << block << " CompBlock " << comp_block << " Pos " << pos << std::endl;
-					}
-				}
-				else{
-					EXPECT_EQ(comp_surrounding_full_a, surrounding.at(comp_block)) << "Block " << block << " CompBlock " << comp_block << " Pos " << pos << std::endl;
-				}
-			}
-			test_->InsertSurroundingBasesShiftingOnRightSide(surrounding, pos, full_sur_sized_t);
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(0)) << "Block " << block << " Pos " << pos << std::endl;
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(1)) << "Block " << block << " Pos " << pos << std::endl;
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(2)) << "Block " << block << " Pos " << pos << std::endl;
-		}
-	}
-
-	// DeleteSurroundingBaseShiftingOnLeftSide + InsertSurroundingBasesShiftingOnLeftSide
-	for( auto block=Reference::num_surrounding_blocks_; block--; ){
-		for(auto pos : array<uintSurPos, 2>{static_cast<uintSurPos>(block*Reference::surrounding_range_), static_cast<uintSurPos>((block+1)*Reference::surrounding_range_-1)}){
-			test_->DeleteSurroundingBaseShiftingOnLeftSide(surrounding, pos, 'A');
-			EXPECT_EQ(comp_surrounding_start_a, surrounding.at(0)) << "Block " << block << " Pos " << pos << std::endl;
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(1)) << "Block " << block << " Pos " << pos << std::endl;
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(2)) << "Block " << block << " Pos " << pos << std::endl;
-			test_->InsertSurroundingBasesShiftingOnLeftSide(surrounding, pos, "T");
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(0)) << "Block " << block << " Pos " << pos << std::endl;
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(1)) << "Block " << block << " Pos " << pos << std::endl;
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(2)) << "Block " << block << " Pos " << pos << std::endl;
-
-			test_->DeleteSurroundingBaseShiftingOnLeftSide(surrounding, pos, 'T');
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(0)) << "Block " << block << " Pos " << pos << std::endl;
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(1)) << "Block " << block << " Pos " << pos << std::endl;
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(2)) << "Block " << block << " Pos " << pos << std::endl;
-			test_->InsertSurroundingBasesShiftingOnLeftSide(surrounding, pos, "T");
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(0)) << "Block " << block << " Pos " << pos << std::endl;
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(1)) << "Block " << block << " Pos " << pos << std::endl;
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(2)) << "Block " << block << " Pos " << pos << std::endl;
-
-			test_->InsertSurroundingBasesShiftingOnLeftSide(surrounding, pos, full_sur_sized_t);
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(0)) << "Block " << block << " Pos " << pos << std::endl;
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(1)) << "Block " << block << " Pos " << pos << std::endl;
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(2)) << "Block " << block << " Pos " << pos << std::endl;
-			test_->InsertSurroundingBasesShiftingOnLeftSide(surrounding, pos, full_sur_sized_a);
-			for( auto comp_block=Reference::num_surrounding_blocks_; comp_block--; ){
-				if(comp_block<block){
-					EXPECT_EQ(comp_surrounding_full_a, surrounding.at(comp_block)) << "Block " << block << " CompBlock " << comp_block << " Pos " << pos << std::endl;
-				}
-				else if(comp_block==block){
-					if(block*Reference::surrounding_range_ == pos){
-						EXPECT_EQ(comp_surrounding_start_a, surrounding.at(comp_block)) << "Block " << block << " CompBlock " << comp_block << " Pos " << pos << std::endl;
-					}
-					else{
-						EXPECT_EQ(comp_surrounding_full_a, surrounding.at(comp_block)) << "Block " << block << " CompBlock " << comp_block << " Pos " << pos << std::endl;
-					}
-				}
-				else{
-					EXPECT_EQ(comp_surrounding_full_t, surrounding.at(comp_block)) << "Block " << block << " CompBlock " << comp_block << " Pos " << pos << std::endl;
-				}
-			}
-			test_->InsertSurroundingBasesShiftingOnLeftSide(surrounding, pos, full_sur_sized_t);
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(0)) << "Block " << block << " Pos " << pos << std::endl;
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(1)) << "Block " << block << " Pos " << pos << std::endl;
-			EXPECT_EQ(comp_surrounding_full_t, surrounding.at(2)) << "Block " << block << " Pos " << pos << std::endl;
-		}
-	}
-}
-
 void SimulatorTest::TestVariationInInnerLoopOfSimulateFromGivenBlock(
 		Simulator::VariantBiasVarModifiers &bias_mod,
 		uintRefSeqId ref_seq_id,
@@ -315,13 +80,13 @@ void SimulatorTest::TestVariationInInnerLoopOfSimulateFromGivenBlock(
 	stats.fragment_distribution_.insert_lengths_[frag_length_to-1];
 	stats.errors_.PrepareSimulation();
 	Simulator::SimPair sim_reads;
-	array<intSurrounding, Reference::num_surrounding_blocks_> surrounding_end, comp_surrounding;
+	Surrounding surrounding_end, comp_surrounding;
 
 	uintSeqLen cur_end_position = cur_start_position+frag_length_from-1;
 	species_reference_.ReverseSurrounding( surrounding_end, ref_seq_id, cur_end_position-1 ); // -1 because it is shifted first thing in the loop
 
 	for(auto frag_length = frag_length_from; frag_length < frag_length_to; ++frag_length){
-		species_reference_.UpdateReverseSurrounding( surrounding_end, species_reference_.ReferenceSequence(ref_seq_id), cur_end_position++ );
+		surrounding_end.UpdateReverse( species_reference_.ReferenceSequence(ref_seq_id), cur_end_position++ );
 
 		do{ //while( bias_mod.fragment_length_extension_ )
 			test_->UpdateBiasModForCurrentFragmentLength( bias_mod, ref_seq_id, species_reference_, cur_start_position, cur_end_position, surrounding_end );
@@ -337,13 +102,13 @@ void SimulatorTest::TestVariationInInnerLoopOfSimulateFromGivenBlock(
 			EXPECT_EQ( end_pos_shift.at(result).at(1), bias_mod.end_pos_shift_.at(1) ) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
 
 			comp_ref.at(0)->ReverseSurrounding( comp_surrounding, ref_seq_id, modified_start_pos.at(0)+frag_length-1 );
-			EXPECT_EQ(comp_surrounding.at(0), bias_mod.mod_surrounding_end_.at(0).at(0)) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-			EXPECT_EQ(comp_surrounding.at(1), bias_mod.mod_surrounding_end_.at(0).at(1)) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-			EXPECT_EQ(comp_surrounding.at(2), bias_mod.mod_surrounding_end_.at(0).at(2)) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
+			EXPECT_EQ(comp_surrounding.sur_.at(0), bias_mod.mod_surrounding_end_.at(0).sur_.at(0)) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
+			EXPECT_EQ(comp_surrounding.sur_.at(1), bias_mod.mod_surrounding_end_.at(0).sur_.at(1)) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
+			EXPECT_EQ(comp_surrounding.sur_.at(2), bias_mod.mod_surrounding_end_.at(0).sur_.at(2)) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
 			comp_ref.at(1)->ReverseSurrounding( comp_surrounding, ref_seq_id, modified_start_pos.at(1)+frag_length-1 );
-			EXPECT_EQ(comp_surrounding.at(0), bias_mod.mod_surrounding_end_.at(1).at(0)) << bitset<20>(comp_surrounding.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_end_.at(1).at(0)) << " (Result)" << std::endl << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-			EXPECT_EQ(comp_surrounding.at(1), bias_mod.mod_surrounding_end_.at(1).at(1)) << bitset<20>(comp_surrounding.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_end_.at(1).at(1)) << " (Result)" << std::endl << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-			EXPECT_EQ(comp_surrounding.at(2), bias_mod.mod_surrounding_end_.at(1).at(2)) << bitset<20>(comp_surrounding.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_end_.at(1).at(2)) << " (Result)" << std::endl << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
+			EXPECT_EQ(comp_surrounding.sur_.at(0), bias_mod.mod_surrounding_end_.at(1).sur_.at(0)) << bitset<20>(comp_surrounding.sur_.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_end_.at(1).sur_.at(0)) << " (Result)" << std::endl << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
+			EXPECT_EQ(comp_surrounding.sur_.at(1), bias_mod.mod_surrounding_end_.at(1).sur_.at(1)) << bitset<20>(comp_surrounding.sur_.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_end_.at(1).sur_.at(1)) << " (Result)" << std::endl << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
+			EXPECT_EQ(comp_surrounding.sur_.at(2), bias_mod.mod_surrounding_end_.at(1).sur_.at(2)) << bitset<20>(comp_surrounding.sur_.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_end_.at(1).sur_.at(2)) << " (Result)" << std::endl << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
 
 			for(uintAlleleId allele=0; allele < 2; ++allele){
 				test_->GetOrgSeq(sim_reads, allele, allele, frag_length, cur_start_position, cur_end_position, ref_seq_id, species_reference_, stats, bias_mod);
@@ -376,13 +141,13 @@ void SimulatorTest::TestVariationInInnerLoopOfSimulateFromGivenBlock(
 	stats.read_lengths_.at(1)[100];
 	stats.errors_.PrepareSimulation();
 	Simulator::SimPair sim_reads;
-	array<intSurrounding, Reference::num_surrounding_blocks_> surrounding_end, comp_surrounding;
+	Surrounding surrounding_end, comp_surrounding;
 
 	uintSeqLen cur_end_position = cur_start_position+frag_length_from-1;
 	species_reference_.ReverseSurrounding( surrounding_end, ref_seq_id, cur_end_position-1 );
 
 	for(auto frag_length = frag_length_from; frag_length < frag_length_to; ++frag_length){
-		species_reference_.UpdateReverseSurrounding( surrounding_end, species_reference_.ReferenceSequence(ref_seq_id), cur_end_position++ );
+		surrounding_end.UpdateReverse( species_reference_.ReferenceSequence(ref_seq_id), cur_end_position++ );
 		test_->UpdateBiasModForCurrentFragmentLength( bias_mod, ref_seq_id, species_reference_, cur_start_position, cur_end_position, surrounding_end );
 
 		auto result = frag_length - frag_length_from;
@@ -392,9 +157,9 @@ void SimulatorTest::TestVariationInInnerLoopOfSimulateFromGivenBlock(
 		EXPECT_EQ( end_pos_shift.at(result), bias_mod.end_pos_shift_.at(allele) ) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << " Variant position: " << bias_mod.start_variant_pos_ << std::endl;
 
 		comp_ref.ReverseSurrounding( comp_surrounding, ref_seq_id, modified_start_pos+frag_length-1 );
-		EXPECT_EQ(comp_surrounding.at(0), bias_mod.mod_surrounding_end_.at(allele).at(0)) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-		EXPECT_EQ(comp_surrounding.at(1), bias_mod.mod_surrounding_end_.at(allele).at(1)) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-		EXPECT_EQ(comp_surrounding.at(2), bias_mod.mod_surrounding_end_.at(allele).at(2)) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
+		EXPECT_EQ(comp_surrounding.sur_.at(0), bias_mod.mod_surrounding_end_.at(allele).sur_.at(0)) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
+		EXPECT_EQ(comp_surrounding.sur_.at(1), bias_mod.mod_surrounding_end_.at(allele).sur_.at(1)) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
+		EXPECT_EQ(comp_surrounding.sur_.at(2), bias_mod.mod_surrounding_end_.at(allele).sur_.at(2)) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
 
 		test_->GetOrgSeq(sim_reads, allele, allele, frag_length, cur_start_position, cur_end_position, ref_seq_id, species_reference_, stats, bias_mod);
 
@@ -432,11 +197,11 @@ void SimulatorTest::TestVariationInSimulateFromGivenBlock(){
 	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1009, 1012);
 	at(at(test_ref.reference_sequences_, 0), 1013) = 'C';
 	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1013, 2000);
-	array<intSurrounding, Reference::num_surrounding_blocks_> comp_surrounding;
+	Surrounding comp_surrounding;
 
 	Simulator::VariantBiasVarModifiers bias_mod(1, 2);
 	uintRefSeqId ref_seq_id = 0;
-	array<intSurrounding, Reference::num_surrounding_blocks_> surrounding_start;
+	Surrounding surrounding_start;
 
 	// Position 1003
 	uintSeqLen cur_start_position = 1003;
@@ -444,13 +209,13 @@ void SimulatorTest::TestVariationInSimulateFromGivenBlock(){
 
 	species_reference_.ForwardSurrounding( surrounding_start, ref_seq_id, cur_start_position );
 	test_->PrepareBiasModForCurrentStartPos( bias_mod, ref_seq_id, species_reference_, cur_start_position, cur_start_position, surrounding_start ); // cur_end_position = cur_start_position -> Fragment length = 1
-	EXPECT_EQ(surrounding_start.at(0), bias_mod.mod_surrounding_start_.at(0).at(0));
-	EXPECT_EQ(surrounding_start.at(1), bias_mod.mod_surrounding_start_.at(0).at(1));
-	EXPECT_EQ(surrounding_start.at(2), bias_mod.mod_surrounding_start_.at(0).at(2));
+	EXPECT_EQ(surrounding_start.sur_.at(0), bias_mod.mod_surrounding_start_.at(0).sur_.at(0));
+	EXPECT_EQ(surrounding_start.sur_.at(1), bias_mod.mod_surrounding_start_.at(0).sur_.at(1));
+	EXPECT_EQ(surrounding_start.sur_.at(2), bias_mod.mod_surrounding_start_.at(0).sur_.at(2));
 	test_ref.ForwardSurrounding( comp_surrounding, ref_seq_id, 1004 );
-	EXPECT_EQ(comp_surrounding.at(0), bias_mod.mod_surrounding_start_.at(1).at(0)) << bitset<20>(surrounding_start.at(0)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).at(0)) << " (Result)";
-	EXPECT_EQ(comp_surrounding.at(1), bias_mod.mod_surrounding_start_.at(1).at(1)) << bitset<20>(surrounding_start.at(1)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).at(1)) << " (Result)";
-	EXPECT_EQ(comp_surrounding.at(2), bias_mod.mod_surrounding_start_.at(1).at(2)) << bitset<20>(surrounding_start.at(2)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).at(2)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(0), bias_mod.mod_surrounding_start_.at(1).sur_.at(0)) << bitset<20>(surrounding_start.sur_.at(0)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(0)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(1), bias_mod.mod_surrounding_start_.at(1).sur_.at(1)) << bitset<20>(surrounding_start.sur_.at(1)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(1)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(2), bias_mod.mod_surrounding_start_.at(1).sur_.at(2)) << bitset<20>(surrounding_start.sur_.at(2)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(2)) << " (Result)";
 
 	TestVariationInInnerLoopOfSimulateFromGivenBlock( bias_mod, ref_seq_id, cur_start_position, 1, 13,
 			{{2,2},{3,2},{3,2},{3,3},{3,3},{4,3},{4,3},{4,4},{5,4},{6,5},{6,6},{6,6}},
@@ -466,13 +231,13 @@ void SimulatorTest::TestVariationInSimulateFromGivenBlock(){
 	// Position 1004 + 0
 	species_reference_.ForwardSurrounding( surrounding_start, ref_seq_id, ++cur_start_position );
 	test_->PrepareBiasModForCurrentStartPos( bias_mod, ref_seq_id, species_reference_, cur_start_position, cur_start_position, surrounding_start ); // cur_end_position = cur_start_position -> Fragment length = 1
-	EXPECT_EQ(surrounding_start.at(0), bias_mod.mod_surrounding_start_.at(0).at(0)) << bitset<20>(surrounding_start.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(0).at(0)) << " (Result)";
-	EXPECT_EQ(surrounding_start.at(1), bias_mod.mod_surrounding_start_.at(0).at(1)) << bitset<20>(surrounding_start.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(0).at(1)) << " (Result)";
-	EXPECT_EQ(surrounding_start.at(2), bias_mod.mod_surrounding_start_.at(0).at(2)) << bitset<20>(surrounding_start.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(0).at(2)) << " (Result)";
+	EXPECT_EQ(surrounding_start.sur_.at(0), bias_mod.mod_surrounding_start_.at(0).sur_.at(0)) << bitset<20>(surrounding_start.sur_.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(0).sur_.at(0)) << " (Result)";
+	EXPECT_EQ(surrounding_start.sur_.at(1), bias_mod.mod_surrounding_start_.at(0).sur_.at(1)) << bitset<20>(surrounding_start.sur_.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(0).sur_.at(1)) << " (Result)";
+	EXPECT_EQ(surrounding_start.sur_.at(2), bias_mod.mod_surrounding_start_.at(0).sur_.at(2)) << bitset<20>(surrounding_start.sur_.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(0).sur_.at(2)) << " (Result)";
 	test_ref.ForwardSurrounding( comp_surrounding, ref_seq_id, 1005 );
-	EXPECT_EQ(comp_surrounding.at(0), bias_mod.mod_surrounding_start_.at(1).at(0)) << bitset<20>(surrounding_start.at(0)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).at(0)) << " (Result)";
-	EXPECT_EQ(comp_surrounding.at(1), bias_mod.mod_surrounding_start_.at(1).at(1)) << bitset<20>(surrounding_start.at(1)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).at(1)) << " (Result)";
-	EXPECT_EQ(comp_surrounding.at(2), bias_mod.mod_surrounding_start_.at(1).at(2)) << bitset<20>(surrounding_start.at(2)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).at(2)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(0), bias_mod.mod_surrounding_start_.at(1).sur_.at(0)) << bitset<20>(surrounding_start.sur_.at(0)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(0)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(1), bias_mod.mod_surrounding_start_.at(1).sur_.at(1)) << bitset<20>(surrounding_start.sur_.at(1)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(1)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(2), bias_mod.mod_surrounding_start_.at(1).sur_.at(2)) << bitset<20>(surrounding_start.sur_.at(2)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(2)) << " (Result)";
 
 	TestVariationInInnerLoopOfSimulateFromGivenBlock( bias_mod, ref_seq_id, cur_start_position, 1, 12,
 			{{3,2},{3,2},{3,3},{3,3},{4,3},{4,3},{4,4},{5,4},{6,5},{6,6},{6,6}},
@@ -487,13 +252,13 @@ void SimulatorTest::TestVariationInSimulateFromGivenBlock(){
 
 	// Position 1004 + 1
 	test_->PrepareBiasModForCurrentStartPos( bias_mod, ref_seq_id, species_reference_, cur_start_position, cur_start_position, surrounding_start ); // cur_end_position = cur_start_position -> Fragment length = 1
-	EXPECT_EQ(surrounding_start.at(0), bias_mod.mod_surrounding_start_.at(0).at(0));
-	EXPECT_EQ(surrounding_start.at(1), bias_mod.mod_surrounding_start_.at(0).at(1));
-	EXPECT_EQ(surrounding_start.at(2), bias_mod.mod_surrounding_start_.at(0).at(2));
+	EXPECT_EQ(surrounding_start.sur_.at(0), bias_mod.mod_surrounding_start_.at(0).sur_.at(0));
+	EXPECT_EQ(surrounding_start.sur_.at(1), bias_mod.mod_surrounding_start_.at(0).sur_.at(1));
+	EXPECT_EQ(surrounding_start.sur_.at(2), bias_mod.mod_surrounding_start_.at(0).sur_.at(2));
 	test_ref.ForwardSurrounding( comp_surrounding, ref_seq_id, 1006 );
-	EXPECT_EQ(comp_surrounding.at(0), bias_mod.mod_surrounding_start_.at(1).at(0)) << bitset<20>(surrounding_start.at(0)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).at(0)) << " (Result)";
-	EXPECT_EQ(comp_surrounding.at(1), bias_mod.mod_surrounding_start_.at(1).at(1)) << bitset<20>(surrounding_start.at(1)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).at(1)) << " (Result)";
-	EXPECT_EQ(comp_surrounding.at(2), bias_mod.mod_surrounding_start_.at(1).at(2)) << bitset<20>(surrounding_start.at(2)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).at(2)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(0), bias_mod.mod_surrounding_start_.at(1).sur_.at(0)) << bitset<20>(surrounding_start.sur_.at(0)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(0)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(1), bias_mod.mod_surrounding_start_.at(1).sur_.at(1)) << bitset<20>(surrounding_start.sur_.at(1)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(1)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(2), bias_mod.mod_surrounding_start_.at(1).sur_.at(2)) << bitset<20>(surrounding_start.sur_.at(2)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(2)) << " (Result)";
 
 	TestVariationInInnerLoopOfSimulateFromGivenBlock( bias_mod, ref_seq_id, cur_start_position, 1, 11, 1,
 			{3,3,3,3,3,4,4,5,6,6},
@@ -508,13 +273,13 @@ void SimulatorTest::TestVariationInSimulateFromGivenBlock(){
 
 	// Position 1004 + 2
 	test_->PrepareBiasModForCurrentStartPos( bias_mod, ref_seq_id, species_reference_, cur_start_position, cur_start_position, surrounding_start ); // cur_end_position = cur_start_position -> Fragment length = 1
-	EXPECT_EQ(surrounding_start.at(0), bias_mod.mod_surrounding_start_.at(0).at(0));
-	EXPECT_EQ(surrounding_start.at(1), bias_mod.mod_surrounding_start_.at(0).at(1));
-	EXPECT_EQ(surrounding_start.at(2), bias_mod.mod_surrounding_start_.at(0).at(2));
+	EXPECT_EQ(surrounding_start.sur_.at(0), bias_mod.mod_surrounding_start_.at(0).sur_.at(0));
+	EXPECT_EQ(surrounding_start.sur_.at(1), bias_mod.mod_surrounding_start_.at(0).sur_.at(1));
+	EXPECT_EQ(surrounding_start.sur_.at(2), bias_mod.mod_surrounding_start_.at(0).sur_.at(2));
 	test_ref.ForwardSurrounding( comp_surrounding, ref_seq_id, 1007 );
-	EXPECT_EQ(comp_surrounding.at(0), bias_mod.mod_surrounding_start_.at(1).at(0)) << bitset<20>(surrounding_start.at(0)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).at(0)) << " (Result)";
-	EXPECT_EQ(comp_surrounding.at(1), bias_mod.mod_surrounding_start_.at(1).at(1)) << bitset<20>(surrounding_start.at(1)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).at(1)) << " (Result)";
-	EXPECT_EQ(comp_surrounding.at(2), bias_mod.mod_surrounding_start_.at(1).at(2)) << bitset<20>(surrounding_start.at(2)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).at(2)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(0), bias_mod.mod_surrounding_start_.at(1).sur_.at(0)) << bitset<20>(surrounding_start.sur_.at(0)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(0)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(1), bias_mod.mod_surrounding_start_.at(1).sur_.at(1)) << bitset<20>(surrounding_start.sur_.at(1)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(1)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(2), bias_mod.mod_surrounding_start_.at(1).sur_.at(2)) << bitset<20>(surrounding_start.sur_.at(2)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(2)) << " (Result)";
 
 	TestVariationInInnerLoopOfSimulateFromGivenBlock( bias_mod, ref_seq_id, cur_start_position, 1, 10, 1,
 			{3,3,3,3,4,4,5,6,6},
@@ -531,9 +296,9 @@ void SimulatorTest::TestVariationInSimulateFromGivenBlock(){
 	cur_start_position = 1008;
 	species_reference_.ForwardSurrounding( surrounding_start, ref_seq_id, cur_start_position );
 	test_->PrepareBiasModForCurrentStartPos( bias_mod, ref_seq_id, species_reference_, cur_start_position, cur_start_position, surrounding_start ); // cur_end_position = cur_start_position -> Fragment length = 1
-	EXPECT_EQ(surrounding_start.at(0), bias_mod.mod_surrounding_start_.at(0).at(0));
-	EXPECT_EQ(surrounding_start.at(1), bias_mod.mod_surrounding_start_.at(0).at(1));
-	EXPECT_EQ(surrounding_start.at(2), bias_mod.mod_surrounding_start_.at(0).at(2));
+	EXPECT_EQ(surrounding_start.sur_.at(0), bias_mod.mod_surrounding_start_.at(0).sur_.at(0));
+	EXPECT_EQ(surrounding_start.sur_.at(1), bias_mod.mod_surrounding_start_.at(0).sur_.at(1));
+	EXPECT_EQ(surrounding_start.sur_.at(2), bias_mod.mod_surrounding_start_.at(0).sur_.at(2));
 
 	TestVariationInInnerLoopOfSimulateFromGivenBlock( bias_mod, ref_seq_id, cur_start_position, 1, 8, 0,
 			{4,4,4,5,6,6,6},
@@ -550,13 +315,13 @@ void SimulatorTest::TestVariationInSimulateFromGivenBlock(){
 	cur_start_position = 1011;
 	species_reference_.ForwardSurrounding( surrounding_start, ref_seq_id, cur_start_position );
 	test_->PrepareBiasModForCurrentStartPos( bias_mod, ref_seq_id, species_reference_, cur_start_position, cur_start_position, surrounding_start ); // cur_end_position = cur_start_position -> Fragment length = 1
-	EXPECT_EQ(surrounding_start.at(0), bias_mod.mod_surrounding_start_.at(0).at(0));
-	EXPECT_EQ(surrounding_start.at(1), bias_mod.mod_surrounding_start_.at(0).at(1));
-	EXPECT_EQ(surrounding_start.at(2), bias_mod.mod_surrounding_start_.at(0).at(2));
+	EXPECT_EQ(surrounding_start.sur_.at(0), bias_mod.mod_surrounding_start_.at(0).sur_.at(0));
+	EXPECT_EQ(surrounding_start.sur_.at(1), bias_mod.mod_surrounding_start_.at(0).sur_.at(1));
+	EXPECT_EQ(surrounding_start.sur_.at(2), bias_mod.mod_surrounding_start_.at(0).sur_.at(2));
 	test_ref.ForwardSurrounding( comp_surrounding, ref_seq_id, 1013 );
-	EXPECT_EQ(comp_surrounding.at(0), bias_mod.mod_surrounding_start_.at(1).at(0)) << bitset<20>(surrounding_start.at(0)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).at(0)) << " (Result)";
-	EXPECT_EQ(comp_surrounding.at(1), bias_mod.mod_surrounding_start_.at(1).at(1)) << bitset<20>(surrounding_start.at(1)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).at(1)) << " (Result)";
-	EXPECT_EQ(comp_surrounding.at(2), bias_mod.mod_surrounding_start_.at(1).at(2)) << bitset<20>(surrounding_start.at(2)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).at(2)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(0), bias_mod.mod_surrounding_start_.at(1).sur_.at(0)) << bitset<20>(surrounding_start.sur_.at(0)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(0)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(1), bias_mod.mod_surrounding_start_.at(1).sur_.at(1)) << bitset<20>(surrounding_start.sur_.at(1)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(1)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(2), bias_mod.mod_surrounding_start_.at(1).sur_.at(2)) << bitset<20>(surrounding_start.sur_.at(2)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(2)) << " (Result)";
 
 	TestVariationInInnerLoopOfSimulateFromGivenBlock( bias_mod, ref_seq_id, cur_start_position, 1, 5,
 			{{5,5},{6,6},{6,6},{6,6}},
@@ -581,8 +346,6 @@ namespace reseq{
 		CreateTestObject();
 		LoadReference("ecoli-GCF_000005845.2_ASM584v2_genomic.fa");
 
-		TestSurroundingModifiers();
-		TestSurroundingModifiersExtremCases();
 		TestVariationInSimulateFromGivenBlock();
 	}
 }
