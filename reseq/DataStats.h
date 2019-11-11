@@ -236,6 +236,9 @@ namespace reseq{
 		// Setter functions
 		void IgnoreTiles(){ tiles_.IgnoreTiles(); }
 		void ClearReference(){ reference_ = NULL; }
+		void SetUniformBias(){
+			fragment_distribution_.SetUniformBias();
+		}
 
 		// Public functions
 		bool IsValidRecord( const seqan::BamAlignmentRecord &record );

@@ -1851,10 +1851,10 @@ bool Simulator::SimulateFromGivenBlock(
 										// Determine how many read pairs are generated for this strand and allele at this position with this fragment_length
 										steady_clock::time_point t1a = steady_clock::now();
 										if(ref.VariantsLoaded()){
-											fragment_counts = stats.FragmentDistribution().GetFragmentCounts(ref, bias_normalization_, unit.ref_seq_id_, fragment_length+bias_mod.fragment_length_extension_, Percent(gc+bias_mod.gc_mod_.at(allele)+tmp_gc,fragment_length+bias_mod.fragment_length_extension_), bias_mod.mod_surrounding_start_.at(allele), bias_mod.mod_surrounding_end_.at(allele), rdist.ZeroToOne(rgen), non_zero_threshold_);
+											fragment_counts = stats.FragmentDistribution().GetFragmentCounts(bias_normalization_, unit.ref_seq_id_, fragment_length+bias_mod.fragment_length_extension_, Percent(gc+bias_mod.gc_mod_.at(allele)+tmp_gc,fragment_length+bias_mod.fragment_length_extension_), bias_mod.mod_surrounding_start_.at(allele), bias_mod.mod_surrounding_end_.at(allele), rdist.ZeroToOne(rgen), non_zero_threshold_);
 										}
 										else{
-											fragment_counts = stats.FragmentDistribution().GetFragmentCounts(ref, bias_normalization_, unit.ref_seq_id_, fragment_length, Percent(gc,fragment_length), surrounding_start, surrounding_end, rdist.ZeroToOne(rgen), non_zero_threshold_);
+											fragment_counts = stats.FragmentDistribution().GetFragmentCounts(bias_normalization_, unit.ref_seq_id_, fragment_length, Percent(gc,fragment_length), surrounding_start, surrounding_end, rdist.ZeroToOne(rgen), non_zero_threshold_);
 										}
 										steady_clock::time_point t2a = steady_clock::now();
 										duration<double> time_span = duration_cast<duration<double>>(t2a - t1a);
@@ -2211,6 +2211,7 @@ void Simulator::Simulate(
 					}
 
 					printInfo << "Starting read generation" << std::endl;
+
 					thread threads[num_threads];
 					for(auto i = num_threads; i--; ){
 						threads[i] = thread(SimulationThread, std::ref(*this), std::ref(ref), std::cref(stats), std::cref(estimates));

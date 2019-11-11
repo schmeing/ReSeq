@@ -1185,16 +1185,6 @@ bool DataStats::ReadBam( const char *bam_file, const char *adapter_file, const c
 
 	reference_->ClearAllVariantPositions();
 
-	if( 0 == reads_used_ && calculate_bias ){ // In case we are testing and not calculating the bias afterwards, we can continue running
-		printErr << "No reads in the file passed all criteria to be used for the statistics" << std::endl;
-		success = false;
-	}
-
-	if(!success || SignsOfPairsWithNamesNotIdentical() || !FinishReadIn() ){
-		total_number_reads_ = 0; // Marking that the reading in was not successful
-		return false;
-	}
-
 	uintFragCount reads_in_wrong_place = total_number_reads_ - reads_in_unmapped_pairs_without_adapters_ - reads_in_unmapped_pairs_with_adapters_ - reads_with_low_quality_ - reads_on_too_short_fragments_ - reads_to_close_to_ref_seq_ends_ - reads_used_;
 	printInfo << "Of the " << total_number_reads_ << " reads in the file" << std::endl;
 	printInfo << reads_used_ << " (" << static_cast<uintPercentPrint>(Percent(reads_used_, total_number_reads_)) << "\%) could be used for all statistics" << std::endl;
@@ -1204,6 +1194,16 @@ bool DataStats::ReadBam( const char *bam_file, const char *adapter_file, const c
 	printInfo << reads_in_wrong_place << " (" << static_cast<uintPercentPrint>(Percent(reads_in_wrong_place, total_number_reads_)) << "\%) were mapping too far apart from their partner or in wrong direction" << std::endl;
 	printInfo << reads_in_unmapped_pairs_with_adapters_ << " (" << static_cast<uintPercentPrint>(Percent(reads_in_unmapped_pairs_with_adapters_, total_number_reads_)) << "\%) were in an unmapped pair with adapters detected" << std::endl;
 	printInfo << reads_in_unmapped_pairs_without_adapters_ << " (" << static_cast<uintPercentPrint>(Percent(reads_in_unmapped_pairs_without_adapters_, total_number_reads_)) << "\%) were in an unmapped pair without adapters detected" << std::endl;
+
+	if( 0 == reads_used_ && calculate_bias ){ // In case we are testing and not calculating the bias afterwards, we can continue running
+		printErr << "No reads in the file passed all criteria to be used for the statistics" << std::endl;
+		success = false;
+	}
+
+	if(!success || SignsOfPairsWithNamesNotIdentical() || !FinishReadIn() ){
+		total_number_reads_ = 0; // Marking that the reading in was not successful
+		return false;
+	}
 
 	Shrink();
 	if(!Calculate(num_threads)){

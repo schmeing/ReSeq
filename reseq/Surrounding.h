@@ -158,6 +158,7 @@ namespace reseq{
 		friend class SurroundingBias;
 
 		// Google test
+		friend class FragmentDistributionStatsTest;
 		friend class ReferenceTest;
 		friend class SimulatorTest;
 		friend class SurroundingTest;
@@ -310,6 +311,13 @@ namespace reseq{
 		SurroundingBias(){
 			for(auto block = Surrounding::kNumBlocks; block--;){
 				bias_.at(block).resize(Surrounding::Size(), 0.0);
+			}
+		}
+
+		void SetUniform(){
+			for(auto block = Surrounding::kNumBlocks; block--;){
+				bias_.at(block).clear();
+				bias_.at(block).resize(Surrounding::Size(), 1.0);
 			}
 		}
 

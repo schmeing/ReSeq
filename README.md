@@ -112,6 +112,7 @@ bowtie2 -p 32 -X 2000 -x my_reference -1 <(reseq-prepare-names.py my_data_1.fq m
 | `--binSizeBiasFit`| 100000000 | Reference sequences large then this are split for bias fitting to limit memory consumption |
 | `--maxFragLen`    | 2000    | Maximum fragment length to include pairs into statistics |
 | `--minMapQ`       | 10      | Minimum mapping quality to include pairs into statistics |
+|  --noBias         |         | Do not perform bias fit. Results in uniform coverage if simulated from |
 | `--noTiles`       |         | Ignore tiles for the statistics [default] |
 | `-r` `--refIn`    | None    | Reference sequences in fasta format (gz and bz2 supported) |
 | `--statsOnly`     |         | Only generate the statistics |

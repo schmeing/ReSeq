@@ -179,6 +179,27 @@ void FragmentDistributionStatsTest::CreateCoverageData(uintSeqLen fragment_lengt
 	}
 }
 
+template<size_t N> void FragmentDistributionStatsTest::CheckDrawnCounts(double bias, std::array<double, N> thresholds, const Surrounding &start_sur, const Surrounding &end_sur){
+	double delta = 0.000001;
+	double bias_normalization = 0.2;
+	double other_bias_negation = 2.0*2.0*2.0*2.0*5.0;
+
+	test_->gc_fragment_content_bias_[43] = bias * other_bias_negation;
+
+	// Test GetFragmentCounts
+	for(uintDupCount i = 0; i < thresholds.size(); ++i){
+		EXPECT_EQ(i, test_->GetFragmentCounts(bias_normalization, 0, 367, 43, start_sur, end_sur, thresholds.at(i)-delta, 0.0)) << "Lower gate: " << i << ' ' << thresholds.at(i) << " for bias " << bias << " dispersion pars " << test_->dispersion_parameters_.at(0) << ' ' << test_->dispersion_parameters_.at(1) << std::endl;
+		EXPECT_EQ(i+1, test_->GetFragmentCounts(bias_normalization, 0, 367, 43, start_sur, end_sur, thresholds.at(i)+delta, 0.0)) << "Upper gate: " << i << ' ' << thresholds.at(i) << " for bias " << bias << " dispersion pars " << test_->dispersion_parameters_.at(0) << ' ' << test_->dispersion_parameters_.at(1) << std::endl;
+	}
+	EXPECT_EQ(0, test_->GetFragmentCounts(1e-10, 0, 367, 43, start_sur, end_sur, thresholds.back(), 1.0)) << "Bias " << bias << " dispersion pars " << test_->dispersion_parameters_.at(0) << ' ' << test_->dispersion_parameters_.at(1) << std::endl;
+
+	// Test CalculateNonZeroThreshold
+	auto non_zero_threshold = test_->CalculateNonZeroThreshold(bias_normalization, test_->gc_fragment_content_bias_[43]/other_bias_negation/bias_normalization);
+	EXPECT_NEAR(thresholds[0], non_zero_threshold, delta) << "Bias " << bias << " dispersion pars " << test_->dispersion_parameters_.at(0) << ' ' << test_->dispersion_parameters_.at(1) << std::endl;
+	EXPECT_EQ(0, test_->GetFragmentCounts(bias_normalization-delta, 0, 367, 43, start_sur, end_sur, non_zero_threshold, 0.0)) << "Bias " << bias << " dispersion pars " << test_->dispersion_parameters_.at(0) << ' ' << test_->dispersion_parameters_.at(1) << std::endl;
+	EXPECT_EQ(0, test_->GetFragmentCounts(1e-10, 0, 367, 43, start_sur, end_sur, non_zero_threshold, 0.0)) << "Bias " << bias << " dispersion pars " << test_->dispersion_parameters_.at(0) << ' ' << test_->dispersion_parameters_.at(1) << std::endl;
+}
+
 void FragmentDistributionStatsTest::TestSrr490124Equality(const FragmentDistributionStats &test, const char *context){
 	EXPECT_EQ(1, test.abundance_.size() ) << "SRR490124-4pairs abundance_ wrong for " << context << '\n';
 	EXPECT_EQ(2, test.abundance_.at(0) ) << "SRR490124-4pairs abundance_ wrong for " << context << '\n';
@@ -348,7 +369,7 @@ void FragmentDistributionStatsTest::TestBiasCalculation(){
 	EXPECT_NEAR(0.8, test_->gc_fragment_content_bias_.at(29), 0.1);
 	EXPECT_NEAR(0.9, test_->gc_fragment_content_bias_.at(30), 0.1);
 	EXPECT_NEAR(1.0, test_->gc_fragment_content_bias_.at(31), 0.1);
-	EXPECT_NEAR(0.8, test_->gc_fragment_content_bias_.at(32), 0.1);
+	EXPECT_NEAR(0.8, test_->gc_fragment_content_bias_.at(32), 0.2);
 	EXPECT_NEAR(0.6, test_->gc_fragment_content_bias_.at(33), 0.2);
 	EXPECT_NEAR(0.4, test_->gc_fragment_content_bias_.at(34), 0.2);
 	EXPECT_DOUBLE_EQ(1.0, *max_element(test_->gc_fragment_content_bias_.begin(), test_->gc_fragment_content_bias_.end()));
@@ -368,6 +389,97 @@ void FragmentDistributionStatsTest::TestBiasCalculation(){
 
 	EXPECT_NEAR(0.5, test_->dispersion_parameters_.at(0), 0.4);
 	EXPECT_NEAR(1.0, test_->dispersion_parameters_.at(1), 0.1);
+}
+
+void FragmentDistributionStatsTest::TestUniformBias(){
+	test_->abundance_.clear();
+	test_->abundance_.resize(species_reference_.NumberSequences(), 0);
+
+	test_->insert_lengths_.Clear();
+	test_->insert_lengths_[50] = 500;
+	test_->insert_lengths_[51] = 1000;
+	test_->insert_lengths_[52] = 750;
+
+	test_->SetUniformBias();
+
+	EXPECT_EQ(test_->abundance_.size(), test_->ref_seq_bias_.size());
+	for(auto bias : test_->ref_seq_bias_){
+		EXPECT_EQ(1.0, bias);
+	}
+
+	EXPECT_EQ(0, test_->gc_fragment_content_bias_.from());
+	EXPECT_EQ(101, test_->gc_fragment_content_bias_.to());
+	EXPECT_DOUBLE_EQ(1.0, test_->gc_fragment_content_bias_.Max());
+	EXPECT_DOUBLE_EQ(101.0, SumVectD(test_->gc_fragment_content_bias_));
+
+	EXPECT_EQ(50, test_->insert_lengths_bias_.from());
+	EXPECT_EQ(53, test_->insert_lengths_bias_.to());
+	EXPECT_DOUBLE_EQ(0.5, test_->insert_lengths_bias_[50]);
+	EXPECT_DOUBLE_EQ(1.0, test_->insert_lengths_bias_[51]);
+	EXPECT_DOUBLE_EQ(0.75, test_->insert_lengths_bias_[52]);
+
+	EXPECT_DOUBLE_EQ(Surrounding::Size(), accumulate(test_->fragment_surroundings_bias_.bias_.at(0).begin(), test_->fragment_surroundings_bias_.bias_.at(0).end(), 0.0));
+	EXPECT_DOUBLE_EQ(Surrounding::Size(), accumulate(test_->fragment_surroundings_bias_.bias_.at(1).begin(), test_->fragment_surroundings_bias_.bias_.at(1).end(), 0.0));
+	EXPECT_DOUBLE_EQ(Surrounding::Size(), accumulate(test_->fragment_surroundings_bias_.bias_.at(2).begin(), test_->fragment_surroundings_bias_.bias_.at(2).end(), 0.0));
+	EXPECT_DOUBLE_EQ(1.0, *max_element(test_->fragment_surroundings_bias_.bias_.at(0).begin(), test_->fragment_surroundings_bias_.bias_.at(0).end()));
+	EXPECT_DOUBLE_EQ(1.0, *max_element(test_->fragment_surroundings_bias_.bias_.at(1).begin(), test_->fragment_surroundings_bias_.bias_.at(1).end()));
+	EXPECT_DOUBLE_EQ(1.0, *max_element(test_->fragment_surroundings_bias_.bias_.at(2).begin(), test_->fragment_surroundings_bias_.bias_.at(2).end()));
+}
+
+void FragmentDistributionStatsTest::TestDrawCounts(){
+	// Set biases to 0.5 to verify they are used and only use gc bias to really vary bias
+	test_->ref_seq_bias_.clear();
+	test_->ref_seq_bias_.resize(1, 0.5);
+
+	test_->insert_lengths_bias_.Clear();
+	test_->insert_lengths_bias_[367] = 0.5;
+	test_->insert_lengths_bias_.Shrink();
+
+	// Surrounding has to be tuned to result in 0.5 for the total bias each (start and end)
+	Surrounding start_sur, end_sur;
+	start_sur.sur_.at(0) = 873425;
+	start_sur.sur_.at(1) = 34;
+	start_sur.sur_.at(2) = 7467;
+	end_sur.sur_.at(0) = 364;
+	end_sur.sur_.at(1) = 856687;
+	end_sur.sur_.at(2) = 34562;
+
+	for( auto &block : test_->fragment_surroundings_bias_.bias_){
+		block.clear();
+		block.resize(Surrounding::Size(), -1000.0); // Set to big negative number, so that bias will be very close to zero
+	}
+	test_->fragment_surroundings_bias_.bias_.at(0).at(start_sur.sur_.at(0)) = -0.3;
+	test_->fragment_surroundings_bias_.bias_.at(1).at(start_sur.sur_.at(1)) = -0.7;
+	test_->fragment_surroundings_bias_.bias_.at(2).at(start_sur.sur_.at(2)) = -log(3)+1.0;
+	test_->fragment_surroundings_bias_.bias_.at(0).at(end_sur.sur_.at(0)) = -log(3)+1.0;
+	test_->fragment_surroundings_bias_.bias_.at(1).at(end_sur.sur_.at(1)) = -0.7;
+	test_->fragment_surroundings_bias_.bias_.at(2).at(end_sur.sur_.at(2)) = -0.3;
+
+	test_->gc_fragment_content_bias_.Clear();
+	test_->gc_fragment_content_bias_[43] = 1.0; // Use set it, no meaning so far
+	test_->gc_fragment_content_bias_.Shrink();
+
+	// Start with poisson
+	test_->dispersion_parameters_.at(0) = 0.0;
+	test_->dispersion_parameters_.at(1) = 1e-100;
+
+	CheckDrawnCounts(1.0, array<double, 6>({0.3678794, 0.7357589, 0.9196986, 0.9810118, 0.9963402, 0.9994058}), start_sur, end_sur); // R: ppois(0:5, 1.0)
+	CheckDrawnCounts(0.5, array<double, 6>({0.6065307, 0.9097960, 0.9856123, 0.9982484, 0.9998279, 0.9999858}), start_sur, end_sur); // R: ppois(0:5, 0.5)
+	CheckDrawnCounts(0.1, array<double, 4>({0.9048374, 0.9953212, 0.9998453, 0.9999962}), start_sur, end_sur); // R: ppois(0:5, 0.1)
+
+	// Constant dispersion
+	test_->dispersion_parameters_.at(1) = 5.0;
+	CheckDrawnCounts(1.0, array<double, 6>({0.6988271, 0.8152983, 0.8735339, 0.9091223, 0.9328479, 0.9494559}), start_sur, end_sur); // R: pnbinom(0:5, size=0.2, mu=1.0)
+	CheckDrawnCounts(0.5, array<double, 6>({0.7783705, 0.8895663, 0.9372217, 0.9621840, 0.9764482, 0.9850067}), start_sur, end_sur); // R: pnbinom(0:5, size=0.2, mu=0.5)
+	CheckDrawnCounts(0.1, array<double, 6>({0.9221079, 0.9835818, 0.9958765, 0.9988819, 0.9996834, 0.9999078}), start_sur, end_sur); // R: pnbinom(0:5, size=0.2, mu=0.1)
+
+	// Bias dependent dispersion
+	test_->dispersion_parameters_.at(0) = 5000.0;
+	test_->dispersion_parameters_.at(1) = 10000.0;
+
+	CheckDrawnCounts(1.0, array<double, 6>({0.9993591, 0.9994258, 0.9994591, 0.9994813, 0.9994979, 0.9995113}), start_sur, end_sur); // R: pnbinom(0:5, size=1.0/(5000+1.0*10000), mu=1.0)
+	CheckDrawnCounts(0.5, array<double, 6>({0.9995396, 0.9995896, 0.9996145, 0.9996312, 0.9996437, 0.9996537}), start_sur, end_sur); // R: pnbinom(0:5, size=0.5/(5000+0.5*10000), mu=0.5)
+	CheckDrawnCounts(0.1, array<double, 6>({0.9998550, 0.9998717, 0.9998800, 0.9998856, 0.9998897, 0.9998931}), start_sur, end_sur); // R: pnbinom(0:5, size=0.1/(5000+0.1*10000), mu=0.1)
 }
 
 namespace reseq{
@@ -448,6 +560,7 @@ namespace reseq{
 		CreateTestObject(&species_reference_);
 
 		TestBiasCalculation();
+		TestUniformBias();
 	}
 
 	TEST_F(FragmentDistributionStatsTest, UpdateRefSeqBias){
@@ -483,7 +596,11 @@ namespace reseq{
 		EXPECT_EQ(2, test_->ref_seq_bias_.size()) << "Reference bias from file does not work.";
 		EXPECT_EQ(2.0, test_->ref_seq_bias_.at(0)) << "Reference bias from file does not work.";
 		EXPECT_EQ(1.0, test_->ref_seq_bias_.at(1)) << "Reference bias from file does not work.";
+	}
 
-		//kVerbosityLevel = cur_verbosity;
+	TEST_F(FragmentDistributionStatsTest, DrawCounts){
+		ASSERT_TRUE( test_ = new FragmentDistributionStats ) << "Could not allocate memory for FragmentDistributionStats object\n";
+
+		TestDrawCounts();
 	}
 }

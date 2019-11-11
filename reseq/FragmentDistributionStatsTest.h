@@ -29,6 +29,8 @@ namespace reseq{
 		void CreateCoverageDataHelper(uintPercent gc_perc, uintSeqLen start_pos, uintSeqLen fragment_length, std::mt19937_64 &rgen);
 		void CreateCoverageData(uintSeqLen fragment_length);
 
+		template<size_t N> void CheckDrawnCounts(double bias, std::array<double, N> thresholds, const Surrounding &start_sur, const Surrounding &end_sur);
+
 	public:
 		FragmentDistributionStatsTest():
 			test_(NULL)
@@ -42,6 +44,8 @@ namespace reseq{
 		static void TestAdapters(const FragmentDistributionStats &test);
 		static void BiasCalculationThread(FragmentDistributionStats &test, const Reference &reference, FragmentDuplicationStats &duplications, BiasCalculationVectors &thread_values, std::mutex &print_mutex);
 		void TestBiasCalculation();
+		void TestUniformBias();
+		void TestDrawCounts();
 	};
 }
 

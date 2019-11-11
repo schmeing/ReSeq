@@ -70,10 +70,12 @@ namespace reseq{
 	private:
 		static uintPercent OptimizeSplineIdToKnot(uintNumFits id, const uintPercent range);
 		static uintPercentShift OptimizeSplineIdToShift(uintNumFits id, const uintPercent range);
+
+		// Used only for paper output (kParameterInfoFile, kDispersionInfoFile)
+		static std::mutex file_mutex_;
 	public:
-		static constexpr double kLoglikeMult = 1000; // Multiplies the loglikelihood by this value to get gradients in a better range for the fit
-		static constexpr double kStopCriterion = 1e-8; // Minimum absolute change in chi2 to continue
-		static constexpr double kPecisionAim = 1e-3; // Minimum relative change in bias values
+		// Definitions
+		static constexpr double kStopCriterion = 1e-6; // Minimum relative change in chi2 to finish fit
 		static const uintNumFits kMaxLikelihoodCalculations = 100;
 		static const uint16_t kSplinePrecisionFactor = 10; // Spline fit is fast so we can require a higher precision
 
@@ -88,12 +90,17 @@ namespace reseq{
 		static constexpr double kUpperBound = 1e25;
 		static constexpr double kBaseValue = 1e-25;
 
-		static const bool kSurMult = false;
-		static const bool kSurSum = true;
+		// Definitions for paper (extra output)
+		static const bool kSurMult = false; // This is only for the fit for the comparison plots, the rest of the program is using the better sum without a toggle, so do not switch this to true and use the simulator
 
-		static constexpr const char *kParameterInfoFile = NULL;//"maxlike_fit.csv";
-		static constexpr const char *kDispersionInfoFile = NULL;//"dispersion_fit.csv";
+		static constexpr const char *kParameterInfoFile = NULL; //"maxlike_fit.csv";
+		static constexpr const char *kDispersionInfoFile = NULL; //"dispersion_fit.csv";
 		static const uintDupCount kMaxDuplications = 100; // Maximum number of duplications used for dispersion fit reported in kDispersionInfoFile
+		static const uintSeqLen kDispersionBinSize = 200000; // Bin size used to get sample mean and for dispersion fit reported in kDispersionInfoFile (2*sites, due to forward+reverse)
+
+		// Variables used for fit
+		// Input
+		std::vector<FragmentSite> sites_;
 
 		uintFragCount total_counts_;
 		uintFragCount total_sites_;
@@ -104,31 +111,18 @@ namespace reseq{
 		std::array<uintFragCount, 101> gc_sites_;
 		std::array<uintFragCount, 4*Surrounding::Length()> sur_sites_;
 
+		// Results
 		std::array<uintPercent, kGCSplineDf> gc_knots_;
-		std::array<double, 101> gc_bias_pois_;
-		std::array<double, 101> gc_bias_spline_;
 		std::array<double, 101> gc_bias_;
 
-		std::array<double, 4*Surrounding::Length()> sur_bias_pois_;
 		std::array<double, 4*Surrounding::Length()> sur_bias_;
 
 		std::vector<double> dispersion_;
 
 		bool converged_;
+		double loglike_;
 
-		uintNumFits func_calls_pois_;
-		uintNumFits func_calls_spline_;
-		uintNumFits func_calls_nbinom_;
-		uintNumFits func_calls_nbinom_sampled_;
-		uintNumFits func_calls_const_disp_;
-
-		double loglike_pois_;
-		double loglike_spline_;
-		double loglike_nbinom_;
-		double loglike_nbinom_full_;
-
-		std::vector<FragmentSite> sites_;
-
+		// Temporary calculation variables
 		double loglike_pois_base_;
 
 		std::array<double, 101> gc_bias_no_logit_;
@@ -139,6 +133,7 @@ namespace reseq{
 
 		std::array<std::array<std::array<double, kGCSplineDf>, kGCSplineDf-1>, 3> lin_comb_gc_splines_;
 
+		// Optimizer variables
 		std::vector<double> fit_pars_;
 		std::vector<double> bounds_;
 		nlopt::opt optimizer_poisson_;
@@ -147,32 +142,37 @@ namespace reseq{
 		std::vector<double> gc_spline_pars_;
 		nlopt::opt optimizer_spline_;
 
+		// Variables only used for paper output
+		uintRefSeqBin ref_seq_bin_;
+		uintSeqLen insert_length_;
+
+		uintNumFits func_calls_;
+
 		uintSeqLen start_site_dispersion_fit_;
 		uintSeqLen end_site_dispersion_fit_;
 		double use_sample_mean_;
 		std::array<uintFragCount, kMaxDuplications+2> duplication_count_part_;
+		uintNumFits func_calls_const_disp_;
 
+		// Functions for fit
 		BiasCalculationVectors():
-			optimizer_poisson_(nlopt::LD_LBFGS,4*Surrounding::Length() + (kSurSum?1:0) ),
-			optimizer_nbinom_(nlopt::LD_LBFGS, 4*Surrounding::Length() + (kSurSum?1:0) + kGCSplineDf + 1 + 2),
+			optimizer_poisson_(nlopt::LD_LBFGS,4*Surrounding::Length() + (!kSurMult?1:0) ),
+			optimizer_nbinom_(nlopt::LD_LBFGS, 4*Surrounding::Length() + (!kSurMult?1:0) + kGCSplineDf + 1 + 2),
 			optimizer_spline_(nlopt::LD_LBFGS, kGCSplineDf+1)
 		{
 			dispersion_.reserve(2);
 
-			fit_pars_.reserve(4*Surrounding::Length() + (kSurSum?1:0) + kGCSplineDf + 1 + 2);
+			fit_pars_.reserve(4*Surrounding::Length() + (!kSurMult?1:0) + kGCSplineDf + 1 + 2);
 			bounds_.reserve(fit_pars_.capacity());
 			gc_spline_pars_.resize(1+kGCSplineDf);
 
-			optimizer_poisson_.set_xtol_rel(kPecisionAim);
-			optimizer_poisson_.set_ftol_abs(kStopCriterion*kLoglikeMult);
+			optimizer_poisson_.set_ftol_rel(kStopCriterion);
 			optimizer_poisson_.set_maxeval(kMaxLikelihoodCalculations);
 
-			optimizer_nbinom_.set_xtol_rel(kPecisionAim);
-			optimizer_nbinom_.set_ftol_abs(kStopCriterion*kLoglikeMult);
+			optimizer_nbinom_.set_ftol_rel(kStopCriterion);
 			optimizer_nbinom_.set_maxeval(kMaxLikelihoodCalculations);
 
-			optimizer_spline_.set_xtol_rel(kPecisionAim / kSplinePrecisionFactor);
-			optimizer_spline_.set_ftol_abs(kStopCriterion*kLoglikeMult / kSplinePrecisionFactor);
+			optimizer_spline_.set_ftol_rel(kStopCriterion / kSplinePrecisionFactor);
 			optimizer_spline_.set_maxeval(kMaxLikelihoodCalculations * kSplinePrecisionFactor);
 
 			bounds_.resize(gc_spline_pars_.size(), kUpperBound);
@@ -216,8 +216,10 @@ namespace reseq{
 
 		void PostProcessFit();
 
+		// Functions for paper output
 		static double LogLikelihoodConstDispersion(const std::vector<double> &x, std::vector<double> &grad, void* f_data);
-		void WriteOutInformation(const char *context);
+		void WriteOutParameterInfo(const char *context);
+		void WriteOutDispersionInfo(const char *context);
 	};
 
 	class FragmentDistributionStats{
@@ -323,7 +325,7 @@ namespace reseq{
 		void CountDuplicates(FragmentDuplicationStats &duplications, const BiasCalculationParamsSplitSeqs &params, const Reference &reference);
 		void AddFragmentsToSites(std::vector<FragmentSite> &sites, const std::vector<uintRefLenCalc> &fragment_positions, uintSeqLen min_dist_to_ref_seq_ends);
 		void CalculateBiasByBin(BiasCalculationVectors &tmp_calc, const Reference &reference, FragmentDuplicationStats &duplications, uintRefSeqBin ref_seq_bin, uintSeqLen insert_length);
-		void AcquireBiases(const BiasCalculationVectors &calc, const BiasCalculationParamsSplitSeqs &params, std::mutex &print_mutex);
+		void AcquireBiases(const BiasCalculationVectors &calc, std::mutex &print_mutex);
 		bool StoreBias();
 		void CalculateInsertLengthAndRefSeqBias(const Reference &reference, uintNumThreads num_threads, std::vector<std::vector<utilities::VectorAtomic<uintFragCount>>> &site_count_by_insert_length_gc);
 		void AddNewBiasCalculations(uintRefSeqBin still_needed_ref_bin, ThreadData &thread, std::mutex &print_mutex);
@@ -355,9 +357,6 @@ namespace reseq{
 
 		// Google test
 		friend class FragmentDistributionStatsTest;
-		FRIEND_TEST(FragmentDistributionStatsTest, SeparatingAndCombiningBias);
-		FRIEND_TEST(FragmentDistributionStatsTest, BiasCalculation);
-		FRIEND_TEST(FragmentDistributionStatsTest, BiasBinningAndFragmentCounts);
 		FRIEND_TEST(FragmentDistributionStatsTest, UpdateRefSeqBias);
 		friend class SimulatorTest;
 	public:
@@ -366,7 +365,7 @@ namespace reseq{
 			calculate_bias_(true), // Not calculated only to speed up tests
 			num_handled_reference_sequence_bins_(0),
 			current_bias_result_(0),
-			dispersion_parameters_({0, 1e100}) // Initialize with poisson to avoid writing random values into file if saving without fitting
+			dispersion_parameters_({0, 1e-100}) // Initialize with poisson to avoid writing random values into file if saving without fitting
 			{
 		}
 
@@ -401,6 +400,8 @@ namespace reseq{
 		void ActivateBiasCalculation(){ calculate_bias_ = true; }
 		void DeactivateBiasCalculation(){ calculate_bias_ = false; }
 
+		void SetUniformBias();
+
 		// Main functions
 		uintRefSeqBin CreateRefBins( const Reference &ref, uintSeqLen max_ref_seq_bin_size );
 		uintRefSeqBin GetRefSeqBin(uintRefSeqId ref_seq_id, uintSeqLen position, const Reference &reference){
@@ -429,7 +430,7 @@ namespace reseq{
 
 		static uintDupCount NegativeBinomial(double p, double r, double probability_chosen);
 		double Dispersion(double bias) const{ return BiasCalculationVectors::GetDispersion( bias, dispersion_parameters_.at(0), dispersion_parameters_.at(1) ); }
-		uintDupCount GetFragmentCounts(const Reference &reference, double bias_normalization, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintPercent gc, const Surrounding &fragment_start, const Surrounding &fragment_end, double probability_chosen, double non_zero_threshold=0.0) const;
+		uintDupCount GetFragmentCounts(double bias_normalization, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintPercent gc, const Surrounding &fragment_start, const Surrounding &fragment_end, double probability_chosen, double non_zero_threshold=0.0) const;
 
 		void PreparePlotting();
 	};

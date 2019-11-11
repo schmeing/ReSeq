@@ -24,11 +24,12 @@ using std::ofstream;
 using std::distance;
 #include <limits>
 using std::numeric_limits;
-#include <math.h>
+#include <cmath>
 using std::abs;
 using std::exp;
 using std::isnan;
 using std::log;
+using std::pow;
 using std::nan;
 using std::sqrt;
 //include <mutex>
@@ -42,6 +43,8 @@ using std::set;
 #include <string>
 using std::stod;
 using std::string;
+#include <sstream>
+using std::stringstream;
 #include <thread>
 using std::thread;
 #include <unordered_map>
@@ -72,6 +75,7 @@ using reseq::utilities::VectorAtomic;
 constexpr double BiasCalculationVectors::kLowerBound;
 constexpr double BiasCalculationVectors::kUpperBound;
 constexpr double BiasCalculationVectors::kBaseValue;
+mutex BiasCalculationVectors::file_mutex_;
 
 void BiasCalculationVectors::AddCountsFromSite(const FragmentSite &site, array<uintFragCount, 101> &gc_count, array<uintFragCount, 4*Surrounding::Length()> &sur_count){
 	if(0 < site.count_forward_ + site.count_reverse_){
@@ -186,7 +190,22 @@ void BiasCalculationVectors::NormGC(){
 }
 
 void BiasCalculationVectors::NormSurroundings(const vector<double> &x){
-	if(kSurSum){
+	if(kSurMult){
+		for(auto sur_pos = 0; sur_pos < Surrounding::Length(); ++sur_pos){
+			double sur_sum = 0.0;
+			uintBaseCall valid_sur = 0;
+			for(auto base = 0; base < 4; ++base){
+				sur_sum += x.at(4*sur_pos+base);
+				if(sur_count_.at(4*sur_pos+base)){
+					++valid_sur;
+				}
+			}
+			for(auto base = 0; base < 4; ++base){
+				sur_bias_.at(4*sur_pos+base) = valid_sur*x.at(4*sur_pos+base)/sur_sum;
+			}
+		}
+	}
+	else{
 		for(auto sur_pos = 0; sur_pos < Surrounding::Length(); ++sur_pos){
 			auto from = 1+sur_pos*4;
 			auto to = 1+(sur_pos+1)*4;
@@ -212,21 +231,6 @@ void BiasCalculationVectors::NormSurroundings(const vector<double> &x){
 			sur_bias_.at(sur) += x.at(0);
 		}
 	}
-	else if(kSurMult){
-		for(auto sur_pos = 0; sur_pos < Surrounding::Length(); ++sur_pos){
-			double sur_sum = 0.0;
-			uintBaseCall valid_sur = 0;
-			for(auto base = 0; base < 4; ++base){
-				sur_sum += x.at(4*sur_pos+base);
-				if(sur_count_.at(4*sur_pos+base)){
-					++valid_sur;
-				}
-			}
-			for(auto base = 0; base < 4; ++base){
-				sur_bias_.at(4*sur_pos+base) = valid_sur*x.at(4*sur_pos+base)/sur_sum;
-			}
-		}
-	}
 }
 
 void BiasCalculationVectors::UnnormSurroundingGradients(vector<double> &grad, const vector<double> &x){
@@ -250,7 +254,7 @@ void BiasCalculationVectors::UnnormSurroundingGradients(vector<double> &grad, co
 			}
 		}
 	}
-	else if(kSurSum){
+	else{
 		for(auto sur_pos = 0; sur_pos < Surrounding::Length(); ++sur_pos){
 			auto from = sur_pos*4;
 			auto to = (sur_pos+1)*4;
@@ -283,11 +287,12 @@ void BiasCalculationVectors::UnnormSurroundingGradients(vector<double> &grad, co
 }
 
 double BiasCalculationVectors::SurBiasAtSite(const pair<double, double>& bias){
-	if(kSurSum){
-		return static_cast<double>(total_counts_) / total_sites_ * InvLogit2(bias.first) * InvLogit2(bias.second) + kBaseValue;
-	}
-	else if(kSurMult){
+	if(kSurMult){
 		return static_cast<double>(total_counts_) / total_sites_ * bias.first * bias.second;
+
+	}
+	else{
+		return static_cast<double>(total_counts_) / total_sites_ * InvLogit2(bias.first) * InvLogit2(bias.second) + kBaseValue;
 	}
 }
 
@@ -296,18 +301,18 @@ pair<double, double> BiasCalculationVectors::SurBiasAtSiteSplit(const FragmentSi
 	if(kSurMult){
 		bias = {1.0, 1.0};
 	}
-	else if(kSurSum){
+	else{
 		bias = {0.0, 0.0};
 	}
 
 	for(uintSurPos sur_pos = Surrounding::Length(); sur_pos--; ){
-		if(kSurSum){
-			bias.first += sur_bias_.at(4*sur_pos + site.start_surrounding_.BaseAt(sur_pos));
-			bias.second += sur_bias_.at(4*sur_pos + site.end_surrounding_.BaseAt(sur_pos));
-		}
-		else if(kSurMult){
+		if(kSurMult){
 			bias.first *= sur_bias_.at(4*sur_pos + site.start_surrounding_.BaseAt(sur_pos));
 			bias.second *= sur_bias_.at(4*sur_pos + site.end_surrounding_.BaseAt(sur_pos));
+		}
+		else{
+			bias.first += sur_bias_.at(4*sur_pos + site.start_surrounding_.BaseAt(sur_pos));
+			bias.second += sur_bias_.at(4*sur_pos + site.end_surrounding_.BaseAt(sur_pos));
 		}
 	}
 
@@ -527,7 +532,7 @@ void BiasCalculationVectors::CalculateSplineGrad(const vector<double> &spline_pa
 double BiasCalculationVectors::LogLikeGcSpline(const vector<double> &x, vector<double> &grad, void* f_data){
 	BiasCalculationVectors &calc(*reinterpret_cast<BiasCalculationVectors *>(f_data));
 
-	++calc.func_calls_spline_;
+	++calc.func_calls_;
 
 	calc.CalculateSpline(x);
 
@@ -547,13 +552,7 @@ double BiasCalculationVectors::LogLikeGcSpline(const vector<double> &x, vector<d
 		}
 
 		calc.CalculateSplineGrad(x, grad, 0);
-
-		for(uintPercent gr=grad.size(); gr--; ){
-			grad.at(gr) *= BiasCalculationVectors::kLoglikeMult/calc.total_sites_;
-		}
 	}
-
-	loglike *= BiasCalculationVectors::kLoglikeMult/calc.total_sites_;
 
 	return loglike;
 }
@@ -587,19 +586,19 @@ double BiasCalculationVectors::OptimizeSpline(){
 		}
 	}
 
-	func_calls_spline_ = 0;
+	func_calls_ = 0;
 	std::vector<double> grad;
 	double loglike;
 
 	converged_ = true;
 	try{
 		if( nlopt::MAXEVAL_REACHED == optimizer_spline_.optimize(gc_spline_pars_, loglike) ){
-			func_calls_spline_ += 10000;
+			func_calls_ += 10000;
 			converged_ = false;
 		}
 	}
 	catch(const std::exception& e){
-		func_calls_spline_ += 20000;
+		func_calls_ += 20000;
 		converged_ = false;
 	}
 
@@ -659,12 +658,11 @@ void BiasCalculationVectors::GetGCSpline(){
 		}
 
 		if(kDispersionInfoFile){
-			WriteOutInformation("poisson");
+			WriteOutDispersionInfo("poisson");
 		}
 
-		NormGC();
-		for(uintPercent gc=gc_bias_.size(); gc--; ){
-			gc_bias_pois_.at(gc) = gc_bias_.at(gc);
+		if(BiasCalculationVectors::kParameterInfoFile){
+			WriteOutParameterInfo("poisson");
 		}
 	}
 
@@ -697,18 +695,17 @@ void BiasCalculationVectors::GetGCSpline(){
 	}
 
 	// Get gc bias for best spline (We require a higher precision here as the surrounding gradient assumes that the gc gradients are exactly zero, so we don't want to deviate much)
-	loglike_spline_ = OptimizeSpline();
+	loglike_ = OptimizeSpline();
 
 	if(kParameterInfoFile || kDispersionInfoFile){
 		CalculateSpline(gc_spline_pars_);
 
 		if(kDispersionInfoFile){
-			WriteOutInformation("gcspline");
+			WriteOutDispersionInfo("gcspline");
 		}
 
-		NormGC();
-		for(uintPercent gc=gc_bias_.size(); gc--; ){
-			gc_bias_spline_.at(gc) = gc_bias_.at(gc);
+		if(BiasCalculationVectors::kParameterInfoFile){
+			WriteOutParameterInfo("gcspline");
 		}
 	}
 }
@@ -716,7 +713,7 @@ void BiasCalculationVectors::GetGCSpline(){
 double BiasCalculationVectors::LogLikelihoodPoisson(const vector<double> &x, vector<double> &grad, void* f_data){
 	BiasCalculationVectors &calc(*reinterpret_cast<BiasCalculationVectors *>(f_data));
 
-	++calc.func_calls_pois_;
+	++calc.func_calls_;
 
 	calc.NormSurroundings(x);
 
@@ -726,7 +723,7 @@ double BiasCalculationVectors::LogLikelihoodPoisson(const vector<double> &x, vec
 				grad.at(sur) = calc.sur_count_.at(sur)/calc.sur_bias_.at(sur);
 			}
 		}
-		else if(BiasCalculationVectors::kSurSum){
+		else{
 			calc.sur_grad_.fill(0.0);
 		}
 	}
@@ -758,7 +755,7 @@ double BiasCalculationVectors::LogLikelihoodPoisson(const vector<double> &x, vec
 					calc.grad_gc_bias_sum_.at(site.gc_).at(i_start).first += bias/calc.sur_bias_.at(i_start);
 					calc.grad_gc_bias_sum_.at(site.gc_).at(i_end).first += bias/calc.sur_bias_.at(i_end);
 				}
-				else if(BiasCalculationVectors::kSurSum){
+				else{
 					calc.grad_gc_bias_sum_.at(site.gc_).at(i_start).first += bias*cur_grad_start;
 					calc.grad_gc_bias_sum_.at(site.gc_).at(i_end).first += bias*cur_grad_end;
 
@@ -795,29 +792,23 @@ double BiasCalculationVectors::LogLikelihoodPoisson(const vector<double> &x, vec
 				if(BiasCalculationVectors::kSurMult){
 					grad.at(sur) -= calc.gc_bias_.at(gc) * calc.grad_gc_bias_sum_.at(gc).at(sur).first;
 				}
-				else if(BiasCalculationVectors::kSurSum){
+				else{
 					calc.sur_grad_.at(sur) -= calc.gc_bias_.at(gc) * calc.grad_gc_bias_sum_.at(gc).at(sur).first;
 				}
 			}
 		}
 
 		calc.UnnormSurroundingGradients(grad, x);
-
-		for(uintPercent gr=grad.size(); gr--; ){
-			grad.at(gr) *= BiasCalculationVectors::kLoglikeMult/calc.total_sites_;
-		}
 	}
-
-	loglike *= BiasCalculationVectors::kLoglikeMult/calc.total_sites_;
 
 	return loglike;
 }
 
 double BiasCalculationVectors::GetDispersion(double bias, double a, double b){
 	double r = bias/(a+b*bias);
-	if(r > bias*1e14){
+	if(r > bias*1e10){
 		// r is so much larger than the bias that r + bias is having precision issues, so shift it back into precision (it anyways is approximately poisson at this point)
-		r = bias*1e14;
+		r = bias*1e10;
 	}
 	return r;
 }
@@ -871,7 +862,7 @@ void BiasCalculationVectors::LogLikelihoodNbinomSite(double &loglike, double &a,
 				grad.at(4*sur_pos + site.start_surrounding_.BaseAt(sur_pos)) += grad_term1; // Division by bias later
 				grad.at(4*sur_pos + site.end_surrounding_.BaseAt(sur_pos)) += grad_term1;
 			}
-			else if(kSurSum){
+			else{
 				sur_grad_.at(4*sur_pos + site.start_surrounding_.BaseAt(sur_pos)) += grad_term1*cur_grad_start;
 				sur_grad_.at(4*sur_pos + site.end_surrounding_.BaseAt(sur_pos)) += grad_term1*cur_grad_end;
 			}
@@ -882,12 +873,12 @@ void BiasCalculationVectors::LogLikelihoodNbinomSite(double &loglike, double &a,
 double BiasCalculationVectors::LogLikelihoodNbinom(const vector<double> &x, vector<double> &grad, void* f_data){
 	BiasCalculationVectors &calc(*reinterpret_cast<BiasCalculationVectors *>(f_data));
 
-	++calc.func_calls_nbinom_;
+	++calc.func_calls_;
 
 	calc.NormSurroundings(x);
 
 	uintNumFits spline_par_offset(calc.sur_count_.size());
-	if(BiasCalculationVectors::kSurSum){
+	if(!BiasCalculationVectors::kSurMult){
 		spline_par_offset += 1;
 	}
 
@@ -905,7 +896,7 @@ double BiasCalculationVectors::LogLikelihoodNbinom(const vector<double> &x, vect
 			grad.at(k) = 0.0;
 		}
 
-		if(BiasCalculationVectors::kSurSum){
+		if(!BiasCalculationVectors::kSurMult){
 			calc.sur_grad_.fill(0.0);
 		}
 	}
@@ -930,13 +921,7 @@ double BiasCalculationVectors::LogLikelihoodNbinom(const vector<double> &x, vect
 
 		grad.at( grad.size()-2 ) = ga;
 		grad.at( grad.size()-1 ) = gb;
-
-		for(uintNumFits gr=grad.size(); gr--; ){
-			grad.at(gr) *= BiasCalculationVectors::kLoglikeMult/calc.total_sites_;
-		}
 	}
-
-	loglike *= BiasCalculationVectors::kLoglikeMult/calc.total_sites_;
 
 	return loglike;
 }
@@ -947,19 +932,23 @@ void BiasCalculationVectors::PostProcessFit(){
 
 	// Get correct gc bias values
 	for(uintNumFits k=0; k<gc_spline_pars_.size(); ++k){
-		gc_spline_pars_.at(k) = fit_pars_.at( sur_count_.size() + (kSurSum?1:0) + k );
+		gc_spline_pars_.at(k) = fit_pars_.at( sur_count_.size() + (!kSurMult?1:0) + k );
 	}
 	CalculateSpline(gc_spline_pars_);
 
 	if(kDispersionInfoFile){
-		WriteOutInformation("nbinom");
+		WriteOutDispersionInfo("nbinom");
 	}
-
-	NormGC();
 
 	dispersion_.resize(2);
 	dispersion_.at(0) = fit_pars_.at( fit_pars_.size()-2 );
 	dispersion_.at(1) = fit_pars_.at( fit_pars_.size()-1 );
+
+	if(BiasCalculationVectors::kParameterInfoFile){
+		WriteOutParameterInfo("nbinom");
+	}
+
+	NormGC();
 }
 
 
@@ -990,16 +979,49 @@ double BiasCalculationVectors::LogLikelihoodConstDispersion(const std::vector<do
 	}
 
 	if( grad.size() ){
-		gr *= BiasCalculationVectors::kLoglikeMult/calc.total_sites_;
 		grad.at(0) = gr;
 	}
-
-	loglike *= BiasCalculationVectors::kLoglikeMult/calc.total_sites_;
 
 	return loglike;
 }
 
-void BiasCalculationVectors::WriteOutInformation(const char *context){
+void BiasCalculationVectors::WriteOutParameterInfo(const char *context){
+	stringstream output;
+
+	std::array<double, 101> unnormalized_gc;
+	for(auto gc=unnormalized_gc.size(); gc--; ){
+		unnormalized_gc.at(gc) = gc_bias_.at(gc);
+	}
+	NormGC();
+
+	output << context << ", " << ref_seq_bin_ << ", " << insert_length_ << ", " << total_counts_ << ", " << total_sites_ << ", " << func_calls_ << ", " << loglike_ << ", ";
+
+	if(2 == dispersion_.size()){
+		output << dispersion_.at(0) << ", " << dispersion_.at(1);
+	}
+	else{
+		output << 0 << ", " << 1e-100;
+	}
+
+	for(auto gc = 0; gc < gc_bias_.size(); ++gc){
+		output << ", " << unnormalized_gc.at(gc) << ", " << gc_bias_.at(gc) << ", " << gc_count_.at(gc) << ", " << gc_sites_.at(gc);
+	}
+	for(auto k = 0; k < gc_knots_.size(); ++k){
+		output << ", " << static_cast<uintPercentPrint>(gc_knots_.at(k));
+	}
+	for(auto sur = 0; sur < sur_bias_.size(); ++sur){
+		output << ", " << sur_bias_.at(sur) << ", " << sur_count_.at(sur) << ", " << sur_sites_.at(sur);
+	}
+	output << std::endl;
+
+	ofstream myfile;
+	lock_guard<mutex> lock(file_mutex_);
+	myfile.open(BiasCalculationVectors::kParameterInfoFile, ofstream::out | ofstream::app);
+	myfile << output.str();
+	myfile.close();
+}
+
+void BiasCalculationVectors::WriteOutDispersionInfo(const char *context){
 	// Set predicted site bias
 	for(auto &site : sites_){
 		site.bias_ = SurBiasAtSite(site) * gc_bias_.at(site.gc_);
@@ -1011,7 +1033,6 @@ void BiasCalculationVectors::WriteOutInformation(const char *context){
 	// Prepare optimizer
 	dispersion_.resize(1);
 	nlopt::opt optimizer(nlopt::LD_LBFGS, dispersion_.size());
-	optimizer.set_xtol_rel(kPecisionAim);
 	optimizer.set_ftol_abs(kStopCriterion);
 	optimizer.set_maxeval(kMaxLikelihoodCalculations);
 
@@ -1028,13 +1049,11 @@ void BiasCalculationVectors::WriteOutInformation(const char *context){
 	double loglike, sample_mean, prediction_mean;
 	uintDupCount max_duplication;
 	vector<double> grad;
-	ofstream myfile;
-	myfile.open(kDispersionInfoFile, ofstream::out | ofstream::app);
+	stringstream output;
 
 	// Constant number of sites per bin
-	const uintSeqLen num_sites = 200000;
-	start_site_dispersion_fit_ = ((total_sites_)%num_sites)/2; // Ignore equally many sites in the beginning and end
-	end_site_dispersion_fit_ = start_site_dispersion_fit_ + num_sites/2;
+	start_site_dispersion_fit_ = ((total_sites_)%kDispersionBinSize)/2; // Ignore equally many sites in the beginning and end
+	end_site_dispersion_fit_ = start_site_dispersion_fit_ + kDispersionBinSize/2;
 
 	while( end_site_dispersion_fit_ < sites_.size() ){
 		// Get statistics
@@ -1055,9 +1074,9 @@ void BiasCalculationVectors::WriteOutInformation(const char *context){
 		sample_mean /= 2*(end_site_dispersion_fit_ - start_site_dispersion_fit_);
 		prediction_mean /= (end_site_dispersion_fit_ - start_site_dispersion_fit_);
 
-		myfile << context << ", " << prediction_mean << ", " << sample_mean << ", " << 2*(end_site_dispersion_fit_ - start_site_dispersion_fit_) << ", " << max_duplication;
+		output << ref_seq_bin_ << ", " << insert_length_ << ", " << context << ", " << prediction_mean << ", " << sample_mean << ", " << 2*(end_site_dispersion_fit_ - start_site_dispersion_fit_) << ", " << max_duplication;
 		for(uintDupCount dups=1; dups<4; ++dups){
-			myfile << ", " << duplication_count_part_.at(dups);
+			output << ", " << duplication_count_part_.at(dups);
 		}
 
 		// Predicted means
@@ -1067,15 +1086,13 @@ void BiasCalculationVectors::WriteOutInformation(const char *context){
 		func_calls_const_disp_ = 0;
 		try{
 			if( nlopt::MAXEVAL_REACHED == optimizer.optimize(dispersion_, loglike) ){
-				//printWarn << "Optimizer reached maximum number of chi^2 calculations for seq " << ref_seq_id << " and length " << insert_length << std::endl;
 				func_calls_const_disp_ += 10000;
 			}
 		}
 		catch(const std::exception& e){
-			//printWarn << "Optimizer crashed for seq " << ref_seq_id << " and length " << insert_length << " with: " << e.what() << std::endl;
 			func_calls_const_disp_ += 20000;
 		}
-		myfile << ", " << func_calls_const_disp_ << ", " << dispersion_.at(0);
+		output << ", " << func_calls_const_disp_ << ", " << dispersion_.at(0);
 
 		// Sample mean
 		use_sample_mean_ = sample_mean;
@@ -1084,22 +1101,25 @@ void BiasCalculationVectors::WriteOutInformation(const char *context){
 		func_calls_const_disp_ = 0;
 		try{
 			if( nlopt::MAXEVAL_REACHED == optimizer.optimize(dispersion_, loglike) ){
-				//printWarn << "Optimizer reached maximum number of chi^2 calculations for seq " << ref_seq_id << " and length " << insert_length << std::endl;
 				func_calls_const_disp_ += 10000;
 			}
 		}
 		catch(const std::exception& e){
-			//printWarn << "Optimizer crashed for seq " << ref_seq_id << " and length " << insert_length << " with: " << e.what() << std::endl;
 			func_calls_const_disp_ += 20000;
 		}
 
-		myfile << ", " << func_calls_const_disp_ << ", " << dispersion_.at(0) << std::endl;
+		output << ", " << func_calls_const_disp_ << ", " << dispersion_.at(0) << std::endl;
 
 		// Prepare next iteration
-		start_site_dispersion_fit_ += num_sites/2;
-		end_site_dispersion_fit_ += num_sites/2;
+		start_site_dispersion_fit_ += kDispersionBinSize/2;
+		end_site_dispersion_fit_ += kDispersionBinSize/2;
 	}
 
+	// Write output to file
+	ofstream myfile;
+	lock_guard<mutex> lock(file_mutex_);
+	myfile.open(kDispersionInfoFile, ofstream::out | ofstream::app);
+	myfile << output.str();
 	myfile.close();
 }
 
@@ -1122,12 +1142,7 @@ void FragmentDistributionStats::PrepareBiasCalculation( const Reference &ref, ui
 	// Prepare bias fitting
 	bias_calc_params_.resize( maximum_insert_length * kMaxBinsQueuedForBiasCalc );
 
-	if( BiasCalculationVectors::kDispersionInfoFile ){
-		ref.RefSeqsInNxx(ref_seq_in_nxx_, 0.0); // Get only the largest reference sequence
-	}
-	else{
-		ref.RefSeqsInNxx(ref_seq_in_nxx_, BiasCalculationVectors::kNXXRefSeqs);
-	}
+	ref.RefSeqsInNxx(ref_seq_in_nxx_, BiasCalculationVectors::kNXXRefSeqs);
 
 	// Temporary bias fit result vectors
 	params_fitted_ = 0;
@@ -1154,9 +1169,9 @@ void FragmentDistributionStats::PrepareBiasCalculation( const Reference &ref, ui
 	if( BiasCalculationVectors::kParameterInfoFile ){
 		ofstream myfile;
 		myfile.open(BiasCalculationVectors::kParameterInfoFile);
-		myfile << "Fit, RefSeq, InsertLength, Counts, Sites, FunctionCallsSampled, FunctionCalls, LogLikelihood, DispersionA, DispersionB";
+		myfile << "Fit, RefSeqBin, InsertLength, Counts, Sites, FunctionCalls, LogLikelihood, DispersionA, DispersionB";
 		for(auto gc = 0; gc < 101; ++gc){
-			myfile << ", " << "GCbias" << gc << ", " << "GCcount" << gc << ", " << "GCsites" << gc;
+			myfile << ", " << "RawGCbias" << gc << ", " << "GCbias" << gc << ", " << "GCcount" << gc << ", " << "GCsites" << gc;
 		}
 		for(auto k = 0; k < BiasCalculationVectors::kGCSplineDf; ++k){
 			myfile << ", " << "GCknot" << k;
@@ -1186,7 +1201,7 @@ void FragmentDistributionStats::PrepareBiasCalculation( const Reference &ref, ui
 	if( BiasCalculationVectors::kDispersionInfoFile ){
 		ofstream myfile;
 		myfile.open(BiasCalculationVectors::kDispersionInfoFile);
-		myfile << "mean_fit, prediction_mean, sample_mean, num_sites, max_duplication, counts1, counts2, counts3, calls_prediction, dispersion_prediction, calls_sample, dispersion_sample" << std::endl;
+		myfile << "ref_seq_bin, insert_length, mean_fit, prediction_mean, sample_mean, num_sites, max_duplication, counts1, counts2, counts3, calls_prediction, dispersion_prediction, calls_sample, dispersion_sample" << std::endl;
 		myfile.close();
 	}
 }
@@ -1238,29 +1253,20 @@ void FragmentDistributionStats::UpdateBiasCalculationParams(uintRefSeqBin ref_se
 
 			sort(tmp_params.begin(), tmp_params.end(), std::greater<pair<uintSeqLen, pair<uintRefSeqBin, uintSeqLen>>>());
 
-			if( BiasCalculationVectors::kDispersionInfoFile ){
-				bias_calc_params_.at(queue_spot*qbin_size + tmp_params.at(0).second.second-1).Set(tmp_params.at(0).second.first, tmp_params.at(0).second.second, calculate_bias_);
-				for( uintNumFits n=1; n < tmp_params.size(); ++n ){
+			for( uintNumFits n=0; n < tmp_params.size(); ++n ){
+				if(n < BiasCalculationVectors::kNumFitsInsertLength){
+					bias_calc_params_.at(queue_spot*qbin_size + tmp_params.at(n).second.second-1).Set(tmp_params.at(n).second.first, tmp_params.at(n).second.second, calculate_bias_);
+				}
+				else{
 					bias_calc_params_.at(queue_spot*qbin_size + tmp_params.at(n).second.second-1).Set(tmp_params.at(n).second.first, tmp_params.at(n).second.second, false);
 				}
 			}
-			else{
-				for( uintNumFits n=0; n < tmp_params.size(); ++n ){
-					if(n < BiasCalculationVectors::kNumFitsInsertLength){
-						bias_calc_params_.at(queue_spot*qbin_size + tmp_params.at(n).second.second-1).Set(tmp_params.at(n).second.first, tmp_params.at(n).second.second, calculate_bias_);
-					}
-					else{
-						bias_calc_params_.at(queue_spot*qbin_size + tmp_params.at(n).second.second-1).Set(tmp_params.at(n).second.first, tmp_params.at(n).second.second, false);
-					}
-				}
 
-				if(tmp_params.size() < BiasCalculationVectors::kNumFitsInsertLength){
-					params_fitted_ += BiasCalculationVectors::kNumFitsInsertLength-tmp_params.size(); // Do not have to be fitted, so are already done
-					if(!BiasCalculationVectors::kParameterInfoFile){
-						lock_guard<mutex> lock(print_mutex);
-						printInfo << "Finished " << static_cast<uintPercentPrint>(Percent(params_fitted_, static_cast<uintNumFits>(tmp_gc_bias_.at(0).size()))) << "% of the bias fits." << std::endl;
-					}
-				}
+			if(tmp_params.size() < BiasCalculationVectors::kNumFitsInsertLength){
+				params_fitted_ += BiasCalculationVectors::kNumFitsInsertLength-tmp_params.size(); // Do not have to be fitted, so are already done
+
+				lock_guard<mutex> lock(print_mutex);
+				printInfo << "Finished " << static_cast<uintPercentPrint>(Percent(params_fitted_, static_cast<uintNumFits>(tmp_gc_bias_.at(0).size()))) << "% of the bias fits." << std::endl;
 			}
 		}
 		else{
@@ -1328,6 +1334,9 @@ void FragmentDistributionStats::CalculateBiasByBin(BiasCalculationVectors &tmp_c
 		ref_end = (ref_seq_bin+1-ref_seq_start_bin_.at(ref_seq_id))*RefSeqSplitLength(ref_seq_id, reference);
 	}
 
+	tmp_calc.ref_seq_bin_ = ref_seq_bin;
+	tmp_calc.insert_length_ = insert_length;
+
 	reference.GetFragmentSites(tmp_calc.sites_, ref_seq_id, insert_length, ref_start, ref_end);
 	AddFragmentsToSites(tmp_calc.sites_, fragment_sites_by_ref_seq_bin_by_insert_length_.at(ref_seq_bin).at(insert_length), max(Reference::kMinDistToRefSeqEnds, ref_start) );
 	duplications.AddSites(tmp_calc.sites_, insert_length);
@@ -1341,13 +1350,13 @@ void FragmentDistributionStats::CalculateBiasByBin(BiasCalculationVectors &tmp_c
 		tmp_calc.fit_pars_.resize(tmp_calc.sur_bias_.size(), 1.0);
 		tmp_calc.DeactivateZeroCounts(tmp_calc.fit_pars_, 0.0, 0);
 	}
-	else if(BiasCalculationVectors::kSurSum){
+	else{
 		tmp_calc.fit_pars_.resize(tmp_calc.sur_bias_.size()+1, 0.0);
 		tmp_calc.DeactivateZeroCounts(tmp_calc.fit_pars_, BiasCalculationVectors::kUpperBound, 1);
 		tmp_calc.fit_pars_.at(0) = 1.0;
 	}
 
-	tmp_calc.func_calls_pois_ = 0;
+	tmp_calc.func_calls_ = 0;
 
 	tmp_calc.optimizer_spline_.set_max_objective(BiasCalculationVectors::LogLikeGcSpline, reinterpret_cast<void*>(&tmp_calc));
 	tmp_calc.optimizer_poisson_.set_max_objective(BiasCalculationVectors::LogLikelihoodPoisson, reinterpret_cast<void*>(&tmp_calc));
@@ -1356,7 +1365,7 @@ void FragmentDistributionStats::CalculateBiasByBin(BiasCalculationVectors &tmp_c
 	if(BiasCalculationVectors::kSurMult){
 		lower_bound = BiasCalculationVectors::kBaseValue;
 	}
-	else if(BiasCalculationVectors::kSurSum){
+	else{
 		lower_bound = BiasCalculationVectors::kLowerBound;
 	}
 	const double upper_bound = BiasCalculationVectors::kUpperBound;
@@ -1372,32 +1381,28 @@ void FragmentDistributionStats::CalculateBiasByBin(BiasCalculationVectors &tmp_c
 	if(BiasCalculationVectors::kSurMult){
 		tmp_calc.DeactivateZeroCounts(tmp_calc.fit_pars_, 0.0, 0);
 	}
-	else if(BiasCalculationVectors::kSurSum){
+	else{
 		tmp_calc.DeactivateZeroCounts(tmp_calc.fit_pars_, BiasCalculationVectors::kUpperBound, 1);
 	}
 	tmp_calc.optimizer_poisson_.set_upper_bounds(tmp_calc.bounds_);
 
 	tmp_calc.converged_ = true;
 	try{
-		if( nlopt::MAXEVAL_REACHED == tmp_calc.optimizer_poisson_.optimize(tmp_calc.fit_pars_, tmp_calc.loglike_pois_) ){
+		if( nlopt::MAXEVAL_REACHED == tmp_calc.optimizer_poisson_.optimize(tmp_calc.fit_pars_, tmp_calc.loglike_) ){
 			//printWarn << "Optimizer reached maximum number of likelihood calculations for seq " << ref_seq_bin << " and length " << insert_length << std::endl;
-			tmp_calc.func_calls_pois_ += 10000;
+			tmp_calc.func_calls_ += 10000;
 			tmp_calc.converged_ = false;
 		}
 
 	}
 	catch(const std::exception& e){
 		//printWarn << "Poisson optimizer crashed for seq " << ref_seq_bin << " and length " << insert_length << " with: " << e.what() << std::endl;
-		tmp_calc.func_calls_pois_ += 20000;
+		tmp_calc.func_calls_ += 20000;
 		tmp_calc.converged_ = false;
 	}
 
 	// Fit gc spline with fixed surrounding bias assuming poisson
 	tmp_calc.GetGCSpline();
-
-	for(uintNumFits sur=tmp_calc.sur_bias_.size(); sur--; ){
-		tmp_calc.sur_bias_pois_.at(sur) = tmp_calc.sur_bias_.at(sur);
-	}
 
 	// Fit negative binomial to downsampled sites with fixed biases to estimate dispersion parameters
 	tmp_calc.optimizer_nbinom_.set_max_objective(BiasCalculationVectors::LogLikelihoodNbinom, reinterpret_cast<void*>(&tmp_calc));
@@ -1408,7 +1413,7 @@ void FragmentDistributionStats::CalculateBiasByBin(BiasCalculationVectors &tmp_c
 	tmp_calc.fit_pars_.push_back( 1.0 ); // alpha
 	tmp_calc.fit_pars_.push_back( 1.0 ); // beta
 
-	tmp_calc.func_calls_nbinom_ = 0;
+	tmp_calc.func_calls_ = 0;
 
 	tmp_calc.bounds_.clear();
 	tmp_calc.bounds_.resize(tmp_calc.fit_pars_.size(), lower_bound);
@@ -1418,7 +1423,7 @@ void FragmentDistributionStats::CalculateBiasByBin(BiasCalculationVectors &tmp_c
 			tmp_calc.bounds_.at(k) = BiasCalculationVectors::kLowerBound;
 		}
 	}
-	else if(BiasCalculationVectors::kSurSum){
+	else{
 		tmp_calc.bounds_.at(tmp_calc.sur_count_.size()+1) = BiasCalculationVectors::kBaseValue;
 	}
 	tmp_calc.bounds_.at(tmp_calc.bounds_.size() - 1) = BiasCalculationVectors::kBaseValue;
@@ -1430,7 +1435,7 @@ void FragmentDistributionStats::CalculateBiasByBin(BiasCalculationVectors &tmp_c
 	if(BiasCalculationVectors::kSurMult){
 		tmp_calc.DeactivateZeroCounts(tmp_calc.fit_pars_, 0.0, 0);
 	}
-	else if(BiasCalculationVectors::kSurSum){
+	else{
 		tmp_calc.DeactivateZeroCounts(tmp_calc.fit_pars_, BiasCalculationVectors::kLowerBound, 1);
 	}
 	tmp_calc.bounds_.at(tmp_calc.bounds_.size() - 1) = BiasCalculationVectors::kUpperBound;
@@ -1439,22 +1444,22 @@ void FragmentDistributionStats::CalculateBiasByBin(BiasCalculationVectors &tmp_c
 
 	tmp_calc.converged_ = true;
 	try{
-		if( nlopt::MAXEVAL_REACHED == tmp_calc.optimizer_nbinom_.optimize(tmp_calc.fit_pars_, tmp_calc.loglike_nbinom_) ){
+		if( nlopt::MAXEVAL_REACHED == tmp_calc.optimizer_nbinom_.optimize(tmp_calc.fit_pars_, tmp_calc.loglike_) ){
 			//printWarn << "Optimizer reached maximum number of likelihood calculations for seq " << ref_seq_bin << " and length " << insert_length << std::endl;
-			tmp_calc.func_calls_nbinom_ += 10000;
+			tmp_calc.func_calls_ += 10000;
 			tmp_calc.converged_ = false;
 		}
 	}
 	catch(const std::exception& e){
 		//printWarn << "Nbinom optimizer crashed for seq " << ref_seq_bin << " and length " << insert_length << " with: " << e.what() << std::endl;
-		tmp_calc.func_calls_nbinom_ += 20000;
+		tmp_calc.func_calls_ += 20000;
 		tmp_calc.converged_ = false;
 	}
 
 	tmp_calc.PostProcessFit();
 }
 
-void FragmentDistributionStats::AcquireBiases(const BiasCalculationVectors &calc, const BiasCalculationParamsSplitSeqs &params, mutex &print_mutex){
+void FragmentDistributionStats::AcquireBiases(const BiasCalculationVectors &calc, mutex &print_mutex){
 	if(calc.converged_){
 		uintNumFits cur_res = current_bias_result_++;
 
@@ -1471,79 +1476,27 @@ void FragmentDistributionStats::AcquireBiases(const BiasCalculationVectors &calc
 	}
 
 	uintNumFits pars_fitted = ++params_fitted_;
-	if(!BiasCalculationVectors::kParameterInfoFile){
-		if( tmp_gc_bias_.at(0).size() > 20 && !(pars_fitted%(tmp_gc_bias_.at(0).size()/20)) ){
-			lock_guard<mutex> lock(print_mutex);
-			printInfo << "Finished " << static_cast<uintPercentPrint>(Percent(pars_fitted, static_cast<uintNumFits>(tmp_gc_bias_.at(0).size()))) << "% of the bias fits." << std::endl;
-		}
-	}
 
-	// Print information
-	if(BiasCalculationVectors::kParameterInfoFile){
+	if( tmp_gc_bias_.at(0).size() > 20 && !(pars_fitted%(tmp_gc_bias_.at(0).size()/20)) ){
 		lock_guard<mutex> lock(print_mutex);
-
-		auto ref_seq_id = GetRefSeqId(params.ref_seq_bin_);
-
-		std::cout << ref_seq_id << ' ' << params.fragment_length_ << ' ' << calc.total_counts_ << ' ' << calc.total_sites_ << ' ' << calc.func_calls_pois_ << ' ' << calc.loglike_pois_ << ' ' << calc.func_calls_spline_ << ' ' << calc.loglike_spline_ << ' ' << calc.func_calls_nbinom_sampled_ << ' ' << calc.func_calls_nbinom_ << ' ' << calc.loglike_nbinom_ << std::endl;
-
-		ofstream myfile;
-		myfile.open(BiasCalculationVectors::kParameterInfoFile, ofstream::out | ofstream::app);
-		myfile << "poisson, " << ref_seq_id << ", " << params.fragment_length_ << ", " << calc.total_counts_ << ", " << calc.total_sites_ << ", 0, " << calc.func_calls_pois_ << ", " << calc.loglike_pois_ << ", " << 0 << ", " << 0;
-		for(auto gc = 0; gc < calc.gc_bias_pois_.size(); ++gc){
-			myfile << ", " << calc.gc_bias_pois_.at(gc) << ", " << calc.gc_count_.at(gc) << ", " << calc.gc_sites_.at(gc);
-		}
-		for(auto k = 0; k < calc.gc_knots_.size(); ++k){
-			myfile << ", " << calc.gc_knots_.at(k);
-		}
-		for(auto sur = 0; sur < calc.sur_bias_pois_.size(); ++sur){
-			myfile << ", " << calc.sur_bias_pois_.at(sur) << ", " << calc.sur_count_.at(sur) << ", " << calc.sur_sites_.at(sur);
-		}
-		myfile << std::endl;
-
-		myfile << "gcspline, " << ref_seq_id << ", " << params.fragment_length_ << ", " << calc.total_counts_ << ", " << calc.total_sites_ << ", 0, " << calc.func_calls_spline_ << ", " << calc.loglike_spline_ << ", " << 0 << ", " << 0;
-		for(auto gc = 0; gc < 101; ++gc){
-			myfile << ", " << calc.gc_bias_spline_.at(gc) << ", " << calc.gc_count_.at(gc) << ", " << calc.gc_sites_.at(gc);
-		}
-		for(auto k = 0; k < calc.gc_knots_.size(); ++k){
-			myfile << ", " << calc.gc_knots_.at(k);
-		}
-		for(auto sur = 0; sur < calc.sur_bias_pois_.size(); ++sur){
-			myfile << ", " << calc.sur_bias_pois_.at(sur) << ", " << calc.sur_count_.at(sur) << ", " << calc.sur_sites_.at(sur);
-		}
-		myfile << std::endl;
-
-		myfile << "nbinom, " << ref_seq_id << ", " << params.fragment_length_ << ", " << calc.total_counts_ << ", " << calc.total_sites_ << ", " <<  calc.func_calls_nbinom_sampled_ << ", " << calc.func_calls_nbinom_ << ", " << calc.loglike_nbinom_ << ", " << calc.dispersion_.at(0) << ", " << calc.dispersion_.at(1);
-		for(auto gc = 0; gc < 101; ++gc){
-			myfile << ", " << calc.gc_bias_.at(gc) << ", " << calc.gc_count_.at(gc) << ", " << calc.gc_sites_.at(gc);
-		}
-		for(auto k = 0; k < calc.gc_knots_.size(); ++k){
-			myfile << ", " << calc.gc_knots_.at(k);
-		}
-		for(auto sur = 0; sur < calc.sur_bias_.size(); ++sur){
-			myfile << ", " << calc.sur_bias_.at(sur) << ", " << calc.sur_count_.at(sur) << ", " << calc.sur_sites_.at(sur);
-		}
-		myfile << std::endl;
-		myfile.close();
+		printInfo << "Finished " << static_cast<uintPercentPrint>(Percent(pars_fitted, static_cast<uintNumFits>(tmp_gc_bias_.at(0).size()))) << "% of the bias fits." << std::endl;
 	}
 }
 
 bool FragmentDistributionStats::StoreBias(){
-	printInfo << "Acquired " << static_cast<uintPercentPrint>(Percent(current_bias_result_, static_cast<uintNumFits>(tmp_gc_bias_.at(0).size()))) << "% of the bias fits." << std::endl;
-
-	// Remove the nan at the end for not converged fits, this will affect all gc and sur biases in the same way so do it only once
-	uintNumFits used_size = tmp_gc_bias_.at(0).size();
-	while(used_size-- && isnan( tmp_gc_bias_.at(0).at( used_size ) ));
-	++used_size; // Go from index to size
-
-	if( 0 == used_size ){
-		printErr << "No bias fit converged. Cannot continue" << std::endl;
-		return false;
+	if( 0 == current_bias_result_ ){
+		printWarn << "No bias fit converged. Continuing with uniform coverage." << std::endl;
+		SetUniformBias();
+		return true;
+	}
+	else{
+		printInfo << current_bias_result_ << " of " << tmp_gc_bias_.at(0).size() << " bias fits [" << static_cast<uintPercentPrint>(Percent(current_bias_result_, static_cast<uintNumFits>(tmp_gc_bias_.at(0).size()))) << "%] converged." << std::endl;
 	}
 
 	// GC bias
 	// Calculate Median
 	for(uintPercent gc=0; gc<tmp_gc_bias_.size(); ++gc){
-		tmp_gc_bias_.at(gc).resize(used_size);
+		tmp_gc_bias_.at(gc).resize(current_bias_result_);
 
 		sort(tmp_gc_bias_.at(gc).begin(), tmp_gc_bias_.at(gc).end());
 		gc_fragment_content_bias_[gc] = tmp_gc_bias_.at(gc).at( tmp_gc_bias_.at(gc).size()/2 );
@@ -1563,7 +1516,7 @@ bool FragmentDistributionStats::StoreBias(){
 	// Calculate Median
 	std::array<double, 4*Surrounding::Length()> sur_median;
 	for(uintNumFits sur=0; sur<tmp_sur_bias_.size(); ++sur){
-		tmp_sur_bias_.at(sur).resize(used_size);
+		tmp_sur_bias_.at(sur).resize(current_bias_result_);
 
 		sort(tmp_sur_bias_.at(sur).begin(), tmp_sur_bias_.at(sur).end());
 		sur_median.at(sur) = tmp_sur_bias_.at(sur).at( tmp_sur_bias_.at(sur).size()/2 );
@@ -1577,7 +1530,7 @@ bool FragmentDistributionStats::StoreBias(){
 	// Dispersion parameters
 	// Calculate Median
 	for(uintNumFits par=0; par<tmp_dispersion_parameters_.size(); ++par){
-		tmp_dispersion_parameters_.at(par).resize(used_size);
+		tmp_dispersion_parameters_.at(par).resize(current_bias_result_);
 
 		sort(tmp_dispersion_parameters_.at(par).begin(), tmp_dispersion_parameters_.at(par).end());
 		dispersion_parameters_.at(par) = tmp_dispersion_parameters_.at(par).at( tmp_dispersion_parameters_.at(par).size()/2 );
@@ -1628,7 +1581,7 @@ void FragmentDistributionStats::ExecuteBiasCalculations( const Reference &refere
 			if( bias_calc_params_.at(cur_par).fragment_length_ ){
 				if( bias_calc_params_.at(cur_par).bias_calculation_ ){
 					CalculateBiasByBin(thread_values, reference, duplications, bias_calc_params_.at(cur_par).ref_seq_bin_, bias_calc_params_.at(cur_par).fragment_length_);
-					AcquireBiases(thread_values, bias_calc_params_.at(cur_par), print_mutex);
+					AcquireBiases(thread_values, print_mutex);
 				}
 				else{
 					CountDuplicates(duplications, bias_calc_params_.at(cur_par), reference);
@@ -1712,6 +1665,30 @@ void FragmentDistributionStats::BiasNormalizationThread(
 	}
 	norm += tmp_norm;
 	result_mutex.unlock();
+}
+
+void FragmentDistributionStats::SetUniformBias(){
+	ref_seq_bias_.clear();
+	ref_seq_bias_.resize(abundance_.size(), 1.0);
+
+	gc_fragment_content_bias_.Clear();
+	gc_fragment_content_bias_.Set(0,101,1.0);
+
+	fragment_surroundings_bias_.SetUniform();
+
+	// For the insert_lengths_bias_ we follow the insert length distribution, because uniform is most likely not what people want here
+	insert_lengths_bias_.Clear();
+	if(insert_lengths_.size()){
+		auto max = insert_lengths_.Max();
+		for(auto len = insert_lengths_.to(); len-- > insert_lengths_.from(); ){
+			insert_lengths_bias_[len] = static_cast<double>(insert_lengths_.at(len)) / max;
+		}
+		insert_lengths_bias_.Shrink();
+	}
+
+	// Approximating poisson here
+	dispersion_parameters_.at(0) = 0.0;
+	dispersion_parameters_.at(1) = 1e-100;
 }
 
 reseq::uintRefSeqBin FragmentDistributionStats::CreateRefBins( const Reference &ref, uintSeqLen max_ref_seq_bin_size ){
@@ -1929,7 +1906,6 @@ void FragmentDistributionStats::CalculateInsertLengthAndRefSeqBias(const Referen
 }
 
 bool FragmentDistributionStats::FinalizeBiasCalculation(const Reference &reference, uintNumThreads num_threads, FragmentDuplicationStats &duplications){
-
 	vector<vector<VectorAtomic<uintFragCount>>> site_count_by_insert_length_gc;
 	if(calculate_bias_){
 		if( !StoreBias() ){
@@ -1937,6 +1913,10 @@ bool FragmentDistributionStats::FinalizeBiasCalculation(const Reference &referen
 		}
 
 		CalculateInsertLengthAndRefSeqBias(reference, num_threads, site_count_by_insert_length_gc);
+	}
+	else{
+		printInfo << "No bias calculation done. Storing uniform coverage." << std::endl;
+		SetUniformBias();
 	}
 
 	// Free not needed memory at the end
@@ -1946,7 +1926,12 @@ bool FragmentDistributionStats::FinalizeBiasCalculation(const Reference &referen
 	fragment_sites_by_ref_seq_bin_by_insert_length_.shrink_to_fit();
 	duplications.FinalizeDuplicationVector(site_count_by_insert_length_gc);
 
-	printInfo << "Finished bias calculation" << std::endl;
+	if(calculate_bias_){
+		printInfo << "Finished bias calculation" << std::endl;
+	}
+	else{
+		printInfo << "Finished collecting duplicates" << std::endl;
+	}
 
 	return true;
 }
@@ -2144,13 +2129,12 @@ reseq::uintDupCount FragmentDistributionStats::NegativeBinomial(double p, double
 	return count;
 }
 
-reseq::uintDupCount FragmentDistributionStats::GetFragmentCounts(const Reference &reference, double bias_normalization, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintPercent gc, const Surrounding &fragment_start, const Surrounding &fragment_end, double probability_chosen, double non_zero_threshold) const{
+reseq::uintDupCount FragmentDistributionStats::GetFragmentCounts(double bias_normalization, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintPercent gc, const Surrounding &fragment_start, const Surrounding &fragment_end, double probability_chosen, double non_zero_threshold) const{
 	if(probability_chosen < non_zero_threshold){
 		return 0;
 	}
 	else{
-		double bias( reference.Bias( ref_seq_bias_.at(ref_seq_id), insert_lengths_bias_[fragment_length], gc_fragment_content_bias_[gc], fragment_surroundings_bias_.Bias(fragment_start), fragment_surroundings_bias_.Bias(fragment_end) ) );
-
+		double bias( Reference::Bias( ref_seq_bias_.at(ref_seq_id), insert_lengths_bias_[fragment_length], gc_fragment_content_bias_[gc], fragment_surroundings_bias_.Bias(fragment_start), fragment_surroundings_bias_.Bias(fragment_end) ) );
 		if(0.0 < bias){
 			double mean( bias * bias_normalization );
 			double dispersion( Dispersion(mean) );
@@ -2161,6 +2145,7 @@ reseq::uintDupCount FragmentDistributionStats::GetFragmentCounts(const Reference
 			return 0;
 		}
 	}
+
 }
 
 void FragmentDistributionStats::PreparePlotting(){

@@ -47,7 +47,7 @@ using reseq::Reference;
 #include "Simulator.h"
 using reseq::Simulator;
 #include "utilities.hpp"
-using reseq::uintQual;
+using reseq::uintQualPrint;
 using reseq::uintNumThreads;
 using reseq::uintNumFits;
 using reseq::uintSeqLen;
@@ -122,6 +122,7 @@ void GetDataStats(DataStats &real_data_stats, string &stats_file, bool &loaded_s
 	auto it_stats_in = opts_map.find("statsIn");
 	auto it_stats_out = opts_map.find("statsOut");
 	bool no_tiles = opts_map.count("noTiles");
+	bool no_bias_calculation = opts_map.count("noBias");
 	bool tiles = opts_map.count("tiles");
 	if(no_tiles && tiles){
 		printErr << "noTiles and tiles options are exclusive." << std::endl;
@@ -140,132 +141,131 @@ void GetDataStats(DataStats &real_data_stats, string &stats_file, bool &loaded_s
 			cout << usage_str;
 			cout << opt_desc << std::endl;
 		}
+		else if(opts_map.end() == it_stats_in){ // "statsIn" hasn't been found
+			printErr << "Either bamIn or statsIn option are mandatory." << std::endl;
+			cout << usage_str;
+			cout << opt_desc << std::endl;
+		}
 		else{
-			if(opts_map.end() == it_stats_in){ // "statsIn" hasn't been found
-				printErr << "Either bamIn or statsIn option are mandatory." << std::endl;
-				cout << usage_str;
-				cout << opt_desc << std::endl;
+			if(opts_map.end() != it_stats_out){
+				printWarn << "statsOut option ignored as statsIn is also given." << std::endl;
 			}
-			else{
-				if(opts_map.end() != it_stats_out){
-					printWarn << "statsOut option ignored as statsIn is also given." << std::endl;
-				}
 
-				stats_file = it_stats_in->second.as<string>();
-				printInfo << "Reading real data statistics from " << stats_file << std::endl;
+			stats_file = it_stats_in->second.as<string>();
+			printInfo << "Reading real data statistics from " << stats_file << std::endl;
 
-				real_data_stats.Load( stats_file.c_str() );
-				real_data_stats.PrepareProcessing();
-
-				loaded_stats = true;
+			real_data_stats.Load( stats_file.c_str() );
+			if(no_bias_calculation){
+				real_data_stats.SetUniformBias();
 			}
+			real_data_stats.PrepareProcessing();
+
+			loaded_stats = true;
 		}
 	}
 	else{
 		if(opts_map.end() != it_stats_in){
 			printErr << "statsIn and bamIn options are exclusive." << std::endl;
 		}
+		else if(!real_data_stats.HasReference()){
+			printErr << "Reading in statistics requires refIn option." << std::endl;
+		}
 		else{
-			if(!real_data_stats.HasReference()){
-				printErr << "Reading in statistics requires refIn option." << std::endl;
+			string bam_input( it_bam_in->second.as<string>() );
+			printInfo << "Reading mapping from " << bam_input << std::endl;
+
+			if(opts_map.end() == it_stats_out){
+				stats_file = bam_input + ".reseq";
 			}
 			else{
-				string bam_input( it_bam_in->second.as<string>() );
-				printInfo << "Reading mapping from " << bam_input << std::endl;
+				stats_file = it_stats_out->second.as<string>();
+			}
+			printInfo << "Storing real data statistics in " << stats_file << std::endl;
 
-				if(opts_map.end() == it_stats_out){
-					stats_file = bam_input + ".reseq";
+			// Set adapter files to input or default
+			string adapter_file, adapter_matrix;
+			auto it_adapter_file = opts_map.find("adapterFile");
+			auto it_adapter_matrix = opts_map.find("adapterMatrix");
+			if( opts_map.end() == it_adapter_file && opts_map.end() == it_adapter_matrix ){
+				// Adapters haven't been specified so use default
+				adapter_file = (string(PROJECT_SOURCE_DIR)+"/adapters/TruSeq_v2.fa").c_str();
+				adapter_matrix = (string(PROJECT_SOURCE_DIR)+"/adapters/TruSeq_v2.mat").c_str();
+			}
+			else{
+				if( opts_map.end() != it_adapter_file ){
+					adapter_file = it_adapter_file->second.as<string>();
+					DefaultExtensionFile(adapter_file, string(PROJECT_SOURCE_DIR)+"/adapters/", ".fa");
 				}
-				else{
-					stats_file = it_stats_out->second.as<string>();
+				if( opts_map.end() != it_adapter_matrix ){
+					adapter_matrix = it_adapter_matrix->second.as<string>();
+					DefaultExtensionFile(adapter_matrix, string(PROJECT_SOURCE_DIR)+"/adapters/", ".mat");
 				}
-				printInfo << "Storing real data statistics in " << stats_file << std::endl;
 
-				// Set adapter files to input or default
-				string adapter_file, adapter_matrix;
-				auto it_adapter_file = opts_map.find("adapterFile");
-				auto it_adapter_matrix = opts_map.find("adapterMatrix");
-				if( opts_map.end() == it_adapter_file && opts_map.end() == it_adapter_matrix ){
-					// Adapters haven't been specified so use default
-					adapter_file = (string(PROJECT_SOURCE_DIR)+"/adapters/TruSeq_v2.fa").c_str();
-					adapter_matrix = (string(PROJECT_SOURCE_DIR)+"/adapters/TruSeq_v2.mat").c_str();
-				}
-				else{
-					if( opts_map.end() != it_adapter_file ){
-						adapter_file = it_adapter_file->second.as<string>();
-						DefaultExtensionFile(adapter_file, string(PROJECT_SOURCE_DIR)+"/adapters/", ".fa");
-					}
-					if( opts_map.end() != it_adapter_matrix ){
-						adapter_matrix = it_adapter_matrix->second.as<string>();
-						DefaultExtensionFile(adapter_matrix, string(PROJECT_SOURCE_DIR)+"/adapters/", ".mat");
-					}
-
-					if( adapter_file.size() ){
-						if( 0 == adapter_matrix.size() ){
-							// Only sequences
-							bool failed = true;
-							if(2 < adapter_file.size()){
-								adapter_matrix = adapter_file;
-								adapter_matrix.replace(adapter_matrix.size()-3,3,".mat");
-								if (FILE *file = fopen(adapter_matrix.c_str(), "r")){
-									fclose(file);
-									failed = false;
-								}
-							}
-							if(failed){
-								printErr << "Switching extension of adapter-sequence file did not result in valid matrix file. Please specify the matrix file." << std::endl;
-								cout << usage_str;
-								cout << opt_desc << std::endl;
-								adapter_file = "";
-							}
-						}
-					}
-					else{
-						// Only matrix
+				if( adapter_file.size() ){
+					if( 0 == adapter_matrix.size() ){
+						// Only sequences
 						bool failed = true;
-						if(3 < adapter_matrix.size()){
-							adapter_file = adapter_matrix;
-							adapter_file.replace(adapter_file.size()-4,4,".fa");
-							if (FILE *file = fopen(adapter_file.c_str(), "r")){
+						if(2 < adapter_file.size()){
+							adapter_matrix = adapter_file;
+							adapter_matrix.replace(adapter_matrix.size()-3,3,".mat");
+							if (FILE *file = fopen(adapter_matrix.c_str(), "r")){
 								fclose(file);
 								failed = false;
 							}
 						}
 						if(failed){
-							printErr << "Switching extension of adapter-matrix file did not result in valid sequence file. Please specify the sequence file." << std::endl;
+							printErr << "Switching extension of adapter-sequence file did not result in valid matrix file. Please specify the matrix file." << std::endl;
 							cout << usage_str;
 							cout << opt_desc << std::endl;
 							adapter_file = "";
 						}
 					}
 				}
+				else{
+					// Only matrix
+					bool failed = true;
+					if(3 < adapter_matrix.size()){
+						adapter_file = adapter_matrix;
+						adapter_file.replace(adapter_file.size()-4,4,".fa");
+						if (FILE *file = fopen(adapter_file.c_str(), "r")){
+							fclose(file);
+							failed = false;
+						}
+					}
+					if(failed){
+						printErr << "Switching extension of adapter-matrix file did not result in valid sequence file. Please specify the sequence file." << std::endl;
+						cout << usage_str;
+						cout << opt_desc << std::endl;
+						adapter_file = "";
+					}
+				}
+			}
 
-				if( !tiles ){
-					printInfo << "Tiles will be ignored and all statistics will be generated like all reads are from the same tile." << std::endl;
-					real_data_stats.IgnoreTiles();
+			if( !tiles ){
+				printInfo << "Tiles will be ignored and all statistics will be generated like all reads are from the same tile." << std::endl;
+				real_data_stats.IgnoreTiles();
+			}
+			else{
+				printInfo << "Statistics will be split into tiles if possible." << std::endl;
+			}
+
+			if( !adapter_file.empty() ){
+				string variant_file = "";
+				auto it_variant_file = opts_map.find("vcfIn");
+				if( opts_map.end() != it_variant_file ){
+					variant_file = it_variant_file->second.as<string>();
+					printInfo << "Ignoring all variant positions listed in '" << stats_file << "' for error statistics." << std::endl;
+				}
+
+				if( real_data_stats.ReadBam( bam_input.c_str(), adapter_file.c_str(), adapter_matrix.c_str(), variant_file, max_ref_seq_bin_size, num_threads, !no_bias_calculation ) ){
+					real_data_stats.Save( stats_file.c_str() );
+					real_data_stats.PrepareProcessing();
+					real_data_stats.ClearReference(); // It shouldn't be used after the read in to guarantee that we can remove or change the reference
 				}
 				else{
-					printInfo << "Statistics will be split into tiles if possible." << std::endl;
+					DeleteFile( stats_file.c_str() ); // Remove the stats file if one existed previously so it is clear that we encountered an error and do not accidentally continue with the old file
 				}
-
-				if( !adapter_file.empty() ){
-					string variant_file = "";
-					auto it_variant_file = opts_map.find("vcfIn");
-					if( opts_map.end() != it_variant_file ){
-						variant_file = it_variant_file->second.as<string>();
-						printInfo << "Ignoring all variant positions listed in '" << stats_file << "' for error statistics." << std::endl;
-					}
-
-					if( real_data_stats.ReadBam( bam_input.c_str(), adapter_file.c_str(), adapter_matrix.c_str(), variant_file, max_ref_seq_bin_size, num_threads ) ){
-						real_data_stats.Save( stats_file.c_str() );
-						real_data_stats.PrepareProcessing();
-						real_data_stats.ClearReference(); // It shouldn't be used after the read in to guarantee that we can remove or change the reference
-					}
-					else{
-						DeleteFile( stats_file.c_str() ); // Remove the stats file if one existed previously so it is clear that we encountered an error and do not accidentally continue with the old file
-					}
-					loaded_stats = false;
-				}
+				loaded_stats = false;
 			}
 		}
 	}
@@ -511,7 +511,7 @@ int main(int argc, char *argv[]) {
 			uintFragCount num_read_pairs;
 			double coverage;
 			uintSeqLen maximum_insert_length;
-			uintQual minimum_mapping_quality;
+			uintQualPrint minimum_mapping_quality;
 			uintSeqLen max_ref_seq_bin_size;
 			std::string record_base_identifier;
 
@@ -522,7 +522,8 @@ int main(int argc, char *argv[]) {
 				("bamIn,b", value<string>(), "Position sorted bam/sam file with reads mapped to refIn")
 				("binSizeBiasFit", value<uintSeqLen>(&max_ref_seq_bin_size)->default_value(100000000), "Reference sequences large then this are split for bias fitting to limit memory consumption")
 				("maxFragLen", value<uintSeqLen>(&maximum_insert_length)->default_value(2000), "Maximum fragment length to include pairs into statistics")
-				("minMapQ", value<uintQual>(&minimum_mapping_quality)->default_value(10), "Minimum mapping quality to include pairs into statistics")
+				("minMapQ", value<uintQualPrint>(&minimum_mapping_quality)->default_value(10), "Minimum mapping quality to include pairs into statistics")
+				("noBias", "Do not perform bias fit. Results in uniform coverage if simulated from")
 				("noTiles", "Ignore tiles for the statistics [default]")
 				("refIn,r", value<string>(), "Reference sequences in fasta format (gz and bz2 supported)")
 				("statsOnly", "Only generate the statistics")
