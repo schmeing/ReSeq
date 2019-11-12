@@ -99,8 +99,9 @@ namespace reseq{
 
 	private:
 		// Definitions
-		const uintSeqLen kBlockSize = 1000;
+		const uintSeqLen kBlockSize = 10000;
 		const uintPercent kErrorRateThreshold = 20; // Minimum error rate to count it as a systematic error
+		static const uintCovCount kMaxCoverage = 10000; // Maximum counted coverage (Only relevant for plotting)
 
 		// Data dependent parameter
 		uintCovCount coverage_threshold_; // Minimium coverage to accept value from this position into error_rates_ and dominant_errors_
@@ -111,6 +112,28 @@ namespace reseq{
 		std::mutex clean_up_mutex_;
 		std::mutex reuse_mutex_;
 		std::mutex variant_loading_mutex_;
+
+		// Temporary variables
+		std::array<std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,5>,5>,4> tmp_dominant_errors_by_distance_;
+		std::array<std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,5>,5>,4> tmp_dominant_errors_by_gc_;
+		std::array<std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,5>,5>,4> tmp_gc_by_distance_de_;
+
+		std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,5>,4> tmp_error_rates_by_distance_;
+		std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,5>,4> tmp_error_rates_by_gc_;
+		std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,5>,4> tmp_gc_by_distance_er_;
+
+		std::vector<utilities::VectorAtomic<uintNucCount>> tmp_coverage_;
+		std::array<std::vector<utilities::VectorAtomic<uintNucCount>>, 2> tmp_coverage_stranded_;
+		std::array<std::vector<utilities::VectorAtomic<uintNucCount>>, 2> tmp_coverage_stranded_percent_;
+		std::array<std::vector<utilities::VectorAtomic<uintNucCount>>, 2> tmp_coverage_stranded_percent_min_cov_10_;
+		std::array<std::vector<utilities::VectorAtomic<uintNucCount>>, 2> tmp_coverage_stranded_percent_min_cov_20_;
+		std::vector<utilities::VectorAtomic<uintNucCount>> tmp_error_coverage_;
+		std::vector<utilities::VectorAtomic<uintNucCount>> tmp_error_coverage_percent_;
+		std::vector<utilities::VectorAtomic<uintNucCount>> tmp_error_coverage_percent_min_cov_10_;
+		std::vector<utilities::VectorAtomic<uintNucCount>> tmp_error_coverage_percent_min_cov_20_;
+		std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>> tmp_error_coverage_percent_stranded_;
+		std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>> tmp_error_coverage_percent_stranded_min_strand_cov_10_;
+		std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>> tmp_error_coverage_percent_stranded_min_strand_cov_20_;
 
 		// Collected variables for simulation
 		std::array<std::array<std::array<Vect<Vect<uintNucCount>>,5>,5>,4> dominant_errors_by_distance_; // dominant_errors_by_distance_[refBase][previousRefBase][domRefBaseLast5][(distanceToStartOfErrorRegion+9)/10][dominantError] = #refBases
@@ -143,6 +166,7 @@ namespace reseq{
 		CoverageBlock *first_block_;
 		std::atomic<CoverageBlock *> last_block_;
 		std::vector<CoverageBlock *> reusable_blocks_;
+		//std::array<std::pair<std::atomic_flag, CoverageBlock *>, kMaxKeptBlocks> reusable_blocks_;
 		intFragCountShift zero_coverage_region_; // We need the possibility for negative numbers as from the total zero_coverage_region_ we subtract excluded zero coverage regions at the beginning and end of read, which are not necessarily added before due to fixed block length that reaches past the last read in a reference sequence
 
 		std::vector<ErrorInfo> tmp_errors_forward_;
@@ -152,7 +176,10 @@ namespace reseq{
 		// Helper functions
 		void EvalRead(FullRecord *record, CoverageStats::CoverageBlock *coverage_block, const Reference &reference, QualityStats &qualities, ErrorStats &errors, uintQual phred_quality_offset);
 
-		void UpdateZeroCoverageRegion(intFragCountShift zero_coverage_length);
+		inline void CountEmptyEndOfSequence(const Reference &reference){
+			zero_coverage_region_ += reference.SequenceLength((*last_block_).sequence_id_) - (*last_block_).start_pos_ - (*last_block_).coverage_.size();
+		}
+		inline void UpdateZeroCoverageRegion(intFragCountShift zero_coverage_length);
 		void UpdateCoverageAtSinglePosition(CoveragePosition &coverage, seqan::Dna5 ref_base, bool is_variant_position);
 		
 		CoverageBlock *CreateBlock(uintRefSeqId seq_id, uintSeqLen start_pos);
@@ -272,22 +299,7 @@ namespace reseq{
 		}
 	
 		// Main functions
-		void Prepare(uintCovCount average_coverage, uintReadLen average_read_length){
-			tmp_errors_forward_.reserve(2*kBlockSize);
-			tmp_errors_reverse_.reserve(2*kBlockSize);
-			distance_to_start_of_error_region_forward_ = 0;
-
-			if(coverage_threshold_ > average_coverage/4 ){
-				if( 1 < average_coverage/4 ){
-					coverage_threshold_ = average_coverage/4; // If half the average coverage is lower than the threshold, so we do not just take the statistics from repeat regions (the coverage per strand is already half the total coverage, so in total we have a quarter)
-				}
-				else{
-					coverage_threshold_ = 1; // Do not set anything without having coverage
-				}
-			}
-			gc_range_ = average_read_length/2;
-			reset_distance_ = average_read_length;
-		}
+		void Prepare(uintCovCount average_coverage, uintReadLen average_read_length);
 
 		CoverageBlock *FindBlock(uintRefSeqId ref_seq_id, uintSeqLen ref_pos);
 		bool EnsureSpace(uintRefSeqId ref_seq_id, uintSeqLen start_pos, uintSeqLen end_pos, FullRecord *record, Reference &reference, uintReadLen minimum_sequence_length);

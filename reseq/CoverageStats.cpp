@@ -245,10 +245,10 @@ void CoverageStats::EvalRead( FullRecord *record, CoverageStats::CoverageBlock *
 	DeleteRecord( record, qualities );
 }
 
-void CoverageStats::UpdateZeroCoverageRegion(intFragCountShift zero_coverage_length){
-	coverage_[ 0 ] += zero_coverage_length;
+inline void CoverageStats::UpdateZeroCoverageRegion(intFragCountShift zero_coverage_length){
+	tmp_coverage_.at( 0 ) += zero_coverage_length;
 	for( int strand=2; strand--; ){
-		coverage_stranded_.at(strand)[0] += zero_coverage_length;
+		tmp_coverage_stranded_.at(strand).at(0) += zero_coverage_length;
 	}
 }
 
@@ -309,39 +309,39 @@ void CoverageStats::UpdateCoverageAtSinglePosition(CoveragePosition &coverage, D
 	auto error_sum = errors_forward + errors_reverse;
 
 	// Account for coverage and error_coverage at that position
-	++coverage_[ cov_sum ];
-	++coverage_stranded_.at(0)[ coverage_forward ];
-	++coverage_stranded_.at(1)[ coverage_reverse ];
+	++tmp_coverage_.at( min(cov_sum, kMaxCoverage) );
+	++tmp_coverage_stranded_.at(0).at( min(coverage_forward, kMaxCoverage) );
+	++tmp_coverage_stranded_.at(1).at( min(coverage_reverse, kMaxCoverage) );
 	if(cov_sum){
-		++coverage_stranded_percent_.at(0)[ Percent(coverage_forward, cov_sum) ];
-		++coverage_stranded_percent_.at(1)[ Percent(coverage_reverse, cov_sum) ];
+		++tmp_coverage_stranded_percent_.at(0).at( Percent(coverage_forward, cov_sum) );
+		++tmp_coverage_stranded_percent_.at(1).at( Percent(coverage_reverse, cov_sum) );
 
 		bool errors_valid = !is_variant_position && !IsN(ref_base);
 		if(errors_valid){
-			++error_coverage_[ error_sum ];
-			++error_coverage_percent_[ Percent(error_sum, cov_sum) ];
+			++tmp_error_coverage_.at( min(cov_sum, error_sum) );
+			++tmp_error_coverage_percent_.at( Percent(error_sum, cov_sum) );
 			if(coverage_forward && coverage_reverse){
-				++error_coverage_percent_stranded_[ Percent(errors_forward, coverage_forward) ][ Percent(errors_reverse, coverage_reverse) ];
+				++tmp_error_coverage_percent_stranded_.at( Percent(errors_forward, coverage_forward) ).at( Percent(errors_reverse, coverage_reverse) );
 			}
 		}
 
 		if( 10 <= cov_sum ){
-			++coverage_stranded_percent_min_cov_10_.at(0)[ Percent(coverage_forward, cov_sum) ];
-			++coverage_stranded_percent_min_cov_10_.at(1)[ Percent(coverage_reverse, cov_sum) ];
+			++tmp_coverage_stranded_percent_min_cov_10_.at(0).at( Percent(coverage_forward, cov_sum) );
+			++tmp_coverage_stranded_percent_min_cov_10_.at(1).at( Percent(coverage_reverse, cov_sum) );
 			if(errors_valid){
-				++error_coverage_percent_min_cov_10_[ Percent(error_sum, cov_sum) ];
+				++tmp_error_coverage_percent_min_cov_10_.at( Percent(error_sum, cov_sum) );
 			}
 
 			if( 20 <= cov_sum ){
-				++coverage_stranded_percent_min_cov_20_.at(0)[ Percent(coverage_forward, cov_sum) ];
-				++coverage_stranded_percent_min_cov_20_.at(1)[ Percent(coverage_reverse, cov_sum) ];
+				++tmp_coverage_stranded_percent_min_cov_20_.at(0).at( Percent(coverage_forward, cov_sum) );
+				++tmp_coverage_stranded_percent_min_cov_20_.at(1).at( Percent(coverage_reverse, cov_sum) );
 				if(errors_valid){
-					++error_coverage_percent_min_cov_20_[ Percent(error_sum, cov_sum) ];
+					++tmp_error_coverage_percent_min_cov_20_.at( Percent(error_sum, cov_sum) );
 
 					if(10 <=coverage_forward && 10 <= coverage_reverse){
-						++error_coverage_percent_stranded_min_strand_cov_10_[ Percent(errors_forward, coverage_forward) ][ Percent(errors_reverse, coverage_reverse) ];
+						++tmp_error_coverage_percent_stranded_min_strand_cov_10_.at( Percent(errors_forward, coverage_forward) ).at( Percent(errors_reverse, coverage_reverse) );
 						if(20 <=coverage_forward && 20 <= coverage_reverse){
-							++error_coverage_percent_stranded_min_strand_cov_20_[ Percent(errors_forward, coverage_forward) ][ Percent(errors_reverse, coverage_reverse) ];
+							++tmp_error_coverage_percent_stranded_min_strand_cov_20_.at( Percent(errors_forward, coverage_forward) ).at( Percent(errors_reverse, coverage_reverse) );
 						}
 					}
 				}
@@ -382,14 +382,13 @@ CoverageStats::CoverageBlock *CoverageStats::CreateBlock(uintRefSeqId seq_id, ui
 		else{
 			reuse_mutex_.unlock();
 			new_block = new CoverageBlock(seq_id, start_pos, last_block_);
-			new_block->reads_.reserve( (*last_block_).reads_.capacity() );
 		}
 	}
 	else{
 		new_block = new CoverageBlock(seq_id, start_pos, last_block_);
-		new_block->reads_.reserve( (*last_block_).reads_.capacity() );
 	}
 
+	new_block->reads_.reserve( (*last_block_).reads_.capacity() );
 	new_block->coverage_.resize( kBlockSize );
 	(*last_block_).next_block_ = new_block;
 
@@ -423,13 +422,13 @@ void CoverageStats::CountBlock(CoverageBlock *block, const Reference &reference)
 		// Enter values
 		bool valid = tmp_errors_forward_.at(pos).coverage_sufficient_ && !IsN(ref_base) && !IsVariantPosition( cur_var, block->sequence_id_, block->start_pos_ + pos, reference, false );
 		if(valid){
-			++dominant_errors_by_distance_.at(ref_base).at(prev_ref_base).at(dom_ref_base5)[TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_forward_)][tmp_errors_forward_.at(pos).base_];
-			++dominant_errors_by_gc_.at(ref_base).at(prev_ref_base).at(dom_ref_base5)[gc_percent][tmp_errors_forward_.at(pos).base_];
-			++gc_by_distance_de_.at(ref_base).at(prev_ref_base).at(dom_ref_base5)[TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_forward_)][gc_percent];
+			++tmp_dominant_errors_by_distance_.at(ref_base).at(prev_ref_base).at(dom_ref_base5).at(TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_forward_)).at(tmp_errors_forward_.at(pos).base_);
+			++tmp_dominant_errors_by_gc_.at(ref_base).at(prev_ref_base).at(dom_ref_base5).at(gc_percent).at(tmp_errors_forward_.at(pos).base_);
+			++tmp_gc_by_distance_de_.at(ref_base).at(prev_ref_base).at(dom_ref_base5).at(TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_forward_)).at(gc_percent);
 
-			++error_rates_by_distance_.at(ref_base).at(tmp_errors_forward_.at(pos).base_)[TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_forward_)][tmp_errors_forward_.at(pos).rate_];
-			++error_rates_by_gc_.at(ref_base).at(tmp_errors_forward_.at(pos).base_)[gc_percent][tmp_errors_forward_.at(pos).rate_];
-			++gc_by_distance_er_.at(ref_base).at(tmp_errors_forward_.at(pos).base_)[TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_forward_)][gc_percent];
+			++tmp_error_rates_by_distance_.at(ref_base).at(tmp_errors_forward_.at(pos).base_).at(TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_forward_)).at(tmp_errors_forward_.at(pos).rate_);
+			++tmp_error_rates_by_gc_.at(ref_base).at(tmp_errors_forward_.at(pos).base_).at(gc_percent).at(tmp_errors_forward_.at(pos).rate_);
+			++tmp_gc_by_distance_er_.at(ref_base).at(tmp_errors_forward_.at(pos).base_).at(TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_forward_)).at(gc_percent);
 		}
 
 		// Set values for next iteration
@@ -462,7 +461,7 @@ void CoverageStats::CountBlock(CoverageBlock *block, const Reference &reference)
 		}
 		else{
 			distance_to_start_of_error_region_forward_ += (*(block->next_block_)).start_pos_ - block->start_pos_ - block->coverage_.size(); // Take the uncovered region between blocks into account
-			if( reset_distance_ < distance_to_start_of_error_region_forward_ ){
+			if( reset_distance_ <= distance_to_start_of_error_region_forward_ ){
 				// Error region ends
 				distance_to_start_of_error_region_forward_ = 0;
 			}
@@ -507,13 +506,13 @@ void CoverageStats::CountBlock(CoverageBlock *block, const Reference &reference)
 			// Enter values
 			bool valid = tmp_errors_reverse_.at(pos).coverage_sufficient_ && !IsN(ref_base) && !IsVariantPosition( cur_var, block->sequence_id_, block->start_pos_ + block->coverage_.size() - tmp_errors_reverse_.size() + pos, reference, true );
 			if(valid){
-				++dominant_errors_by_distance_.at(ref_base).at(prev_ref_base).at(dom_ref_base5)[TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_reverse)][tmp_errors_reverse_.at(pos).base_];
-				++dominant_errors_by_gc_.at(ref_base).at(prev_ref_base).at(dom_ref_base5)[gc_percent][tmp_errors_reverse_.at(pos).base_];
-				++gc_by_distance_de_.at(ref_base).at(prev_ref_base).at(dom_ref_base5)[TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_reverse)][gc_percent];
+				++tmp_dominant_errors_by_distance_.at(ref_base).at(prev_ref_base).at(dom_ref_base5).at(TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_reverse)).at(tmp_errors_reverse_.at(pos).base_);
+				++tmp_dominant_errors_by_gc_.at(ref_base).at(prev_ref_base).at(dom_ref_base5).at(gc_percent).at(tmp_errors_reverse_.at(pos).base_);
+				++tmp_gc_by_distance_de_.at(ref_base).at(prev_ref_base).at(dom_ref_base5).at(TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_reverse)).at(gc_percent);
 
-				++error_rates_by_distance_.at(ref_base).at(tmp_errors_reverse_.at(pos).base_)[TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_reverse)][tmp_errors_reverse_.at(pos).rate_];
-				++error_rates_by_gc_.at(ref_base).at(tmp_errors_reverse_.at(pos).base_)[gc_percent][tmp_errors_reverse_.at(pos).rate_];
-				++gc_by_distance_er_.at(ref_base).at(tmp_errors_reverse_.at(pos).base_)[TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_reverse)][gc_percent];
+				++tmp_error_rates_by_distance_.at(ref_base).at(tmp_errors_reverse_.at(pos).base_).at(TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_reverse)).at(tmp_errors_reverse_.at(pos).rate_);
+				++tmp_error_rates_by_gc_.at(ref_base).at(tmp_errors_reverse_.at(pos).base_).at(gc_percent).at(tmp_errors_reverse_.at(pos).rate_);
+				++tmp_gc_by_distance_er_.at(ref_base).at(tmp_errors_reverse_.at(pos).base_).at(TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_reverse)).at(gc_percent);
 			}
 
 			// Set values for next iteration
@@ -543,8 +542,60 @@ void CoverageStats::CountBlock(CoverageBlock *block, const Reference &reference)
 
 CoverageStats::CoverageBlock *CoverageStats::RemoveBlock(CoverageBlock *block){
 	reusable_blocks_.push_back(block);
+
 	return block->next_block_;
 }
+
+void CoverageStats::Prepare(uintCovCount average_coverage, uintReadLen average_read_length){
+	reusable_blocks_.reserve(100);
+	tmp_errors_forward_.reserve(2*kBlockSize);
+	tmp_errors_reverse_.reserve(2*kBlockSize);
+	distance_to_start_of_error_region_forward_ = 0;
+
+	if(coverage_threshold_ > average_coverage/4 ){
+		if( 1 < average_coverage/4 ){
+			coverage_threshold_ = average_coverage/4; // If half the average coverage is lower than the threshold, so we do not just take the statistics from repeat regions (the coverage per strand is already half the total coverage, so in total we have a quarter)
+		}
+		else{
+			coverage_threshold_ = 1; // Do not set anything without having coverage
+		}
+	}
+	gc_range_ = average_read_length/2;
+	reset_distance_ = average_read_length;
+
+	auto max_error_dist = TransformDistanceToStartOfErrorRegion(reset_distance_-1)+1;
+	for( auto ref_base=4; ref_base--; ){
+		for( auto prev_ref_base=5; prev_ref_base--; ){
+			for( auto dom_base=5; dom_base--; ){
+				SetDimensions( tmp_dominant_errors_by_distance_.at(ref_base).at(prev_ref_base).at(dom_base), max_error_dist, 5 );
+				SetDimensions( tmp_dominant_errors_by_gc_.at(ref_base).at(prev_ref_base).at(dom_base), 101, 5 );
+				SetDimensions( tmp_gc_by_distance_de_.at(ref_base).at(prev_ref_base).at(dom_base), max_error_dist, 101 );
+			}
+		}
+
+		for( auto dom_error=5; dom_error--; ){
+			SetDimensions( tmp_error_rates_by_distance_.at(ref_base).at(dom_error), max_error_dist, 101 );
+			SetDimensions( tmp_error_rates_by_gc_.at(ref_base).at(dom_error), 101, 101 );
+			SetDimensions( tmp_gc_by_distance_er_.at(ref_base).at(dom_error), max_error_dist, 101 );
+		}
+	}
+
+	tmp_coverage_.resize(kMaxCoverage);
+	for( auto strand=2; strand--; ){
+		tmp_coverage_stranded_.at(strand).resize(kMaxCoverage);
+		tmp_coverage_stranded_percent_.at(strand).resize(101);
+		tmp_coverage_stranded_percent_min_cov_10_.at(strand).resize(101);
+		tmp_coverage_stranded_percent_min_cov_20_.at(strand).resize(101);
+	}
+	tmp_error_coverage_.resize(kMaxCoverage);
+	tmp_error_coverage_percent_.resize(101);
+	tmp_error_coverage_percent_min_cov_10_.resize(101);
+	tmp_error_coverage_percent_min_cov_20_.resize(101);
+	SetDimensions( tmp_error_coverage_percent_stranded_, 101, 101 );
+	SetDimensions( tmp_error_coverage_percent_stranded_min_strand_cov_10_, 101, 101 );
+	SetDimensions( tmp_error_coverage_percent_stranded_min_strand_cov_20_, 101, 101 );
+}
+
 
 CoverageStats::CoverageBlock *CoverageStats::FindBlock(uintRefSeqId ref_seq_id, uintSeqLen ref_pos){
 	CoverageBlock *block = last_block_;
@@ -578,7 +629,7 @@ bool CoverageStats::EnsureSpace(uintRefSeqId ref_seq_id, uintSeqLen start_pos, u
 		// As reads are ordered by position, we can jump over not covered regions
 		if((*last_block_).sequence_id_ < ref_seq_id){
 			// Account for the not covered region at the end of the last reference sequence
-			zero_coverage_region_ += reference.SequenceLength((*last_block_).sequence_id_) - (*last_block_).start_pos_ - (*last_block_).coverage_.size();
+			CountEmptyEndOfSequence(reference);
 
 			// Account for the not covered reference sequences in between
 			for( auto seq_id = ref_seq_id; --seq_id > (*last_block_).sequence_id_ ; ){
@@ -780,7 +831,7 @@ bool CoverageStats::Finalize(const Reference &reference, QualityStats &qualities
 	if(first_block_){
 		if( last_block_ ){
 			// Update not covered regions after last block
-			zero_coverage_region_ += reference.SequenceLength((*last_block_).sequence_id_)-(*last_block_).start_pos_-(*last_block_).coverage_.size();
+			CountEmptyEndOfSequence(reference);
 
 			for( auto seq_id = (*last_block_).sequence_id_+1; seq_id < reference.NumberSequences(); ++seq_id ){
 				if( reference.SequenceLength(seq_id) > minimum_sequence_length ){
@@ -829,6 +880,37 @@ bool CoverageStats::Finalize(const Reference &reference, QualityStats &qualities
 	UpdateZeroCoverageRegion(zero_coverage_region_-2*Reference::kMinDistToRefSeqEnds*reference.NumberSequences()); // Subtract excluded region due to minimum distance to reference sequence ends for accepting fragments
 	tmp_errors_forward_.shrink_to_fit();
 	tmp_errors_reverse_.shrink_to_fit();
+
+	for( auto ref_base=4; ref_base--; ){
+		for( auto prev_ref_base=5; prev_ref_base--; ){
+			for( auto dom_base=5; dom_base--; ){
+				dominant_errors_by_distance_.at(ref_base).at(prev_ref_base).at(dom_base).Acquire( tmp_dominant_errors_by_distance_.at(ref_base).at(prev_ref_base).at(dom_base) );
+				dominant_errors_by_gc_.at(ref_base).at(prev_ref_base).at(dom_base).Acquire( tmp_dominant_errors_by_gc_.at(ref_base).at(prev_ref_base).at(dom_base) );
+				gc_by_distance_de_.at(ref_base).at(prev_ref_base).at(dom_base).Acquire( tmp_gc_by_distance_de_.at(ref_base).at(prev_ref_base).at(dom_base) );
+			}
+		}
+
+		for( auto dom_error=5; dom_error--; ){
+			error_rates_by_distance_.at(ref_base).at(dom_error).Acquire( tmp_error_rates_by_distance_.at(ref_base).at(dom_error) );
+			error_rates_by_gc_.at(ref_base).at(dom_error).Acquire( tmp_error_rates_by_gc_.at(ref_base).at(dom_error) );
+			gc_by_distance_er_.at(ref_base).at(dom_error).Acquire( tmp_gc_by_distance_er_.at(ref_base).at(dom_error) );
+		}
+	}
+
+	coverage_.Acquire( tmp_coverage_ );
+	for( auto strand=2; strand--; ){
+		coverage_stranded_.at(strand).Acquire( tmp_coverage_stranded_.at(strand) );
+		coverage_stranded_percent_.at(strand).Acquire( tmp_coverage_stranded_percent_.at(strand) );
+		coverage_stranded_percent_min_cov_10_.at(strand).Acquire( tmp_coverage_stranded_percent_min_cov_10_.at(strand) );
+		coverage_stranded_percent_min_cov_20_.at(strand).Acquire( tmp_coverage_stranded_percent_min_cov_20_.at(strand) );
+	}
+	error_coverage_.Acquire( tmp_error_coverage_ );
+	error_coverage_percent_.Acquire( tmp_error_coverage_percent_ );
+	error_coverage_percent_min_cov_10_.Acquire( tmp_error_coverage_percent_min_cov_10_ );
+	error_coverage_percent_min_cov_20_.Acquire( tmp_error_coverage_percent_min_cov_20_ );
+	error_coverage_percent_stranded_.Acquire( tmp_error_coverage_percent_stranded_ );
+	error_coverage_percent_stranded_min_strand_cov_10_.Acquire( tmp_error_coverage_percent_stranded_min_strand_cov_10_ );
+	error_coverage_percent_stranded_min_strand_cov_20_.Acquire( tmp_error_coverage_percent_stranded_min_strand_cov_20_ );
 
 	return true;
 }

@@ -40,9 +40,16 @@ def getMinMaxX(hists,zero_padding=True, cov_plot=False):
     max_x = 0
     
     if cov_plot:
-        # Use only the first data (real data not simulated) for x values 
+        # Use only the first data (real data not simulated) for x values
         min_x = hists[0][0]
         max_x = hists[0][0]+len(hists[0][1])
+        
+        # Cut at 5 times the mean
+        val = 0
+        for i in range(len(hists[0][1])):
+            val += i*hists[0][1][i]
+        max_x = min(max_x, min_x+ceil(5*val/sum(hists[0][1])) )
+
     else:
         for hist in hists:
             min_x = min( min_x, hist[0] )

@@ -1,5 +1,6 @@
 #include "utilitiesTest.h"
 using reseq::utilitiesTest;
+using reseq::utilities::VectorAtomic;
 
 #include <stdint.h>
 
@@ -18,6 +19,12 @@ void utilitiesTest::Register(){
 
 namespace reseq{
 	namespace utilities{
+		TEST(utilitiesTest, VectorAtomic){
+			VectorAtomic<unsigned int> test;
+			EXPECT_EQ(100, test += 100);
+			EXPECT_EQ(80, test += -20);
+		}
+
 		TEST(utilitiesTest, Divide){
 			EXPECT_EQ(0, Divide(0, 2)) << "'Divide' function from utilities does not return proper zero\n";
 			EXPECT_EQ(1, Divide(17438564308265206, 17438564308265206)) << "'Divide' function from utilities does not return proper 1\n";

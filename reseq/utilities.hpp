@@ -123,6 +123,10 @@ namespace reseq{
 				return value_++;
 			}
 
+			template<typename U> inline T operator+=(U rhs){
+				return value_ += rhs;
+			}
+
 			inline VectorAtomic<T> &operator--(){
 				--value_;
 				return *this;
