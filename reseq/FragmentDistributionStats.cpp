@@ -64,6 +64,7 @@ using seqan::Dna5;
 using reseq::utilities::Complement;
 using reseq::utilities::at;
 using reseq::utilities::Divide;
+using reseq::utilities::DivideAndCeil;
 using reseq::utilities::IsN;
 using reseq::utilities::Percent;
 using reseq::utilities::SetToMax;
@@ -243,14 +244,14 @@ void BiasCalculationVectors::UnnormSurroundingGradients(vector<double> &grad, co
 			uintBaseCall valid_sur = 0;
 			for(auto sur = from; sur < to; ++sur){
 				if(sur_count_.at(sur)){
-					grad_sum += sur_bias_.at(sur) * grad.at(sur);
+					grad_sum += sur_bias_.at(sur) * sur_grad_.at(sur);
 					bias_sum += x.at(sur);
 					++valid_sur;
 				}
 			}
 
 			for(auto sur = from; sur < to; ++sur){
-				grad.at(sur) = (valid_sur*grad.at(sur)-grad_sum)/bias_sum;
+				grad.at(sur) = (valid_sur*sur_grad_.at(sur)-grad_sum)/bias_sum;
 			}
 		}
 	}
@@ -289,10 +290,9 @@ void BiasCalculationVectors::UnnormSurroundingGradients(vector<double> &grad, co
 double BiasCalculationVectors::SurBiasAtSite(const pair<double, double>& bias){
 	if(kSurMult){
 		return static_cast<double>(total_counts_) / total_sites_ * bias.first * bias.second;
-
 	}
 	else{
-		return static_cast<double>(total_counts_) / total_sites_ * InvLogit2(bias.first) * InvLogit2(bias.second) + kBaseValue;
+		return static_cast<double>(total_counts_) / total_sites_ * bias.first * bias.second + kBaseValue;
 	}
 }
 
@@ -316,6 +316,11 @@ pair<double, double> BiasCalculationVectors::SurBiasAtSiteSplit(const FragmentSi
 		}
 	}
 
+	if(!kSurMult){
+		bias.first = InvLogit2(bias.first);
+		bias.second = InvLogit2(bias.second);
+	}
+
 	return bias;
 }
 
@@ -329,14 +334,20 @@ void BiasCalculationVectors::DefineStartingKnots(){
 	uintFragCount sum(0);
 	uintPercent k(0);
 	for(uintPercent gc=0; gc < gc_sites_.size(); ++gc){
-		if( gc_sites_.at(gc) && gc_count_.at(gc) ){
+		if( gc_count_.at(gc) ){
 			// Get an equal spacing of sites (First site where the cumulated sum is at least the k-th quartile)
 			sum += gc_sites_.at(gc);
 			gc_knots_.at(k) = gc;
 			if(sum >= Divide(k*total_sites_,static_cast<uintFragCount>(kGCSplineDf)-1)){
-				++k;
+				if( ++k < gc_knots_.size() ){
+					gc_knots_.at(k) = 102; // Set it invalid
+				}
 			}
 		}
+	}
+
+	if( k < gc_knots_.size() && 102 > gc_knots_.at(k)){
+		++k; // gc_knots_.at(k) is the last gc with a count, so don't overwrite that one in the filling procedure coming next
 	}
 
 	// In case there are not enough gc bins with counts
@@ -720,7 +731,7 @@ double BiasCalculationVectors::LogLikelihoodPoisson(const vector<double> &x, vec
 	if( grad.size() ){
 		if(BiasCalculationVectors::kSurMult){
 			for(uintNumFits sur=calc.sur_count_.size(); sur--;){
-				grad.at(sur) = calc.sur_count_.at(sur)/calc.sur_bias_.at(sur);
+				calc.sur_grad_.at(sur) = calc.sur_count_.at(sur)/calc.sur_bias_.at(sur);
 			}
 		}
 		else{
@@ -744,8 +755,8 @@ double BiasCalculationVectors::LogLikelihoodPoisson(const vector<double> &x, vec
 		calc.gc_bias_sum_.at(site.gc_).second += bias; // Multiplication with 2 later after sum is complete
 
 		if( grad.size() ){
-			auto cur_grad_start = InvLogit2(-bias_split.first)/2;
-			auto cur_grad_end = InvLogit2(-bias_split.second)/2;
+			auto cur_grad_start = 1-bias_split.first/2;
+			auto cur_grad_end = 1-bias_split.second/2;
 
 			for(uintSurPos sur_pos = Surrounding::Length(); sur_pos--; ){
 				auto i_start = 4*sur_pos + site.start_surrounding_.BaseAt(sur_pos);
@@ -777,7 +788,7 @@ double BiasCalculationVectors::LogLikelihoodPoisson(const vector<double> &x, vec
 	for( uintPercent gc=calc.gc_count_.size(); gc--; ){
 		if(calc.gc_count_.at(gc)){
 			calc.gc_bias_.at(gc) = calc.gc_count_.at(gc)/calc.gc_bias_sum_.at(gc).second;
-			loglike += calc.gc_bias_sum_.at(gc).first + calc.gc_count_.at(gc)*log(calc.gc_bias_.at(gc)) - calc.gc_bias_.at(gc)*calc.gc_bias_sum_.at(gc).second;
+			loglike += calc.gc_bias_sum_.at(gc).first + calc.gc_count_.at(gc)*log(calc.gc_bias_.at(gc)) - calc.gc_count_.at(gc);
 		}
 		else{
 			calc.gc_bias_.at(gc) = 0;
@@ -789,12 +800,7 @@ double BiasCalculationVectors::LogLikelihoodPoisson(const vector<double> &x, vec
 		for( uintPercent gc=calc.gc_count_.size(); gc--; ){
 			for(auto sur=calc.sur_bias_.size(); sur--;){
 				calc.grad_gc_bias_sum_.at(gc).at(sur).first *= 2; // Multiplication with 2 here to save two multiplication per site
-				if(BiasCalculationVectors::kSurMult){
-					grad.at(sur) -= calc.gc_bias_.at(gc) * calc.grad_gc_bias_sum_.at(gc).at(sur).first;
-				}
-				else{
-					calc.sur_grad_.at(sur) -= calc.gc_bias_.at(gc) * calc.grad_gc_bias_sum_.at(gc).at(sur).first;
-				}
+				calc.sur_grad_.at(sur) -= calc.gc_bias_.at(gc) * calc.grad_gc_bias_sum_.at(gc).at(sur).first;
 			}
 		}
 
@@ -854,13 +860,13 @@ void BiasCalculationVectors::LogLikelihoodNbinomSite(double &loglike, double &a,
 	gc_bias_grad_.at(site.gc_) += grad_term1;
 
 	if(grad.size()){
-		auto cur_grad_start = InvLogit2(-bias_split.first)/2;
-		auto cur_grad_end = InvLogit2(-bias_split.second)/2;
+		auto cur_grad_start = 1-bias_split.first/2;
+		auto cur_grad_end = 1-bias_split.second/2;
 
 		for(uintSurPos sur_pos = Surrounding::Length(); sur_pos--; ){
 			if(kSurMult){
-				grad.at(4*sur_pos + site.start_surrounding_.BaseAt(sur_pos)) += grad_term1; // Division by bias later
-				grad.at(4*sur_pos + site.end_surrounding_.BaseAt(sur_pos)) += grad_term1;
+				sur_grad_.at(4*sur_pos + site.start_surrounding_.BaseAt(sur_pos)) += grad_term1; // Division by bias later
+				sur_grad_.at(4*sur_pos + site.end_surrounding_.BaseAt(sur_pos)) += grad_term1;
 			}
 			else{
 				sur_grad_.at(4*sur_pos + site.start_surrounding_.BaseAt(sur_pos)) += grad_term1*cur_grad_start;
@@ -896,9 +902,7 @@ double BiasCalculationVectors::LogLikelihoodNbinom(const vector<double> &x, vect
 			grad.at(k) = 0.0;
 		}
 
-		if(!BiasCalculationVectors::kSurMult){
-			calc.sur_grad_.fill(0.0);
-		}
+		calc.sur_grad_.fill(0.0);
 	}
 
 	// Get sums over all sites needed for calculation
@@ -914,7 +918,7 @@ double BiasCalculationVectors::LogLikelihoodNbinom(const vector<double> &x, vect
 		// Calculate gradient of unnormalized surroundings from normalized surroundings
 		if(BiasCalculationVectors::kSurMult){
 			for(auto sur=calc.sur_count_.size(); sur--;){
-				grad.at(sur) /= calc.sur_bias_.at(sur); // Division by bias here instead of in the site loop
+				calc.sur_grad_.at(sur) /= calc.sur_bias_.at(sur); // Division by bias here instead of in the site loop
 			}
 		}
 		calc.UnnormSurroundingGradients(grad, x);
@@ -1317,10 +1321,10 @@ void FragmentDistributionStats::CountDuplicates(FragmentDuplicationStats &duplic
 void FragmentDistributionStats::AddFragmentsToSites(vector<FragmentSite> &sites, const vector<uintRefLenCalc> &fragment_positions, uintSeqLen min_dist_to_ref_seq_ends){
 	for(auto pos : fragment_positions){
 		if(pos%2){
-			++sites.at(pos/2-min_dist_to_ref_seq_ends).count_forward_;
+			++sites.at(pos/2-min_dist_to_ref_seq_ends).count_reverse_;
 		}
 		else{
-			++sites.at(pos/2-min_dist_to_ref_seq_ends).count_reverse_;
+			++sites.at(pos/2-min_dist_to_ref_seq_ends).count_forward_;
 		}
 	}
 }
@@ -1698,7 +1702,7 @@ reseq::uintRefSeqBin FragmentDistributionStats::CreateRefBins( const Reference &
 	uintRefSeqBin start_id = 0;
 	ref_seq_start_bin_.at(0) = 0;
 	for(uintRefSeqId ref_seq=1; ref_seq < ref_seq_start_bin_.size(); ++ref_seq){
-		start_id += ref.SequenceLength(ref_seq-1)/max_ref_seq_bin_length_ + 1;
+		start_id += DivideAndCeil(ref.SequenceLength(ref_seq-1), max_ref_seq_bin_length_);
 		ref_seq_start_bin_.at(ref_seq) = start_id;
 	}
 

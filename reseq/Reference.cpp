@@ -55,6 +55,7 @@ using reseq::SurroundingBias;
 //include "utilities.hpp"
 using reseq::utilities::ComplementedConstDna5String;
 using reseq::utilities::at;
+using reseq::utilities::DivideAndCeil;
 using reseq::utilities::IsN;
 using reseq::utilities::Percent;
 using reseq::utilities::ReverseComplementorDna;
@@ -563,7 +564,7 @@ reseq::uintRefSeqBin Reference::NumRefSeqBinsInNxx(const std::vector<bool> &ref_
 	uintRefSeqBin num_bins = 0;
 	for(uintRefSeqId ref_id=0; ref_id<ref_seqs.size(); ++ref_id){
 		if(ref_seqs.at(ref_id)){
-			num_bins += SequenceLength(ref_id) / max_ref_seq_bin_length + 1;
+			num_bins += DivideAndCeil(SequenceLength(ref_id),  max_ref_seq_bin_length);
 		}
 	}
 	return num_bins;
@@ -652,7 +653,7 @@ void Reference::GetFragmentSites( vector<FragmentSite> &sites, uintRefSeqId ref_
 
 	const Dna5String &ref_seq(ReferenceSequence(ref_seq_id));
 	auto start_pos = max(kMinDistToRefSeqEnds, start);
-	auto end_pos = min(static_cast<uintSeqLen>(length(ref_seq))-fragment_length-kMinDistToRefSeqEnds, end);
+	auto end_pos = min(static_cast<uintSeqLen>(length(ref_seq))-fragment_length-kMinDistToRefSeqEnds, end-1);
 
 	uintSeqLen n_count(0);
 	uintSeqLen gc = GCContentAbsolut(n_count, ref_seq_id, start_pos, start_pos+fragment_length);

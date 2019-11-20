@@ -236,13 +236,34 @@ void ErrorStatsTest::TestVariants(const ErrorStats &test){
 	EXPECT_EQ( SumVect(test.called_bases_by_error_num_per_tile_), SumVect(test.called_bases_by_base_quality_per_previous_called_base_) );
 }
 
-void ErrorStatsTest::TestAdapters(const ErrorStats &test){
+void ErrorStatsTest::TestAdapters(const ErrorStats &test, const char *context, bool bwa){
+	uintTileId tile_id;
+	if(bwa){
+		tile_id = 5; // Different sorting of reads in bam file
+	}
+	else{
+		tile_id = 4;
+	}
+
 	// The other read pair that would count is in another tile and therefore is ignored by requiring correct segment-reverseness pairing
 	// echo "count seg ref dom tile nerr pos"; cat <(samtools view -q 10 -f 81 -F 32 ecoli-SRR490124-adapter.bam | awk '{print "@" substr($18,6,length($18)-5), $2; print substr($10,$8-$4+1,$4+length($10)-$8); print "+"; print substr($11,$8-$4+1,$4+length($11)-$8)}' | seqtk seq -r | awk '(1==NR%4){md=substr($1,2,length($0)-1); flag=$2}(2==NR%4){seq=$0}(0==NR%4){printf("%i ", flag);num=0;mult=1;for(i=length(md);0<i;i-=1){b=substr(md,i,1);if(b ~ /^[0-9]/){num+=b*mult;mult*=10}else{base=N;if("A"==b){base="T"}; if("C"==b){base="G"}; if("G"==b){base="C"}; if("T"==b){base="A"}; printf("%i%s", num, base); num=0; mult=1}}; print num, seq, $0}') <(samtools view -q 10 -f 161 -F 16 ecoli-SRR490124-adapter.bam | awk '{print $2, substr($18,6,length($18)-5), substr($10,1,$8+length($10)-$4), substr($11,1,$8+length($11)-$4)}' ) | awk 'BEGIN{for(n=0;n<256;n++)ord[sprintf("%c",n)]=n}{pos=0; num=0; nerr=0; for(i=1;i<=length($2);i+=1){b=substr($2,i,1);if(b ~ /^[0-9]/){num=num*10+b}else{while(0 <= num && pos < length($3)){pos += 1; num -= 1; if(0>num){ref=b}else{ref=substr($3,pos,1)}; if(0>num){dom=substr($3,pos,1)}else{dom="N"}; print int($1%256/128), ref, dom, 4, nerr, pos-1}; num=0; nerr+=1}}; for(pos+=1;pos<=length($3);pos+=1){print int($1%256/128), substr($3,pos,1), "N", 4, nerr, pos-1}}' | sort | uniq -c | sort -k2,2n -k3,4 -k6,6n -k7,7n
-	EXPECT_EQ(2, test.error_num_by_position_per_tile_.at(0).at(3).at(4)[4].to() );
-	EXPECT_EQ(81, test.error_num_by_position_per_tile_.at(0).at(3).at(4)[4][1].to() );
-	EXPECT_EQ(1, test.error_num_by_position_per_tile_.at(1).at(2).at(4)[4].to() );
-	EXPECT_EQ(81, test.error_num_by_position_per_tile_.at(1).at(2).at(4)[4][0].to() );
+	EXPECT_EQ(2, test.error_num_by_position_per_tile_.at(0).at(3).at(4)[tile_id].to() ) << "for " << context;
+	EXPECT_EQ(81, test.error_num_by_position_per_tile_.at(0).at(3).at(4)[tile_id][1].to() ) << "for " << context;
+	EXPECT_EQ(1, test.error_num_by_position_per_tile_.at(1).at(2).at(4)[tile_id].to() ) << "for " << context;
+	EXPECT_EQ(81, test.error_num_by_position_per_tile_.at(1).at(2).at(4)[tile_id][0].to() ) << "for " << context;
 
-	EXPECT_EQ( SumVect(test.called_bases_by_error_num_per_tile_), SumVect(test.called_bases_by_base_quality_per_previous_called_base_) ) << "Adapter test bases counted in DataStats and CoverageStats not identical\n";
+	EXPECT_EQ( SumVect(test.called_bases_by_error_num_per_tile_), SumVect(test.called_bases_by_base_quality_per_previous_called_base_) ) << "Adapter test bases counted in DataStats and CoverageStats not identical for " << context;
+
+	// No InDels should be detected
+	for( uintBaseCall call = 6; call--; ){
+		if(4 == call){
+			// We don't have N's in this testset
+			EXPECT_EQ(0, test.indel_by_indel_pos_.at(0).at(call).to()) << " Call " << call << " for " << context;
+		}
+		else{
+			EXPECT_EQ(1, test.indel_by_indel_pos_.at(0).at(call).to()) << " Call " << call << " for " << context;
+			EXPECT_EQ(1, test.indel_by_indel_pos_.at(0).at(call)[0].to()) << " Call " << call << " for " << context;
+		}
+		EXPECT_EQ(0, test.indel_by_indel_pos_.at(1).at(call).size()) << " Call " << call << " for " << context;
+	}
 }

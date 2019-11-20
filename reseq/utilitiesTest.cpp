@@ -30,6 +30,10 @@ namespace reseq{
 			EXPECT_EQ(1, Divide(17438564308265206, 17438564308265206)) << "'Divide' function from utilities does not return proper 1\n";
 			EXPECT_EQ(11, Divide(73500, 7000)) << "'Divide' function from utilities does not round up properly\n";
 			EXPECT_EQ(10, Divide(73400, 7000)) << "'Divide' function from utilities does not round down properly\n";
+
+			EXPECT_EQ(0, DivideAndCeil(0, 2));
+			EXPECT_EQ(1, DivideAndCeil(17438564308265206, 17438564308265206));
+			EXPECT_EQ(11, DivideAndCeil(70001, 7000));
 		}
 
 		TEST(utilitiesTest, HasN){

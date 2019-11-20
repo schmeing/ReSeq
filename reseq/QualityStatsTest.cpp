@@ -593,22 +593,36 @@ void QualityStatsTest::TestCoverage(const QualityStats &test){
 	EXPECT_EQ(1, test.base_quality_stats_per_tile_reference_.at(1).at(2)[0][2].size()) << "base_quality_stats_per_tile_reference_[1][3][0][2] not correctly shrunken in coverage test\n";
 }
 
-void QualityStatsTest::TestAdapters(const QualityStats &test){
+void QualityStatsTest::TestAdapters(const QualityStats &test, const char *context, bool bwa){
+	uintTileId tile_id;
+	if(bwa){
+		tile_id = 5; // Different sorting of reads in bam file
+	}
+	else{
+		tile_id = 4;
+	}
+
 	// The other read pair that would count is in another tile and therefore is ignored by requiring correct segment-reverseness pairing
 	// echo "count seg ref tile pos prev"; cat <(samtools view -q 10 -f 81 -F 32 ecoli-SRR490124-adapter.bam | awk '{print "@" substr($18,6,length($18)-5), $2; print substr($10,$8-$4+1,$4+length($10)-$8); print "+"; print substr($11,$8-$4+1,$4+length($11)-$8)}' | seqtk seq -r | awk '(1==NR%4){md=substr($1,2,length($0)-1); flag=$2}(2==NR%4){seq=$0}(0==NR%4){printf("%i ", flag);num=0;mult=1;for(i=length(md);0<i;i-=1){b=substr(md,i,1);if(b ~ /^[0-9]/){num+=b*mult;mult*=10}else{base=N;if("A"==b){base="T"}; if("C"==b){base="G"}; if("G"==b){base="C"}; if("T"==b){base="A"}; printf("%i%s", num, base); num=0; mult=1}}; print num, seq, $0}') <(samtools view -q 10 -f 161 -F 16 ecoli-SRR490124-adapter.bam | awk '{print $2, substr($18,6,length($18)-5), substr($10,1,$8+length($10)-$4), substr($11,1,$8+length($11)-$4)}' ) | awk 'BEGIN{for(n=0;n<256;n++)ord[sprintf("%c",n)]=n}{pos=0; num=0; for(i=1;i<=length($2);i+=1){b=substr($2,i,1);if(b ~ /^[0-9]/){num=num*10+b}else{while(0 <= num && pos<length($3)){pos += 1; num -= 1; if(0>num){ref=b}else{ref=substr($3,pos,1)}; if(1==pos){prev=1}else{prev=ord[substr($4,pos-1,1)]-33};print int($1%256/128), ref, 4, pos-1, prev}; num=0}}; for(pos+=1;pos<=length($3);pos+=1){print int($1%256/128), substr($3,pos,1), 4, pos-1, ord[substr($4,pos-1,1)]-33}}' | sort -k1,2 -k4,4n -k5,5n | uniq -c
-	EXPECT_EQ(77, test.preceding_quality_for_position_per_tile_reference_.at(0).at(3)[4].size() );
-	EXPECT_EQ(78, test.preceding_quality_for_position_per_tile_reference_.at(1).at(2)[4].size() );
+	EXPECT_EQ(77, test.preceding_quality_for_position_per_tile_reference_.at(0).at(3)[tile_id].size() ) << "for " << context;
+	EXPECT_EQ(78, test.preceding_quality_for_position_per_tile_reference_.at(1).at(2)[tile_id].size() ) << "for " << context;
 
-	EXPECT_EQ(81, test.error_rate_for_position_per_tile_per_error_reference_.at(0).at(3).at(4)[4].to() );
-	EXPECT_EQ(81, test.error_rate_for_position_per_tile_per_error_reference_.at(1).at(2).at(4)[4].to() );
+	EXPECT_EQ(81, test.error_rate_for_position_per_tile_per_error_reference_.at(0).at(3).at(4)[tile_id].to() ) << "for " << context;
+	EXPECT_EQ(81, test.error_rate_for_position_per_tile_per_error_reference_.at(1).at(2).at(4)[tile_id].to() ) << "for " << context;
 
-	// cat <(samtools view ecoli-SRR490124-adapter.bam -q 10 -f 16 -F 32 | awk '($4+2000>$8){print "@" $1, $2; if($4 < $8){print substr($10,$8-$4+1,length($10)+$4-$8)}else{print $10}; print "+"; if($4 < $8){print substr($11,$8-$4+1,length($11)+$4-$8)}else{print $11}}' | seqtk seq -r) <(samtools view ecoli-SRR490124-adapter.bam -q 10 -f 32 -F 16 | awk '($8+2000>$4){print "@" $1, $2; if($8 < $4){print substr($10,1,length($10)+$8-$4)}else{print $10}; print "+"; if($8 < $4){print substr($11,1,length($11)+$8-$4)}else{print $11}}' | seqtk seq) | awk 'BEGIN{split("2,80,81,95",poslist,",");for(n=0;n<256;n++){ord[sprintf("%c",n)]=n}}(1==NR%4){flag=$2}(0==NR%4){seg=int(flag%256/128);for(p=1;p<=length(poslist);++p){pos=poslist[p]; if(pos<length($0)){print seg, pos, ord[substr($0,pos+1,1)]-33}}}' | sort -k1,1 -k2,2n | awk 'BEGIN{pos=-1}{if($2 == pos){sum+=$3;++count}else{if(-1!=pos){print seg, pos, int(sum/count+0.5)}; seg=$1; pos=$2; sum=$3; count=1}}END{print seg, pos, int(sum/count+0.5)}'
-	EXPECT_EQ(36, test.base_quality_mean_reference_.at(0)[2] );
-	EXPECT_EQ(20, test.base_quality_mean_reference_.at(0)[80] );
-	EXPECT_EQ(33, test.base_quality_mean_reference_.at(0)[81] );
-	EXPECT_EQ(33, test.base_quality_mean_reference_.at(0)[95] );
-	EXPECT_EQ(27, test.base_quality_mean_reference_.at(1)[2] );
-	EXPECT_EQ(36, test.base_quality_mean_reference_.at(1)[80] );
-	EXPECT_EQ(34, test.base_quality_mean_reference_.at(1)[81] );
-	EXPECT_EQ(29, test.base_quality_mean_reference_.at(1)[95] );
+	if(bwa){
+		// cat <(samtools view ecoli-SRR490124-adapter-bwa.bam -q 10 -f 16 -F 32 | awk '($4+2000>$8){print "@" $1, $2; if(-$9 < length($10)){print substr($10,length($10)+$9+1,-$9)}else{print $10}; print "+"; if(-$9 < length($11)){print substr($11,length($11)+$9+1,-$9)}else{print $11}}' | seqtk seq -r) <(samtools view ecoli-SRR490124-adapter-bwa.bam -q 10 -f 32 -F 16 | awk '($8+2000>$4){print "@" $1, $2; if($9 < length($10)){print substr($10,1,$9)}else{print $10}; print "+"; if($9 < length($11)){print substr($11,1,$9)}else{print $11}}' | seqtk seq) | awk 'BEGIN{split("2,80,81,95",poslist,",");for(n=0;n<256;n++){ord[sprintf("%c",n)]=n}}(1==NR%4){flag=$2}(0==NR%4){seg=int(flag%256/128);for(p=1;p<=length(poslist);++p){pos=poslist[p]; if(pos<length($0)){print seg, pos, ord[substr($0,pos+1,1)]-33}}}' | sort -k1,1 -k2,2n | awk 'BEGIN{pos=-1}{if($2 == pos){sum+=$3;++count}else{if(-1!=pos){print seg, pos, int(sum/count+0.5)}; seg=$1; pos=$2; sum=$3; count=1}}END{print seg, pos, int(sum/count+0.5)}'
+		EXPECT_EQ(33, test.base_quality_mean_reference_.at(1)[2] ) << "for " << context;
+	}
+	else{
+		// cat <(samtools view ecoli-SRR490124-adapter.bam -q 10 -f 16 -F 32 | awk '($4+2000>$8){print "@" $1, $2; if($4 < $8){print substr($10,$8-$4+1,length($10)+$4-$8)}else{print $10}; print "+"; if($4 < $8){print substr($11,$8-$4+1,length($11)+$4-$8)}else{print $11}}' | seqtk seq -r) <(samtools view ecoli-SRR490124-adapter.bam -q 10 -f 32 -F 16 | awk '($8+2000>$4){print "@" $1, $2; if($8 < $4){print substr($10,1,length($10)+$8-$4)}else{print $10}; print "+"; if($8 < $4){print substr($11,1,length($11)+$8-$4)}else{print $11}}' | seqtk seq) | awk 'BEGIN{split("2,80,81,95",poslist,",");for(n=0;n<256;n++){ord[sprintf("%c",n)]=n}}(1==NR%4){flag=$2}(0==NR%4){seg=int(flag%256/128);for(p=1;p<=length(poslist);++p){pos=poslist[p]; if(pos<length($0)){print seg, pos, ord[substr($0,pos+1,1)]-33}}}' | sort -k1,1 -k2,2n | awk 'BEGIN{pos=-1}{if($2 == pos){sum+=$3;++count}else{if(-1!=pos){print seg, pos, int(sum/count+0.5)}; seg=$1; pos=$2; sum=$3; count=1}}END{print seg, pos, int(sum/count+0.5)}'
+		EXPECT_EQ(27, test.base_quality_mean_reference_.at(1)[2] ) << "for " << context;
+	}
+	EXPECT_EQ(36, test.base_quality_mean_reference_.at(0)[2] ) << "for " << context;
+	EXPECT_EQ(20, test.base_quality_mean_reference_.at(0)[80] ) << "for " << context;
+	EXPECT_EQ(33, test.base_quality_mean_reference_.at(0)[81] ) << "for " << context;
+	EXPECT_EQ(33, test.base_quality_mean_reference_.at(0)[95] ) << "for " << context;
+	EXPECT_EQ(36, test.base_quality_mean_reference_.at(1)[80] ) << "for " << context;
+	EXPECT_EQ(34, test.base_quality_mean_reference_.at(1)[81] ) << "for " << context;
+	EXPECT_EQ(29, test.base_quality_mean_reference_.at(1)[95] ) << "for " << context;
 }

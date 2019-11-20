@@ -1074,14 +1074,12 @@ bool ProbabilityEstimates::Estimate(const DataStats &stats, uintNumFits max_iter
 		}
 	}
 
-	std::array< std::pair<const Vect<Vect<uintMatrixCount>> *, bool>, 3 > seq_qual_margins;
 	for(uintTempSeq template_segment=0; template_segment<2; ++template_segment){
 		for(uintTileId tile_id=0; tile_id<stats.Tiles().NumTiles(); ++tile_id){
 			params.push_back( {kIPFSequenceQuality,template_segment,tile_id,0,0,0} );
 		}
 	}
 
-	std::array< std::pair<const Vect<Vect<uintMatrixCount>> *, bool>, 3 > dom_error_margins, error_rate_margins;
 	for( uintBaseCall ref_base = 4; ref_base--; ){
 		for( uintBaseCall dom_error = 5; dom_error--; ){
 			if(ref_base != dom_error){

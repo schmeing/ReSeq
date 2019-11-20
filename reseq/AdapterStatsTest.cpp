@@ -96,62 +96,62 @@ void AdapterStatsTest::TestSumming(AdapterStats &test){
 	EXPECT_EQ(32896, test.significant_count_.at(1).at(1));
 }
 
-void AdapterStatsTest::TestAdapters(const AdapterStats &test){
+void AdapterStatsTest::TestAdapters(const AdapterStats &test, const char *context){
 	TestLoading(test);
 
 	// The tests below were done manually and are not updated yet with verification commands
 	for( uintAdapterId i=0; i < test.counts_.size(); ++i  ){
 		for( uintAdapterId j=0; j < test.counts_.at(i).size(); ++j  ){
 			if( 8==i && 1==j ){
-				EXPECT_EQ(59, test.counts_.at(i).at(j).size()) << "Combination " << test.names_.at(0).at(i) << ' ' << test.names_.at(1).at(j) << " is not detected properly\n";
-				EXPECT_EQ(2, test.counts_.at(i).at(j)[100][100]) << "Position 0 not correctly detected\n";
-				EXPECT_EQ(1, test.counts_.at(i).at(j)[42][42]) << "Position 58 not correctly detected\n";
+				EXPECT_EQ(59, test.counts_.at(i).at(j).size()) << "Combination " << test.names_.at(0).at(i) << ' ' << test.names_.at(1).at(j) << " is not detected properly for " << context;
+				EXPECT_EQ(2, test.counts_.at(i).at(j)[100][100]) << "Position 0 not correctly detected for " << context;
+				EXPECT_EQ(1, test.counts_.at(i).at(j)[42][42]) << "Position 58 not correctly detected for " << context;
 
 			}
 			else if( 0==i && 1==j ){
 				// Ambiguous adapter is always at first index it can be (so 0). Trying to redistribute them properly just messes stuff up, so they are simply ignored during summing.
-				EXPECT_EQ(16, test.counts_.at(i).at(j).size()) << "Combination " << test.names_.at(0).at(i) << ' ' << test.names_.at(1).at(j) << " is not detected properly\n";
-				EXPECT_EQ(1, test.counts_.at(i).at(j)[20].size()) << "Size at position 80 not correctly detected\n";
-				EXPECT_EQ(1, test.counts_.at(i).at(j)[20][20]) << "Position 80 not correctly detected\n"; // Adapter with mapping quality 8 still used for adapters
-				EXPECT_EQ(1, test.counts_.at(i).at(j)[19].size()) << "Size at position 81 not correctly detected\n";
-				EXPECT_EQ(1, test.counts_.at(i).at(j)[19][19]) << "Position 81 not correctly detected\n";
-				EXPECT_EQ(1, test.counts_.at(i).at(j)[5].size()) << "Size at position 95 not correctly detected\n";
-				EXPECT_EQ(1, test.counts_.at(i).at(j)[5][5]) << "Position 95 not correctly detected\n";
+				EXPECT_EQ(16, test.counts_.at(i).at(j).size()) << "Combination " << test.names_.at(0).at(i) << ' ' << test.names_.at(1).at(j) << " is not detected properly for " << context;
+				EXPECT_EQ(1, test.counts_.at(i).at(j)[20].size()) << "Size at position 80 not correctly detected for " << context;
+				EXPECT_EQ(1, test.counts_.at(i).at(j)[20][20]) << "Position 80 not correctly detected for " << context; // Adapter with mapping quality 8 still used for adapters
+				EXPECT_EQ(1, test.counts_.at(i).at(j)[19].size()) << "Size at position 81 not correctly detected for " << context;
+				EXPECT_EQ(1, test.counts_.at(i).at(j)[19][19]) << "Position 81 not correctly detected for " << context;
+				EXPECT_EQ(1, test.counts_.at(i).at(j)[5].size()) << "Size at position 95 not correctly detected for " << context;
+				EXPECT_EQ(1, test.counts_.at(i).at(j)[5][5]) << "Position 95 not correctly detected for " << context;
 			}
 			else{
-				EXPECT_EQ(0, test.counts_.at(i).at(j).size()) << "Combination " << test.names_.at(0).at(i) << ' ' << test.names_.at(1).at(j) << " is detected without being in the data\n";
+				EXPECT_EQ(0, test.counts_.at(i).at(j).size()) << "Combination " << test.names_.at(0).at(i) << ' ' << test.names_.at(1).at(j) << " is detected without being in the data for " << context;
 			}
 		}
 
 		if( 8==i ){
-			EXPECT_EQ(2, test.start_cut_.at(0).at(i).size()) << test.names_.at(0).at(i) << " is not detected\n";
-			EXPECT_EQ(1, test.start_cut_.at(0).at(i)[0]) << " 0-cut is not detected\n";
-			EXPECT_EQ(1, test.start_cut_.at(0).at(i)[1]) << " 1-cut is not detected\n";
+			EXPECT_EQ(2, test.start_cut_.at(0).at(i).size()) << test.names_.at(0).at(i) << " is not detected for " << context;
+			EXPECT_EQ(1, test.start_cut_.at(0).at(i)[0]) << " 0-cut is not detected for " << context;
+			EXPECT_EQ(1, test.start_cut_.at(0).at(i)[1]) << " 1-cut is not detected for " << context;
 		}
 		else{
-			EXPECT_EQ(0, test.start_cut_.at(0).at(i).size()) << test.names_.at(0).at(i) << " is detected without being in the data\n";
+			EXPECT_EQ(0, test.start_cut_.at(0).at(i).size()) << test.names_.at(0).at(i) << " is detected without being in the data for " << context;
 		}
 	}
-	EXPECT_EQ(2, test.start_cut_.at(1).at(1).size()) << test.names_.at(1).at(0) << " is not detected\n";
-	EXPECT_EQ(1, test.start_cut_.at(1).at(1)[0]) << " 0-cut is not detected\n";
-	EXPECT_EQ(1, test.start_cut_.at(1).at(1)[1]) << " 1-cut is not detected\n";
+	EXPECT_EQ(2, test.start_cut_.at(1).at(1).size()) << test.names_.at(1).at(0) << " is not detected for " << context;
+	EXPECT_EQ(1, test.start_cut_.at(1).at(1)[0]) << " 0-cut is not detected for " << context;
+	EXPECT_EQ(1, test.start_cut_.at(1).at(1)[1]) << " 1-cut is not detected for " << context;
 
 	// Ambiguous adapter ignored, so 3 instead of 4
-	EXPECT_EQ(3, test.count_sum_.at(0).at(8)) << "Distribution did not work properly for " << test.names_.at(0).at(8) << '\n';
-	EXPECT_EQ(3, test.count_sum_.at(1).at(1)) << "Distribution did not work properly for " << test.names_.at(1).at(0) << '\n';
+	EXPECT_EQ(3, test.count_sum_.at(0).at(8)) << "Distribution did not work properly for " << test.names_.at(0).at(8) << " for " << context;
+	EXPECT_EQ(3, test.count_sum_.at(1).at(1)) << "Distribution did not work properly for " << test.names_.at(1).at(0) << " for " << context;
 
-	EXPECT_EQ(13, test.polya_tail_length_.size() );
-	EXPECT_EQ(1, test.polya_tail_length_[1] );
-	EXPECT_EQ(1, test.polya_tail_length_[2] );
-	EXPECT_EQ(1, test.polya_tail_length_[9] );
-	EXPECT_EQ(1, test.polya_tail_length_[13] );
-	EXPECT_EQ(4, SumVect(test.polya_tail_length_) );
+	EXPECT_EQ(13, test.polya_tail_length_.size() ) << "for " << context;
+	EXPECT_EQ(1, test.polya_tail_length_[1] ) << "for " << context;
+	EXPECT_EQ(1, test.polya_tail_length_[2] ) << "for " << context;
+	EXPECT_EQ(1, test.polya_tail_length_[9] ) << "for " << context;
+	EXPECT_EQ(1, test.polya_tail_length_[13] ) << "for " << context;
+	EXPECT_EQ(4, SumVect(test.polya_tail_length_) ) << "for " << context;
 
-	EXPECT_EQ(50, test.overrun_bases_.at(0) );
-	EXPECT_EQ(38, test.overrun_bases_.at(1) );
-	EXPECT_EQ(31, test.overrun_bases_.at(2) );
-	EXPECT_EQ(14, test.overrun_bases_.at(3) );
-	EXPECT_EQ(0, test.overrun_bases_.at(4) );
+	EXPECT_EQ(50, test.overrun_bases_.at(0) ) << "for " << context;
+	EXPECT_EQ(38, test.overrun_bases_.at(1) ) << "for " << context;
+	EXPECT_EQ(31, test.overrun_bases_.at(2) ) << "for " << context;
+	EXPECT_EQ(14, test.overrun_bases_.at(3) ) << "for " << context;
+	EXPECT_EQ(0, test.overrun_bases_.at(4) ) << "for " << context;
 }
 
 void AdapterStatsTest::TestNexteraAdapters(const AdapterStats &test){

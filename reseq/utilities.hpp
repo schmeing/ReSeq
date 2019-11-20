@@ -288,6 +288,9 @@ namespace reseq{
 		template<typename T> inline T Divide(const std::atomic<T> &nom, const std::atomic<T> &den){ // Calculates the division: nom/den with proper rounding to int
 			return (nom+den/static_cast<T>(2))/den;
 		}
+		template<typename T> inline T DivideAndCeil(T nom, T den){ // Calculates the division: nom/den and always ceiling
+			return (nom+den-static_cast<T>(1)) / den;
+		}
 
 		template<typename T> inline const T &getConst(T &object){
 			return object;

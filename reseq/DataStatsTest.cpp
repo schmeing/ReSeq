@@ -326,23 +326,41 @@ void DataStatsTest::TestCoverage(){
 	QualityStatsTest::TestCoverage(test_->qualities_);
 }
 
-void DataStatsTest::TestAdapters(){
-	AdapterStatsTest::TestAdapters(test_->adapters_);
-	ErrorStatsTest::TestAdapters(test_->errors_);
-	FragmentDistributionStatsTest::TestAdapters(test_->fragment_distribution_);
-	QualityStatsTest::TestAdapters(test_->qualities_);
+void DataStatsTest::TestAdapters(const char *context, bool bwa){
+	AdapterStatsTest::TestAdapters(test_->adapters_, context);
+	ErrorStatsTest::TestAdapters(test_->errors_, context, bwa);
+	FragmentDistributionStatsTest::TestAdapters(test_->fragment_distribution_, context, bwa);
+	QualityStatsTest::TestAdapters(test_->qualities_, context, bwa);
 
-	// samtools view ecoli-SRR490124-adapter.bam -q 10 -f 81 -F 32 | awk '{print $6; system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $8 "-" $4+length($10)-1)}' | awk 'BEGIN{last=""}{if(">" == substr($0,1,1)){print ">" last; last=""}else{print last; last = $0}}END{print last}' | seqtk seq -r | awk '(1==NR%2){cigar = substr($0,2,length($0)-1)}(0==NR%2){pos=1; print_pos=0; num=0; for(i=1;i<=length(cigar);i+=1){e=substr(cigar,i,1);if(e ~ /^[0-9]/){num=num*10+e}else{if("M"==e){while(0<num && pos<=length($0)){print print_pos, substr($0,pos,1); ++print_pos; ++pos; --num}};if("D"==e){pos+=num};if("I"==e){print_pos+=num};num=0}}}' | sort -k2,2 -k1,1n | uniq -c
-	EXPECT_EQ(71, test_->sequence_content_reference_.at(0).at(1).at(0).size() );
-	EXPECT_EQ(78, test_->sequence_content_reference_.at(0).at(1).at(1).size() );
-	EXPECT_EQ(73, test_->sequence_content_reference_.at(0).at(1).at(2).size() );
-	EXPECT_EQ(77, test_->sequence_content_reference_.at(0).at(1).at(3).size() );
+	if(bwa){ // Additional read-pair is mapping: SRR490124.7718805_1706:3:48:3040:12095_adapter_len20_low_quality
+		// samtools view ecoli-SRR490124-adapter-bwa.bam -q 10 -f 81 -F 32 | awk '{print $6; system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $8 "-" $8-$9-1)}' | awk 'BEGIN{last=""}{if(">" == substr($0,1,1)){print ">" last; last=""}else{print last; last = $0}}END{print last}' | seqtk seq -r | awk '(1==NR%2){cigar = substr($0,2,length($0)-1)}(0==NR%2){pos=1; print_pos=0; num=0; for(i=1;i<=length(cigar);i+=1){e=substr(cigar,i,1);if(e ~ /^[0-9]/){num=num*10+e}else{if("M"==e || "S"==e){while(0<num && pos<=length($0)){print print_pos, substr($0,pos,1); ++print_pos; ++pos; --num}};if("D"==e){pos+=num};if("I"==e){print_pos+=num};num=0}}}' | sort -k2,2 -k1,1n | uniq -c
+		EXPECT_EQ(72, test_->sequence_content_reference_.at(0).at(1).at(0).size() ) << "for " << context;
+		EXPECT_EQ(80, test_->sequence_content_reference_.at(0).at(1).at(1).size() ) << "for " << context;
+		EXPECT_EQ(76, test_->sequence_content_reference_.at(0).at(1).at(2).size() ) << "for " << context;
+		EXPECT_EQ(80, test_->sequence_content_reference_.at(0).at(1).at(3).size() ) << "for " << context;
+	}
+	else{
+		// samtools view ecoli-SRR490124-adapter.bam -q 10 -f 81 -F 32 | awk '{print $6; system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $8 "-" $4+length($10)-1)}' | awk 'BEGIN{last=""}{if(">" == substr($0,1,1)){print ">" last; last=""}else{print last; last = $0}}END{print last}' | seqtk seq -r | awk '(1==NR%2){cigar = substr($0,2,length($0)-1)}(0==NR%2){pos=1; print_pos=0; num=0; for(i=1;i<=length(cigar);i+=1){e=substr(cigar,i,1);if(e ~ /^[0-9]/){num=num*10+e}else{if("M"==e){while(0<num && pos<=length($0)){print print_pos, substr($0,pos,1); ++print_pos; ++pos; --num}};if("D"==e){pos+=num};if("I"==e){print_pos+=num};num=0}}}' | sort -k2,2 -k1,1n | uniq -c
+		EXPECT_EQ(71, test_->sequence_content_reference_.at(0).at(1).at(0).size() ) << "for " << context;
+		EXPECT_EQ(78, test_->sequence_content_reference_.at(0).at(1).at(1).size() ) << "for " << context;
+		EXPECT_EQ(73, test_->sequence_content_reference_.at(0).at(1).at(2).size() ) << "for " << context;
+		EXPECT_EQ(77, test_->sequence_content_reference_.at(0).at(1).at(3).size() ) << "for " << context;
+	}
 	EXPECT_EQ(1, test_->sequence_content_reference_.at(0).at(1).at(3)[4] );
-	// samtools view ecoli-SRR490124-adapter.bam -q 10 -f 161 -F 16 | awk '{print $6; system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $4 "-" $8+length($10)-1)}' | awk 'BEGIN{last=""}{if(">" == substr($0,1,1)){print ">" last; last=""}else{print last; last = $0}}END{print last}' | seqtk seq | awk '(1==NR%2){cigar = substr($0,2,length($0)-1)}(0==NR%2){pos=1; print_pos=0; num=0; for(i=1;i<=length(cigar);i+=1){e=substr(cigar,i,1);if(e ~ /^[0-9]/){num=num*10+e}else{if("M"==e){while(0<num && pos<=length($0)){print print_pos, substr($0,pos,1); ++print_pos; ++pos; --num}};if("D"==e){pos+=num};if("I"==e){print_pos+=num};num=0}}}' | sort -k2,2 -k1,1n | uniq -c
-	EXPECT_EQ(77, test_->sequence_content_reference_.at(1).at(0).at(0).size() );
-	EXPECT_EQ(73, test_->sequence_content_reference_.at(1).at(0).at(1).size() );
-	EXPECT_EQ(78, test_->sequence_content_reference_.at(1).at(0).at(2).size() );
-	EXPECT_EQ(71, test_->sequence_content_reference_.at(1).at(0).at(3).size() );
+	if(bwa){ // Additional read-pair is mapping: SRR490124.7718805_1706:3:48:3040:12095_adapter_len20_low_quality
+		// samtools view ecoli-SRR490124-adapter-bwa.bam -q 10 -f 161 -F 16 | awk '{print $6; system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $4 "-" $4+$9-1)}' | awk 'BEGIN{last=""}{if(">" == substr($0,1,1)){print ">" last; last=""}else{print last; last = $0}}END{print last}' | seqtk seq | awk '(1==NR%2){cigar = substr($0,2,length($0)-1)}(0==NR%2){pos=1; print_pos=0; num=0; for(i=1;i<=length(cigar);i+=1){e=substr(cigar,i,1);if(e ~ /^[0-9]/){num=num*10+e}else{if("M"==e || "S"==e){while(0<num && pos<=length($0)){print print_pos, substr($0,pos,1); ++print_pos; ++pos; --num}};if("D"==e){pos+=num};if("I"==e){print_pos+=num};num=0}}}' | sort -k2,2 -k1,1n | uniq -c
+		EXPECT_EQ(79, test_->sequence_content_reference_.at(1).at(0).at(0).size() ) << "for " << context;
+		EXPECT_EQ(77, test_->sequence_content_reference_.at(1).at(0).at(1).size() ) << "for " << context;
+		EXPECT_EQ(81, test_->sequence_content_reference_.at(1).at(0).at(2).size() ) << "for " << context;
+		EXPECT_EQ(73, test_->sequence_content_reference_.at(1).at(0).at(3).size() ) << "for " << context;
+	}
+	else{
+		// samtools view ecoli-SRR490124-adapter.bam -q 10 -f 161 -F 16 | awk '{print $6; system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $4 "-" $8+length($10)-1)}' | awk 'BEGIN{last=""}{if(">" == substr($0,1,1)){print ">" last; last=""}else{print last; last = $0}}END{print last}' | seqtk seq | awk '(1==NR%2){cigar = substr($0,2,length($0)-1)}(0==NR%2){pos=1; print_pos=0; num=0; for(i=1;i<=length(cigar);i+=1){e=substr(cigar,i,1);if(e ~ /^[0-9]/){num=num*10+e}else{if("M"==e){while(0<num && pos<=length($0)){print print_pos, substr($0,pos,1); ++print_pos; ++pos; --num}};if("D"==e){pos+=num};if("I"==e){print_pos+=num};num=0}}}' | sort -k2,2 -k1,1n | uniq -c
+		EXPECT_EQ(77, test_->sequence_content_reference_.at(1).at(0).at(0).size() ) << "for " << context;
+		EXPECT_EQ(73, test_->sequence_content_reference_.at(1).at(0).at(1).size() ) << "for " << context;
+		EXPECT_EQ(78, test_->sequence_content_reference_.at(1).at(0).at(2).size() ) << "for " << context;
+		EXPECT_EQ(71, test_->sequence_content_reference_.at(1).at(0).at(3).size() ) << "for " << context;
+	}
 }
 
 void DataStatsTest::TestNexteraAdapters(){
@@ -393,7 +411,6 @@ namespace reseq{
 
 		DeleteTestObject();
 		CreateTestObject(&species_reference_);
-
 		ASSERT_TRUE( test_->Load(save_test_file.c_str()) );
 		test_->PrepareTesting();
 		TestSrr490124Equality("save and reload", false);
@@ -401,6 +418,7 @@ namespace reseq{
 
 		DeleteTestObject();
 		CreateTestObject(&species_reference_);
+		// bwa mem ecoli-GCF_000005845.2_ASM584v2_genomic.fa <(reseq-prepare-names.py ecoli-SRR490124-4pairs-R1.fq ecoli-SRR490124-4pairs-R2.fq) <(reseq-prepare-names.py ecoli-SRR490124-4pairs-R2.fq ecoli-SRR490124-4pairs-R1.fq) | samtools sort -m 10G -@ 4 -T _tmp -o ecoli-SRR490124-4pairs-bwa.bam -
 		LoadStats("ecoli-SRR490124-4pairs-bwa.bam");
 		TestSrr490124Equality("bwa", true, true);
 
@@ -453,15 +471,22 @@ namespace reseq{
 		string save_test_file = string(PROJECT_SOURCE_DIR)+"/test/saveTest.reseq";
 		ASSERT_TRUE( test_->Save(save_test_file.c_str()) );
 
-		TestAdapters();
+		TestAdapters("bowtie2");
 
 		DeleteTestObject();
 		CreateTestObject(&species_reference_);
 
 		ASSERT_TRUE( test_->Load(save_test_file.c_str()) );
 		test_->PrepareTesting();
-		TestAdapters();
+		TestAdapters("loading");
 		EXPECT_EQ( 0, remove(save_test_file.c_str()) ) << "Error deleting file: " << save_test_file << '\n';
+
+		DeleteTestObject();
+		CreateTestObject(&species_reference_);
+		// bwa mem ecoli-GCF_000005845.2_ASM584v2_genomic.fa ecoli-SRR490124-adapter-R1.fq ecoli-SRR490124-adapter-R2.fq | samtools sort -m 10G -@ 4 -T _tmp -o ecoli-SRR490124-adapter-bwa.bam -
+		LoadStats("ecoli-SRR490124-adapter-bwa.bam");
+
+		TestAdapters("bwa", true);
 	}
 
 	TEST_F(DataStatsTest, NexteraAdapter){

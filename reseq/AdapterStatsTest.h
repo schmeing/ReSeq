@@ -28,7 +28,7 @@ namespace reseq{
 			{
 		}
 
-		static void TestAdapters(const AdapterStats &test);
+		static void TestAdapters(const AdapterStats &test, const char *context);
 		static void TestNexteraAdapters(const AdapterStats &test);
 	};
 }

@@ -32,7 +32,7 @@ namespace reseq{
 		void TestCrossDuplicates();
 		void TestCoverage();
 
-		void TestAdapters();
+		void TestAdapters(const char *context, bool bwa=false);
 		void TestNexteraAdapters();
 
 		virtual void TearDown();

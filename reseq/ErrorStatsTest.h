@@ -27,7 +27,7 @@ namespace reseq{
 		static void TestSrr490124Equality(const ErrorStats &test, const char *context);
 		static void TestDuplicates(const ErrorStats &test);
 		static void TestVariants(const ErrorStats &test);
-		static void TestAdapters(const ErrorStats &test);
+		static void TestAdapters(const ErrorStats &test, const char *context, bool bwa=false);
 	};
 }
 

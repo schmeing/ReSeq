@@ -1008,7 +1008,7 @@ namespace reseq{
 
 				if(precision_ > precision_aim){
 					// We have to do something, so data has to be set up
-					if(! data.SetUp(margins, alternative_margin, dim_indices_, initial_dim_indices_reduced_, print_mutex) ){
+					if( !data.SetUp(margins, alternative_margin, dim_indices_, initial_dim_indices_reduced_, print_mutex) ){
 						error_during_fitting = true;
 						return;
 					}

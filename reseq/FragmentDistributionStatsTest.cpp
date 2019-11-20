@@ -4,6 +4,7 @@ using reseq::FragmentDistributionStatsTest;
 #include <algorithm>
 using std::max_element;
 using std::min;
+using std::max;
 //include <array>
 using std::array;
 #include <cmath>
@@ -282,47 +283,355 @@ void FragmentDistributionStatsTest::TestCoverage(const FragmentDistributionStats
 	EXPECT_EQ(1, test.abundance_.at(8) ) << "abundance_ wrong in coverage test\n";
 }
 // Adapter with mapping quality 8 still used for adapters
-void FragmentDistributionStatsTest::TestAdapters(const FragmentDistributionStats &test){
+void FragmentDistributionStatsTest::TestAdapters(const FragmentDistributionStats &test, const char *context, bool bwa){
 	// The tests below were done manually and are not updated yet with verification commands
-	EXPECT_EQ(177, test.insert_lengths_.size()) << "insert_lengths_.size() wrong with adapters\n";
-	EXPECT_EQ(2, test.insert_lengths_[0]) << "insert_lengths_[0] wrong with adapters\n";
-	EXPECT_EQ(1, test.insert_lengths_[58]) << "insert_lengths_[58] wrong with adapters\n";
-	EXPECT_EQ(1, test.insert_lengths_[80]) << "insert_lengths_[80] wrong with low mapping quality adapters\n";
-	EXPECT_EQ(1, test.insert_lengths_[81]) << "insert_lengths_[81] wrong with adapters\n";
-	EXPECT_EQ(1, test.insert_lengths_[95]) << "insert_lengths_[95] wrong with adapters\n";
-	EXPECT_EQ(1, test.insert_lengths_[176]) << "insert_lengths_[176] wrong with adapters\n";
-	EXPECT_EQ(7, SumVect(test.insert_lengths_)) << "Sum of insert_lengths_ wrong with adapters\n";
+	EXPECT_EQ(177, test.insert_lengths_.size()) << "insert_lengths_.size() wrong with adapters for " << context;
+	EXPECT_EQ(2, test.insert_lengths_[0]) << "insert_lengths_[0] wrong with adapters for " << context;
+	EXPECT_EQ(1, test.insert_lengths_[58]) << "insert_lengths_[58] wrong with adapters\n for " << context;
+	EXPECT_EQ(1, test.insert_lengths_[80]) << "insert_lengths_[80] wrong with low mapping quality adapters for " << context;
+	EXPECT_EQ(1, test.insert_lengths_[81]) << "insert_lengths_[81] wrong with adapters for " << context;
+	EXPECT_EQ(1, test.insert_lengths_[95]) << "insert_lengths_[95] wrong with adapters for " << context;
+	EXPECT_EQ(1, test.insert_lengths_[176]) << "insert_lengths_[176] wrong with adapters for " << context;
+	EXPECT_EQ(7, SumVect(test.insert_lengths_)) << "Sum of insert_lengths_ wrong with adapters for " << context;
 
 	// Check if adapter part of read has been ignored for these statistics
-	// samtools view ecoli-SRR490124-adapter.bam -q 10 -f 16 -F 32 | awk '($4+2000>$8){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $8 "-" $4+length($10)-1)}' | seqtk seq | awk '(0==NR%2){len=length($0); print int(gsub(/[CG]/,"",$0)*100/len+0.5)}' | sort -n
-	EXPECT_EQ(7, test.gc_fragment_content_.size() );
-	EXPECT_EQ(1, test.gc_fragment_content_[47] );
-	EXPECT_EQ(1, test.gc_fragment_content_[53] );
+	if(bwa){
+		// samtools view ecoli-SRR490124-adapter-bwa.bam -q 10 -f 16 -F 32 | awk '($4+2000>$8){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $8 "-" $8-$9-1)}' | seqtk seq | awk '(0==NR%2){len=length($0); print int(gsub(/[CG]/,"",$0)*100/len+0.5)}' | sort -n
+		EXPECT_EQ(20, test.gc_fragment_content_.size() ) << "for " << context;
+		EXPECT_EQ(1, test.gc_fragment_content_[48] ) << "for " << context;
+		EXPECT_EQ(1, test.gc_fragment_content_[66] ) << "for " << context;
+	}
+	else{
+		// samtools view ecoli-SRR490124-adapter.bam -q 10 -f 16 -F 32 | awk '($4+2000>$8){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $8 "-" $4+length($10)-1)}' | seqtk seq | awk '(0==NR%2){len=length($0); print int(gsub(/[CG]/,"",$0)*100/len+0.5)}' | sort -n
+		EXPECT_EQ(7, test.gc_fragment_content_.size() ) << "for " << context;
+	}
+	EXPECT_EQ(1, test.gc_fragment_content_[47] ) << "for " << context;
+	EXPECT_EQ(1, test.gc_fragment_content_[53] ) << "for " << context;
 
 	// cat <(samtools view ecoli-SRR490124-adapter.bam -q 10 -f 144 -F 32 | awk '($4+2000>$8){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $8-10 "-" $4+length($10)-1+10)}' | seqtk seq) <(samtools view ecoli-SRR490124-adapter.bam -q 10 -f 80 -F 32 | awk '($4+2000>$8){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $8-10 "-" $4+length($10)-1+10)}' | seqtk seq -r) | awk '(0==NR%2){print ">0", substr($0,1,10); print substr($0,length($0)-9,10); print ">1", substr($0,11,10); print substr($0,length($0)-19,10);print ">2", substr($0,21,10); print substr($0,length($0)-29,10);}' | seqtk seq -r | awk '{if(1==NR%2){sur=substr($0, 2, 1); print "start", sur, $2}else{print "end", sur, $0}}' | awk 'BEGIN{d["A"]=0;d["C"]=1;d["G"]=2;d["T"]=3}{mult=1;sur=0;for(i=length($3);i>0;i-=1){sur+=mult*d[substr($3,i,1)];mult*=4}; print $1, $2, $3, sur}' | sort
-	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(0).at(817646));
-	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(0).at(940919));
-	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(1).at(10510));
-	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(1).at(477197));
-	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(2).at(495577));
-	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(2).at(718722));
-	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(0).at(301332));
-	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(0).at(824719));
-	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(1).at(339634));
-	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(1).at(595486));
-	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(2).at(158717));
-	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(2).at(289540));
+	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(0).at(817646)) << "for " << context;
+	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(0).at(940919)) << "for " << context;
+	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(1).at(10510)) << "for " << context;
+	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(1).at(477197)) << "for " << context;
+	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(2).at(495577)) << "for " << context;
+	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(2).at(718722)) << "for " << context;
+	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(0).at(301332)) << "for " << context;
+	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(0).at(824719)) << "for " << context;
+	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(1).at(339634)) << "for " << context;
+	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(1).at(595486)) << "for " << context;
+	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(2).at(158717)) << "for " << context;
+	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(2).at(289540)) << "for " << context;
 
-	// samtools view ecoli-SRR490124-adapter.bam -q 10 -f 80 -F 32 | awk '($4+2000>$8){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $8-20 "-" $4+length($10)-1+20)}' | seqtk seq -r | awk '(0==NR%2){print substr($0,1,20) substr($0,length($0)-19,20)}' | awk '{for(pos=1;pos<=length($0);++pos){print 1, substr($0,pos,1), pos-1}}' | sort -k1,2 -k3,3n
-	EXPECT_EQ(31, test.outskirt_content_.at(1).at(1).size() );
-	EXPECT_EQ(1, test.outskirt_content_.at(1).at(1)[4] );
-	EXPECT_EQ(1, test.outskirt_content_.at(1).at(1)[7] );
-	EXPECT_EQ(1, test.outskirt_content_.at(1).at(1)[31] );
-	EXPECT_EQ(1, test.outskirt_content_.at(1).at(1)[34] );
+	if(bwa){
+		// samtools view ecoli-SRR490124-adapter-bwa.bam -q 10 -f 80 -F 32 | awk '($4+2000>$8){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $8-20 "-" $8-$9-1+20)}' | seqtk seq -r | awk '(0==NR%2){print substr($0,1,20) substr($0,length($0)-19,20)}' | awk '{for(pos=1;pos<=length($0);++pos){print substr($0,pos,1), pos-1}}' | sort -k1,1 -k2,2n | uniq -c
+		EXPECT_EQ(39, test.outskirt_content_.at(1).at(1).size() ) << "for " << context;
+		EXPECT_EQ(2, test.outskirt_content_.at(1).at(1)[31] ) << "for " << context;
+		EXPECT_EQ(2, test.outskirt_content_.at(1).at(1)[34] ) << "for " << context;
+	}
+	else{
+		// samtools view ecoli-SRR490124-adapter.bam -q 10 -f 80 -F 32 | awk '($4+2000>$8){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $8-20 "-" $4+length($10)-1+20)}' | seqtk seq -r | awk '(0==NR%2){print substr($0,1,20) substr($0,length($0)-19,20)}' | awk '{for(pos=1;pos<=length($0);++pos){print 1, substr($0,pos,1), pos-1}}' | sort -k1,2 -k3,3n
+		EXPECT_EQ(31, test.outskirt_content_.at(1).at(1).size() ) << "for " << context;
+		EXPECT_EQ(1, test.outskirt_content_.at(1).at(1)[31] ) << "for " << context;
+		EXPECT_EQ(1, test.outskirt_content_.at(1).at(1)[34] ) << "for " << context;
+	}
+
+	EXPECT_EQ(1, test.outskirt_content_.at(1).at(1)[4] ) << "for " << context;
+	EXPECT_EQ(1, test.outskirt_content_.at(1).at(1)[7] ) << "for " << context;
 }
 
 void FragmentDistributionStatsTest::BiasCalculationThread(FragmentDistributionStats &test, const Reference &reference, FragmentDuplicationStats &duplications, BiasCalculationVectors &thread_values, mutex &print_mutex){
 	test.ExecuteBiasCalculations( reference, duplications, thread_values, print_mutex );
+}
+
+void FragmentDistributionStatsTest::TestBiasCalculationVectorsPreprocessing(){
+	BiasCalculationVectors test;
+	test.sites_.reserve(species_reference_.SequenceLength(0));
+
+	species_reference_.GetFragmentSites(test.sites_, 0, 10, 0, species_reference_.SequenceLength(0));
+
+	test.sites_.at(0).count_forward_ = 1;
+	test.sites_.at(40).count_forward_ = 1;
+	test.sites_.at(50).count_forward_ = 1;
+	test.sites_.at(112).count_forward_ = 1;
+	test.sites_.at(192).count_forward_ = 1; // Blocked by N's (should be ignored)
+	test.sites_.at(331).count_reverse_ = 1;
+
+	test.GetCounts();
+	// cat <(seqtk seq reference-test-withN.fa | awk '(2==NR)') | awk '{for(i=51;i<=length($0)-50-10; i+=1){print substr($0,i-10,30), i-51}}' | awk '{print ">"$1, $2; print $1}' | seqtk seq -r | awk '(1==NR%2){forward=substr($1,2,length($1)-1); pos=$2}(0==NR%2){print pos, substr(forward,11,10), forward, $0}' | awk '(0==$1 || 40==$1 || 50==$1 || 112==$1 || 331==$1){print gsub(/[GC]/,"",$2)}' | sort | uniq -c
+	EXPECT_EQ(2, test.gc_count_.at(0));
+	EXPECT_EQ(1, test.gc_count_.at(30));
+	EXPECT_EQ(1, test.gc_count_.at(40));
+	EXPECT_EQ(1, test.gc_count_.at(50));
+	EXPECT_EQ(5, SumVect(test.gc_count_));
+	// cat <(seqtk seq reference-test-withN.fa | awk '(2==NR)') | awk '{for(i=51;i<=length($0)-50-10; i+=1){print substr($0,i-10,30), i-51}}' | awk '{print ">"$1, $2; print $1}' | seqtk seq -r | awk '(1==NR%2){forward=substr($1,2,length($1)-1); pos=$2}(0==NR%2){print pos, substr(forward,11,10), forward, $0}' | awk '(0==$1 || 40==$1 || 50==$1 || 112==$1 || 331==$1){pos=5; print substr($3,pos+1,1); print substr($4,pos+1,1)}' | sort | uniq -c
+	EXPECT_EQ(1, test.sur_count_.at(5*4+0));
+	EXPECT_EQ(3, test.sur_count_.at(5*4+1));
+	EXPECT_EQ(2, test.sur_count_.at(5*4+2));
+	EXPECT_EQ(4, test.sur_count_.at(5*4+3));
+	EXPECT_EQ(5, test.sur_count_.at(13*4+0));
+	EXPECT_EQ(0, test.sur_count_.at(13*4+1));
+	EXPECT_EQ(2, test.sur_count_.at(13*4+2));
+	EXPECT_EQ(3, test.sur_count_.at(13*4+3));
+
+	test.RemoveUnnecessarySites();
+	// cat <(seqtk seq reference-test-withN.fa | awk '(2==NR)') | awk '{for(i=51;i<=length($0)-50-10; i+=1){print substr($0,i-10,30), i-51}}' | awk '{print ">"$1, $2; print $1}' | seqtk seq -r | awk '(1==NR%2){forward=substr($1,2,length($1)-1); pos=$2}(0==NR%2){print pos, substr(forward,11,10), forward, $0}' | awk '(0==$1 || 40==$1 || 50==$1 || 112==$1 || 331==$1){print gsub(/[GC]/,"",$2), substr($3,1,10), substr($3,11,10), substr($3,21,10), substr($4,1,10), substr($4,11,10), substr($4,21,10)}'
+	// removes also not needed gc, which is not the implementation anymore: cat <(seqtk seq reference-test-withN.fa | awk '(2==NR)') | awk '{for(i=51;i<=length($0)-50-10; i+=1){print substr($0,i-10,30), i-51}}' | awk '{print ">"$1, $2; print $1}' | seqtk seq -r | awk '(1==NR%2){forward=substr($1,2,length($1)-1); pos=$2}(0==NR%2){print pos, substr(forward,11,10), forward, $0}' | awk '(0 == gsub("N","",$3)){print gsub(/[GC]/,"",$2), substr($3,1,10), substr($3,11,10), substr($3,21,10), substr($4,1,10), substr($4,11,10), substr($4,21,10), $1}' | awk '((0 == $1 || 3 == $1 || 4 == $1 || 5 == $1) && substr($2,3,1) != "C" && substr($5,3,1) != "C" && substr($2,7,1) != "C" && substr($5,7,1) != "C" && substr($2,7,1) != "G" && substr($5,7,1) != "G" && substr($3,4,1) != "C" && substr($6,4,1) != "C" && substr($3,7,1) != "G" && substr($6,7,1) != "G" && substr($4,2,1) != "C" && substr($7,2,1) != "C" && substr($4,4,1) != "C" && substr($7,4,1) != "C" && substr($4,4,1) != "G" && substr($7,4,1) != "G" && substr($4,8,1) != "G" && substr($7,8,1) != "G")' | wc -l
+	// cat <(seqtk seq reference-test-withN.fa | awk '(2==NR)') | awk '{for(i=51;i<=length($0)-50-10; i+=1){print substr($0,i-10,30), i-51}}' | awk '{print ">"$1, $2; print $1}' | seqtk seq -r | awk '(1==NR%2){forward=substr($1,2,length($1)-1); pos=$2}(0==NR%2){print pos, substr(forward,11,10), forward, $0}' | awk '(0 == gsub("N","",$3)){print gsub(/[GC]/,"",$2), substr($3,1,10), substr($3,11,10), substr($3,21,10), substr($4,1,10), substr($4,11,10), substr($4,21,10), $1}' | awk '(substr($2,3,1) != "C" && substr($5,3,1) != "C" && substr($2,7,1) != "C" && substr($5,7,1) != "C" && substr($2,7,1) != "G" && substr($5,7,1) != "G" && substr($3,4,1) != "C" && substr($6,4,1) != "C" && substr($3,7,1) != "G" && substr($6,7,1) != "G" && substr($4,2,1) != "C" && substr($7,2,1) != "C" && substr($4,4,1) != "C" && substr($7,4,1) != "C" && substr($4,4,1) != "G" && substr($7,4,1) != "G" && substr($4,8,1) != "G" && substr($7,8,1) != "G")' | wc -l
+	EXPECT_EQ(26, test.sites_.size());
+
+	// cat <(seqtk seq reference-test-withN.fa | awk '(2==NR)') | awk '{for(i=51;i<=length($0)-50-10; i+=1){print substr($0,i-10,30), i-51}}' | awk '{print ">"$1, $2; print $1}' | seqtk seq -r | awk '(1==NR%2){forward=substr($1,2,length($1)-1); pos=$2}(0==NR%2){print pos, substr(forward,11,10), forward, $0}' | awk '(0 == gsub("N","",$3)){print gsub(/[GC]/,"",$2), substr($3,1,10), substr($3,11,10), substr($3,21,10), substr($4,1,10), substr($4,11,10), substr($4,21,10), $1}' | awk '((0 == $1 || 3 == $1 || 4 == $1 || 5 == $1) && substr($2,3,1) != "C" && substr($5,3,1) != "C" && substr($2,7,1) != "C" && substr($5,7,1) != "C" && substr($2,7,1) != "G" && substr($5,7,1) != "G" && substr($3,4,1) != "C" && substr($6,4,1) != "C" && substr($3,7,1) != "G" && substr($6,7,1) != "G" && substr($4,2,1) != "C" && substr($7,2,1) != "C" && substr($4,4,1) != "C" && substr($7,4,1) != "C" && substr($4,4,1) != "G" && substr($7,4,1) != "G" && substr($4,8,1) != "G" && substr($7,8,1) != "G"){print $1}' | sort | uniq -c
+	EXPECT_EQ(2*2, test.gc_sites_.at(0));
+	EXPECT_EQ(3*2, test.gc_sites_.at(30));
+	EXPECT_EQ(5*2, test.gc_sites_.at(40));
+	EXPECT_EQ(9*2, test.gc_sites_.at(50));
+	EXPECT_EQ(26*2, SumVect(test.gc_sites_));
+	// cat <(seqtk seq reference-test-withN.fa | awk '(2==NR)') | awk '{for(i=51;i<=length($0)-50-10; i+=1){print substr($0,i-10,30), i-51}}' | awk '{print ">"$1, $2; print $1}' | seqtk seq -r | awk '(1==NR%2){forward=substr($1,2,length($1)-1); pos=$2}(0==NR%2){print pos, substr(forward,11,10), forward, $0}' | awk '(0 == gsub("N","",$3)){print gsub(/[GC]/,"",$2), substr($3,1,10), substr($3,11,10), substr($3,21,10), substr($4,1,10), substr($4,11,10), substr($4,21,10), $1}' | awk '(substr($2,3,1) != "C" && substr($5,3,1) != "C" && substr($2,7,1) != "C" && substr($5,7,1) != "C" && substr($2,7,1) != "G" && substr($5,7,1) != "G" && substr($3,4,1) != "C" && substr($6,4,1) != "C" && substr($3,7,1) != "G" && substr($6,7,1) != "G" && substr($4,2,1) != "C" && substr($7,2,1) != "C" && substr($4,4,1) != "C" && substr($7,4,1) != "C" && substr($4,4,1) != "G" && substr($7,4,1) != "G" && substr($4,8,1) != "G" && substr($7,8,1) != "G"){pos=5; print substr($2,pos+1,1); print substr($5,pos+1,1)}' | sort | uniq -c
+	EXPECT_EQ(7*2, test.sur_sites_.at(5*4+0));
+	EXPECT_EQ(17*2, test.sur_sites_.at(5*4+1));
+	EXPECT_EQ(9*2, test.sur_sites_.at(5*4+2));
+	EXPECT_EQ(19*2, test.sur_sites_.at(5*4+3));
+	// cat <(seqtk seq reference-test-withN.fa | awk '(2==NR)') | awk '{for(i=51;i<=length($0)-50-10; i+=1){print substr($0,i-10,30), i-51}}' | awk '{print ">"$1, $2; print $1}' | seqtk seq -r | awk '(1==NR%2){forward=substr($1,2,length($1)-1); pos=$2}(0==NR%2){print pos, substr(forward,11,10), forward, $0}' | awk '(0 == gsub("N","",$3)){print gsub(/[GC]/,"",$2), substr($3,1,10), substr($3,11,10), substr($3,21,10), substr($4,1,10), substr($4,11,10), substr($4,21,10), $1}' | awk '(substr($2,3,1) != "C" && substr($5,3,1) != "C" && substr($2,7,1) != "C" && substr($5,7,1) != "C" && substr($2,7,1) != "G" && substr($5,7,1) != "G" && substr($3,4,1) != "C" && substr($6,4,1) != "C" && substr($3,7,1) != "G" && substr($6,7,1) != "G" && substr($4,2,1) != "C" && substr($7,2,1) != "C" && substr($4,4,1) != "C" && substr($7,4,1) != "C" && substr($4,4,1) != "G" && substr($7,4,1) != "G" && substr($4,8,1) != "G" && substr($7,8,1) != "G"){pos=3; print substr($3,pos+1,1); print substr($6,pos+1,1)}' | sort | uniq -c
+	EXPECT_EQ(17*2, test.sur_sites_.at(13*4+0));
+	EXPECT_EQ(0*2, test.sur_sites_.at(13*4+1));
+	EXPECT_EQ(18*2, test.sur_sites_.at(13*4+2));
+	EXPECT_EQ(17*2, test.sur_sites_.at(13*4+3));
+
+	vector<double> parameter;
+	parameter.resize(test.sur_bias_.size(), 1.0);
+	test.DeactivateZeroCounts(parameter, 0.0, 0);
+
+	EXPECT_EQ(1.0, parameter.at(5*4+0));
+	EXPECT_EQ(1.0, parameter.at(5*4+1));
+	EXPECT_EQ(1.0, parameter.at(5*4+2));
+	EXPECT_EQ(1.0, parameter.at(5*4+3));
+
+	EXPECT_EQ(1.0, parameter.at(13*4+0));
+	EXPECT_EQ(0.0, parameter.at(13*4+1));
+	EXPECT_EQ(1.0, parameter.at(13*4+2));
+	EXPECT_EQ(1.0, parameter.at(13*4+3));
+}
+
+void FragmentDistributionStatsTest::TestBiasCalculationVectorsNormalizations(){
+	BiasCalculationVectors test;
+
+	// NormGC
+	test.gc_sites_.fill(0);
+	test.gc_bias_.fill(0.0);
+
+	test.gc_sites_.at(12) = 40;
+	test.gc_sites_.at(33) = 39;
+	test.gc_sites_.at(63) = 20;
+	test.gc_sites_.at(50) = 1;
+	test.total_sites_ = 100;
+
+	test.gc_bias_.at(12) = 0.8;
+	test.gc_bias_.at(33) = 0.2;
+	test.gc_bias_.at(63) = 0.2;
+	test.gc_bias_.at(50) = 1000.0;
+
+	test.NormGC();
+
+	EXPECT_DOUBLE_EQ(2.0, test.gc_bias_.at(12));
+	EXPECT_DOUBLE_EQ(0.5, test.gc_bias_.at(33));
+	EXPECT_DOUBLE_EQ(0.5, test.gc_bias_.at(63));
+	EXPECT_DOUBLE_EQ(2500.0, test.gc_bias_.at(50));
+
+	test.gc_sites_.at(33) = 20;
+	test.gc_sites_.at(77) = 19;
+	test.gc_bias_.at(77) = 2500.0;
+
+	test.NormGC();
+
+	EXPECT_DOUBLE_EQ(2.0, test.gc_bias_.at(12));
+	EXPECT_DOUBLE_EQ(0.5, test.gc_bias_.at(33));
+	EXPECT_DOUBLE_EQ(0.5, test.gc_bias_.at(63));
+	EXPECT_DOUBLE_EQ(2500.0, test.gc_bias_.at(77));
+	EXPECT_DOUBLE_EQ(2500.0, test.gc_bias_.at(50));
+
+	// NormSurroundings
+	vector<double> sur_vect;
+	sur_vect.resize( 4*Surrounding::Length()+1 , 200.0 );
+
+	test.sur_count_.fill(20);
+
+	sur_vect.at(0) = -2.0;
+	sur_vect.at(1) = -0.2;
+	sur_vect.at(2) = -0.3;
+	sur_vect.at(3) =  0.1;
+	sur_vect.at(4) =  0.2;
+
+	test.sur_count_.at(6) = 0;
+	sur_vect.at(5) = -0.2;
+	sur_vect.at(6) = -0.3;
+	sur_vect.at(7) =  0.1;
+	sur_vect.at(8) =  0.2;
+
+	test.sur_count_.at(116) = 0;
+	test.sur_count_.at(117) = 0;
+	test.sur_count_.at(119) = 0;
+	sur_vect.at(117) = -0.2;
+	sur_vect.at(118) = -0.3;
+	sur_vect.at(119) =  0.1;
+	sur_vect.at(120) =  0.2;
+
+	test.NormSurroundings(sur_vect);
+
+	EXPECT_DOUBLE_EQ(-2.15, test.sur_bias_.at(0));
+	EXPECT_DOUBLE_EQ(-2.25, test.sur_bias_.at(1));
+	EXPECT_DOUBLE_EQ(-1.85, test.sur_bias_.at(2));
+	EXPECT_DOUBLE_EQ(-1.75, test.sur_bias_.at(3));
+
+	EXPECT_DOUBLE_EQ(-0.1, test.sur_bias_.at(4));
+	EXPECT_DOUBLE_EQ(-0.2, test.sur_bias_.at(5));
+	EXPECT_DOUBLE_EQ( 0.0, test.sur_bias_.at(6));
+	EXPECT_DOUBLE_EQ( 0.3, test.sur_bias_.at(7));
+
+	EXPECT_DOUBLE_EQ( 0.0, test.sur_bias_.at(116));
+	EXPECT_DOUBLE_EQ( 0.0, test.sur_bias_.at(117));
+	EXPECT_DOUBLE_EQ( 0.0, test.sur_bias_.at(118));
+	EXPECT_DOUBLE_EQ( 0.0, test.sur_bias_.at(119));
+
+	// UnnormSurroundingGradients
+	vector<double> grad;
+	grad.resize( 4*Surrounding::Length()+1 , 5.0 ); // Something != 0.0, to test if it was properly set to zero
+
+	test.sur_grad_.fill(200.0);
+
+	test.sur_grad_.at(0) = -2.0;
+	test.sur_grad_.at(1) = -3.0;
+	test.sur_grad_.at(2) =  1.0;
+	test.sur_grad_.at(3) =  2.0;
+
+	test.sur_grad_.at(4) = -2.0;
+	test.sur_grad_.at(5) = -3.0;
+	test.sur_grad_.at(6) =  1.0;
+	test.sur_grad_.at(7) =  2.0;
+
+	test.sur_grad_.at(116) = -2.0;
+	test.sur_grad_.at(117) = -3.0;
+	test.sur_grad_.at(118) =  1.0;
+	test.sur_grad_.at(119) =  2.0;
+
+	test.UnnormSurroundingGradients(grad, sur_vect);
+
+	EXPECT_DOUBLE_EQ(-2.0, grad.at(0));
+	EXPECT_DOUBLE_EQ(-1.5, grad.at(1));
+	EXPECT_DOUBLE_EQ(-2.5, grad.at(2));
+	EXPECT_DOUBLE_EQ( 1.5, grad.at(3));
+	EXPECT_DOUBLE_EQ( 2.5, grad.at(4));
+
+	EXPECT_DOUBLE_EQ(-1.0, grad.at(5));
+	EXPECT_DOUBLE_EQ(-2.0, grad.at(6));
+	EXPECT_DOUBLE_EQ( 0.0, grad.at(7));
+	EXPECT_DOUBLE_EQ( 3.0, grad.at(8));
+
+	EXPECT_DOUBLE_EQ( 0.0, grad.at(117));
+	EXPECT_DOUBLE_EQ( 0.0, grad.at(118));
+	EXPECT_DOUBLE_EQ( 0.0, grad.at(119));
+	EXPECT_DOUBLE_EQ( 0.0, grad.at(120));
+}
+
+void FragmentDistributionStatsTest::TestBiasCalculationVectorsSpline(){
+	BiasCalculationVectors test;
+
+	test.gc_sites_.fill(0);
+	test.gc_count_.fill(0);
+
+	test.gc_sites_.at(98) = 1;
+	test.gc_count_.at(98) = 1;
+	test.total_sites_ = 1;
+
+	test.DefineStartingKnots();
+
+	EXPECT_EQ(95, test.gc_knots_.at(0));
+	EXPECT_EQ(96, test.gc_knots_.at(1));
+	EXPECT_EQ(97, test.gc_knots_.at(2));
+	EXPECT_EQ(98, test.gc_knots_.at(3));
+	EXPECT_EQ(99, test.gc_knots_.at(4));
+	EXPECT_EQ(100, test.gc_knots_.at(5));
+
+	test.gc_count_.at(98) = 0;
+	test.gc_sites_.at(98) = 0;
+	test.gc_sites_.at(12) = 40;
+	test.gc_count_.at(12) = 1;
+	test.gc_sites_.at(23) = 60;
+	test.gc_count_.at(23) = 1;
+	test.total_sites_ = 100;
+
+	test.DefineStartingKnots();
+
+	EXPECT_EQ(12, test.gc_knots_.at(0));
+	EXPECT_EQ(13, test.gc_knots_.at(1));
+	EXPECT_EQ(14, test.gc_knots_.at(2));
+	EXPECT_EQ(15, test.gc_knots_.at(3));
+	EXPECT_EQ(16, test.gc_knots_.at(4));
+	EXPECT_EQ(23, test.gc_knots_.at(5));
+
+	test.gc_sites_.at(98) = 1;
+	test.total_sites_ = 101;
+	test.DefineStartingKnots();
+
+	EXPECT_EQ(12, test.gc_knots_.at(0));
+	EXPECT_EQ(13, test.gc_knots_.at(1));
+	EXPECT_EQ(14, test.gc_knots_.at(2));
+	EXPECT_EQ(15, test.gc_knots_.at(3));
+	EXPECT_EQ(16, test.gc_knots_.at(4));
+	EXPECT_EQ(23, test.gc_knots_.at(5));
+
+	test.gc_count_.at(98) = 1;
+	test.DefineStartingKnots();
+
+	EXPECT_EQ(12, test.gc_knots_.at(0));
+	EXPECT_EQ(13, test.gc_knots_.at(1));
+	EXPECT_EQ(14, test.gc_knots_.at(2));
+	EXPECT_EQ(15, test.gc_knots_.at(3));
+	EXPECT_EQ(23, test.gc_knots_.at(4));
+	EXPECT_EQ(98, test.gc_knots_.at(5));
+
+	for(auto gc=13; gc<23; ++gc){
+		test.gc_sites_.at(gc) = 10;
+		test.gc_count_.at(gc) = 1;
+	}
+	for(auto gc=24; gc<34; ++gc){
+		test.gc_sites_.at(gc) = 20;
+		test.gc_count_.at(gc) = 1;
+	}
+	test.total_sites_ = 401;
+	test.DefineStartingKnots();
+
+	EXPECT_EQ(12, test.gc_knots_.at(0));
+	EXPECT_EQ(16, test.gc_knots_.at(1));
+	EXPECT_EQ(23, test.gc_knots_.at(2));
+	EXPECT_EQ(26, test.gc_knots_.at(3));
+	EXPECT_EQ(30, test.gc_knots_.at(4));
+	EXPECT_EQ(98, test.gc_knots_.at(5));
+
+	test.gc_count_.at(98) = 0;
+	test.DefineStartingKnots();
+
+	EXPECT_EQ(12, test.gc_knots_.at(0));
+	EXPECT_EQ(16, test.gc_knots_.at(1));
+	EXPECT_EQ(23, test.gc_knots_.at(2));
+	EXPECT_EQ(26, test.gc_knots_.at(3));
+	EXPECT_EQ(30, test.gc_knots_.at(4));
+	EXPECT_EQ(33, test.gc_knots_.at(5));
+
+	//void PrepareSplines();
+	//void GetSplineCoefficients(double &a, double &b, double &c, double &d, uintPercent k, const std::vector<double> &spline_pars);
+	//void CalculateSpline(const std::vector<double> &spline_pars);
+	//void CalculateSplineGrad(const std::vector<double> &spline_pars, std::vector<double> &grad, uintNumFits grad_offset);
+	//void GetGCSpline();
+}
+
+void FragmentDistributionStatsTest::TestBiasCalculationVectorsLikelihoods(){
+	//void GetLogLikeBase();
+	//static double LogLikelihoodPoisson(const std::vector<double> &x, std::vector<double> &grad, void* f_data);
+
+	//static double LogLikeGcSpline(const std::vector<double> &x, std::vector<double> &grad, void* f_data);
+
+	//static double LogLikelihoodNbinom(const std::vector<double> &x, std::vector<double> &grad, void* f_data);
+
+	//static double LogLikelihoodConstDispersion(const std::vector<double> &x, std::vector<double> &grad, void* f_data);
 }
 
 void FragmentDistributionStatsTest::TestBiasCalculation(){
@@ -482,76 +791,132 @@ void FragmentDistributionStatsTest::TestDrawCounts(){
 	CheckDrawnCounts(0.1, array<double, 6>({0.9998550, 0.9998717, 0.9998800, 0.9998856, 0.9998897, 0.9998931}), start_sur, end_sur); // R: pnbinom(0:5, size=0.1/(5000+0.1*10000), mu=0.1)
 }
 
+void FragmentDistributionStatsTest::TestRefSeqSplitting(){
+	// seqtk seq drosophila-GCF_000001215.4_cut.fna | awk '(NR%2==0)' | wc -l
+	// seqtk seq drosophila-GCF_000001215.4_cut.fna | awk '(NR%2==0 && length($0) > 40000)' | wc -l
+	// seqtk seq drosophila-GCF_000001215.4_cut.fna | awk '(NR%2==0 && length($0) > 80000)' | wc -l
+	EXPECT_EQ(1230+17+3 , test_->CreateRefBins(species_reference_, 40000)); // Maximum sequence length is 88768, so 40000 to have sequences with more than one cut)
+
+	// seqtk seq drosophila-GCF_000001215.4_cut.fna | awk '(NR%2==0 && length($0) > 40000){print NR/2-1, length($0)}'
+	EXPECT_EQ(0, test_->ref_seq_start_bin_.at(0));
+	EXPECT_EQ(1+1, test_->ref_seq_start_bin_.at(1));
+	EXPECT_EQ(1198+5, test_->ref_seq_start_bin_.at(1198));
+	EXPECT_EQ(1200+6, test_->ref_seq_start_bin_.at(1200));
+	EXPECT_EQ(1206+8, test_->ref_seq_start_bin_.at(1206));
+
+	// seqtk seq drosophila-GCF_000001215.4_cut.fna | awk '(NR%2==0){print length($0)}' | head -n5
+	EXPECT_EQ(33220, test_->RefSeqSplitLength(0, species_reference_) );
+	EXPECT_EQ(33316, test_->RefSeqSplitLength(1, species_reference_) );
+	EXPECT_EQ(29122, test_->RefSeqSplitLength(1200, species_reference_) );
+	EXPECT_EQ(29589, test_->RefSeqSplitLength(1225, species_reference_) );
+
+	EXPECT_EQ(0, test_->GetRefSeqId(0));
+	EXPECT_EQ(0, test_->GetRefSeqId(1));
+	EXPECT_EQ(1, test_->GetRefSeqId(2));
+	EXPECT_EQ(1198, test_->GetRefSeqId(1203));
+	EXPECT_EQ(1198, test_->GetRefSeqId(1204));
+	EXPECT_EQ(1200, test_->GetRefSeqId(1206));
+	EXPECT_EQ(1200, test_->GetRefSeqId(1207));
+	EXPECT_EQ(1200, test_->GetRefSeqId(1208));
+	EXPECT_EQ(1201, test_->GetRefSeqId(1209));
+
+	EXPECT_EQ(0, test_->GetRefSeqBin(0, 0, species_reference_));
+	EXPECT_EQ(0, test_->GetRefSeqBin(0, 33219, species_reference_));
+	EXPECT_EQ(1, test_->GetRefSeqBin(0, 33220, species_reference_));
+	EXPECT_EQ(1, test_->GetRefSeqBin(0, 66438, species_reference_));
+	EXPECT_EQ(2, test_->GetRefSeqBin(1, 0, species_reference_));
+	EXPECT_EQ(2, test_->GetRefSeqBin(1, 33315, species_reference_));
+	EXPECT_EQ(1206, test_->GetRefSeqBin(1200, 0, species_reference_));
+	EXPECT_EQ(1206, test_->GetRefSeqBin(1200, 29121, species_reference_));
+	EXPECT_EQ(1207, test_->GetRefSeqBin(1200, 29122, species_reference_));
+	EXPECT_EQ(1207, test_->GetRefSeqBin(1200, 58243, species_reference_));
+	EXPECT_EQ(1208, test_->GetRefSeqBin(1200, 58244, species_reference_));
+	EXPECT_EQ(1208, test_->GetRefSeqBin(1200, 87364, species_reference_));
+	EXPECT_EQ(1240, test_->GetRefSeqBin(1225, 0, species_reference_));
+	EXPECT_EQ(1240, test_->GetRefSeqBin(1225, 29588, species_reference_));
+	EXPECT_EQ(1241, test_->GetRefSeqBin(1225, 29589, species_reference_));
+	EXPECT_EQ(1241, test_->GetRefSeqBin(1225, 59177, species_reference_));
+	EXPECT_EQ(1242, test_->GetRefSeqBin(1225, 59178, species_reference_));
+	EXPECT_EQ(1242, test_->GetRefSeqBin(1225, 88767, species_reference_));
+
+	vector<bool> used_ref_seqs;
+	used_ref_seqs.resize(species_reference_.NumberSequences(), false);
+	used_ref_seqs.at(0) = true;
+	used_ref_seqs.at(1) = true;
+	used_ref_seqs.at(1198) = true;
+	used_ref_seqs.at(1200) = true;
+	used_ref_seqs.at(1206) = true;
+	EXPECT_EQ(10 , species_reference_.NumRefSeqBinsInNxx(used_ref_seqs, 40000) );
+
+	// seqtk seq drosophila-GCF_000001215.4_cut.fna | awk '(NR%2==0){print length($0)/(1+int(length($0)/40000))}' | sort -nr | head -n5
+	EXPECT_EQ( 39041, test_->MaxRefSeqBinLength(species_reference_) );
+}
+
+void FragmentDistributionStatsTest::TestRefBinProcessing(){
+	// Test pipeline for fragments to fit
+	test_->tmp_insert_lengths_.resize(1001);
+	test_->ref_seq_start_bin_.clear();
+	auto num_bins = test_->CreateRefBins(species_reference_, 40000);
+	test_->fragment_sites_by_ref_seq_bin_.resize( num_bins );
+	std::array<uintRefSeqBin, 9> used_bins({0, 1, 2, 1206, 1207, 1208, 1240, 1241, 1242});
+	for( auto ref_bin : used_bins ){
+		test_->fragment_sites_by_ref_seq_bin_.at(ref_bin).resize(2);
+	}
+	test_->fragment_sites_by_ref_seq_bin_cur_id_.resize( num_bins );
+	test_->fragment_sites_by_ref_seq_bin_by_insert_length_.resize(num_bins);
+
+	// seqtk seq drosophila-GCF_000001215.4_cut.fna | awk '(NR%2==0 && length($0) > 40000){print NR/2-1, length($0)}'
+	// seqtk seq drosophila-GCF_000001215.4_cut.fna | awk '(NR%2==0){print length($0)}' | head -n5
+	std::array<uintRefSeqBin, 9> ref_seq_ids = {0, 0, 1, 1200, 1200, 1200, 1225, 1225, 1225};
+	std::array<uintRefSeqBin, 18> frag_length = {250, 500, 750, 1000, 250, 500, 750, 1000, 250, 500, 750, 1000, 250, 500, 750, 1000, 250, 500};
+	std::array<uintRefSeqBin, 9> start = {0, 33220, 0, 0, 29122, 58244, 0, 29589, 59178};
+	std::array<uintRefSeqBin, 9> end = {33220, 66439, 33316, 29122, 58244, 87365, 29589, 59178, 88768};
+	std::array<uintRefSeqBin, 18> positions = {50, 33219, 33220, 66439-50-1000, 50, 33316-50-500, 50, 29121, 29122, 58243, 58244, 87365-50-1000, 50, 29588, 29589, 59177, 59178, 88768-50-500}; // Remove kMinDistToRefSeqEnds and Fragment length from last position in last bin of reference sequence
+	std::array<uintRefSeqBin, 18> orientation = {0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0};
+
+	for( auto i=ref_seq_ids.size() ; i--; ){
+		for( auto k=2; k--; ){
+			test_->AddFragmentSite(ref_seq_ids.at(i), frag_length.at(2*i+k), positions.at(2*i+k), orientation.at(2*i+k), species_reference_);
+		}
+	}
+
+	for( auto i=ref_seq_ids.size() ; i--; ){
+		for( auto k=2; k--; ){
+			EXPECT_EQ( 2*positions.at(2*i+k)+orientation.at(2*i+k), test_->fragment_sites_by_ref_seq_bin_.at(used_bins.at(i)).at(!k).first ) << "Bin " << used_bins.at(i) << " k " << k;
+			EXPECT_EQ( frag_length.at(2*i+k), test_->fragment_sites_by_ref_seq_bin_.at(used_bins.at(i)).at(!k).second ) << "Bin " << used_bins.at(i) << " k " << k;
+		}
+	}
+
+	vector<uintSeqLen> tmp_storage;
+	vector<FragmentSite> sites;
+	for( auto i=ref_seq_ids.size() ; i--; ){
+		test_->SortFragmentSites(used_bins.at(i), tmp_storage);
+
+		for( auto k=2; k--; ){
+			species_reference_.GetFragmentSites( sites, ref_seq_ids.at(i), frag_length.at(2*i+k), start.at(i), end.at(i) );
+			test_->AddFragmentsToSites(sites, test_->fragment_sites_by_ref_seq_bin_by_insert_length_.at(used_bins.at(i)).at(frag_length.at(2*i+k)), max(Reference::kMinDistToRefSeqEnds, start.at(i)) );
+
+			if(0==k){
+				EXPECT_EQ( !orientation.at(2*i+k), sites.at(0).count_forward_ ) << "Bin " << used_bins.at(i) << " k " << k;
+				EXPECT_EQ( orientation.at(2*i+k), sites.at(0).count_reverse_ ) << "Bin " << used_bins.at(i) << " k " << k;
+			}
+			else{
+				auto pos = positions.at(2*i+k)-max(Reference::kMinDistToRefSeqEnds, start.at(i));
+				EXPECT_EQ( !orientation.at(2*i+k), sites.at(pos).count_forward_ ) << "Bin " << used_bins.at(i) << " k " << k;
+				EXPECT_EQ( orientation.at(2*i+k), sites.at(pos).count_reverse_ ) << "Bin " << used_bins.at(i) << " k " << k;
+			}
+		}
+	}
+}
+
 namespace reseq{
 	TEST_F(FragmentDistributionStatsTest, BiasCalculationVectors){
 		LoadReference("reference-test-withN.fa");
 
-		BiasCalculationVectors test;
-		test.sites_.reserve(species_reference_.SequenceLength(0));
-
-		species_reference_.GetFragmentSites(test.sites_, 0, 10, 0, species_reference_.SequenceLength(0));
-
-		test.sites_.at(0).count_forward_ = 1;
-		test.sites_.at(40).count_forward_ = 1;
-		test.sites_.at(50).count_forward_ = 1;
-		test.sites_.at(112).count_forward_ = 1;
-		test.sites_.at(192).count_forward_ = 1; // Blocked by N's (should be ignored)
-		test.sites_.at(331).count_reverse_ = 1;
-
-		test.GetCounts();
-		// cat <(seqtk seq reference-test-withN.fa | awk '(2==NR)') | awk '{for(i=51;i<=length($0)-50-10; i+=1){print substr($0,i-10,30), i-51}}' | awk '{print ">"$1, $2; print $1}' | seqtk seq -r | awk '(1==NR%2){forward=substr($1,2,length($1)-1); pos=$2}(0==NR%2){print pos, substr(forward,11,10), forward, $0}' | awk '(0==$1 || 40==$1 || 50==$1 || 112==$1 || 331==$1){print gsub(/[GC]/,"",$2)}' | sort | uniq -c
-		EXPECT_EQ(2, test.gc_count_.at(0));
-		EXPECT_EQ(1, test.gc_count_.at(30));
-		EXPECT_EQ(1, test.gc_count_.at(40));
-		EXPECT_EQ(1, test.gc_count_.at(50));
-		EXPECT_EQ(5, SumVect(test.gc_count_));
-		// cat <(seqtk seq reference-test-withN.fa | awk '(2==NR)') | awk '{for(i=51;i<=length($0)-50-10; i+=1){print substr($0,i-10,30), i-51}}' | awk '{print ">"$1, $2; print $1}' | seqtk seq -r | awk '(1==NR%2){forward=substr($1,2,length($1)-1); pos=$2}(0==NR%2){print pos, substr(forward,11,10), forward, $0}' | awk '(0==$1 || 40==$1 || 50==$1 || 112==$1 || 331==$1){pos=5; print substr($3,pos+1,1); print substr($4,pos+1,1)}' | sort | uniq -c
-		EXPECT_EQ(1, test.sur_count_.at(5*4+0));
-		EXPECT_EQ(3, test.sur_count_.at(5*4+1));
-		EXPECT_EQ(2, test.sur_count_.at(5*4+2));
-		EXPECT_EQ(4, test.sur_count_.at(5*4+3));
-		EXPECT_EQ(5, test.sur_count_.at(13*4+0));
-		EXPECT_EQ(0, test.sur_count_.at(13*4+1));
-		EXPECT_EQ(2, test.sur_count_.at(13*4+2));
-		EXPECT_EQ(3, test.sur_count_.at(13*4+3));
-
-		test.RemoveUnnecessarySites();
-		// cat <(seqtk seq reference-test-withN.fa | awk '(2==NR)') | awk '{for(i=51;i<=length($0)-50-10; i+=1){print substr($0,i-10,30), i-51}}' | awk '{print ">"$1, $2; print $1}' | seqtk seq -r | awk '(1==NR%2){forward=substr($1,2,length($1)-1); pos=$2}(0==NR%2){print pos, substr(forward,11,10), forward, $0}' | awk '(0==$1 || 40==$1 || 50==$1 || 112==$1 || 331==$1){print gsub(/[GC]/,"",$2), substr($3,1,10), substr($3,11,10), substr($3,21,10), substr($4,1,10), substr($4,11,10), substr($4,21,10)}'
-		// removes also not needed gc, which is not the implementation anymore: cat <(seqtk seq reference-test-withN.fa | awk '(2==NR)') | awk '{for(i=51;i<=length($0)-50-10; i+=1){print substr($0,i-10,30), i-51}}' | awk '{print ">"$1, $2; print $1}' | seqtk seq -r | awk '(1==NR%2){forward=substr($1,2,length($1)-1); pos=$2}(0==NR%2){print pos, substr(forward,11,10), forward, $0}' | awk '(0 == gsub("N","",$3)){print gsub(/[GC]/,"",$2), substr($3,1,10), substr($3,11,10), substr($3,21,10), substr($4,1,10), substr($4,11,10), substr($4,21,10), $1}' | awk '((0 == $1 || 3 == $1 || 4 == $1 || 5 == $1) && substr($2,3,1) != "C" && substr($5,3,1) != "C" && substr($2,7,1) != "C" && substr($5,7,1) != "C" && substr($2,7,1) != "G" && substr($5,7,1) != "G" && substr($3,4,1) != "C" && substr($6,4,1) != "C" && substr($3,7,1) != "G" && substr($6,7,1) != "G" && substr($4,2,1) != "C" && substr($7,2,1) != "C" && substr($4,4,1) != "C" && substr($7,4,1) != "C" && substr($4,4,1) != "G" && substr($7,4,1) != "G" && substr($4,8,1) != "G" && substr($7,8,1) != "G")' | wc -l
-		// cat <(seqtk seq reference-test-withN.fa | awk '(2==NR)') | awk '{for(i=51;i<=length($0)-50-10; i+=1){print substr($0,i-10,30), i-51}}' | awk '{print ">"$1, $2; print $1}' | seqtk seq -r | awk '(1==NR%2){forward=substr($1,2,length($1)-1); pos=$2}(0==NR%2){print pos, substr(forward,11,10), forward, $0}' | awk '(0 == gsub("N","",$3)){print gsub(/[GC]/,"",$2), substr($3,1,10), substr($3,11,10), substr($3,21,10), substr($4,1,10), substr($4,11,10), substr($4,21,10), $1}' | awk '(substr($2,3,1) != "C" && substr($5,3,1) != "C" && substr($2,7,1) != "C" && substr($5,7,1) != "C" && substr($2,7,1) != "G" && substr($5,7,1) != "G" && substr($3,4,1) != "C" && substr($6,4,1) != "C" && substr($3,7,1) != "G" && substr($6,7,1) != "G" && substr($4,2,1) != "C" && substr($7,2,1) != "C" && substr($4,4,1) != "C" && substr($7,4,1) != "C" && substr($4,4,1) != "G" && substr($7,4,1) != "G" && substr($4,8,1) != "G" && substr($7,8,1) != "G")' | wc -l
-		EXPECT_EQ(26, test.sites_.size());
-
-		//test.RemoveUnnecessarySites();
-		// cat <(seqtk seq reference-test-withN.fa | awk '(2==NR)') | awk '{for(i=51;i<=length($0)-50-10; i+=1){print substr($0,i-10,30), i-51}}' | awk '{print ">"$1, $2; print $1}' | seqtk seq -r | awk '(1==NR%2){forward=substr($1,2,length($1)-1); pos=$2}(0==NR%2){print pos, substr(forward,11,10), forward, $0}' | awk '(0 == gsub("N","",$3)){print gsub(/[GC]/,"",$2), substr($3,1,10), substr($3,11,10), substr($3,21,10), substr($4,1,10), substr($4,11,10), substr($4,21,10), $1}' | awk '((0 == $1 || 3 == $1 || 4 == $1 || 5 == $1) && substr($2,3,1) != "C" && substr($5,3,1) != "C" && substr($2,7,1) != "C" && substr($5,7,1) != "C" && substr($2,7,1) != "G" && substr($5,7,1) != "G" && substr($3,4,1) != "C" && substr($6,4,1) != "C" && substr($3,7,1) != "G" && substr($6,7,1) != "G" && substr($4,2,1) != "C" && substr($7,2,1) != "C" && substr($4,4,1) != "C" && substr($7,4,1) != "C" && substr($4,4,1) != "G" && substr($7,4,1) != "G" && substr($4,8,1) != "G" && substr($7,8,1) != "G"){print $1}' | sort | uniq -c
-		EXPECT_EQ(2*2, test.gc_sites_.at(0));
-		EXPECT_EQ(3*2, test.gc_sites_.at(30));
-		EXPECT_EQ(5*2, test.gc_sites_.at(40));
-		EXPECT_EQ(9*2, test.gc_sites_.at(50));
-		EXPECT_EQ(26*2, SumVect(test.gc_sites_));
-		// cat <(seqtk seq reference-test-withN.fa | awk '(2==NR)') | awk '{for(i=51;i<=length($0)-50-10; i+=1){print substr($0,i-10,30), i-51}}' | awk '{print ">"$1, $2; print $1}' | seqtk seq -r | awk '(1==NR%2){forward=substr($1,2,length($1)-1); pos=$2}(0==NR%2){print pos, substr(forward,11,10), forward, $0}' | awk '(0 == gsub("N","",$3)){print gsub(/[GC]/,"",$2), substr($3,1,10), substr($3,11,10), substr($3,21,10), substr($4,1,10), substr($4,11,10), substr($4,21,10), $1}' | awk '(substr($2,3,1) != "C" && substr($5,3,1) != "C" && substr($2,7,1) != "C" && substr($5,7,1) != "C" && substr($2,7,1) != "G" && substr($5,7,1) != "G" && substr($3,4,1) != "C" && substr($6,4,1) != "C" && substr($3,7,1) != "G" && substr($6,7,1) != "G" && substr($4,2,1) != "C" && substr($7,2,1) != "C" && substr($4,4,1) != "C" && substr($7,4,1) != "C" && substr($4,4,1) != "G" && substr($7,4,1) != "G" && substr($4,8,1) != "G" && substr($7,8,1) != "G"){pos=5; print substr($2,pos+1,1); print substr($5,pos+1,1)}' | sort | uniq -c
-		EXPECT_EQ(7*2, test.sur_sites_.at(5*4+0));
-		EXPECT_EQ(17*2, test.sur_sites_.at(5*4+1));
-		EXPECT_EQ(9*2, test.sur_sites_.at(5*4+2));
-		EXPECT_EQ(19*2, test.sur_sites_.at(5*4+3));
-		// cat <(seqtk seq reference-test-withN.fa | awk '(2==NR)') | awk '{for(i=51;i<=length($0)-50-10; i+=1){print substr($0,i-10,30), i-51}}' | awk '{print ">"$1, $2; print $1}' | seqtk seq -r | awk '(1==NR%2){forward=substr($1,2,length($1)-1); pos=$2}(0==NR%2){print pos, substr(forward,11,10), forward, $0}' | awk '(0 == gsub("N","",$3)){print gsub(/[GC]/,"",$2), substr($3,1,10), substr($3,11,10), substr($3,21,10), substr($4,1,10), substr($4,11,10), substr($4,21,10), $1}' | awk '(substr($2,3,1) != "C" && substr($5,3,1) != "C" && substr($2,7,1) != "C" && substr($5,7,1) != "C" && substr($2,7,1) != "G" && substr($5,7,1) != "G" && substr($3,4,1) != "C" && substr($6,4,1) != "C" && substr($3,7,1) != "G" && substr($6,7,1) != "G" && substr($4,2,1) != "C" && substr($7,2,1) != "C" && substr($4,4,1) != "C" && substr($7,4,1) != "C" && substr($4,4,1) != "G" && substr($7,4,1) != "G" && substr($4,8,1) != "G" && substr($7,8,1) != "G"){pos=3; print substr($3,pos+1,1); print substr($6,pos+1,1)}' | sort | uniq -c
-		EXPECT_EQ(17*2, test.sur_sites_.at(13*4+0));
-		EXPECT_EQ(0*2, test.sur_sites_.at(13*4+1));
-		EXPECT_EQ(18*2, test.sur_sites_.at(13*4+2));
-		EXPECT_EQ(17*2, test.sur_sites_.at(13*4+3));
-
-		vector<double> parameter;
-		parameter.resize(test.sur_bias_.size(), 1.0);
-		test.DeactivateZeroCounts(parameter, 0.0, 0);
-
-		EXPECT_EQ(1.0, parameter.at(5*4+0));
-		EXPECT_EQ(1.0, parameter.at(5*4+1));
-		EXPECT_EQ(1.0, parameter.at(5*4+2));
-		EXPECT_EQ(1.0, parameter.at(5*4+3));
-
-		EXPECT_EQ(1.0, parameter.at(13*4+0));
-		EXPECT_EQ(0.0, parameter.at(13*4+1));
-		EXPECT_EQ(1.0, parameter.at(13*4+2));
-		EXPECT_EQ(1.0, parameter.at(13*4+3));
+		TestBiasCalculationVectorsPreprocessing();
+		TestBiasCalculationVectorsNormalizations();
+		TestBiasCalculationVectorsSpline();
+		TestBiasCalculationVectorsLikelihoods();
 	}
 
 	TEST_F(FragmentDistributionStatsTest, BiasCalculation){
@@ -598,9 +963,12 @@ namespace reseq{
 		EXPECT_EQ(1.0, test_->ref_seq_bias_.at(1)) << "Reference bias from file does not work.";
 	}
 
-	TEST_F(FragmentDistributionStatsTest, DrawCounts){
+	TEST_F(FragmentDistributionStatsTest, Functionality){
+		LoadReference("drosophila-GCF_000001215.4_cut.fna"); // So we have many sequences
 		ASSERT_TRUE( test_ = new FragmentDistributionStats ) << "Could not allocate memory for FragmentDistributionStats object\n";
 
 		TestDrawCounts();
+		TestRefSeqSplitting();
+		TestRefBinProcessing();
 	}
 }

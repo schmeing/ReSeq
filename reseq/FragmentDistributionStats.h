@@ -268,7 +268,7 @@ namespace reseq{
 		std::atomic<uintRefSeqBin> num_handled_reference_sequence_bins_; // num_handled_reference_sequence_bins_ = #ofAlreadyHandledReferenceSequences = IdOfFirstUnhandledReferenceSequence
 
 		std::vector<bool> ref_seq_in_nxx_;
-		std::vector<uintRefSeqBin> ref_seq_start_bin_;
+		std::vector<uintRefSeqBin> ref_seq_start_bin_; // ref_seq_start_bin_[RefSeqId] = First RefSeqBin
 		std::array<std::vector<double>, 101> tmp_gc_bias_; // tmp_gc_bias_[GC][#Fit]
 		std::array<std::vector<double>, 4*Surrounding::Length()> tmp_sur_bias_; // tmp_sur_bias_[SurBase][#Fit]
 		std::array<std::vector<double>, 2> tmp_dispersion_parameters_; // tmp_dispersion_parameters_[dispPar][#Fit]
@@ -306,7 +306,7 @@ namespace reseq{
 
 		// Helper functions
 		uintSeqLen RefSeqSplitLength(uintRefSeqId ref_seq_id, const Reference &reference){
-			return reference.SequenceLength(ref_seq_id)/(reference.SequenceLength(ref_seq_id)/max_ref_seq_bin_length_+1);
+			return utilities::Divide(reference.SequenceLength(ref_seq_id), utilities::DivideAndCeil(reference.SequenceLength(ref_seq_id), max_ref_seq_bin_length_));
 		}
 		uintRefSeqId GetRefSeqId(uintRefSeqBin ref_seq_bin){
 			// We shouldn't have many super long reference sequences, so that ref_seq_bin will be close to ref_seq_id and this should be fairly efficient
@@ -405,7 +405,7 @@ namespace reseq{
 		// Main functions
 		uintRefSeqBin CreateRefBins( const Reference &ref, uintSeqLen max_ref_seq_bin_size );
 		uintRefSeqBin GetRefSeqBin(uintRefSeqId ref_seq_id, uintSeqLen position, const Reference &reference){
-			return ref_seq_start_bin_.at(ref_seq_id) + position/RefSeqSplitLength(ref_seq_id, reference);
+			return std::min(ref_seq_start_bin_.at(ref_seq_id) + position/RefSeqSplitLength(ref_seq_id, reference), ref_seq_start_bin_.at(ref_seq_id+1)-1);
 		}
 		uintSeqLen MaxRefSeqBinLength(const Reference &reference){
 			uintSeqLen max(0);

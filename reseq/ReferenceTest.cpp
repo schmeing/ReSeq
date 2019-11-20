@@ -471,6 +471,29 @@ void ReferenceTest::TestGetFragmentSites(){
 	EXPECT_EQ(0, frag_sites.at(350).count_forward_) << error_msg;
 	EXPECT_EQ(0, frag_sites.at(350).count_reverse_) << error_msg;
 	EXPECT_EQ(1.0, frag_sites.at(350).bias_) << error_msg;
+
+	ref_.GetFragmentSites(frag_sites, 0, 10, 50+50, 193+50); // +50 from kMinDistToRefSeqEnds
+	EXPECT_EQ(143, frag_sites.size() );
+	EXPECT_EQ(0, frag_sites.at(0).gc_);
+	EXPECT_EQ(756483, frag_sites.at(0).start_surrounding_.sur_.at(0));
+	EXPECT_EQ(787452, frag_sites.at(0).start_surrounding_.sur_.at(1));
+	EXPECT_EQ(1017802, frag_sites.at(0).start_surrounding_.sur_.at(2));
+	EXPECT_EQ(377552, frag_sites.at(0).end_surrounding_.sur_.at(0));
+	EXPECT_EQ(787452, frag_sites.at(0).end_surrounding_.sur_.at(1));
+	EXPECT_EQ(258513, frag_sites.at(0).end_surrounding_.sur_.at(2));
+	EXPECT_EQ(0, frag_sites.at(0).count_forward_);
+	EXPECT_EQ(0, frag_sites.at(0).count_reverse_);
+	EXPECT_EQ(1.0, frag_sites.at(0).bias_);
+	EXPECT_EQ(0, frag_sites.at(142).gc_); // N's are blocking this one (so we just have a placeholder here)
+	EXPECT_EQ(-1, frag_sites.at(142).start_surrounding_.sur_.at(0));
+	EXPECT_EQ(-1, frag_sites.at(142).start_surrounding_.sur_.at(1));
+	EXPECT_EQ(-1, frag_sites.at(142).start_surrounding_.sur_.at(2));
+	EXPECT_EQ(-1, frag_sites.at(142).end_surrounding_.sur_.at(0));
+	EXPECT_EQ(-1, frag_sites.at(142).end_surrounding_.sur_.at(1));
+	EXPECT_EQ(-1, frag_sites.at(142).end_surrounding_.sur_.at(2));
+	EXPECT_EQ(0, frag_sites.at(142).count_forward_);
+	EXPECT_EQ(0, frag_sites.at(142).count_reverse_);
+	EXPECT_EQ(0.0, frag_sites.at(142).bias_);
 }
 
 void ReferenceTest::TestReplaceN(){

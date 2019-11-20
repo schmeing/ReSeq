@@ -59,7 +59,7 @@ namespace reseq{
 		static void TestDuplicates(const QualityStats &test);
 		static void TestVariants(const QualityStats &test);
 		static void TestCoverage(const QualityStats &test);
-		static void TestAdapters(const QualityStats &test);
+		static void TestAdapters(const QualityStats &test, const char *context, bool bwa=false);
 	};
 }
 
