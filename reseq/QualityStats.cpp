@@ -345,19 +345,12 @@ void QualityStats::Shrink(){
 			ShrinkVect(base_quality_stats_per_tile_.at(template_segment).at(called_base));
 
 			ShrinkVect(sequence_quality_for_base_per_tile_.at(template_segment).at(called_base));
-
-			nucleotide_quality_.at(template_segment).at(called_base).Shrink();
 		}
 
 		ShrinkVect(base_quality_stats_per_strand_.at(template_segment));
 
 		ShrinkVect(sequence_quality_mean_for_gc_per_tile_.at(template_segment));
 		ShrinkVect(sequence_quality_probability_mean_.at(template_segment));
-		sequence_quality_minimum_.at(template_segment).Shrink();
-		sequence_quality_first_quartile_.at(template_segment).Shrink();
-		sequence_quality_median_.at(template_segment).Shrink();
-		sequence_quality_third_quartile_.at(template_segment).Shrink();
-		sequence_quality_maximum_.at(template_segment).Shrink();
 		ShrinkVect(sequence_quality_content_.at(template_segment));
 	}
 

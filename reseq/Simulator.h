@@ -285,13 +285,10 @@ namespace reseq{
 		seqan::CharString sys_err_perc_;
 
 		seqan::Dna5 sys_last_base_;
-		seqan::Dna5 sys_dom_last5_;
-		std::array<uintReadLen,4> sys_seq_content_last5_;
+		utilities::DominantBase sys_dom_base_;
 		std::vector<uintSeqLen> sys_last_var_pos_per_allele_;
 		std::vector<seqan::Dna5> sys_last_base_per_allele_;
-		std::vector<seqan::Dna5> sys_dom_last5_per_allele_;
-		std::vector<std::array<uintReadLen,4>> sys_seq_content_last5_per_allele_;
-		std::vector<seqan::DnaString> sys_seq_last5_per_allele_;
+		std::vector<utilities::DominantBaseWithMemory> sys_dom_base_per_allele_;
 		uintReadLen sys_gc_;
 		uintReadLen sys_gc_bases_;
 		uintReadLen sys_gc_range_;
@@ -367,11 +364,11 @@ namespace reseq{
 
 			for(auto pos=start_pos; pos < end_pos; ++pos){
 				ref_base = utilities::at(sequence, pos);
-				error_rate = DrawSystematicError(sys_errors, ref_base, sys_last_base_, sys_dom_last5_, utilities::SafePercent(sys_gc_, sys_gc_bases_), utilities::TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_), estimates);
+				error_rate = DrawSystematicError(sys_errors, ref_base, sys_last_base_, sys_dom_base_.Get(), utilities::SafePercent(sys_gc_, sys_gc_bases_), utilities::TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_), estimates);
 
 				// Set values for next iteration
 				sys_last_base_ = ref_base;
-				utilities::SetDominantLastX( sys_dom_last5_, sys_seq_content_last5_, ref_base, 5, sequence, pos);
+				sys_dom_base_.Update(ref_base, sequence, pos);
 				stats.Coverage().UpdateDistances(distance_to_start_of_error_region_, error_rate);
 				UpdateGC(sys_gc_, sys_gc_bases_, pos, sequence);
 			}

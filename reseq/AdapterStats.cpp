@@ -510,7 +510,6 @@ void AdapterStats::Finalize(){
 		counts_.at(i).resize(tmp_counts_.at(i).size());
 		for( auto j = tmp_counts_.at(i).size(); j--; ){
 			counts_.at(i).at(j).Acquire(tmp_counts_.at(i).at(j));
-			counts_.at(i).at(j).Shrink();
 		}
 	}
 
@@ -577,12 +576,6 @@ void AdapterStats::Shrink(){
 			ShrinkVect(adapter_pair);
 		}
 	}
-	for( int i=2; i--; ){
-		for( auto &adapter : start_cut_.at(i)){
-			adapter.Shrink();
-		}
-	}
-	polya_tail_length_.Shrink();
 }
 
 void AdapterStats::PrepareSimulation(){

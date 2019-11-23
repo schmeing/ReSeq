@@ -142,8 +142,6 @@ void ErrorStats::Shrink(){
 				}
 			}
 		}
-
-		errors_per_read_.at(template_segment).Shrink();
 	}
 
 	for( auto indel_type=2; indel_type--; ){

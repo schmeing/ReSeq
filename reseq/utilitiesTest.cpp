@@ -2,6 +2,8 @@
 using reseq::utilitiesTest;
 using reseq::utilities::VectorAtomic;
 
+//include <array>
+using std::array;
 #include <stdint.h>
 
 #include "gtest/gtest.h"
@@ -23,6 +25,124 @@ namespace reseq{
 			VectorAtomic<unsigned int> test;
 			EXPECT_EQ(100, test += 100);
 			EXPECT_EQ(80, test += -20);
+		}
+
+		TEST(utilitiesTest, DominantBase){
+			Dna5String seq = "CAGATTTTGGAANAGTNN";
+
+			DominantBase test, test2;
+			test.Set(seq,0);
+			EXPECT_EQ(1, static_cast<uintBaseCall>(test.Get()));
+			test.Update(at(seq,0), seq, 0);
+			EXPECT_EQ(1, static_cast<uintBaseCall>(test.Get()));
+			test.Clear();
+			test.Set(seq,1);
+			EXPECT_EQ(1, static_cast<uintBaseCall>(test.Get()));
+			test2 = test;
+			EXPECT_EQ(1, static_cast<uintBaseCall>(test2.Get()));
+			test.Clear();
+			test.Set(seq,2);
+			EXPECT_EQ(0, static_cast<uintBaseCall>(test.Get()));
+			test2.Update(at(seq,1), seq, 1);
+			EXPECT_EQ(0, static_cast<uintBaseCall>(test2.Get()));
+			test2 = test;
+			EXPECT_EQ(0, static_cast<uintBaseCall>(test2.Get()));
+
+			array<uintBaseCall, 15> correct_results = {2,0,0,3,3,3,3,3,2,0,0,0,0,0,3};
+			for(auto pos=3; pos < length(seq); ++pos){
+				test.Clear();
+				test.Set(seq,pos);
+				EXPECT_EQ(correct_results.at(pos-3), static_cast<uintBaseCall>(test.Get())) << "Position " << pos;
+				test2.Update(at(seq,pos-1), seq, pos-1);
+				EXPECT_EQ(correct_results.at(pos-3), static_cast<uintBaseCall>(test2.Get())) << "Position " << pos;
+			}
+			test2.Update(at(seq,length(seq)-1), seq, length(seq)-1); // Should run without crashing, output doesn't matter as it won't be used
+
+			DominantBaseWithMemory test3, test4;
+			test4.Update(at(seq,0));
+			EXPECT_EQ(1, static_cast<uintBaseCall>(test4.Get()));
+			test3.Set(seq,0);
+			EXPECT_EQ(1, static_cast<uintBaseCall>(test3.Get()));
+			test3.Clear();
+			test3.Set(seq,1);
+			EXPECT_EQ(1, static_cast<uintBaseCall>(test3.Get()));
+			test4.Update(at(seq,1));
+			EXPECT_EQ(1, static_cast<uintBaseCall>(test4.Get()));
+			test3.Clear();
+			test3.Set(seq,2);
+			EXPECT_EQ(0, static_cast<uintBaseCall>(test3.Get()));
+			test4.Update(at(seq,2));
+			EXPECT_EQ(0, static_cast<uintBaseCall>(test4.Get()));
+			test4.Clear();
+			test4 = test3;
+			EXPECT_EQ(0, static_cast<uintBaseCall>(test4.Get()));
+
+			for(auto pos=3; pos < length(seq); ++pos){
+				test3.Clear();
+				test3.Set(seq,pos);
+				EXPECT_EQ(correct_results.at(pos-3), static_cast<uintBaseCall>(test3.Get())) << "Position " << pos;
+				test4.Update(at(seq,pos));
+				EXPECT_EQ(correct_results.at(pos-3), static_cast<uintBaseCall>(test4.Get())) << "Position " << pos;
+			}
+
+			Dna5StringReverseComplement seq2(seq); //"NNACTNTTCCAAAATCTG"
+
+			test.Clear();
+			test.Set(seq2,0);
+			EXPECT_EQ(0, static_cast<uintBaseCall>(test.Get()));
+			test.Update(at(seq2,0), seq2, 0);
+			EXPECT_EQ(0, static_cast<uintBaseCall>(test.Get()));
+			test.Clear();
+			test.Set(seq2,1);
+			EXPECT_EQ(0, static_cast<uintBaseCall>(test.Get()));
+			test2 = test;
+			EXPECT_EQ(0, static_cast<uintBaseCall>(test2.Get()));
+			test.Clear();
+			test.Set(seq2,2);
+			EXPECT_EQ(0, static_cast<uintBaseCall>(test.Get()));
+			test2.Update(at(seq2,1), seq2, 1);
+			EXPECT_EQ(0, static_cast<uintBaseCall>(test2.Get()));
+			test2 = test;
+			EXPECT_EQ(0, static_cast<uintBaseCall>(test2.Get()));
+
+			correct_results = {0,1,3,3,3,3,3,1,1,0,0,0,0,0,3};
+			for(auto pos=3; pos < length(seq2); ++pos){
+				test.Clear();
+				test.Set(seq2,pos);
+				EXPECT_EQ(correct_results.at(pos-3), static_cast<uintBaseCall>(test.Get())) << "Position " << pos;
+				test2.Update(at(seq2,pos-1), seq2, pos-1);
+				EXPECT_EQ(correct_results.at(pos-3), static_cast<uintBaseCall>(test2.Get())) << "Position " << pos;
+			}
+			test2.Update(at(seq2,length(seq2)-1), seq2, length(seq2)-1); // Should run without crashing, output doesn't matter as it won't be used
+
+			test4.Clear();
+			test4.Update(at(seq2,0));
+			EXPECT_EQ(0, static_cast<uintBaseCall>(test4.Get()));
+			test3.Clear();
+			test3.Set(seq2,0);
+			EXPECT_EQ(0, static_cast<uintBaseCall>(test3.Get()));
+			test3.Clear();
+			test3.Set(seq2,1);
+			EXPECT_EQ(0, static_cast<uintBaseCall>(test3.Get()));
+			test4.Update(at(seq2,1));
+			EXPECT_EQ(0, static_cast<uintBaseCall>(test4.Get()));
+			test3.Clear();
+			test3.Set(seq2,2);
+			EXPECT_EQ(0, static_cast<uintBaseCall>(test3.Get()));
+			test4.Update(at(seq2,2));
+			EXPECT_EQ(0, static_cast<uintBaseCall>(test4.Get()));
+			test4.Clear();
+			test4 = test3;
+			EXPECT_EQ(0, static_cast<uintBaseCall>(test4.Get()));
+
+			for(auto pos=3; pos < length(seq2); ++pos){
+				test3.Clear();
+				test3.Set(seq2,pos);
+				EXPECT_EQ(correct_results.at(pos-3), static_cast<uintBaseCall>(test3.Get())) << "Position " << pos;
+				test4.Update(at(seq2,pos));
+				EXPECT_EQ(correct_results.at(pos-3), static_cast<uintBaseCall>(test4.Get())) << "Position " << pos;
+			}
+
 		}
 
 		TEST(utilitiesTest, Divide){

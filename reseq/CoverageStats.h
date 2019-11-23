@@ -114,9 +114,9 @@ namespace reseq{
 		std::mutex variant_loading_mutex_;
 
 		// Temporary variables
-		std::array<std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,5>,5>,4> tmp_dominant_errors_by_distance_;
-		std::array<std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,5>,5>,4> tmp_dominant_errors_by_gc_;
-		std::array<std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,5>,5>,4> tmp_gc_by_distance_de_;
+		std::array<std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,4>,5>,4> tmp_dominant_errors_by_distance_;
+		std::array<std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,4>,5>,4> tmp_dominant_errors_by_gc_;
+		std::array<std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,4>,5>,4> tmp_gc_by_distance_de_;
 
 		std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,5>,4> tmp_error_rates_by_distance_;
 		std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,5>,4> tmp_error_rates_by_gc_;
@@ -136,9 +136,9 @@ namespace reseq{
 		std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>> tmp_error_coverage_percent_stranded_min_strand_cov_20_;
 
 		// Collected variables for simulation
-		std::array<std::array<std::array<Vect<Vect<uintNucCount>>,5>,5>,4> dominant_errors_by_distance_; // dominant_errors_by_distance_[refBase][previousRefBase][domRefBaseLast5][(distanceToStartOfErrorRegion+9)/10][dominantError] = #refBases
-		std::array<std::array<std::array<Vect<Vect<uintNucCount>>,5>,5>,4> dominant_errors_by_gc_; // dominant_errors_by_gc_[refBase][previousRefBase][domRefBaseLast5][GClastHalfAverageReadLength][dominantError] = #refBases
-		std::array<std::array<std::array<Vect<Vect<uintNucCount>>,5>,5>,4> gc_by_distance_de_; // gc_by_distance_de_[refBase][previousRefBase][domRefBaseLast5][(distanceToStartOfErrorRegion+9)/10][GClastHalfAverageReadLength] = #refBases
+		std::array<std::array<std::array<Vect<Vect<uintNucCount>>,4>,5>,4> dominant_errors_by_distance_; // dominant_errors_by_distance_[refBase][previousRefBase][domRefBaseLast5][(distanceToStartOfErrorRegion+9)/10][dominantError] = #refBases
+		std::array<std::array<std::array<Vect<Vect<uintNucCount>>,4>,5>,4> dominant_errors_by_gc_; // dominant_errors_by_gc_[refBase][previousRefBase][domRefBaseLast5][GClastHalfAverageReadLength][dominantError] = #refBases
+		std::array<std::array<std::array<Vect<Vect<uintNucCount>>,4>,5>,4> gc_by_distance_de_; // gc_by_distance_de_[refBase][previousRefBase][domRefBaseLast5][(distanceToStartOfErrorRegion+9)/10][GClastHalfAverageReadLength] = #refBases
 
 		std::array<std::array<Vect<Vect<uintNucCount>>,5>,4> error_rates_by_distance_; // error_rates_by_distance_[refBase][dominantError][(distanceToStartOfErrorRegion+9)/10][errorRate] = #refBases
 		std::array<std::array<Vect<Vect<uintNucCount>>,5>,4> error_rates_by_gc_; // error_rates_by_gc_[refBase][dominantError][GClastHalfAverageReadLength][errorRate] = #refBases

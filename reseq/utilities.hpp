@@ -1,6 +1,7 @@
 #ifndef UTILITIES_H
 #define UTILITIES_H
 
+#include <array>
 #include <atomic>
 #include <random>
 #include <stdexcept>
@@ -85,71 +86,7 @@ namespace reseq{
 		typedef const seqan::ModifiedString< const seqan::CharString, seqan::ModReverse>  ReversedConstCharString;
 		typedef const seqan::ModifiedString< const CigarString, seqan::ModReverse> ReversedConstCigarString;
 
-		// Mini classes
-		class Complement{
-		public:
-			static seqan::FunctorComplement<seqan::Dna5> Dna5;
-			static seqan::FunctorComplement<seqan::Dna> Dna;
-		};
-
-		template<typename T> struct VectorAtomic{
-			typename std::atomic<T> value_;
-
-			VectorAtomic():
-				value_(0){
-			}
-
-			VectorAtomic(const VectorAtomic &UNUSED(right)){
-				throw std::runtime_error( "This function should never be called. Did you resize an object with a non-zero length?" );
-			}
-
-			operator T() const{ return value_; }
-
-			template<typename U> inline VectorAtomic<T> &operator=(const U &value){
-				value_ = value;
-				return *this;
-			}
-
-			template<typename U> bool operator==(const U& comp) const{
-				return value_ == comp;
-			}
-
-			inline VectorAtomic<T> &operator++(){
-				++value_;
-				return *this;
-			}
-
-			inline T operator++(int){
-				return value_++;
-			}
-
-			template<typename U> inline T operator+=(U rhs){
-				return value_ += rhs;
-			}
-
-			inline VectorAtomic<T> &operator--(){
-				--value_;
-				return *this;
-			}
-
-			inline T operator--(int){
-				return value_--;
-			}
-		};
-		template<typename T, typename U> bool operator==( U lhs, const VectorAtomic<T>& rhs){ // Compares the size_t value to the size
-			return rhs == lhs;
-		}
-
-		// Functions
-		template<typename T> void Acquire(std::vector<T> &receiver, std::vector<VectorAtomic<T>> &donator){
-			receiver.resize(donator.size());
-			for(auto i=donator.size(); i--; ){
-				receiver.at(i) = donator.at(i);
-			}
-			donator.clear();
-			donator.shrink_to_fit();
-		}
-
+		// Functions needed in classes
 		template<typename T> struct AtDummy{
 			static T dummy_;
 		};
@@ -263,6 +200,207 @@ namespace reseq{
 				throw std::out_of_range( "Accessing ModifiedString after last position" );
 				return AtDummy<T>::dummy_;
 			}
+		}
+
+		template<typename T, typename U> inline void SetToMax(T& current_max, const U potential_max){
+			if(potential_max > current_max ){
+				current_max = potential_max;
+			}
+		}
+
+		template<typename T, typename U> inline void SetToMin(T& current_min, const U potential_min){
+			if(potential_min < current_min ){
+				current_min = potential_min;
+			}
+		}
+
+		// Mini classes
+		class Complement{
+		public:
+			static seqan::FunctorComplement<seqan::Dna5> Dna5;
+			static seqan::FunctorComplement<seqan::Dna> Dna;
+		};
+
+		class DominantBase{
+		public:
+			static const uintReadLen kLastX = 5;
+
+		private:
+			seqan::Dna dom_base_;
+			std::array<uintReadLen, 5> seq_content_;
+
+			template<typename S> void FindDominant( const S &seq, uintSeqLen cur_pos ){
+				// Get count of most appearing base
+				uintSeqLen max_content(0);
+				for( uintBaseCall nucleotide=4; nucleotide--; ){ // Leave out N for this
+					SetToMax(max_content, seq_content_.at(nucleotide));
+				}
+
+				if(0 == max_content){
+					// Only N's in kLastX
+					if(length(seq) <= cur_pos || 4 == at(seq, cur_pos)){
+						dom_base_ = 0; // We won't use this position anyways for the statistics so just make it an A
+					}
+					else{
+						dom_base_ = at(seq, cur_pos); // Use cur base as all before where N's
+					}
+				}
+				else{
+					// Get the base that is closest to the current base which matches max_content (in case there are multiple bases with same number of appearances)
+					uintSeqLen pos=cur_pos;
+					while(max_content != seq_content_.at( at(seq, --pos) ));
+					dom_base_ = at(seq, pos);
+				}
+			}
+
+		public:
+			DominantBase():
+				dom_base_(0){
+				seq_content_.fill(0);
+			}
+
+			DominantBase& operator=(const DominantBase& rhs){
+				dom_base_ = rhs.dom_base_;
+				seq_content_ = rhs.seq_content_;
+				return *this;
+			}
+
+			seqan::Dna Get(){
+				return dom_base_;
+			}
+
+			void Clear(){
+				seq_content_.fill(0);
+			}
+
+			template<typename S> void Set( const S &seq, uintSeqLen cur_pos ){
+				// Fill seq_content_
+				for( uintSeqLen pos = (kLastX<cur_pos?cur_pos-kLastX:0); pos < cur_pos; ++pos){
+					++seq_content_.at( at(seq, pos) );
+				}
+
+				FindDominant(seq, cur_pos);
+			}
+
+			template<typename U, typename S> void Update( U base, const S &seq, uintSeqLen last_pos ){
+				// Add new base
+				++seq_content_.at(base);
+				// Remove old base if we reached kLastX bases, so that the sum of seq_content_ is actually kLastX
+				if(kLastX <= last_pos){
+					--seq_content_.at(at(seq, last_pos-kLastX));
+				}
+
+				FindDominant(seq, last_pos+1);
+			}
+		};
+
+		class DominantBaseWithMemory{
+		private:
+			DominantBase dom_base_;
+			seqan::Dna5String memory_;
+
+		public:
+			DominantBaseWithMemory(){
+				reserve(memory_, DominantBase::kLastX+2);
+			}
+
+			DominantBaseWithMemory& operator=(const DominantBaseWithMemory& rhs){
+				dom_base_ = rhs.dom_base_;
+				memory_ = rhs.memory_;
+				return *this;
+			}
+
+			seqan::Dna Get(){
+				return dom_base_.Get();
+			}
+
+			void Clear(){
+				dom_base_.Clear();
+				clear(memory_);
+			}
+
+			template<typename S> void Set( const S &seq, uintSeqLen cur_pos ){
+				resize( memory_, std::min(static_cast<uintSeqLen>(DominantBase::kLastX), cur_pos)+1 );
+				for(auto mem_pos=length(memory_); mem_pos--; ){
+					at(memory_, mem_pos) = at(seq, cur_pos + mem_pos + 1 - length(memory_));
+				}
+				dom_base_.Set( memory_, length(memory_)-1 );
+			}
+
+			// Update the current base not the last base like in DominantBase as we need to already store the current base
+			template<typename U> void Update( U base ){
+				if(length(memory_) > DominantBase::kLastX+1){
+					erase(memory_, 0);
+				}
+				memory_ += base;
+
+				if(1 < length(memory_)){
+					// Only update when we have a last base.
+					dom_base_.Update( at(memory_, length(memory_)-2), memory_, length(memory_)-2 );
+				}
+				else{
+					// When we only added the current base we don't want to add a base, but still set the dominant base to the current base
+					dom_base_.Set( memory_, 0 );
+				}
+			}
+		};
+
+		template<typename T> struct VectorAtomic{
+			typename std::atomic<T> value_;
+
+			VectorAtomic():
+				value_(0){
+			}
+
+			VectorAtomic(const VectorAtomic &UNUSED(right)){
+				throw std::runtime_error( "This function should never be called. Did you resize an object with a non-zero length?" );
+			}
+
+			operator T() const{ return value_; }
+
+			template<typename U> inline VectorAtomic<T> &operator=(const U &value){
+				value_ = value;
+				return *this;
+			}
+
+			template<typename U> bool operator==(const U& comp) const{
+				return value_ == comp;
+			}
+
+			inline VectorAtomic<T> &operator++(){
+				++value_;
+				return *this;
+			}
+
+			inline T operator++(int){
+				return value_++;
+			}
+
+			template<typename U> inline T operator+=(U rhs){
+				return value_ += rhs;
+			}
+
+			inline VectorAtomic<T> &operator--(){
+				--value_;
+				return *this;
+			}
+
+			inline T operator--(int){
+				return value_--;
+			}
+		};
+		template<typename T, typename U> bool operator==( U lhs, const VectorAtomic<T>& rhs){ // Compares the size_t value to the size
+			return rhs == lhs;
+		}
+
+		// Functions
+		template<typename T> void Acquire(std::vector<T> &receiver, std::vector<VectorAtomic<T>> &donator){
+			receiver.resize(donator.size());
+			for(auto i=donator.size(); i--; ){
+				receiver.at(i) = donator.at(i);
+			}
+			donator.clear();
+			donator.shrink_to_fit();
 		}
 
 		inline void CreateDir(const char *file){
@@ -410,18 +548,6 @@ namespace reseq{
 			}
 		}
 
-		template<typename T, typename U> inline void SetToMax(T& current_max, const U potential_max){
-			if(potential_max > current_max ){
-				current_max = potential_max;
-			}
-		}
-
-		template<typename T, typename U> inline void SetToMin(T& current_min, const U potential_min){
-			if(potential_min < current_min ){
-				current_min = potential_min;
-			}
-		}
-
 		template <typename T> inline int Sign(T val) {
 		    return (T(0) < val) - (val < T(0));
 		}
@@ -433,64 +559,6 @@ namespace reseq{
 		inline unsigned int TrueRandom(){
 			std::random_device rd;
 			return rd();
-		}
-
-		template<typename T, size_t N, typename U, typename S> void SetDominantLastX( T &dom_base, std::array<uintReadLen,N> &seq_content, U base, uintReadLen lastx, const S &seq, uintSeqLen pos ){
-			// Add new base
-			++seq_content.at(base);
-			// Remove old base if we reached lastx bases, so that the sum of seq_content is actually lastx
-			if(lastx <= pos) --seq_content.at(static_cast<seqan::Dna5>(at(seq, pos-lastx)));
-			// If we added an N, we just ignore it
-			if(4 > base){
-				// In case we don't have a defined base yet or the just added base has equal or more appearances than the current dominant one it's easy
-				if(dom_base >= N || seq_content.at(base) >= seq_content.at(dom_base)){
-					dom_base = base;
-				}
-				else if(lastx <= pos && dom_base == at(seq, pos-lastx)){ // In case seq content is not complete yet only the easy case above can happen
-					// Otherwise check if there are two most abundant bases
-					bool equal_content(false);
-					for( uintBaseCall b=N; b--; ){
-						if( b != dom_base && seq_content.at(b) >= seq_content.at(dom_base)){
-							equal_content = true;
-						}
-					}
-					// If two bases are most abundant take the one closer to pos
-					if(equal_content){
-						for( uintSeqLen p=1; p<lastx; ++p){
-							if( seq_content.at(at(seq, pos-p)) >= seq_content.at(dom_base) ){
-								dom_base = at(seq, pos-p);
-								break;
-							}
-						}
-					}
-				}
-			}
-		}
-
-		template<typename T, size_t N, typename S> void GetDominantLastX( T &dom_base, std::array<uintReadLen,N> &seq_content, uintReadLen lastx, const S &seq, uintSeqLen cur_pos ){
-			if(cur_pos){
-				// Fill seq_content_reference_last5
-				for( uintSeqLen pos = (lastx<cur_pos?cur_pos-lastx:0); pos < cur_pos; ++pos){
-					++seq_content.at( at(seq, pos) );
-				}
-
-				// Get count of most appearing base
-				uintSeqLen max_content(0);
-				for( uintBaseCall nucleotide=4; nucleotide--; ){ // Leave out N for this
-					SetToMax(max_content, seq_content.at(nucleotide));
-				}
-
-				if(0 == max_content){
-					// Only N's in lastx
-					dom_base = 4;
-				}
-				else{
-					// Get the base that is closest to the current base which matches max_content (in case there are multiple bases with same number of appearances)
-					uintSeqLen pos=cur_pos;
-					while(max_content != seq_content.at( at(seq, --pos) ));
-					dom_base = at(seq, pos);
-				}
-			}
 		}
 	}
 #endif //SWIG

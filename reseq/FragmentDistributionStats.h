@@ -93,8 +93,8 @@ namespace reseq{
 		// Definitions for paper (extra output)
 		static const bool kSurMult = false; // This is only for the fit for the comparison plots, the rest of the program is using the better sum without a toggle, so do not switch this to true and use the simulator
 
-		static constexpr const char *kParameterInfoFile = NULL; //"maxlike_fit.csv";
-		static constexpr const char *kDispersionInfoFile = NULL; //"dispersion_fit.csv";
+		static constexpr const char *kParameterInfoFile = NULL; // "maxlike_fit2.csv";
+		static constexpr const char *kDispersionInfoFile = NULL; // "dispersion_fit2.csv";
 		static const uintDupCount kMaxDuplications = 100; // Maximum number of duplications used for dispersion fit reported in kDispersionInfoFile
 		static const uintSeqLen kDispersionBinSize = 200000; // Bin size used to get sample mean and for dispersion fit reported in kDispersionInfoFile (2*sites, due to forward+reverse)
 
@@ -422,7 +422,6 @@ namespace reseq{
 		void FinishThreads(ThreadData &thread, const Reference &reference, FragmentDuplicationStats &duplications, std::mutex &print_mutex);
 
 		void Finalize();
-		void Shrink();
 		bool FinalizeBiasCalculation(const Reference &reference, uintNumThreads num_threads, FragmentDuplicationStats &duplications);
 		bool UpdateRefSeqBias(RefSeqBiasSimulation model, const std::string &bias_file, const Reference &ref, std::mt19937_64 &rgen);
 		double CalculateBiasNormalization(double &max_bias, const Reference &reference, uintNumThreads num_threads, uintFragCount total_reads) const;

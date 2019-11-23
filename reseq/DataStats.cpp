@@ -59,7 +59,6 @@ using reseq::utilities::IsN;
 using reseq::utilities::MeanWithRoundingToFirst;
 using reseq::utilities::Percent;
 using reseq::utilities::SafePercent;
-using reseq::utilities::SetDominantLastX;
 using reseq::utilities::SetToMin;
 using reseq::utilities::SetToMax;
 
@@ -647,32 +646,12 @@ void DataStats::Shrink(){
 	adapters_.Shrink();
 	coverage_.Shrink();
 	errors_.Shrink();
-	fragment_distribution_.Shrink();
 	qualities_.Shrink();
 	tiles_.Shrink();
 	
 	for( uintTempSeq template_segment=2; template_segment--; ){
 		ShrinkVect(read_lengths_by_fragment_length_.at(template_segment));
-
-		gc_read_content_.at(template_segment).Shrink();
-		gc_read_content_reference_.at(template_segment).Shrink();
-		gc_read_content_mapped_.at(template_segment).Shrink();
-
-		n_content_.at(template_segment).Shrink();
-		for( int called_base=5; called_base--; ){
-			sequence_content_.at(template_segment).at(called_base).Shrink();
-			homopolymer_distribution_.at(called_base).Shrink();
-		}
-		for( int ref_base=4; ref_base--; ){
-			for( int strand=2; strand--; ){
-				sequence_content_reference_.at(template_segment).at(strand).at(ref_base).Shrink();
-			}
-		}
 	}
-
-	proper_pair_mapping_quality_.Shrink();
-	improper_pair_mapping_quality_.Shrink();
-	single_read_mapping_quality_.Shrink();
 }
 
 // Deactivation of bias calculation only for speeding up of tests

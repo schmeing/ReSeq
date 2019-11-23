@@ -1056,7 +1056,7 @@ bool ProbabilityEstimates::Estimate(const DataStats &stats, uintNumFits max_iter
 
 	// Collect the different parameters determining the different matrices that have to be calculated
 	vector<IPFThreadParams> params;
-	params.reserve( (2*4 + 2*4*5 + 2)*stats.Tiles().NumTiles() + 5*5*4-4 + 5*4 + 2*6 );
+	params.reserve( (2*4 + 2*4*5 + 2)*stats.Tiles().NumTiles() + 4*4 + 4*4*5 + 2*6 );
 	for(uintTempSeq template_segment=0; template_segment<2; ++template_segment){
 		for(uintTileId tile_id=0; tile_id<stats.Tiles().NumTiles(); ++tile_id){
 			for( uintBaseCall ref_base = base_call_.at(template_segment).at(tile_id).size(); ref_base--; ){
@@ -1085,9 +1085,10 @@ bool ProbabilityEstimates::Estimate(const DataStats &stats, uintNumFits max_iter
 			if(ref_base != dom_error){
 				params.push_back( {kIPFErrorRate,0,0,ref_base,dom_error,0} );
 			}
-
+		}
+		for( uintBaseCall dom_base = 4; dom_base--; ){
 			for( uintBaseCall last_ref_base = 5; last_ref_base--; ){
-				params.push_back( {kIPFDominantError,0,0,ref_base,dom_error,last_ref_base} );
+				params.push_back( {kIPFDominantError,0,0,ref_base,dom_base,last_ref_base} );
 			}
 		}
 	}

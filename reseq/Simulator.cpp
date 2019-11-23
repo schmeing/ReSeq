@@ -76,12 +76,11 @@ using reseq::utilities::at;
 using reseq::utilities::CreateDir;
 using reseq::utilities::DeleteFile;
 using reseq::utilities::Divide;
-using reseq::utilities::GetDominantLastX;
+using reseq::utilities::DominantBase;
 using reseq::utilities::IsGC;
 using reseq::utilities::Percent;
 using reseq::utilities::ReverseComplementorDna;
 using reseq::utilities::SafePercent;
-using reseq::utilities::SetDominantLastX;
 using reseq::utilities::SetToMax;
 using reseq::utilities::TransformDistanceToStartOfErrorRegion;
 using reseq::utilities::TrueRandom;
@@ -657,20 +656,17 @@ bool Simulator::CreateReads(
 
 void Simulator::ResetSystematicErrorCounters(const Reference &ref){
 	sys_last_base_ = 4;
-	sys_dom_last5_ = 4;
-	sys_seq_content_last5_.fill(0);
+	sys_dom_base_.Clear();
 
 	if(ref.VariantsLoaded()){
 		sys_last_var_pos_per_allele_.clear();
 		sys_last_var_pos_per_allele_.resize(ref.NumAlleles(), numeric_limits<uintSeqLen>::max());
 		sys_last_base_per_allele_.clear();
 		sys_last_base_per_allele_.resize(ref.NumAlleles(), 4);
-		sys_dom_last5_per_allele_.clear();
-		sys_dom_last5_per_allele_.resize(ref.NumAlleles(), 4);
-		sys_seq_content_last5_per_allele_.clear();
-		sys_seq_content_last5_per_allele_.resize(ref.NumAlleles(), sys_seq_content_last5_);
-		sys_seq_last5_per_allele_.clear();
-		sys_seq_last5_per_allele_.resize(ref.NumAlleles());
+
+		for(auto allele = ref.NumAlleles(); allele--; ){
+			sys_dom_base_per_allele_.at(allele).Clear();
+		}
 	}
 
 	sys_gc_ = 0;
@@ -702,7 +698,7 @@ void Simulator::SetSystematicErrorVariantsReverse(uintSeqLen &start_dist_error_r
 	if(ref.VariantsLoaded()){
 		uintAlleleId chosen_allele;
 		vector<pair<Dna5,uintPercent>> tmp_sys_errors;
-		Dna5 last_base;
+		Dna5 base, last_base;
 		uintReadLen gc(0), gc_bases(0);
 
 		auto var_id=block.first_variant_id_;
@@ -727,24 +723,17 @@ void Simulator::SetSystematicErrorVariantsReverse(uintSeqLen &start_dist_error_r
 			}
 
 			// Get dom_base
-			if( sys_last_var_pos_per_allele_.at(chosen_allele) < ref.SequenceLength(ref_seq_id) && sys_last_var_pos_per_allele_.at(chosen_allele) <= var.position_+5 ){
+			if( sys_last_var_pos_per_allele_.at(chosen_allele) < ref.SequenceLength(ref_seq_id) && sys_last_var_pos_per_allele_.at(chosen_allele) <= var.position_+DominantBase::kLastX ){
+				// Variant within DominantBase::kLastX of last variant
 				for( auto pos = sys_last_var_pos_per_allele_.at(chosen_allele)-1; pos > var.position_; --pos ){
-					SetDominantLastX( sys_dom_last5_per_allele_.at(chosen_allele), sys_seq_content_last5_per_allele_.at(chosen_allele), Complement::Dna(at(ref.ReferenceSequence(ref_seq_id), pos)), 5, sys_seq_last5_per_allele_.at(chosen_allele), length(sys_seq_last5_per_allele_.at(chosen_allele)) );
-					if(length(sys_seq_last5_per_allele_.at(chosen_allele)) > 4){
-						erase(sys_seq_last5_per_allele_.at(chosen_allele), 0);
-					}
-					sys_seq_last5_per_allele_.at(chosen_allele) += Complement::Dna(at(ref.ReferenceSequence(ref_seq_id), pos));
+					sys_dom_base_per_allele_.at(chosen_allele).Update( Complement::Dna(at(ref.ReferenceSequence(ref_seq_id), pos)) );
 				}
 			}
 			else{
-				sys_seq_content_last5_per_allele_.at(chosen_allele).fill(0);
+				sys_dom_base_per_allele_.at(chosen_allele).Clear();
 				if(rev_pos){
-					GetDominantLastX( sys_dom_last5_per_allele_.at(chosen_allele), sys_seq_content_last5_per_allele_.at(chosen_allele), 5, ConstDna5StringReverseComplement(ref.ReferenceSequence(ref_seq_id)), rev_pos );
-					ref.ReferenceSequence(sys_seq_last5_per_allele_.at(chosen_allele), ref_seq_id, var.position_+min(rev_pos,static_cast<uintSeqLen>(5))+1, min(rev_pos,static_cast<uintSeqLen>(5)), true);
-				}
-				else{
-					sys_dom_last5_per_allele_.at(chosen_allele) = 4;
-					sys_seq_last5_per_allele_.at(chosen_allele) = "";
+					// If we have bases before the variant add them
+					sys_dom_base_per_allele_.at(chosen_allele).Set( ConstDna5StringReverseComplement(ref.ReferenceSequence(ref_seq_id)), rev_pos-1 );
 				}
 			}
 
@@ -775,13 +764,10 @@ void Simulator::SetSystematicErrorVariantsReverse(uintSeqLen &start_dist_error_r
 			if( 0 < length(var.var_seq_)){
 				tmp_sys_errors.reserve(length(var.var_seq_));
 				for(uintSeqLen vpos=length(var.var_seq_); vpos--; ){
-					DrawSystematicError(tmp_sys_errors, Complement::Dna(at(var.var_seq_, vpos)), last_base, sys_dom_last5_per_allele_.at(chosen_allele), SafePercent(gc, gc_bases), TransformDistanceToStartOfErrorRegion(start_dist_error_region), estimates);
-					last_base = Complement::Dna(at(var.var_seq_, vpos));
-					SetDominantLastX( sys_dom_last5_per_allele_.at(chosen_allele), sys_seq_content_last5_per_allele_.at(chosen_allele), last_base, 5, sys_seq_last5_per_allele_.at(chosen_allele), length(sys_seq_last5_per_allele_.at(chosen_allele)));
-					if(length(sys_seq_last5_per_allele_.at(chosen_allele)) > 4){
-						erase(sys_seq_last5_per_allele_.at(chosen_allele), 0);
-					}
-					sys_seq_last5_per_allele_.at(chosen_allele) += last_base;
+					base = Complement::Dna(at(var.var_seq_, vpos));
+					sys_dom_base_per_allele_.at(chosen_allele).Update(base);
+					DrawSystematicError(tmp_sys_errors, base, last_base, sys_dom_base_per_allele_.at(chosen_allele).Get(), SafePercent(gc, gc_bases), TransformDistanceToStartOfErrorRegion(start_dist_error_region), estimates);
+					last_base = base;
 				}
 			}
 
@@ -790,58 +776,38 @@ void Simulator::SetSystematicErrorVariantsReverse(uintSeqLen &start_dist_error_r
 
 			// Update information for next variants
 			auto ref_allele = ref.NumAlleles(); // For this allele we already used the reference, so in case we have another allele identical to the reference up to the current variance we can copy the values
-			if(sys_last_var_pos_per_allele_.at(chosen_allele) >= ref.SequenceLength(ref_seq_id) || sys_last_var_pos_per_allele_.at(chosen_allele)+length(var.var_seq_) > var.position_+5){
+			if(sys_last_var_pos_per_allele_.at(chosen_allele) >= ref.SequenceLength(ref_seq_id) || sys_last_var_pos_per_allele_.at(chosen_allele)+length(var.var_seq_) > var.position_+DominantBase::kLastX){
 				ref_allele = chosen_allele;
 			}
 			for(uintAlleleId allele=0; allele < ref.NumAlleles(); ++allele){
 				if(var.InAllele(allele)){
 					if( allele != chosen_allele){ // Dom base for chosen allele was already updated during the drawing process
 						// Update dom base
-						if(sys_last_var_pos_per_allele_.at(allele) < ref.SequenceLength(ref_seq_id) && sys_last_var_pos_per_allele_.at(allele)+length(var.var_seq_) <= var.position_+5){
+						if(sys_last_var_pos_per_allele_.at(allele) < ref.SequenceLength(ref_seq_id) && sys_last_var_pos_per_allele_.at(allele)+length(var.var_seq_) <= var.position_+DominantBase::kLastX){
 							for( auto pos = sys_last_var_pos_per_allele_.at(allele)-1; pos > var.position_; --pos ){
-								SetDominantLastX( sys_dom_last5_per_allele_.at(allele), sys_seq_content_last5_per_allele_.at(allele), Complement::Dna(at(ref.ReferenceSequence(ref_seq_id), pos)), 5, sys_seq_last5_per_allele_.at(allele), length(sys_seq_last5_per_allele_.at(allele)) );
-								if(length(sys_seq_last5_per_allele_.at(allele)) > 4){
-									erase(sys_seq_last5_per_allele_.at(allele), 0);
-								}
-								sys_seq_last5_per_allele_.at(allele) += Complement::Dna(at(ref.ReferenceSequence(ref_seq_id), pos));
+								sys_dom_base_per_allele_.at(allele).Update( Complement::Dna(at(ref.ReferenceSequence(ref_seq_id), pos)) );
 							}
 
 							for(uintSeqLen vpos=length(var.var_seq_); vpos--; ){
-								SetDominantLastX( sys_dom_last5_per_allele_.at(allele), sys_seq_content_last5_per_allele_.at(allele), Complement::Dna(at(var.var_seq_, vpos)), 5, sys_seq_last5_per_allele_.at(allele), length(sys_seq_last5_per_allele_.at(allele)));
-								if(length(sys_seq_last5_per_allele_.at(allele)) > 4){
-									erase(sys_seq_last5_per_allele_.at(allele), 0);
-								}
-								sys_seq_last5_per_allele_.at(allele) += Complement::Dna(at(var.var_seq_, vpos));
+								sys_dom_base_per_allele_.at(allele).Update( Complement::Dna(at(var.var_seq_, vpos)) );
 							}
 						}
 						else{
 							if(ref_allele < ref.NumAlleles()){
 								// We can copy from an identical allele
-								sys_dom_last5_per_allele_.at(allele) = sys_dom_last5_per_allele_.at(ref_allele);
-								for(auto base=sys_seq_content_last5_per_allele_.at(allele).size(); base--; ){
-									sys_seq_content_last5_per_allele_.at(allele) = sys_seq_content_last5_per_allele_.at(ref_allele);
-								}
-								sys_seq_last5_per_allele_.at(allele) = sys_seq_last5_per_allele_.at(ref_allele);
+								sys_dom_base_per_allele_.at(allele) = sys_dom_base_per_allele_.at(ref_allele);
 							}
 							else{
 								ref_allele = allele;
 
-								sys_seq_content_last5_per_allele_.at(allele).fill(0);
+								sys_dom_base_per_allele_.at(allele).Clear();
 								if(rev_pos){
-									GetDominantLastX( sys_dom_last5_per_allele_.at(allele), sys_seq_content_last5_per_allele_.at(allele), 5, ConstDna5StringReverseComplement(ref.ReferenceSequence(ref_seq_id)), rev_pos );
-									ref.ReferenceSequence(sys_seq_last5_per_allele_.at(allele), ref_seq_id, var.position_+min(rev_pos,static_cast<uintSeqLen>(5))+1, min(rev_pos,static_cast<uintSeqLen>(5)), true);
-								}
-								else{
-									sys_dom_last5_per_allele_.at(allele) = 4;
-									sys_seq_last5_per_allele_.at(allele) = "";
+									// If we have bases before the variant add them
+									sys_dom_base_per_allele_.at(allele).Set( ConstDna5StringReverseComplement(ref.ReferenceSequence(ref_seq_id)), rev_pos-1 );
 								}
 
 								for(uintSeqLen vpos=length(var.var_seq_); vpos--; ){
-									SetDominantLastX( sys_dom_last5_per_allele_.at(allele), sys_seq_content_last5_per_allele_.at(allele), Complement::Dna(at(var.var_seq_, vpos)), 5, sys_seq_last5_per_allele_.at(allele), length(sys_seq_last5_per_allele_.at(allele)));
-									if(length(sys_seq_last5_per_allele_.at(allele)) > 4){
-										erase(sys_seq_last5_per_allele_.at(allele), 0);
-									}
-									sys_seq_last5_per_allele_.at(allele) += Complement::Dna(at(var.var_seq_, vpos));
+									sys_dom_base_per_allele_.at(allele).Update( Complement::Dna(at(var.var_seq_, vpos)) );
 								}
 							}
 						}
@@ -951,7 +917,7 @@ void Simulator::SetSystematicErrorVariantsForward(uintSeqLen &start_dist_error_r
 	if(ref.VariantsLoaded()){
 		uintAlleleId chosen_allele;
 		vector<pair<Dna5,uintPercent>> tmp_sys_errors;
-		Dna5 last_base;
+		Dna5 base, last_base;
 		uintReadLen gc(0), gc_bases(0);
 
 		auto var_id=block.first_variant_id_;
@@ -974,24 +940,16 @@ void Simulator::SetSystematicErrorVariantsForward(uintSeqLen &start_dist_error_r
 			}
 
 			// Get dom_base
-			if( sys_last_var_pos_per_allele_.at(chosen_allele) < ref.SequenceLength(ref_seq_id) && sys_last_var_pos_per_allele_.at(chosen_allele)+5 >= var.position_ ){
+			if( sys_last_var_pos_per_allele_.at(chosen_allele) < ref.SequenceLength(ref_seq_id) && sys_last_var_pos_per_allele_.at(chosen_allele)+DominantBase::kLastX >= var.position_ ){
 				for( auto pos = sys_last_var_pos_per_allele_.at(chosen_allele)+1; pos < var.position_; ++pos ){
-					SetDominantLastX( sys_dom_last5_per_allele_.at(chosen_allele), sys_seq_content_last5_per_allele_.at(chosen_allele), at(ref.ReferenceSequence(ref_seq_id), pos), 5, sys_seq_last5_per_allele_.at(chosen_allele), length(sys_seq_last5_per_allele_.at(chosen_allele)) );
-					if(length(sys_seq_last5_per_allele_.at(chosen_allele)) > 4){
-						erase(sys_seq_last5_per_allele_.at(chosen_allele), 0);
-					}
-					sys_seq_last5_per_allele_.at(chosen_allele) += at(ref.ReferenceSequence(ref_seq_id), pos);
+					sys_dom_base_per_allele_.at(chosen_allele).Update( at(ref.ReferenceSequence(ref_seq_id), pos) );
 				}
 			}
 			else{
-				sys_seq_content_last5_per_allele_.at(chosen_allele).fill(0);
+				sys_dom_base_per_allele_.at(chosen_allele).Clear();
 				if(var.position_){
-					GetDominantLastX( sys_dom_last5_per_allele_.at(chosen_allele), sys_seq_content_last5_per_allele_.at(chosen_allele), 5, ref.ReferenceSequence(ref_seq_id), var.position_ );
-					ref.ReferenceSequence(sys_seq_last5_per_allele_.at(chosen_allele), ref_seq_id, var.position_-min(var.position_,static_cast<uintSeqLen>(5)), min(var.position_,static_cast<uintSeqLen>(5)), false);
-				}
-				else{
-					sys_dom_last5_per_allele_.at(chosen_allele) = 4;
-					sys_seq_last5_per_allele_.at(chosen_allele) = "";
+					// If we have bases before the variant add them
+					sys_dom_base_per_allele_.at(chosen_allele).Set( ref.ReferenceSequence(ref_seq_id), var.position_-1 );
 				}
 			}
 
@@ -1022,13 +980,10 @@ void Simulator::SetSystematicErrorVariantsForward(uintSeqLen &start_dist_error_r
 			if( 0 < length(var.var_seq_)){
 				tmp_sys_errors.reserve(length(var.var_seq_));
 				for(uintSeqLen vpos=0; vpos < length(var.var_seq_); ++vpos){
-					DrawSystematicError(tmp_sys_errors, at(var.var_seq_, vpos), last_base, sys_dom_last5_per_allele_.at(chosen_allele), SafePercent(gc, gc_bases), TransformDistanceToStartOfErrorRegion(start_dist_error_region), estimates);
-					last_base = at(var.var_seq_, vpos);
-					SetDominantLastX( sys_dom_last5_per_allele_.at(chosen_allele), sys_seq_content_last5_per_allele_.at(chosen_allele), last_base, 5, sys_seq_last5_per_allele_.at(chosen_allele), length(sys_seq_last5_per_allele_.at(chosen_allele)));
-					if(length(sys_seq_last5_per_allele_.at(chosen_allele)) > 4){
-						erase(sys_seq_last5_per_allele_.at(chosen_allele), 0);
-					}
-					sys_seq_last5_per_allele_.at(chosen_allele) += last_base;
+					base = at(var.var_seq_, vpos);
+					sys_dom_base_per_allele_.at(chosen_allele).Update(base);
+					DrawSystematicError(tmp_sys_errors, base, last_base, sys_dom_base_per_allele_.at(chosen_allele).Get(), SafePercent(gc, gc_bases), TransformDistanceToStartOfErrorRegion(start_dist_error_region), estimates);
+					last_base = base;
 				}
 			}
 
@@ -1037,58 +992,37 @@ void Simulator::SetSystematicErrorVariantsForward(uintSeqLen &start_dist_error_r
 
 			// Update information for next variants
 			auto ref_allele = ref.NumAlleles(); // For this allele we already used the reference, so in case we have another allele identical to the reference up to the current variance we can copy the values
-			if(sys_last_var_pos_per_allele_.at(chosen_allele) >= ref.SequenceLength(ref_seq_id) || sys_last_var_pos_per_allele_.at(chosen_allele)+5 < var.position_+length(var.var_seq_)){
+			if(sys_last_var_pos_per_allele_.at(chosen_allele) >= ref.SequenceLength(ref_seq_id) || sys_last_var_pos_per_allele_.at(chosen_allele)+DominantBase::kLastX < var.position_+length(var.var_seq_)){
 				ref_allele = chosen_allele;
 			}
 			for(uintAlleleId allele=0; allele < ref.NumAlleles(); ++allele){
 				if(var.InAllele(allele)){
-					if( allele != chosen_allele){ // Dom base for chosen allele was already updated during the drawing process
+					if( allele != chosen_allele ){ // Dom base for chosen allele was already updated during the drawing process
 						// Update dom base
-						if(sys_last_var_pos_per_allele_.at(allele) < ref.SequenceLength(ref_seq_id) && sys_last_var_pos_per_allele_.at(allele)+5 >= var.position_+length(var.var_seq_)){
+						if(sys_last_var_pos_per_allele_.at(allele) < ref.SequenceLength(ref_seq_id) && sys_last_var_pos_per_allele_.at(allele)+DominantBase::kLastX >= var.position_+length(var.var_seq_)){
 							for( auto pos = sys_last_var_pos_per_allele_.at(allele)+1; pos < var.position_; ++pos ){
-								SetDominantLastX( sys_dom_last5_per_allele_.at(allele), sys_seq_content_last5_per_allele_.at(allele), at(ref.ReferenceSequence(ref_seq_id), pos), 5, sys_seq_last5_per_allele_.at(allele), length(sys_seq_last5_per_allele_.at(allele)) );
-								if(length(sys_seq_last5_per_allele_.at(allele)) > 4){
-									erase(sys_seq_last5_per_allele_.at(allele), 0);
-								}
-								sys_seq_last5_per_allele_.at(allele) += at(ref.ReferenceSequence(ref_seq_id), pos);
+								sys_dom_base_per_allele_.at(allele).Update( at(ref.ReferenceSequence(ref_seq_id), pos) );
 							}
 
 							for(uintSeqLen vpos=0; vpos < length(var.var_seq_); ++vpos){
-								SetDominantLastX( sys_dom_last5_per_allele_.at(allele), sys_seq_content_last5_per_allele_.at(allele), at(var.var_seq_, vpos), 5, sys_seq_last5_per_allele_.at(allele), length(sys_seq_last5_per_allele_.at(allele)));
-								if(length(sys_seq_last5_per_allele_.at(allele)) > 4){
-									erase(sys_seq_last5_per_allele_.at(allele), 0);
-								}
-								sys_seq_last5_per_allele_.at(allele) += at(var.var_seq_, vpos);
+								sys_dom_base_per_allele_.at(allele).Update( at(var.var_seq_, vpos) );
 							}
 						}
 						else{
 							if(ref_allele < ref.NumAlleles()){
 								// We can copy from an identical allele
-								sys_dom_last5_per_allele_.at(allele) = sys_dom_last5_per_allele_.at(ref_allele);
-								for(auto base=sys_seq_content_last5_per_allele_.at(allele).size(); base--; ){
-									sys_seq_content_last5_per_allele_.at(allele) = sys_seq_content_last5_per_allele_.at(ref_allele);
-								}
-								sys_seq_last5_per_allele_.at(allele) = sys_seq_last5_per_allele_.at(ref_allele);
+								sys_dom_base_per_allele_.at(allele) = sys_dom_base_per_allele_.at(ref_allele);
 							}
 							else{
 								ref_allele = allele;
 
-								sys_seq_content_last5_per_allele_.at(allele).fill(0);
+								sys_dom_base_per_allele_.at(allele).Clear();
 								if(var.position_){
-									GetDominantLastX( sys_dom_last5_per_allele_.at(allele), sys_seq_content_last5_per_allele_.at(allele), 5, ref.ReferenceSequence(ref_seq_id), var.position_ );
-									ref.ReferenceSequence(sys_seq_last5_per_allele_.at(allele), ref_seq_id, var.position_-min(var.position_,static_cast<uintSeqLen>(5)), min(var.position_,static_cast<uintSeqLen>(5)), false);
-								}
-								else{
-									sys_dom_last5_per_allele_.at(allele) = 4;
-									sys_seq_last5_per_allele_.at(allele) = "";
+									sys_dom_base_per_allele_.at(allele).Set( ref.ReferenceSequence(ref_seq_id), var.position_-1 );
 								}
 
 								for(uintSeqLen vpos=0; vpos < length(var.var_seq_); ++vpos){
-									SetDominantLastX( sys_dom_last5_per_allele_.at(allele), sys_seq_content_last5_per_allele_.at(allele), at(var.var_seq_, vpos), 5, sys_seq_last5_per_allele_.at(allele), length(sys_seq_last5_per_allele_.at(allele)));
-									if(length(sys_seq_last5_per_allele_.at(allele)) > 4){
-										erase(sys_seq_last5_per_allele_.at(allele), 0);
-									}
-									sys_seq_last5_per_allele_.at(allele) += at(var.var_seq_, vpos);
+									sys_dom_base_per_allele_.at(allele).Update( at(var.var_seq_, vpos) );
 								}
 							}
 						}

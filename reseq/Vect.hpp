@@ -246,6 +246,7 @@ namespace reseq{
 			*this = x;
 			x.clear();
 			x.shrink_to_fit();
+			Shrink();
 		}
 
 		//Operators

@@ -1818,16 +1818,6 @@ void FragmentDistributionStats::FinishThreads(ThreadData &thread, const Referenc
 	}
 }
 
-void FragmentDistributionStats::Shrink(){
-	insert_lengths_.Shrink();
-	gc_fragment_content_.Shrink();
-	for( int direction=2; direction--; ){
-		for( int base=4; base--; ){
-			outskirt_content_.at(direction).at(base).Shrink();
-		}
-	}
-}
-
 void FragmentDistributionStats::Finalize(){
 	// Acquire data from temporary vectors
 	Acquire(abundance_, tmp_abundance_);
