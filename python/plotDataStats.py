@@ -46,9 +46,13 @@ def getMinMaxX(hists,zero_padding=True, cov_plot=False):
         
         # Cut at 5 times the mean
         val = 0
-        for i in range(len(hists[0][1])):
-            val += i*hists[0][1][i]
-        max_x = min(max_x, min_x+ceil(5*val/sum(hists[0][1])) )
+        median_count = sum(hists[0][1])/2
+        count = 0
+        median = -1
+        while count < median_count:
+            median += 1
+            count += hists[0][1][median]
+        max_x = min(max_x, min_x+5*int(median) )
 
     else:
         for hist in hists:

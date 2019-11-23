@@ -2078,7 +2078,10 @@ void Simulator::Simulate(
 			// Prepare vcf file handle if needed
 			if(!var_file.empty()){
 				if(ref.PrepareVariantFile(var_file)){
-					if(!ref.ReadFirstVariants()){
+					if(ref.ReadFirstVariants()){
+						sys_dom_base_per_allele_.resize(ref.NumAlleles());
+					}
+					else{
 						simulation_error_ = true;
 					}
 				}
