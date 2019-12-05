@@ -193,14 +193,14 @@ def plotMinimal(ax, names, hists, min_x, max_x, x_vals, log=False, marker=None, 
 
     return
 
-def plotBackend(xtitle, ytitle, names, hists, ax=plt, zero_padding=True, log=False, shift_x=0, baseline=None, normalize=False, normVectors=False, cov_plot=False):
+def plotBackend(xtitle, ytitle, names, hists, ax=plt, zero_padding=True, log=False, shift_x=0, multiply_x=1, baseline=None, normalize=False, normVectors=False, cov_plot=False):
     (min_x, max_x) = getMinMaxX(hists, zero_padding, cov_plot=cov_plot)
 
     if 1 < max_x-min_x: # Otherwise the plot has only one data point and no lines can be plotted
-        x_vals = range(min_x+shift_x, max_x+shift_x)
+        x_vals = [x*multiply_x for x in range(min_x+shift_x, max_x+shift_x)]
 
         if baseline:
-            ax.fill_between(x_vals, padList(baseline[1], min_x, max_x), label=baseline[0], color=baseline_colour)
+            ax.fill_between(x_vals, padList(baseline[1], min_x*multiply_x, max_x*multiply_x), label=baseline[0], color=baseline_colour)
             pass
         
         plotMinimal(ax, names, hists, min_x, max_x, x_vals, log=log, normalize=normalize, normVectors=normVectors, cov_plot=cov_plot)
@@ -211,10 +211,10 @@ def plotBackend(xtitle, ytitle, names, hists, ax=plt, zero_padding=True, log=Fal
     else:
         return False
 
-def plot(pdf, xtitle, ytitle, names, hists, zero_padding=True, log=False, shift_x=0, baseline=None, legend='upper right', normalize=False, normVectors=False, cov_plot=False):
+def plot(pdf, xtitle, ytitle, names, hists, zero_padding=True, log=False, shift_x=0, multiply_x=1, baseline=None, legend='upper right', normalize=False, normVectors=False, cov_plot=False):
     plt.close()
     
-    if plotBackend(xtitle, ytitle, names, hists, zero_padding=zero_padding, log=log, shift_x=shift_x, baseline=baseline, normalize=normalize, normVectors=normVectors, cov_plot=cov_plot):
+    if plotBackend(xtitle, ytitle, names, hists, zero_padding=zero_padding, log=log, shift_x=shift_x, multiply_x=multiply_x, baseline=baseline, normalize=normalize, normVectors=normVectors, cov_plot=cov_plot):
         if plot_legend:
             plt.legend(loc=legend, shadow=True)
             pass
@@ -934,8 +934,8 @@ def plotDataStats(statsFiles, oFile):
             plot2dQuality( pdf, "Preceding quality (first)", "Following quality", names, [ ( st.BaseQualityForPrecedingQualityStart(0), [st.BaseQualityForPrecedingQuality(0, sq) for sq in xrange( st.BaseQualityForPrecedingQualityStart(0), st.BaseQualityForPrecedingQualityEnd(0) )] ) for st in stats] )
             plot2dQuality( pdf, "Preceding quality (second)", "Following quality", names, [ ( st.BaseQualityForPrecedingQualityStart(1), [st.BaseQualityForPrecedingQuality(1, sq) for sq in xrange( st.BaseQualityForPrecedingQualityStart(1), st.BaseQualityForPrecedingQualityEnd(1) )] ) for st in stats] )
             plot2dQuality( pdf, "Sequence quality (first)", "Sequence quality (second)", names, [ ( st.SequenceQualityPairsStart(), [st.SequenceQualityPairs(sq) for sq in xrange( st.SequenceQualityPairsStart(), st.SequenceQualityPairsEnd() )] ) for st in stats] )
-            plot(pdf, "Fragment length", "Mean Sequence Quality (first)", names, [st.MeanSequenceQualityMeanByFragmentLength(0) for st in stats], legend='lower right' )
-            plot(pdf, "Fragment length", "Mean Sequence Quality (second)", names, [st.MeanSequenceQualityMeanByFragmentLength(1) for st in stats], legend='lower right' )
+            plot(pdf, "Fragment length", "Mean Sequence Quality (first)", names, [st.MeanSequenceQualityMeanByFragmentLength(0) for st in stats], legend='lower right', shift_x=5, multiply_x=10 )
+            plot(pdf, "Fragment length", "Mean Sequence Quality (second)", names, [st.MeanSequenceQualityMeanByFragmentLength(1) for st in stats], legend='lower right', shift_x=5, multiply_x=10 )
  
             plot2dQuality( pdf, "Distance to start of error region", "Error rate", names, [ ( st.ErrorRatesByDistanceStart(), [st.ErrorRatesByDistance(dist) for dist in xrange( st.ErrorRatesByDistanceStart(), st.ErrorRatesByDistanceEnd() )] ) for st in stats] )
             plot2dQuality( pdf, "GC", "Error rate", names, [ ( st.ErrorRatesByGCStart(), [st.ErrorRatesByGC(gc) for gc in xrange( st.ErrorRatesByGCStart(), st.ErrorRatesByGCEnd() )] ) for st in stats] )
@@ -979,6 +979,9 @@ def plotDataStats(statsFiles, oFile):
             #plotCalledBases( pdf, "Position (first)", "% Called", names, [ [ [st.CalledBasesByPosition(0, i, j) for j in range(5)] for i in range(4)] for st in stats], [ [st.SequenceContent(0,n) for n in xrange(5)] for st in stats] )
             plotCalledBases( pdf, "Position (second)", "% Called", names, [ [ [st.CalledBasesByPosition(1, i, j) for j in range(5)] for i in range(4)] for st in stats], [ [st.SequenceContent(1,n) for n in xrange(5)] for st in stats], False )
             #plotCalledBases( pdf, "Position (second)", "% Called", names, [ [ [st.CalledBasesByPosition(1, i, j) for j in range(5)] for i in range(4)] for st in stats], [ [st.SequenceContent(1,n) for n in xrange(5)] for st in stats] )
+            
+            plot( pdf, "Mean Error Rate", "% Coverage Blocks", names, [st.BlockErrorRate() for st in stats], normalize=True )
+            plot( pdf, "Non Systematic Error Rate", "% Coverage Blocks", names, [st.BlockNonSystematicErrorRate() for st in stats], normalize=True )
             
             #for prev_nuc in range(4):
             #    plotCalledBases( pdf, "Base Quality (first) call {}".format(prev_nuc), "% Called", names, [ [ [st.CalledBasesByBaseQualityPerPreviousCalledBase(0, i, j, prev_nuc) for j in range(5)] for i in range(4)] for st in stats], [ [st.NucleotideQuality(0,n) for n in xrange(5)] for st in stats], False )

@@ -293,6 +293,7 @@ namespace reseq{
 		uintReadLen sys_gc_bases_;
 		uintReadLen sys_gc_range_;
 		uintSeqLen distance_to_start_of_error_region_;
+		uintPercent start_error_rate_;
 		std::array<std::vector<std::vector<std::pair<seqan::Dna5,uintPercent>>>, 2> adapter_sys_error_;
 
 		double bias_normalization_;
@@ -327,15 +328,15 @@ namespace reseq{
 			}
 		}
 
-		inline uintPercent DrawSystematicError(std::vector<std::pair<seqan::Dna5,uintPercent>> &sys_errors, seqan::Dna5 ref_base, seqan::Dna5 last_base, seqan::Dna5 dom_base, uintPercent gc_percent, uintSeqLen start_dist_error_region, const ProbabilityEstimates &estimates){
+		inline uintPercent DrawSystematicError(std::vector<std::pair<seqan::Dna5,uintPercent>> &sys_errors, seqan::Dna5 ref_base, seqan::Dna5 last_base, seqan::Dna5 dom_base, uintPercent gc_percent, uintSeqLen start_dist_error_region, uintPercent start_rate, const ProbabilityEstimates &estimates){
 			double prob_sum;
 
-			seqan::Dna5 dom_error = estimates.DominantError(ref_base, last_base, dom_base).Draw(tmp_probabilities_, prob_sum, {start_dist_error_region, gc_percent}, rdist_zero_to_one_(block_seed_gen_));
+			seqan::Dna5 dom_error = estimates.DominantError(ref_base, last_base, dom_base).Draw(tmp_probabilities_, prob_sum, {start_dist_error_region, gc_percent, start_rate}, rdist_zero_to_one_(block_seed_gen_));
 			if(0.0 == prob_sum){
 				dom_error = 4;
 			}
 
-			uintPercent error_rate = estimates.ErrorRate(ref_base, dom_error).Draw(tmp_probabilities_, prob_sum, {start_dist_error_region, gc_percent}, rdist_zero_to_one_(block_seed_gen_));
+			uintPercent error_rate = estimates.ErrorRate(ref_base, dom_error).Draw(tmp_probabilities_, prob_sum, {start_dist_error_region, gc_percent, start_rate}, rdist_zero_to_one_(block_seed_gen_));
 			if(0.0 == prob_sum){
 				error_rate = 0;
 			}
@@ -364,12 +365,12 @@ namespace reseq{
 
 			for(auto pos=start_pos; pos < end_pos; ++pos){
 				ref_base = utilities::at(sequence, pos);
-				error_rate = DrawSystematicError(sys_errors, ref_base, sys_last_base_, sys_dom_base_.Get(), utilities::SafePercent(sys_gc_, sys_gc_bases_), utilities::TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_), estimates);
+				error_rate = DrawSystematicError(sys_errors, ref_base, sys_last_base_, sys_dom_base_.Get(), utilities::SafePercent(sys_gc_, sys_gc_bases_), utilities::TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_), start_error_rate_, estimates);
 
 				// Set values for next iteration
 				sys_last_base_ = ref_base;
 				sys_dom_base_.Update(ref_base, sequence, pos);
-				stats.Coverage().UpdateDistances(distance_to_start_of_error_region_, error_rate);
+				stats.Coverage().UpdateDistances(distance_to_start_of_error_region_, start_error_rate_, error_rate);
 				UpdateGC(sys_gc_, sys_gc_bases_, pos, sequence);
 			}
 		}
@@ -384,9 +385,9 @@ namespace reseq{
 
 		void ResetSystematicErrorCounters(const Reference &ref);
 		bool LoadSysErrorRecord(uintRefSeqId ref_id, const Reference &ref);
-		void SetSystematicErrorVariantsReverse(uintSeqLen &start_dist_error_region, SimBlock &block, uintRefSeqId ref_seq_id, uintSeqLen end_pos, const Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates);
+		void SetSystematicErrorVariantsReverse(uintSeqLen &start_dist_error_region, uintPercent &start_rate, SimBlock &block, uintRefSeqId ref_seq_id, uintSeqLen end_pos, const Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates);
 		bool CreateUnit(uintRefSeqId ref_id, uintRefSeqBin first_block_id, Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates, SimBlock *&first_reverse_block, SimUnit *&unit);
-		void SetSystematicErrorVariantsForward(uintSeqLen &start_dist_error_region, SimBlock &block, uintRefSeqId ref_seq_id, uintSeqLen end_pos, const Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates);
+		void SetSystematicErrorVariantsForward(uintSeqLen &start_dist_error_region, uintPercent &start_rate, SimBlock &block, uintRefSeqId ref_seq_id, uintSeqLen end_pos, const Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates);
 		bool CreateBlock( Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates, Benchmark &time );
 		bool GetNextBlock( Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates, SimBlock *&block, SimUnit *&unit, Benchmark &time );
 

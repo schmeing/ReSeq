@@ -1,8 +1,10 @@
 #ifndef COVERAGESTATS_H
 #define COVERAGESTATS_H
 
+#include <algorithm>
 #include <atomic>
 #include <array>
+#include <cmath>
 #include <deque>
 #include <mutex>
 #include <stdint.h>
@@ -26,31 +28,25 @@ namespace reseq{
 			uintSeqLen from_ref_pos_;
 			uintSeqLen to_ref_pos_;
 			uintTileId tile_id_;
-			std::atomic<uint8_t> num_pointers_to_element_;
 			uintQual sequence_quality_;
 			uintPercent reference_gc_;
-			std::atomic<uintReadLenCalc> error_rate_sum_;
-			std::atomic<uintReadLen> not_considered_ref_bases_;
 			uintSeqLen fragment_length_;
 
 			FullRecord():
 				from_ref_pos_(0),
-				to_ref_pos_(0),
-				num_pointers_to_element_(1){
-				error_rate_sum_ = 0;
-				not_considered_ref_bases_ = 0;
+				to_ref_pos_(0){
 			}
 		};
 
 		struct ErrorInfo{
 			seqan::Dna5 base_;
 			uintPercent rate_;
-			bool coverage_sufficient_;
+			bool valid_and_coverage_sufficient_;
 
 			ErrorInfo(seqan::Dna5 base, uintPercent rate, bool coverage_sufficient):
 				base_(base),
 				rate_(rate),
-				coverage_sufficient_(coverage_sufficient){
+				valid_and_coverage_sufficient_(coverage_sufficient){
 			}
 		};
 
@@ -61,7 +57,10 @@ namespace reseq{
 			std::array<seqan::Dna5, 2> dom_error_; // dom_error_[strand] = domError
 			std::array<uintPercent, 2> error_rate_; // error_rate[strand] = errorRate
 
-			CoveragePosition(){
+			bool valid_;
+
+			CoveragePosition():
+				valid_(true){
 				for( int i=5; i--; ){
 					coverage_forward_.at(i) = 0;
 					coverage_reverse_.at(i) = 0;
@@ -73,12 +72,26 @@ namespace reseq{
 			}
 		};
 
+		struct ProcessedCoveragePosition{
+			std::array<seqan::Dna5, 2> dom_error_; // dom_error_[strand] = domError
+			std::array<uintPercent, 2> error_rate_; // error_rate[strand] = errorRate
+
+			bool valid_;
+
+			ProcessedCoveragePosition(const CoveragePosition &rhs):
+				dom_error_(rhs.dom_error_),
+				error_rate_(rhs.error_rate_),
+				valid_(rhs.valid_)
+			{}
+		};
+
 		struct CoverageBlock{
 			uintRefSeqId sequence_id_;
 			uintSeqLen start_pos_;
 			CoverageBlock *previous_block_;
 			std::atomic<CoverageBlock *> next_block_;
 			std::vector<CoveragePosition> coverage_;
+			std::vector<ProcessedCoveragePosition> previous_coverage_; // End of coverage information from previous_block_ (max read length dependent)
 			std::atomic<uintFragCount> unprocessed_fragments_;
 			std::vector<FullRecord *> reads_;
 			intVariantId first_variant_id_;
@@ -93,20 +106,17 @@ namespace reseq{
 			}
 		};
 
-		// Helper function
-		static bool IsVariantPosition( intVariantId &cur_var, uintRefSeqId ref_seq_id, uintSeqLen pos, const Reference &reference, bool reverse_direction );
-		static void PrepareVariantPositionCheck( intVariantId &cur_var, uintRefSeqId ref_seq_id, uintSeqLen pos, const Reference &reference, bool reverse_direction );
-
 	private:
 		// Definitions
-		const uintSeqLen kBlockSize = 10000;
-		const uintPercent kErrorRateThreshold = 20; // Minimum error rate to count it as a systematic error
+		static const uintSeqLen kBlockSize = 10000;
 		static const uintCovCount kMaxCoverage = 10000; // Maximum counted coverage (Only relevant for plotting)
+		static constexpr double kRejectingBinomialP = 0.01; // If the probability of having the given number of errors is lower than this value the errors at this position are called systematic
 
 		// Data dependent parameter
 		uintCovCount coverage_threshold_; // Minimium coverage to accept value from this position into error_rates_ and dominant_errors_
 		uintSeqLen reset_distance_; // Maximum distance between two systematic errors to continue error region
 		uintSeqLen gc_range_;
+		uintReadLen maximum_read_length_on_reference_;
 
 		// Mutex
 		std::mutex clean_up_mutex_;
@@ -117,10 +127,16 @@ namespace reseq{
 		std::array<std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,4>,5>,4> tmp_dominant_errors_by_distance_;
 		std::array<std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,4>,5>,4> tmp_dominant_errors_by_gc_;
 		std::array<std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,4>,5>,4> tmp_gc_by_distance_de_;
+		std::array<std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,4>,5>,4> tmp_dominant_errors_by_start_rates_;
+		std::array<std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,4>,5>,4> tmp_start_rates_by_distance_de_;
+		std::array<std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,4>,5>,4> tmp_start_rates_by_gc_de_;
 
 		std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,5>,4> tmp_error_rates_by_distance_;
 		std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,5>,4> tmp_error_rates_by_gc_;
 		std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,5>,4> tmp_gc_by_distance_er_;
+		std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,5>,4> tmp_error_rates_by_start_rates_;
+		std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,5>,4> tmp_start_rates_by_distance_er_;
+		std::array<std::array<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>,5>,4> tmp_start_rates_by_gc_er_;
 
 		std::vector<utilities::VectorAtomic<uintNucCount>> tmp_coverage_;
 		std::array<std::vector<utilities::VectorAtomic<uintNucCount>>, 2> tmp_coverage_stranded_;
@@ -139,12 +155,21 @@ namespace reseq{
 		std::array<std::array<std::array<Vect<Vect<uintNucCount>>,4>,5>,4> dominant_errors_by_distance_; // dominant_errors_by_distance_[refBase][previousRefBase][domRefBaseLast5][(distanceToStartOfErrorRegion+9)/10][dominantError] = #refBases
 		std::array<std::array<std::array<Vect<Vect<uintNucCount>>,4>,5>,4> dominant_errors_by_gc_; // dominant_errors_by_gc_[refBase][previousRefBase][domRefBaseLast5][GClastHalfAverageReadLength][dominantError] = #refBases
 		std::array<std::array<std::array<Vect<Vect<uintNucCount>>,4>,5>,4> gc_by_distance_de_; // gc_by_distance_de_[refBase][previousRefBase][domRefBaseLast5][(distanceToStartOfErrorRegion+9)/10][GClastHalfAverageReadLength] = #refBases
+		std::array<std::array<std::array<Vect<Vect<uintNucCount>>,4>,5>,4> dominant_errors_by_start_rates_; // dominant_errors_by_start_rates_[refBase][previousRefBase][domRefBaseLast5][errorRateStart][dominantError] = #refBases
+		std::array<std::array<std::array<Vect<Vect<uintNucCount>>,4>,5>,4> start_rates_by_distance_de_; // start_rates_by_distance_de_[refBase][previousRefBase][domRefBaseLast5][(distanceToStartOfErrorRegion+9)/10][errorRateStart] = #refBases
+		std::array<std::array<std::array<Vect<Vect<uintNucCount>>,4>,5>,4> start_rates_by_gc_de_; // start_rates_by_gc_de_[refBase][previousRefBase][domRefBaseLast5][(distanceToStartOfErrorRegion+9)/10][errorRateStart] = #refBases
 
 		std::array<std::array<Vect<Vect<uintNucCount>>,5>,4> error_rates_by_distance_; // error_rates_by_distance_[refBase][dominantError][(distanceToStartOfErrorRegion+9)/10][errorRate] = #refBases
 		std::array<std::array<Vect<Vect<uintNucCount>>,5>,4> error_rates_by_gc_; // error_rates_by_gc_[refBase][dominantError][GClastHalfAverageReadLength][errorRate] = #refBases
 		std::array<std::array<Vect<Vect<uintNucCount>>,5>,4> gc_by_distance_er_; // gc_by_distance_er_[refBase][dominantError][(distanceToStartOfErrorRegion+9)/10][GClastHalfAverageReadLength] = #refBases
+		std::array<std::array<Vect<Vect<uintNucCount>>,5>,4> error_rates_by_start_rates_; // error_rates_by_start_rates_[refBase][dominantError][errorRateStart][errorRate] = #refBases
+		std::array<std::array<Vect<Vect<uintNucCount>>,5>,4> start_rates_by_distance_er_; // start_rates_by_distance_[refBase][dominantError][(distanceToStartOfErrorRegion+9)/10][errorRateStart] = #refBases
+		std::array<std::array<Vect<Vect<uintNucCount>>,5>,4> start_rates_by_gc_er_; // start_rates_by_gc_[refBase][dominantError][GClastHalfAverageReadLength][errorRateStart] = #refBases
 
 		// Collected variables for plotting
+		Vect<uintSurBlockId> block_error_rate_;
+		Vect<uintSurBlockId> block_non_systematic_error_rate_;
+
 		Vect<uintNucCount> coverage_; // coverage_[ coverageDepth ] = #bases
 		std::array<Vect<uintNucCount>, 2> coverage_stranded_; // coverage_stranded_[forward/reverse][ coverageDepthOnStrand ] = #bases
 		std::array<Vect<uintNucCount>, 2> coverage_stranded_percent_; // coverage_stranded_percent_[forward/reverse][ coverageDepthOnStrand/coverageDepth*100 ] = #bases
@@ -172,17 +197,35 @@ namespace reseq{
 		std::vector<ErrorInfo> tmp_errors_forward_;
 		std::vector<ErrorInfo> tmp_errors_reverse_;
 		uintSeqLen distance_to_start_of_error_region_forward_;
+		uintPercent start_rate_forward_;
 
 		// Helper functions
+		inline bool CoveragePosValid(intSeqShift coverage_pos, CoverageStats::CoverageBlock *coverage_block) const{
+			if(0 > coverage_pos){
+				return coverage_block->previous_coverage_.at(-1*coverage_pos).valid_;
+			}
+			else{
+				return coverage_block->coverage_.at(coverage_pos).valid_;
+			}
+		}
 		void EvalRead(FullRecord *record, CoverageStats::CoverageBlock *coverage_block, const Reference &reference, QualityStats &qualities, ErrorStats &errors, uintQual phred_quality_offset);
 
 		inline void CountEmptyEndOfSequence(const Reference &reference){
 			zero_coverage_region_ += reference.SequenceLength((*last_block_).sequence_id_) - (*last_block_).start_pos_ - (*last_block_).coverage_.size();
 		}
 		inline void UpdateZeroCoverageRegion(intFragCountShift zero_coverage_length);
-		void UpdateCoverageAtSinglePosition(CoveragePosition &coverage, seqan::Dna5 ref_base, bool is_variant_position);
+		uintCovCount GetNormalErrorCount(double error_rate, uintCovCount coverage);
+		std::pair<double, double> GetMaxNonSystematicError(CoverageBlock *block, const Reference &reference);
+		inline reseq::uintCovCount GetMaxNonSystematicError(std::pair<double, double> non_systematic_error, uintCovCount coverage){
+			return std::max(static_cast<uintCovCount>(1), static_cast<uintCovCount>(std::round( non_systematic_error.first + coverage*non_systematic_error.second )));
+		}
+		void UpdateCoverageAtSinglePosition(CoveragePosition &coverage, seqan::Dna5 ref_base, std::pair<double, double> non_systematic_error);
 		
 		CoverageBlock *CreateBlock(uintRefSeqId seq_id, uintSeqLen start_pos);
+		void UpdateFirstVariant(CoverageBlock &block, const Reference &reference);
+		bool IsVariantPosition( intVariantId &cur_var, uintRefSeqId ref_seq_id, uintSeqLen pos, const Reference &reference ) const;
+		void InitBlock(CoverageBlock &block, const Reference &reference);
+		void ProcessBlock(CoverageBlock *block, const Reference &reference);
 		void CountBlock(CoverageBlock *block, const Reference &reference);
 		CoverageBlock *RemoveBlock(CoverageBlock *block);
 
@@ -195,9 +238,19 @@ namespace reseq{
 			ar & dominant_errors_by_distance_;
 			ar & dominant_errors_by_gc_;
 			ar & gc_by_distance_de_;
+			ar & dominant_errors_by_start_rates_;
+			ar & start_rates_by_distance_de_;
+			ar & start_rates_by_gc_de_;
+
 			ar & error_rates_by_distance_;
 			ar & error_rates_by_gc_;
 			ar & gc_by_distance_er_;
+			ar & error_rates_by_start_rates_;
+			ar & start_rates_by_distance_er_;
+			ar & start_rates_by_gc_er_;
+
+			ar & block_error_rate_;
+			ar & block_non_systematic_error_rate_;
 
 			ar & coverage_;
 			ar & coverage_stranded_;
@@ -235,6 +288,15 @@ namespace reseq{
 		inline const Vect<Vect<uintNucCount>> &GCByDistance(seqan::Dna ref_base, seqan::Dna5 last_ref_base, seqan::Dna5 dom_last5) const{
 			return gc_by_distance_de_.at(ref_base).at(last_ref_base).at(dom_last5);
 		}
+		inline const Vect<Vect<uintNucCount>> &DominantErrorsByStartRates(seqan::Dna ref_base, seqan::Dna5 last_ref_base, seqan::Dna5 dom_last5) const{
+			return dominant_errors_by_start_rates_.at(ref_base).at(last_ref_base).at(dom_last5);
+		}
+		inline const Vect<Vect<uintNucCount>> &StartRatesByDistance(seqan::Dna ref_base, seqan::Dna5 last_ref_base, seqan::Dna5 dom_last5) const{
+			return start_rates_by_distance_de_.at(ref_base).at(last_ref_base).at(dom_last5);
+		}
+		inline const Vect<Vect<uintNucCount>> &StartRatesByGC(seqan::Dna ref_base, seqan::Dna5 last_ref_base, seqan::Dna5 dom_last5) const{
+			return start_rates_by_gc_de_.at(ref_base).at(last_ref_base).at(dom_last5);
+		}
 
 		inline const Vect<Vect<uintNucCount>> &ErrorRatesByDistance(seqan::Dna ref_base, seqan::Dna5 dom_error) const{
 			return error_rates_by_distance_.at(ref_base).at(dom_error);
@@ -245,12 +307,28 @@ namespace reseq{
 		inline const Vect<Vect<uintNucCount>> &GCByDistance(seqan::Dna ref_base, seqan::Dna5 dom_error) const{
 			return gc_by_distance_er_.at(ref_base).at(dom_error);
 		}
+		inline const Vect<Vect<uintNucCount>> &ErrorRatesByStartRates(seqan::Dna ref_base, seqan::Dna5 dom_error) const{
+			return error_rates_by_start_rates_.at(ref_base).at(dom_error);
+		}
+		inline const Vect<Vect<uintNucCount>> &StartRatesByDistance(seqan::Dna ref_base, seqan::Dna5 dom_error) const{
+			return start_rates_by_distance_er_.at(ref_base).at(dom_error);
+		}
+		inline const Vect<Vect<uintNucCount>> &StartRatesByGC(seqan::Dna ref_base, seqan::Dna5 dom_error) const{
+			return start_rates_by_gc_er_.at(ref_base).at(dom_error);
+		}
 
 		inline const Vect<Vect<uintNucCount>> &ErrorRatesByDistanceSum() const{
 			return error_rates_by_distance_sum_;
 		}
 		inline const Vect<Vect<uintNucCount>> &ErrorRatesByGCSum() const{
 			return error_rates_by_gc_sum_;
+		}
+
+		inline const Vect<uintSurBlockId> &BlockErrorRate() const{
+			return block_error_rate_;
+		}
+		inline const Vect<uintSurBlockId> &BlockNonSystematicErrorRate() const{
+			return block_non_systematic_error_rate_;
 		}
 
 		inline const Vect<uintNucCount> &Coverage() const{
@@ -299,7 +377,7 @@ namespace reseq{
 		}
 	
 		// Main functions
-		void Prepare(uintCovCount average_coverage, uintReadLen average_read_length);
+		void Prepare(uintCovCount average_coverage, uintReadLen average_read_length, uintReadLen maximum_read_length_on_reference);
 
 		CoverageBlock *FindBlock(uintRefSeqId ref_seq_id, uintSeqLen ref_pos);
 		bool EnsureSpace(uintRefSeqId ref_seq_id, uintSeqLen start_pos, uintSeqLen end_pos, FullRecord *record, Reference &reference, uintReadLen minimum_sequence_length);
@@ -307,33 +385,33 @@ namespace reseq{
 		void AddFragment( uintRefSeqId ref_seq_id, uintSeqLen ref_pos, CoverageBlock *&block );
 		void RemoveFragment( uintRefSeqId ref_seq_id, uintSeqLen ref_pos, CoverageBlock *&block, uintFragCount &processed_fragments );
 
-		inline uintSeqLen GetStartPos(uintSeqLen pos, CoverageBlock *&start_block){
+		static inline uintSeqLen GetStartPos(uintSeqLen pos, CoverageBlock *&start_block){
 			while(pos >= start_block->start_pos_ + kBlockSize){
 				start_block = start_block->next_block_;
 			}
 			return pos - start_block->start_pos_;
 		}
-		inline void IncrementPos(uintSeqLen &pos, CoverageBlock *&block){
+		static inline void IncrementPos(uintSeqLen &pos, CoverageBlock *&block){
 			if(++pos >= kBlockSize){
 				pos = 0;
 				block = block->next_block_;
 			}
 		}
-		inline void AddPos(uintSeqLen &pos, CoverageBlock *&block, uintSeqLen value){
+		static inline void AddPos(uintSeqLen &pos, CoverageBlock *&block, uintSeqLen value){
 			pos += value;
 			while(pos >= kBlockSize){
 				pos -= kBlockSize;
 				block = block->next_block_;
 			}
 		}
-		inline void DecrementPos(uintSeqLen &pos, CoverageBlock *&block){
+		static inline void DecrementPos(uintSeqLen &pos, CoverageBlock *&block){
 			if(0 == pos){
 				pos = kBlockSize;
 				block = block->previous_block_;
 			}
 			--pos;
 		}
-		inline void SubtractPos(uintSeqLen &pos, CoverageBlock *&block, uintSeqLen value){
+		static inline void SubtractPos(uintSeqLen &pos, CoverageBlock *&block, uintSeqLen value){
 			if(value <= pos){
 				pos -= value;
 			}
@@ -347,24 +425,12 @@ namespace reseq{
 				pos = kBlockSize-value;
 			}
 		}
-		void UpdateDistances(uintSeqLen &distance_to_start_of_error_region, uintPercent error_rate) const;
-		inline void DeleteRecord(FullRecord *record, QualityStats &qualities) const{
-			if( !--(record->num_pointers_to_element_) ){
-				if(record->to_ref_pos_ && record->not_considered_ref_bases_ < record->to_ref_pos_-record->from_ref_pos_){ // Read has passed filters and at least one base was considered
-					qualities.AddRefRead(hasFlagLast(record->record_), record->tile_id_, record->reference_gc_, record->sequence_quality_, utilities::Divide( record->error_rate_sum_, static_cast<uintReadLenCalc>(record->to_ref_pos_-record->from_ref_pos_-record->not_considered_ref_bases_) ), record->fragment_length_);
-				}
-
-				delete record;
-			}
-		}
+		void UpdateDistances(uintSeqLen &distance_to_start_of_error_region, uintPercent &start_rate, uintPercent error_rate) const;
 		uintRefSeqId CleanUp(uintSeqLen &still_needed_position, Reference &reference, QualityStats &qualities, ErrorStats &errors, uintQual phred_quality_offset, CoverageBlock *cov_block, uintFragCount &processed_fragments);
 		bool PreLoadVariants(Reference &reference);
-		bool Finalize(const Reference &reference, QualityStats &qualities, ErrorStats &errors, uintQual phred_quality_offset, uintReadLen minimum_sequence_length);
+		bool Finalize(const Reference &reference, QualityStats &qualities, ErrorStats &errors, uintQual phred_quality_offset, uintReadLen minimum_sequence_length, std::mutex &print_mutex);
 		inline void SetAllZero(const Reference &reference){
-			coverage_[0] = reference.TotalSize();
-			for( int strand=2; strand--; ){
-				coverage_stranded_.at(strand)[0] = reference.TotalSize();
-			}
+			zero_coverage_region_ = reference.TotalSize();
 		}
 
 		void Shrink();

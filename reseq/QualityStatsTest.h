@@ -48,6 +48,8 @@ namespace reseq{
 			EXPECT_EQ(val99, vector[99]) << err_msg << context << '\n';
 		}
 
+		void TestRemoveSystematic();
+
 	public:
 		QualityStatsTest():
 			test_(NULL)

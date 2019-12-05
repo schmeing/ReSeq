@@ -11,11 +11,14 @@
 
 namespace reseq{
 	class QualityStats{
+	public:
+		static const uintSeqLen kSqFragmentLengthBinSize = 10;
+
 	private:
 		// Temporary variables
-		std::array<std::array<std::array<std::vector<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>>,5>, 4>, 2> tmp_base_quality_stats_per_tile_per_error_reference_;
-		std::array<std::array<std::array<std::vector<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>>,5>, 4>, 2> tmp_error_rate_for_position_per_tile_per_error_reference_;
-		std::array<std::array<std::array<std::vector<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>>,5>, 4>, 2> tmp_base_quality_for_error_rate_per_tile_per_error_reference_;
+		std::array<std::array<std::array<std::vector<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>>, 5>, 4>, 2> tmp_base_quality_stats_per_tile_per_error_reference_;
+		std::array<std::array<std::array<std::vector<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>>, 5>, 4>, 2> tmp_error_rate_for_position_per_tile_per_error_reference_;
+		std::array<std::array<std::array<std::vector<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>>, 5>, 4>, 2> tmp_base_quality_for_error_rate_per_tile_per_error_reference_;
 		std::array<std::array<std::vector<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>>, 4>, 2> tmp_base_quality_for_preceding_quality_per_tile_reference_;
 		std::array<std::array<std::vector<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>>, 4>, 2> tmp_preceding_quality_for_error_rate_per_tile_reference_;
 		std::array<std::array<std::vector<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>>, 4>, 2> tmp_preceding_quality_for_position_per_tile_reference_;
@@ -66,6 +69,7 @@ namespace reseq{
 		std::array<std::array<Vect<Vect<Vect<uintNucCount>>>, 4>, 2> sequence_quality_for_error_rate_per_tile_reference_; // sequence_quality_for_error_rate_per_tile_reference_[first/second][currentRefBase][tileId][errorRate][sequenceQuality] = #bases
 		std::array<std::array<Vect<Vect<Vect<uintNucCount>>>, 4>, 2> sequence_quality_for_position_per_tile_reference_; // sequence_quality_for_position_per_tile_reference_[first/second][currentRefBase][tileId][currentPosition][sequenceQuality] = #bases
 
+		std::array<size_t, 100> threshold_sum_; // Precalculated values required for MeanErrorRateCorrectionIndex
 		std::array<Vect<Vect<SeqQualityStats<uintFragCount>>>, 2> sequence_quality_mean_for_gc_per_tile_reference_; // sequence_quality_mean_for_gc_per_tile_reference_[first/second][tileId][percentageGC][qualityMean] = #reads
 		std::array<Vect<Vect<Vect<uintFragCount>>>, 2> sequence_quality_mean_for_mean_error_rate_per_tile_reference_; // sequence_quality_mean_for_mean_error_rate_per_tile_reference_[first/second][tileId][meanErrorRate][qualityMean] = #reads
 		std::array<Vect<Vect<Vect<uintFragCount>>>, 2> sequence_quality_mean_for_fragment_length_per_tile_reference_; // sequence_quality_mean_for_fragment_length_per_tile_reference_[first/second][tileId][fragmentLength][qualityMean] = #reads
@@ -134,6 +138,10 @@ namespace reseq{
 		std::array<std::array<Vect<uintQual>, 5>, 2> average_sequence_quality_for_base_; // average_sequence_quality_for_base_[first/second][nucleotide][percentageNucleotide] = averageSequenceQualityMean
 
 		// Helper functions
+		size_t MeanErrorRateCorrectionIndex(uintPercent mean_error_rate, uintPercent rate_threshold, uintPercent rate_reduction){
+			// First 101 are normal mean error rate
+			return ((static_cast<size_t>(rate_threshold)-1)*rate_threshold/2 + rate_reduction-1)*100 - threshold_sum_[rate_threshold] - (static_cast<size_t>(rate_reduction)-1)*(rate_reduction-2)/2 + mean_error_rate - rate_reduction + 101;
+		}
 		void SplitPairedSequenceQuality();
 		void SumTiles();
 		void CalculateQualityStats();
@@ -399,10 +407,10 @@ namespace reseq{
 		inline void AddRefRead(uintTempSeq template_segment, uintTileId tile_id, uintPercent gc, uintQual seq_qual_mean, uintPercent mean_error_rate, uintSeqLen fragment_length){
 			++tmp_sequence_quality_mean_for_gc_per_tile_reference_.at(template_segment).at(tile_id).at(gc).at(seq_qual_mean);
 			++tmp_sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(template_segment).at(tile_id).at(mean_error_rate).at(seq_qual_mean);
-			++tmp_sequence_quality_mean_for_fragment_length_per_tile_reference_.at(template_segment).at(tile_id).at(fragment_length).at(seq_qual_mean);
+			++tmp_sequence_quality_mean_for_fragment_length_per_tile_reference_.at(template_segment).at(tile_id).at(fragment_length/kSqFragmentLengthBinSize).at(seq_qual_mean);
 			++tmp_mean_error_rate_for_gc_per_tile_reference_.at(template_segment).at(tile_id).at(gc).at(mean_error_rate);
-			++tmp_mean_error_rate_for_fragment_length_per_tile_reference_.at(template_segment).at(tile_id).at(fragment_length).at(mean_error_rate);
-			++tmp_gc_for_fragment_length_per_tile_reference_.at(template_segment).at(tile_id).at(fragment_length).at(gc);
+			++tmp_mean_error_rate_for_fragment_length_per_tile_reference_.at(template_segment).at(tile_id).at(fragment_length/kSqFragmentLengthBinSize).at(mean_error_rate);
+			++tmp_gc_for_fragment_length_per_tile_reference_.at(template_segment).at(tile_id).at(fragment_length/kSqFragmentLengthBinSize).at(gc);
 		}
 
 		inline void AddRawBase(
@@ -470,6 +478,7 @@ namespace reseq{
 
 		// Main functions
 		void Prepare(uintTileId num_tiles, uintQual size_qual, uintReadLen size_pos, uintSeqLen maximum_fragment_length);
+		void RemoveSystematicUpTo(uintPercent max_rate);
 		void Finalize(uintFragCount total_number_reads);
 		void Shrink();
 		void PrepareEstimation();

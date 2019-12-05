@@ -3,6 +3,7 @@
 
 #include <array>
 #include <atomic>
+#include <fstream>
 #include <random>
 #include <stdexcept>
 
@@ -376,7 +377,7 @@ namespace reseq{
 				return value_++;
 			}
 
-			template<typename U> inline T operator+=(U rhs){
+			template<typename U> inline T operator+=(const U &rhs){
 				return value_ += rhs;
 			}
 
@@ -387,6 +388,10 @@ namespace reseq{
 
 			inline T operator--(int){
 				return value_--;
+			}
+
+			template<typename U> inline T operator-=(const U &rhs){
+				return value_ -= rhs;
 			}
 		};
 		template<typename T, typename U> bool operator==( U lhs, const VectorAtomic<T>& rhs){ // Compares the size_t value to the size
@@ -428,6 +433,11 @@ namespace reseq{
 		}
 		template<typename T> inline T DivideAndCeil(T nom, T den){ // Calculates the division: nom/den and always ceiling
 			return (nom+den-static_cast<T>(1)) / den;
+		}
+
+		inline bool FileExists(const char *file_name){
+			std::ifstream ifile(file_name);
+			return static_cast<bool>(ifile);
 		}
 
 		template<typename T> inline const T &getConst(T &object){
@@ -541,10 +551,10 @@ namespace reseq{
 			}
 		}
 
-		template<typename T> void SetDimensions(std::vector<T> &vec, size_t dim1, size_t dim2, size_t dim3){
+		template<typename T, typename... Args> void SetDimensions(std::vector<T> &vec, size_t dim1, size_t dim2, Args... args){
 			vec.resize(dim1);
 			for(auto i=dim1; i--; ){
-				SetDimensions(vec.at(i), dim2, dim3);
+				SetDimensions(vec.at(i), dim2, args...);
 			}
 		}
 

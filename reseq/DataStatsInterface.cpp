@@ -17,6 +17,7 @@ using reseq::uintPercent;
 using reseq::uintQual;
 using reseq::uintTile;
 using reseq::uintSeqLen;
+using reseq::uintSurBlockId;
 using reseq::uintFragCount;
 using reseq::uintNucCount;
 
@@ -59,6 +60,13 @@ uintPercent DataStatsInterface::ErrorRatesByGCEnd() const{
 }
 const std::pair< std::vector<uintNucCount>::size_type, std::vector<uintNucCount> > &DataStatsInterface::ErrorRatesByGC(uintPercent gc) const{
 	return stats_.Coverage().ErrorRatesByGCSum()[gc].std();
+}
+
+const pair< vector<uintSurBlockId>::size_type, vector<uintSurBlockId> > &DataStatsInterface::BlockErrorRate() const{
+	return stats_.Coverage().BlockErrorRate().std();
+}
+const pair< vector<uintSurBlockId>::size_type, vector<uintSurBlockId> > &DataStatsInterface::BlockNonSystematicErrorRate() const{
+	return stats_.Coverage().BlockNonSystematicErrorRate().std();
 }
 
 const pair< vector<uintNucCount>::size_type, vector<uintNucCount> > &DataStatsInterface::Coverage() const{
@@ -389,9 +397,12 @@ bool DataStatsInterface::ReadBam( const char *bam_file, const char *adapter_file
 }
 
 bool DataStatsInterface::Load( const char *archive_file ){
-	bool success = stats_.Load( archive_file );
+	if( !stats_.Load( archive_file ) ){
+		return false;
+	}
+
 	stats_.PreparePlotting();
-	return success;
+	return true;
 }
 
 bool DataStatsInterface::Save( const char *archive_file ) const{

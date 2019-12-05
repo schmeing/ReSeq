@@ -154,13 +154,14 @@ void GetDataStats(DataStats &real_data_stats, string &stats_file, bool &loaded_s
 			stats_file = it_stats_in->second.as<string>();
 			printInfo << "Reading real data statistics from " << stats_file << std::endl;
 
-			real_data_stats.Load( stats_file.c_str() );
-			if(no_bias_calculation){
-				real_data_stats.SetUniformBias();
-			}
-			real_data_stats.PrepareProcessing();
+			if( real_data_stats.Load( stats_file.c_str() ) ){
+				if(no_bias_calculation){
+					real_data_stats.SetUniformBias();
+				}
+				real_data_stats.PrepareProcessing();
 
-			loaded_stats = true;
+				loaded_stats = true;
+			}
 		}
 	}
 	else{

@@ -9,7 +9,10 @@
 #include "BasicTestClass.hpp"
 
 namespace reseq{
-	class CoverageStatsTest : public BasicTestClass{
+	class CoverageStatsTest : public BasicTestClassWithReference{
+	public:
+		static void Register();
+
 	protected:
 		CoverageStats *test_;
 
@@ -17,6 +20,8 @@ namespace reseq{
 		void DeleteTestObject();
 
 		virtual void TearDown();
+
+		void TestNonSystematicErrorRate();
 
 	public:
 		CoverageStatsTest():

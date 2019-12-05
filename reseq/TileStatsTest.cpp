@@ -106,7 +106,7 @@ void TileStatsTest::TestSrr490124Equality(const TileStats &test, const char *con
 	}
 
 	EXPECT_EQ(1, test.abundance_.size()) << "SRR490124-4pairs abundance_ wrong for " << context << '\n';
-	EXPECT_EQ(4, test.abundance_.at(0)) << "SRR490124-4pairs abundance_ wrong for " << context << '\n';
+	EXPECT_EQ(18, test.abundance_.at(0)) << "SRR490124-4pairs abundance_ wrong for " << context << '\n';
 }
 
 void TileStatsTest::TestTiles(const TileStats &test){

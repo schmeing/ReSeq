@@ -1269,16 +1269,16 @@ namespace reseq{
 		std::array<std::vector<std::array<ProbabilityEstimatesSubClasses::LogIPF<5>,4>>, 2> quality_; // quality_[template_segment][tile_id][ref_base] : quality, sequence quality, previous quality, position, error rate
 		std::array<std::vector<ProbabilityEstimatesSubClasses::LogIPF<4>>, 2> sequence_quality_; // sequence_quality_[template_segment][tile_id]: sequence quality, gc, mean error rate, fragment length
 		std::array<std::vector<std::array<std::array<ProbabilityEstimatesSubClasses::LogIPF<5>,5>,4>>, 2> base_call_; // base_call_[template_segment][tile_id][ref_base][domError] : called base, quality, position, error number, error rate
-		std::array<std::array<std::array<ProbabilityEstimatesSubClasses::LogIPF<3>,5>,5>,4> dom_error_; // dom_error_[ref_base][last_ref_base][dom_last5]: dominant error, distance, gc
-		std::array<std::array<ProbabilityEstimatesSubClasses::LogIPF<3>,5>,4> error_rate_; // error_rate_[ref_base][dom_error]: error rate, distance, gc
+		std::array<std::array<std::array<ProbabilityEstimatesSubClasses::LogIPF<4>,5>,5>,4> dom_error_; // dom_error_[ref_base][last_ref_base][dom_last5]: dominant error, distance, gc, start rate
+		std::array<std::array<ProbabilityEstimatesSubClasses::LogIPF<4>,5>,4> error_rate_; // error_rate_[ref_base][dom_error]: error rate, distance, gc, start rate
 		std::array<std::array<ProbabilityEstimatesSubClasses::LogIPF<4>,6>, 2> indels_; // indels_[Insertion/DeletionBefore][PreviousRegularCall]: indel, indel pos/length, position, gc
 
 		// ipf results
 		std::array<std::vector<std::array<ProbabilityEstimatesSubClasses::LogArrayResult<5>,4>>, 2> quality_result_; // quality_result_[template_segment][tile_id][ref_base] : quality, sequence quality, previous quality, position, error rate
 		std::array<std::vector<ProbabilityEstimatesSubClasses::LogArrayResult<4>>, 2> sequence_quality_result_; // sequence_quality_result_[template_segment][tile_id]: sequence quality, gc, mean error rate, fragment length
 		std::array<std::vector<std::array<std::array<ProbabilityEstimatesSubClasses::LogArrayResult<5>,5>,4>>, 2> base_call_result_; // base_call_result_[template_segment][tile_id][ref_base][domError] : called base, quality, position, error number, error rate
-		std::array<std::array<std::array<ProbabilityEstimatesSubClasses::LogArrayResult<3>,5>,5>,4> dom_error_result_; // dom_error_result_[ref_base][last_ref_base][dom_last5]: dominant error, distance, gc
-		std::array<std::array<ProbabilityEstimatesSubClasses::LogArrayResult<3>,5>,4> error_rate_result_; // error_rate_result_[ref_base][dom_error]: error rate, distance, gc
+		std::array<std::array<std::array<ProbabilityEstimatesSubClasses::LogArrayResult<4>,5>,5>,4> dom_error_result_; // dom_error_result_[ref_base][last_ref_base][dom_last5]: dominant error, distance, gc, start rate
+		std::array<std::array<ProbabilityEstimatesSubClasses::LogArrayResult<4>,5>,4> error_rate_result_; // error_rate_result_[ref_base][dom_error]: error rate, distance, gc, start rate
 		std::array<std::array<ProbabilityEstimatesSubClasses::LogArrayResult<4>,6>, 2> indels_result_; // indels_result_[Insertion/DeletionBefore][PreviousRegularCall]: indel, indel pos/length, position, gc
 
 		void SetVariables(uintTileId num_tiles);
@@ -1324,16 +1324,23 @@ namespace reseq{
 			margins.at(4) = { NULL, true };
 			return &stats.Qualities().BaseQualityStatsReference(template_segment, tile_id, ref_base, dom_error);
 		}
-		inline void DefineMarginsDominantError(const DataStats &stats, std::array< std::pair<const Vect<Vect<uintMatrixCount>> *, bool>, 3 > &margins, uintTempSeq ref_base, uintBaseCall last_ref_base, uintBaseCall dom_last5){
-			// Dimension order: dominant error, distance, gc
+		inline void DefineMarginsDominantError(const DataStats &stats, std::array< std::pair<const Vect<Vect<uintMatrixCount>> *, bool>, 6 > &margins, uintTempSeq ref_base, uintBaseCall last_ref_base, uintBaseCall dom_last5){
+			// Dimension order: dominant error, distance, gc, start rate
 			margins.at(0) = { &stats.Coverage().DominantErrorsByDistance(ref_base, last_ref_base, dom_last5), true };
 			margins.at(1) = { &stats.Coverage().DominantErrorsByGC(ref_base, last_ref_base, dom_last5), true };
-			margins.at(2) = { &stats.Coverage().GCByDistance(ref_base, last_ref_base, dom_last5), false };
+			margins.at(2) = { &stats.Coverage().DominantErrorsByStartRates(ref_base, last_ref_base, dom_last5), true };
+			margins.at(3) = { &stats.Coverage().GCByDistance(ref_base, last_ref_base, dom_last5), false };
+			margins.at(4) = { &stats.Coverage().StartRatesByDistance(ref_base, last_ref_base, dom_last5), false };
+			margins.at(5) = { &stats.Coverage().StartRatesByGC(ref_base, last_ref_base, dom_last5), false };
 		}
-		inline void DefineMarginsErrorRate(const DataStats &stats, std::array< std::pair<const Vect<Vect<uintMatrixCount>> *, bool>, 3 > &margins, uintBaseCall ref_base, uintBaseCall dom_error){
+
+		inline void DefineMarginsErrorRate(const DataStats &stats, std::array< std::pair<const Vect<Vect<uintMatrixCount>> *, bool>, 6 > &margins, uintBaseCall ref_base, uintBaseCall dom_error){
 			margins.at(0) = { &stats.Coverage().ErrorRatesByDistance(ref_base, dom_error), true };
 			margins.at(1) = { &stats.Coverage().ErrorRatesByGC(ref_base, dom_error), true };
-			margins.at(2) = { &stats.Coverage().GCByDistance(ref_base, dom_error), false };
+			margins.at(2) = { &stats.Coverage().ErrorRatesByStartRates(ref_base, dom_error), true };
+			margins.at(3) = { &stats.Coverage().GCByDistance(ref_base, dom_error), false };
+			margins.at(4) = { &stats.Coverage().StartRatesByDistance(ref_base, dom_error), false };
+			margins.at(5) = { &stats.Coverage().StartRatesByGC(ref_base, dom_error), false };
 		}
 		inline void DefineMarginsIndels(const DataStats &stats, std::array< std::pair<const Vect<Vect<uintMatrixCount>> *, bool>, 6 > &margins, uintInDelType indel_type, uintBaseCall last_call){
 			margins.at(0) = { &stats.Errors().InDelByInDelPos(indel_type, last_call), true };
@@ -1452,10 +1459,10 @@ namespace reseq{
 		const ProbabilityEstimatesSubClasses::LogArrayResult<5> &BaseCall(uintTempSeq template_segment, uintTileId tile_id, uintBaseCall ref_base, uintBaseCall dom_error) const{
 			return base_call_result_.at(template_segment).at(tile_id).at(ref_base).at(dom_error);
 		}
-		const ProbabilityEstimatesSubClasses::LogArrayResult<3> &DominantError(uintBaseCall base, uintBaseCall prev_base, uintBaseCall dom_last5) const{
+		const ProbabilityEstimatesSubClasses::LogArrayResult<4> &DominantError(uintBaseCall base, uintBaseCall prev_base, uintBaseCall dom_last5) const{
 			return dom_error_result_.at(base).at(prev_base).at(dom_last5);
 		}
-		const ProbabilityEstimatesSubClasses::LogArrayResult<3> &ErrorRate(uintBaseCall base, uintBaseCall dom_last5) const{
+		const ProbabilityEstimatesSubClasses::LogArrayResult<4> &ErrorRate(uintBaseCall base, uintBaseCall dom_last5) const{
 			return error_rate_result_.at(base).at(dom_last5);
 		}
 		const ProbabilityEstimatesSubClasses::LogArrayResult<4> &InDels(uintInDelType indel_type, uintBaseCall last_call) const{

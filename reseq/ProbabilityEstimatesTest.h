@@ -108,8 +108,8 @@ namespace reseq{
 		void CheckIPFResult( uintNumFits iterations, double precision, const std::vector<Vect<Vect<uintMatrixCount>>> &margins, const Vect<SeqQualityStats<uintMatrixCount>> &margin_quality_position, const std::vector< std::pair<bool, bool> > &margin_def, const Vect< Vect< Vect< Vect< Vect<double> > > > > &comp_counts, std::string context );
 
 		void SetMarginDefQual(std::vector< std::pair<bool, bool> > &margin_def);
-		void SetUpDataStorageErrorRate(ProbabilityEstimatesSubClasses::DataStorage<3> &data, std::array< std::vector<uintMatrixIndex>, 3 > &dim_indices, std::array< std::vector<uintMatrixIndex>, 3 > &initial_dim_indices, const Vect< Vect< Vect< Vect< Vect<uintMatrixCount> > > > > &counts);
-		void TestDataStorageSetUpErrorRate(ProbabilityEstimatesSubClasses::DataStorage<3> &data, std::array< std::vector<uintMatrixIndex>, 3 > &dim_indices, std::array< std::vector<uintMatrixIndex>, 3 > &initial_dim_indices, bool middle_bin_inserted=false);
+		void SetUpDataStorageErrorRate(ProbabilityEstimatesSubClasses::DataStorage<4> &data, std::array< std::vector<uintMatrixIndex>, 4 > &dim_indices, std::array< std::vector<uintMatrixIndex>, 4 > &initial_dim_indices, const Vect< Vect< Vect< Vect< Vect<uintMatrixCount> > > > > &counts);
+		void TestDataStorageSetUpErrorRate(ProbabilityEstimatesSubClasses::DataStorage<4> &data, std::array< std::vector<uintMatrixIndex>, 4 > &dim_indices, std::array< std::vector<uintMatrixIndex>, 4 > &initial_dim_indices, bool middle_bin_inserted=false);
 		void IterativeProportionalFittingQual(uintBaseCall base, const std::vector<Vect<Vect<uintMatrixCount>>> &margins, const Vect<SeqQualityStats<uintMatrixCount>> &margin_quality_position);
 		void GetIPFResultQual( const ProbabilityEstimates &estimate, uintBaseCall base, Vect< Vect< Vect< Vect< Vect<double> > > > > &estimated_counts, const std::vector<Vect<Vect<uintMatrixCount>>> &margins);
 		template<uintMarginId U1, uintMarginId U2, uintMarginId L1, uintMarginId L2, uintMarginId L3> void IPFStepQual( uintBaseCall base, const ProbabilityEstimatesSubClasses::DataStorage<5> &data ){

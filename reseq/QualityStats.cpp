@@ -194,6 +194,13 @@ void QualityStats::CalculateQualityStats(){
 }
 
 void QualityStats::Prepare(uintTileId num_tiles, uintQual size_qual, uintReadLen size_pos, uintSeqLen maximum_fragment_length){
+	// Precalculate values
+	threshold_sum_.at(0) = 0;
+	threshold_sum_.at(1) = 0;
+	for(size_t threshold = 2; threshold < 100; ++threshold){
+		threshold_sum_.at(threshold) = threshold_sum_.at(threshold-1) + (threshold-2)*(threshold-1)/2;
+	}
+
 	// Resize vectors to necessary size
 	for( auto template_segment=2; template_segment--; ){
 		for( auto ref_base=4; ref_base--; ){
@@ -213,10 +220,10 @@ void QualityStats::Prepare(uintTileId num_tiles, uintQual size_qual, uintReadLen
 
 		SetDimensions( tmp_sequence_quality_mean_for_gc_per_tile_reference_.at(template_segment), num_tiles, 101, size_qual );
 		SetDimensions( tmp_sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(template_segment), num_tiles, 101, size_qual );
-		SetDimensions( tmp_sequence_quality_mean_for_fragment_length_per_tile_reference_.at(template_segment), num_tiles, maximum_fragment_length+1, size_qual );
+		SetDimensions( tmp_sequence_quality_mean_for_fragment_length_per_tile_reference_.at(template_segment), num_tiles, maximum_fragment_length/kSqFragmentLengthBinSize+1, size_qual );
 		SetDimensions( tmp_mean_error_rate_for_gc_per_tile_reference_.at(template_segment), num_tiles, 101, 101 );
-		SetDimensions( tmp_mean_error_rate_for_fragment_length_per_tile_reference_.at(template_segment), num_tiles, maximum_fragment_length+1, 101 );
-		SetDimensions( tmp_gc_for_fragment_length_per_tile_reference_.at(template_segment), num_tiles, maximum_fragment_length+1, 101 );
+		SetDimensions( tmp_mean_error_rate_for_fragment_length_per_tile_reference_.at(template_segment), num_tiles, maximum_fragment_length/kSqFragmentLengthBinSize+1, 101 );
+		SetDimensions( tmp_gc_for_fragment_length_per_tile_reference_.at(template_segment), num_tiles, maximum_fragment_length/kSqFragmentLengthBinSize+1, 101 );
 
 		for( auto base=5; base--; ){
 			SetDimensions( tmp_base_quality_for_sequence_per_tile_.at(template_segment).at(base), num_tiles, size_qual, size_qual );
@@ -267,7 +274,7 @@ void QualityStats::Finalize(uintFragCount total_number_reads){
 		}
 
 		sequence_quality_mean_for_gc_per_tile_reference_.at(template_segment).Acquire( tmp_sequence_quality_mean_for_gc_per_tile_reference_.at(template_segment) );
-		sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(template_segment).Acquire( tmp_sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(template_segment) );
+		sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(template_segment).Acquire(tmp_sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(template_segment));
 		sequence_quality_mean_for_fragment_length_per_tile_reference_.at(template_segment).Acquire( tmp_sequence_quality_mean_for_fragment_length_per_tile_reference_.at(template_segment) );
 		mean_error_rate_for_gc_per_tile_reference_.at(template_segment).Acquire( tmp_mean_error_rate_for_gc_per_tile_reference_.at(template_segment) );
 		mean_error_rate_for_fragment_length_per_tile_reference_.at(template_segment).Acquire( tmp_mean_error_rate_for_fragment_length_per_tile_reference_.at(template_segment) );

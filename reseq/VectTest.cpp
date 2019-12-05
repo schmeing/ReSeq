@@ -233,6 +233,42 @@ namespace reseq{
 		EXPECT_EQ(0, test_2d[5][4]) << test_error;
 		EXPECT_EQ(120, SumVect(test_2d)) << test_error;
 
+		// Acquire
+		std::vector<std::vector<utilities::VectorAtomic<uint32_t>>> acq_source;
+		acq_source.resize(5);
+		acq_source.at(2).resize(6);
+		acq_source.at(2).at(2) = 3;
+		acq_source.at(2).at(4) = 7;
+		acq_source.at(3).resize(6);
+		acq_source.at(4).resize(6);
+		acq_source.at(4).at(0) = 2;
+		acq_source.at(4).at(5) = 8;
+		test_2d.Acquire(acq_source);
+		EXPECT_EQ(3, test_2d.size());
+		EXPECT_EQ(3, test_2d[2].size());
+		EXPECT_EQ(3, test_2d[2][2]);
+		EXPECT_EQ(0, test_2d[2][3]);
+		EXPECT_EQ(7, test_2d[2][4]);
+		EXPECT_EQ(0, test_2d[3].size());
+		EXPECT_EQ(6, test_2d[4].size());
+		EXPECT_EQ(2, test_2d[4][0]);
+		EXPECT_EQ(0, test_2d[4][1]);
+		EXPECT_EQ(8, test_2d[4][5]);
+		EXPECT_EQ(0, acq_source.size());
 
+		//AddAcquired
+		acq_source.resize(5);
+		acq_source.at(1).resize(6);
+		acq_source.at(1).at(5) = 5;
+		acq_source.at(2).resize(6);
+		acq_source.at(2).at(2) = 9;
+		test_2d += acq_source;
+		EXPECT_EQ(4, test_2d.size());
+		EXPECT_EQ(1, test_2d[1].size());
+		EXPECT_EQ(5, test_2d[1][5]);
+		EXPECT_EQ(3, test_2d[2].size());
+		EXPECT_EQ(12, test_2d[2][2]);
+		EXPECT_EQ(0, test_2d[2][3]);
+		EXPECT_EQ(7, test_2d[2][4]);
 	}
 }

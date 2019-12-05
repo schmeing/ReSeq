@@ -27,8 +27,9 @@ void FragmentDuplicationStatsTest::TearDown(){
 }
 
 void FragmentDuplicationStatsTest::TestSrr490124Equality(const FragmentDuplicationStats &test, const char *context){
-	EXPECT_EQ(1, test.duplication_number_.size()) << "SRR490124-4pairs duplication_number_ wrong for " << context << '\n';
-	EXPECT_EQ(2, test.duplication_number_[1]) << "SRR490124-4pairs duplication_number_ wrong for " << context << '\n';
+	EXPECT_EQ(8, test.duplication_number_.size()) << "SRR490124-4pairs duplication_number_ wrong for " << context << '\n';
+	EXPECT_EQ(1, test.duplication_number_[1]) << "SRR490124-4pairs duplication_number_ wrong for " << context << '\n';
+	EXPECT_EQ(1, test.duplication_number_[8]) << "SRR490124-4pairs duplication_number_ wrong for " << context << '\n';
 }
 
 void FragmentDuplicationStatsTest::TestDuplicates(const FragmentDuplicationStats &test){

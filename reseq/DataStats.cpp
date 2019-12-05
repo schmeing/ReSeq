@@ -55,6 +55,7 @@ using reseq::utilities::Complement;
 using reseq::utilities::at;
 using reseq::utilities::CreateDir;
 using reseq::utilities::Divide;
+using reseq::utilities::FileExists;
 using reseq::utilities::IsN;
 using reseq::utilities::MeanWithRoundingToFirst;
 using reseq::utilities::Percent;
@@ -79,15 +80,29 @@ bool  DataStats::RecordEqual::operator() (CoverageStats::FullRecord * const &lhs
 	return lhs->record_.qName == rhs->record_.qName;
 }
 
-inline bool DataStats::PotentiallyValid( const BamAlignmentRecord &record_first ) const{
-	return !hasFlagNextUnmapped(record_first) && !hasFlagUnmapped(record_first) && record_first.rNextId == record_first.rID && maximum_insert_length_ >= record_first.pNext - record_first.beginPos && reference_->SequenceLength(record_first.rID) > maximum_insert_length_+2*Reference::kMinDistToRefSeqEnds;
+inline bool DataStats::PotentiallyValidGeneral( const seqan::BamAlignmentRecord &record ) const{
+	return !hasFlagNextUnmapped(record) && !hasFlagUnmapped(record) && record.rNextId == record.rID && reference_->SequenceLength(record.rID) > maximum_insert_length_+2*Reference::kMinDistToRefSeqEnds;
+}
+inline bool DataStats::PotentiallyValidFirst( const seqan::BamAlignmentRecord &record_first ) const{
+	return PotentiallyValidGeneral(record_first) && record_first.beginPos + maximum_insert_length_ >= record_first.pNext;
+}
+inline bool DataStats::PotentiallyValidSecond( const seqan::BamAlignmentRecord &record_second ) const{
+	return PotentiallyValidGeneral(record_second) && record_second.pNext + maximum_insert_length_ >= record_second.beginPos;
+}
+inline bool DataStats::PotentiallyValid( const seqan::BamAlignmentRecord &record ) const{
+	if(record.beginPos < record.pNext){
+		return PotentiallyValidFirst(record);
+	}
+	else{
+		return PotentiallyValidSecond(record);
+	}
 }
 
 bool DataStats::IsSecondRead( CoverageStats::FullRecord *record, CoverageStats::FullRecord *&record_first, CoverageStats::CoverageBlock *&block ){
 	auto insert_info = first_read_records_.insert( record );
 	if( insert_info.second ){
 		// Insertion worked, so it is the first read
-		if( PotentiallyValid(record->record_) ){
+		if( PotentiallyValidFirst(record->record_) ){
 			// Use record->record_.beginPos-maximum_read_length_on_reference_ as start, because of potentially soft-clipped bases at the beginning
 			coverage_.AddFragment( record->record_.rID, (record->record_.beginPos>maximum_read_length_on_reference_?record->record_.beginPos-maximum_read_length_on_reference_:0), block );
 		}
@@ -121,12 +136,6 @@ bool DataStats::CheckForAdapters(const seqan::BamAlignmentRecord &record_first, 
 }
 
 void DataStats::EvalBaseLevelStats( CoverageStats::FullRecord *full_record, uintTempSeq template_segment, uintTempSeq strand, uintTileId tile_id, uintQual &paired_seq_qual ){
-	if(0 == full_record->num_pointers_to_element_){
-		printErr << "Accessing removed FullRecord: seqid(" << full_record->record_.rID << ") pos(" << full_record->record_.beginPos << ") name(" << full_record->record_.qName << ")" << std::endl;
-		throw std::out_of_range( "Accessing removed FullRecord" );
-		return;
-	}
-
 	const BamAlignmentRecord &record(full_record->record_);
 
 	uintSeqLen pos_reversed(length(record.seq));
@@ -200,46 +209,37 @@ bool DataStats::EvalReferenceStatistics(
 		CoverageStats::FullRecord *record,
 		uintTempSeq template_segment,
 		CoverageStats::CoverageBlock *coverage_block ){
-	if(0 == record->num_pointers_to_element_){
-		printErr << "Accessing removed FullRecord: seqid(" << record->record_.rID << ") pos(" << record->record_.beginPos << ") name(" << record->record_.qName << ")" << std::endl;
-		throw std::out_of_range( "Accessing removed FullRecord" );
-		return false;
-	}
-
 	// Get gc on reference
+	auto cov_block = coverage_block; // coverage_block might be changed in the next step so keep the original for later
+	uintSeqLen coverage_pos = CoverageStats::GetStartPos(record->from_ref_pos_, cov_block);
 	array<uintNucCount, 5> seq_content_reference = {0,0,0,0,0};
-	auto cur_var = coverage_block->first_variant_id_;
-	CoverageStats::PrepareVariantPositionCheck( cur_var, record->record_.rID, record->from_ref_pos_, *reference_, false );
 	for( auto ref_pos = record->from_ref_pos_; ref_pos < record->to_ref_pos_; ++ref_pos ){
-		if( CoverageStats::IsVariantPosition( cur_var, record->record_.rID, ref_pos, *reference_, false )){
-			++seq_content_reference.at(4);
-		}
-		else{
+		if( cov_block->coverage_.at(ref_pos-cov_block->start_pos_).valid_ ){
 			++seq_content_reference.at( at(reference_->ReferenceSequence(record->record_.rID), ref_pos) );
 		}
+		else{
+			++seq_content_reference.at(4);
+		}
+		CoverageStats::IncrementPos(coverage_pos, cov_block);
 	}
 	auto gc_percent = SafePercent( seq_content_reference.at(1)+seq_content_reference.at(2), record->to_ref_pos_-record->from_ref_pos_-seq_content_reference.at(4) );
 	record->reference_gc_ = gc_percent;
 
-	uintSeqLen coverage_pos;
+	uintSeqLen ref_pos;
 	if( hasFlagRC(record->record_) ){
-		coverage_pos = coverage_.GetStartPos(record->to_ref_pos_ - 1, coverage_block);
+		coverage_pos = CoverageStats::GetStartPos(record->to_ref_pos_ - 1, coverage_block);
+		ref_pos = record->to_ref_pos_-1;
 	}
 	else{
-		coverage_pos = coverage_.GetStartPos(record->from_ref_pos_, coverage_block);
-	}
-
-	cur_var = coverage_block->first_variant_id_;
-	if( reference_->VariantPositionsLoaded() && hasFlagRC(record->record_) ){
-		CoverageStats::PrepareVariantPositionCheck( cur_var, record->record_.rID, record->to_ref_pos_-1, *reference_, true );
+		coverage_pos = CoverageStats::GetStartPos(record->from_ref_pos_, coverage_block);
+		ref_pos = record->from_ref_pos_;
 	}
 
 	ConstIupacStringReverseComplement reversed_seq(record->record_.seq);
 	ReversedConstCharString reversed_qual(record->record_.qual);
 	ReversedConstCigarString rev_cigar(record->record_.cigar);
 
-	uintReadLen read_pos(0), ref_pos(0);
-	uintSeqLen full_ref_pos;
+	uintReadLen read_pos(0);
 	Dna ref_base;
 	Dna5 base;
 	uintBaseCall last_base(5);
@@ -256,22 +256,20 @@ bool DataStats::EvalReferenceStatistics(
 		case 'X':
 		case 'S': // Treat soft-clipping as match, so that bwa and bowtie2 behave the same
 			for(auto i=cigar_element.count; i--; ){
-				if(ref_pos < record->to_ref_pos_-record->from_ref_pos_){
+				if(record->from_ref_pos_ <= ref_pos && ref_pos < record->to_ref_pos_){
 					// We are currently not comparing the adapter to the reference
 					if( hasFlagRC(record->record_) ){
 						base = at(reversed_seq, read_pos);
 						qual = at(reversed_qual,read_pos)-phred_quality_offset_;
-						full_ref_pos = record->to_ref_pos_-1-ref_pos;
-						ref_base = Complement::Dna5(at(reference_->ReferenceSequence(record->record_.rID), full_ref_pos));
+						ref_base = Complement::Dna5(at(reference_->ReferenceSequence(record->record_.rID), ref_pos));
 					}
 					else{
 						base = at(record->record_.seq, read_pos);
 						qual = at(record->record_.qual, read_pos)-phred_quality_offset_;
-						full_ref_pos = record->from_ref_pos_+ref_pos;
-						ref_base = at(reference_->ReferenceSequence(record->record_.rID), full_ref_pos);
+						ref_base = at(reference_->ReferenceSequence(record->record_.rID), ref_pos);
 					}
 
-					if( IsN(ref_base) || CoverageStats::IsVariantPosition( cur_var, record->record_.rID, full_ref_pos, *reference_, hasFlagRC(record->record_) )){
+					if( !coverage_block->coverage_.at(coverage_pos).valid_ ){
 						++seq_content_mapped.at(4);
 					}
 					else{
@@ -280,29 +278,28 @@ bool DataStats::EvalReferenceStatistics(
 						errors_.AddBasePlotting(template_segment, ref_base, base, qual, last_base);
 						errors_.AddInDel( indel_type, last_base, ErrorStats::kNoInDel, indel_pos, read_pos, gc_percent);
 
+						++seq_content_mapped.at(base);
+
 						if(ref_base != base){
 							++num_errors;
 						}
-
-						++seq_content_mapped.at(base);
-					}
-
-					if( hasFlagRC(record->record_) ){
-						coverage_.AddReverse(coverage_pos, coverage_block, base);
-					}
-					else{
-						coverage_.AddForward(coverage_pos, coverage_block, base);
 					}
 
 					last_base = base;
 
-					++ref_pos;
 					++read_pos;
+
 					if( hasFlagRC(record->record_) ){
-						coverage_.DecrementPos(coverage_pos, coverage_block);
+						coverage_.AddReverse(coverage_pos, coverage_block, base);
+
+						CoverageStats::DecrementPos(coverage_pos, coverage_block);
+						--ref_pos;
 					}
 					else{
-						coverage_.IncrementPos(coverage_pos, coverage_block);
+						coverage_.AddForward(coverage_pos, coverage_block, base);
+
+						CoverageStats::IncrementPos(coverage_pos, coverage_block);
+						++ref_pos;
 					}
 
 					indel_type = 0;
@@ -312,48 +309,44 @@ bool DataStats::EvalReferenceStatistics(
 			break;
 		case 'N':
 		case 'D':
-			if(ref_pos < record->to_ref_pos_-record->from_ref_pos_){
-				// We are currently not comparing the adapter to the reference
-				for(indel_pos=0; indel_pos<cigar_element.count; ++indel_pos ){
+			for(indel_pos=0; indel_pos<cigar_element.count; ++indel_pos ){
+				if(record->from_ref_pos_ <= ref_pos && ref_pos < record->to_ref_pos_){
+					// We are currently not comparing the adapter to the reference
 					if( hasFlagRC(record->record_) ){
-						full_ref_pos = record->to_ref_pos_-1-ref_pos;
-						ref_base = Complement::Dna5(at(reference_->ReferenceSequence(record->record_.rID), full_ref_pos));
+						ref_base = Complement::Dna5(at(reference_->ReferenceSequence(record->record_.rID), ref_pos));
 					}
 					else{
-						full_ref_pos = record->from_ref_pos_+ref_pos;
-						ref_base = at(reference_->ReferenceSequence(record->record_.rID), full_ref_pos);
+						ref_base = at(reference_->ReferenceSequence(record->record_.rID), ref_pos);
 					}
 
-					if( !IsN(ref_base) && !CoverageStats::IsVariantPosition( cur_var, record->record_.rID, full_ref_pos, *reference_, hasFlagRC(record->record_) )){ // Don't do this stuff when we have an N
+					if( coverage_block->coverage_.at(coverage_pos).valid_ ){
 						errors_.AddInDel( indel_type, last_base, ErrorStats::kDeletion, indel_pos, read_pos, gc_percent);
 
 						++num_errors;
 					}
 
-					++ref_pos;
+					if( hasFlagRC(record->record_) ){
+						CoverageStats::DecrementPos(coverage_pos, coverage_block);
+						--ref_pos;
+					}
+					else{
+						CoverageStats::IncrementPos(coverage_pos, coverage_block);
+						++ref_pos;
+					}
 					indel_type = 1;
-				}
-
-				if( hasFlagRC(record->record_) ){
-					coverage_.SubtractPos(coverage_pos, coverage_block, cigar_element.count);
-				}
-				else{
-					coverage_.AddPos(coverage_pos, coverage_block, cigar_element.count);
 				}
 			}
 			break;
 		case 'I':
-			if(ref_pos < record->to_ref_pos_-record->from_ref_pos_){
+			if(record->from_ref_pos_ <= ref_pos && ref_pos < record->to_ref_pos_){
 				if( hasFlagRC(record->record_) ){
-					full_ref_pos = record->to_ref_pos_-1-ref_pos;
-					ref_base = Complement::Dna5(at(reference_->ReferenceSequence(record->record_.rID), full_ref_pos));
+					ref_base = Complement::Dna5(at(reference_->ReferenceSequence(record->record_.rID), ref_pos));
 				}
 				else{
-					full_ref_pos = record->from_ref_pos_+ref_pos;
-					ref_base = at(reference_->ReferenceSequence(record->record_.rID), full_ref_pos);
+					ref_base = at(reference_->ReferenceSequence(record->record_.rID), ref_pos);
 				}
 
-				if( IsN(ref_base) || CoverageStats::IsVariantPosition( cur_var, record->record_.rID, full_ref_pos, *reference_, hasFlagRC(record->record_) )){
+				if( !coverage_block->coverage_.at(coverage_pos).valid_ ){
 					read_pos += cigar_element.count;
 					indel_type = 0;
 				}
@@ -569,7 +562,7 @@ void DataStats::PrepareReadIn(uintQual size_mapping_quality, uintReadLen size_in
 		}
 	}
 
-	coverage_.Prepare( Divide(num_bases,reference_->TotalSize()), Divide(num_bases,num_reads) );
+	coverage_.Prepare( Divide(num_bases,reference_->TotalSize()), Divide(num_bases,num_reads), maximum_read_length_on_reference_ );
 	duplicates_.PrepareTmpDuplicationVector(maximum_insert_length_);
 	errors_.Prepare(tiles_.NumTiles(), maximum_quality_+1, size_pos, size_indel);
 	fragment_distribution_.Prepare(*reference_, maximum_insert_length_, reads_per_ref_seq_bin_);
@@ -828,7 +821,7 @@ bool DataStats::ReadRecords( BamFileIn &bam, bool &not_done, ThreadData &thread_
 				delete record;
 			}
 			else{
-				if(!hasFlagUnmapped(record->record_) && reference_->SequenceLength(record->record_.rID) > maximum_insert_length_+2*Reference::kMinDistToRefSeqEnds){
+				if( PotentiallyValid(record->record_) ){
 					// Use record->record_.beginPos-maximum_read_length_on_reference_ as start, because of potentially soft-clipped bases at the beginning
 					if( !coverage_.EnsureSpace(record->record_.rID, (record->record_.beginPos>maximum_read_length_on_reference_?record->record_.beginPos-maximum_read_length_on_reference_:0), record->record_.beginPos+maximum_read_length_on_reference_, record, *reference_, maximum_insert_length_+2*Reference::kMinDistToRefSeqEnds) ){
 						return false;
@@ -869,8 +862,8 @@ void DataStats::ReadThread( DataStats &self, BamFileIn &bam, uintSeqLen max_seq_
 	while(not_done && self.reading_success_){
 		// ReadRecords:
 		// Reads in records and bundles them to batches of paired records
-		// Registers reads as unprocessed in coverage blocks
-		// Adds pointers of all potentially valid reads to each block they potentially overlap (read length on reference yet unknown)
+		// Registers reads as unprocessed in first coverage block, to make sure blocks are not removed before all reads in them are handled
+		// Adds pointers of potentially valid reads to the last block they potentially overlap (read length on reference yet unknown), so the coverage part can be handled after all coverage information are gathered
 		if( self.ReadRecords(bam, not_done, thread_data) ){
 			cov_block = NULL;
 			// Process batch
@@ -881,16 +874,17 @@ void DataStats::ReadThread( DataStats &self, BamFileIn &bam, uintSeqLen max_seq_
 				// Calculate all the statistics that are independent of other reads
 				// Fills the coverage information in the coverage blocks
 				if(self.EvalRecord(rec)){
-					if( self.PotentiallyValid(rec.first->record_) ){
+					if( self.PotentiallyValidFirst(rec.first->record_) ){
 						// coverage_.RemoveFragment
-						// Marks the reads as processed, so the fully processed coverage blocks can be handled after all reads are processed
+						// Marks the reads as processed in the first block of first read, so the fully processed coverage blocks can be handled after all reads are processed
 						// Use record->record_.beginPos-maximum_read_length_on_reference_ as start, because of potentially soft-clipped bases at the beginning
 						self.coverage_.RemoveFragment( rec.first->record_.rID, (rec.first->record_.beginPos>self.maximum_read_length_on_reference_?rec.first->record_.beginPos-self.maximum_read_length_on_reference_:0), cov_block, processed_fragments );
 					}
-
-					// Reduce count of in use pointers to records and if 0 remove them
-					self.coverage_.DeleteRecord( rec.first, self.qualities_ );
-					self.coverage_.DeleteRecord( rec.second, self.qualities_ );
+					else{
+						// Remove reads that have not been added to a coverage block
+						delete rec.first;
+						delete rec.second;
+					}
 				}
 				else{
 					self.reading_success_ = false;
@@ -923,7 +917,7 @@ void DataStats::ReadThread( DataStats &self, BamFileIn &bam, uintSeqLen max_seq_
 		self.finish_threads_cv_.notify_all();
 
 		// This finalization might take a bit of time so do it already here
-		if( !self.coverage_.Finalize(*self.reference_, self.qualities_, self.errors_, self.phred_quality_offset_, self.maximum_insert_length_+2*Reference::kMinDistToRefSeqEnds) ){
+		if( !self.coverage_.Finalize(*self.reference_, self.qualities_, self.errors_, self.phred_quality_offset_, self.maximum_insert_length_+2*Reference::kMinDistToRefSeqEnds, self.print_mutex_) ){
 			self.reading_success_ = false;
 		}
 	}
@@ -1194,6 +1188,11 @@ bool DataStats::ReadBam( const char *bam_file, const char *adapter_file, const c
 }
 
 bool DataStats::Load( const char *archive_file ){
+	if( !FileExists(archive_file) ){
+		printErr << "File '" << archive_file << "' does not exists or no read permission given." << std::endl;
+		return false;
+	}
+
 	try{
 		// create and open an archive for input
 		ifstream ifs(archive_file);

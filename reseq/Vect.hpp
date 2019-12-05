@@ -242,7 +242,7 @@ namespace reseq{
 			vec_.first = 0;
 		}
 
-		template<typename U>  void Acquire(std::vector<U>& x){
+		template<typename U> void Acquire(std::vector<U>& x){
 			*this = x;
 			x.clear();
 			x.shrink_to_fit();
@@ -285,6 +285,67 @@ namespace reseq{
 			for( auto i=right.to(); right.from() < i--; ){
 				(*this)[i] += right[i];
 			}
+			return *this;
+		}
+
+		template<typename U> Vect<T>& operator+=(const std::vector<utilities::VectorAtomic<U>>& x){
+			// Find first element and set offset
+			typename std::vector<U>::size_type first(0);
+			while(first < x.size() && 0 == x[first]){
+				++first;
+			}
+
+			if(first < x.size()){
+				if( vec_.second.empty() ){
+					vec_.first = first;
+				}
+				else if( first < vec_.first){
+					vec_.second.insert( vec_.second.begin(), vec_.first-first, 0 );
+					vec_.first = first;
+				}
+
+				// Find last element and resize vector
+				auto last = x.size();
+				while( 0 == x[--last] );
+
+				if(vec_.second.size() < last+1-first){
+					vec_.second.resize(last+1-first, 0);
+				}
+				for(auto i=first; i <= last; ++i){
+					vec_.second[i-first] += x[i];
+				}
+			}
+
+			return *this;
+		}
+		template<typename U> Vect<T>& operator+=(const std::vector<U>& x){
+			// Find first element and set offset
+			typename std::vector<U>::size_type first(0);
+			while(first < x.size() && 0 == x[first].size()){
+				++first;
+			}
+
+			if(first < x.size()){
+				if( vec_.second.empty() ){
+					vec_.first = first;
+				}
+				else if( first < vec_.first){
+					vec_.second.insert( vec_.second.begin(), vec_.first-first, 0 );
+					vec_.first = first;
+				}
+
+				// Find last element and resize vector
+				auto last = x.size();
+				while( 0 == x[--last].size() );
+
+				if(vec_.second.size() < last+1-first){
+					vec_.second.resize(last+1-first);
+				}
+				for(auto i=first; i <= last; ++i){
+					vec_.second[i-first] += x[i];
+				}
+			}
+
 			return *this;
 		}
 	};

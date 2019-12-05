@@ -84,6 +84,10 @@ namespace reseq{
 			this->qualities_ += right.qualities_;
 			return *this;
 		}
+		template<typename U> SeqQualityStats<T>& operator+=(const std::vector<U>& right){
+			this->qualities_ += right;
+			return *this;
+		}
 
 		// Own class function
 		void Clear(){ // Clears qualities_ and the statistics

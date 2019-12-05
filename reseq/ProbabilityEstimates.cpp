@@ -49,6 +49,7 @@ using std::max;
 using reseq::uintMarginId;
 using reseq::utilities::CreateDir;
 using reseq::utilities::DeleteFile;
+using reseq::utilities::FileExists;
 
 template<uintMarginId N> void DataStorage<N>::CombineEndBinsToMinCount(array< vector<uintMatrixIndex>, N > &dim_indices, array<Vect<uintMatrixCount>, N> &dim_control){
 	// Start with summing up from both ends until kMinCountsPer1dBin is reached for the outermost bins
@@ -851,7 +852,7 @@ void ProbabilityEstimates::IterativeProportionalFitting(
 		if( stats.Coverage().GCByDistance(ref_base, last_ref_base, dom_error).size() ){
 			// Something has to be done as data is not empty
 			// Start with defining the margins (Dimension order: dominant error, distance, gc)
-			array< pair<const Vect<Vect<uintMatrixCount>> *, bool>, 3 > margins;
+			array< pair<const Vect<Vect<uintMatrixCount>> *, bool>, 6 > margins;
 			DefineMarginsDominantError(stats, margins, ref_base, last_ref_base, dom_error);
 
 			// Write the description for printing
@@ -876,7 +877,7 @@ void ProbabilityEstimates::IterativeProportionalFitting(
 		if( stats.Coverage().GCByDistance(ref_base, dom_error).size() ){
 			// Something has to be done as data is not empty
 			// Start with defining the margins (Dimension order: error rate, distance, gc)
-			array< pair<const Vect<Vect<uintMatrixCount>> *, bool>, 3 > margins;
+			array< pair<const Vect<Vect<uintMatrixCount>> *, bool>, 6 > margins;
 			DefineMarginsErrorRate(stats, margins, ref_base, dom_error);
 
 			// Write the description for printing
@@ -995,6 +996,11 @@ void ProbabilityEstimates::PrepareResult(){
 }
 
 bool ProbabilityEstimates::Load( const char *archive_file ){
+	if( !FileExists(archive_file) ){
+		printErr << "File '" << archive_file << "' does not exists or no read permission given." << std::endl;
+		return false;
+	}
+
 	try{
 		// create and open an archive for input
 		ifstream ifs(archive_file);
@@ -1004,7 +1010,7 @@ bool ProbabilityEstimates::Load( const char *archive_file ){
 		ia >> *this;
 	}
 	catch(const exception& e){
-		printErr<< "Could not load probability estimates from '" << archive_file << "': " << e.what() << std::endl;
+		printErr << "Could not load probability estimates from '" << archive_file << "': " << e.what() << std::endl;
 		return false;
 	}
 

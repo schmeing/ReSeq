@@ -138,7 +138,10 @@ namespace reseq{
 		std::atomic<uintFragCount> reads_used_;
 
 		// Private functions
-		inline bool PotentiallyValid( const seqan::BamAlignmentRecord &record_first ) const;
+		inline bool PotentiallyValidGeneral( const seqan::BamAlignmentRecord &record ) const;
+		inline bool PotentiallyValidFirst( const seqan::BamAlignmentRecord &record_first ) const;
+		inline bool PotentiallyValidSecond( const seqan::BamAlignmentRecord &record_second ) const;
+		inline bool PotentiallyValid( const seqan::BamAlignmentRecord &record ) const;
 		bool IsSecondRead( CoverageStats::FullRecord *record, CoverageStats::FullRecord *&record_first, CoverageStats::CoverageBlock *&block );
 
 		bool CheckForAdapters(const seqan::BamAlignmentRecord &record_first, const seqan::BamAlignmentRecord &record_second);

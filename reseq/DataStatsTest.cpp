@@ -59,11 +59,11 @@ void DataStatsTest::TestSequenceContent(
 		uintNucCount cont_t,
 		uintNucCount cont_n,
 		const char * context ){
-	EXPECT_EQ(cont_a, test_->sequence_content_.at(template_segment).at(0)[at_pos]) << "sequence_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
-	EXPECT_EQ(cont_c, test_->sequence_content_.at(template_segment).at(1)[at_pos]) << "sequence_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
-	EXPECT_EQ(cont_g, test_->sequence_content_.at(template_segment).at(2)[at_pos]) << "sequence_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
-	EXPECT_EQ(cont_t, test_->sequence_content_.at(template_segment).at(3)[at_pos]) << "sequence_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
-	EXPECT_EQ(cont_n, test_->sequence_content_.at(template_segment).at(4)[at_pos]) << "sequence_content_[" << template_segment << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_a, test_->sequence_content_.at(template_segment).at(0)[at_pos]) << "sequence_content_[" << static_cast<uintTempSeqPrint>(template_segment) << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_c, test_->sequence_content_.at(template_segment).at(1)[at_pos]) << "sequence_content_[" << static_cast<uintTempSeqPrint>(template_segment) << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_g, test_->sequence_content_.at(template_segment).at(2)[at_pos]) << "sequence_content_[" << static_cast<uintTempSeqPrint>(template_segment) << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_t, test_->sequence_content_.at(template_segment).at(3)[at_pos]) << "sequence_content_[" << static_cast<uintTempSeqPrint>(template_segment) << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_n, test_->sequence_content_.at(template_segment).at(4)[at_pos]) << "sequence_content_[" << static_cast<uintTempSeqPrint>(template_segment) << "] position " << at_pos << " wrong for " << context << '\n';
 }
 
 void DataStatsTest::TestSequenceContentReference(
@@ -75,10 +75,10 @@ void DataStatsTest::TestSequenceContentReference(
 		uintNucCount cont_g,
 		uintNucCount cont_t,
 		const char * context ){
-	EXPECT_EQ(cont_a, test_->sequence_content_reference_.at(template_segment).at(strand).at(0)[at_pos]) << "sequence_content_reference_[" << template_segment << "][" << strand << "] position " << at_pos << " wrong for " << context << '\n';
-	EXPECT_EQ(cont_c, test_->sequence_content_reference_.at(template_segment).at(strand).at(1)[at_pos]) << "sequence_content_reference_[" << template_segment << "][" << strand << "] position " << at_pos << " wrong for " << context << '\n';
-	EXPECT_EQ(cont_g, test_->sequence_content_reference_.at(template_segment).at(strand).at(2)[at_pos]) << "sequence_content_reference_[" << template_segment << "][" << strand << "] position " << at_pos << " wrong for " << context << '\n';
-	EXPECT_EQ(cont_t, test_->sequence_content_reference_.at(template_segment).at(strand).at(3)[at_pos]) << "sequence_content_reference_[" << template_segment << "][" << strand << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_a, test_->sequence_content_reference_.at(template_segment).at(strand).at(0)[at_pos]) << "sequence_content_reference_[" << static_cast<uintTempSeqPrint>(template_segment) << "][" << static_cast<uintTempSeqPrint>(strand) << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_c, test_->sequence_content_reference_.at(template_segment).at(strand).at(1)[at_pos]) << "sequence_content_reference_[" << static_cast<uintTempSeqPrint>(template_segment) << "][" << static_cast<uintTempSeqPrint>(strand) << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_g, test_->sequence_content_reference_.at(template_segment).at(strand).at(2)[at_pos]) << "sequence_content_reference_[" << static_cast<uintTempSeqPrint>(template_segment) << "][" << static_cast<uintTempSeqPrint>(strand) << "] position " << at_pos << " wrong for " << context << '\n';
+	EXPECT_EQ(cont_t, test_->sequence_content_reference_.at(template_segment).at(strand).at(3)[at_pos]) << "sequence_content_reference_[" << static_cast<uintTempSeqPrint>(template_segment) << "][" << static_cast<uintTempSeqPrint>(strand) << "] position " << at_pos << " wrong for " << context << '\n';
 }
 
 void DataStatsTest::TestSrr490124Equality(const char *context, bool test_tile_information, bool bwa){
@@ -95,26 +95,26 @@ void DataStatsTest::TestSrr490124Equality(const char *context, bool test_tile_in
 	QualityStatsTest::TestSrr490124Equality(test_->qualities_, context);
 	TileStatsTest::TestSrr490124Equality(test_->tiles_, context, test_tile_information);
 
-	EXPECT_EQ(8, test_->total_number_reads_) << "SRR490124-4pairs total_number_reads_ wrong for " << context << '\n';
+	EXPECT_EQ(36, test_->total_number_reads_) << "SRR490124-4pairs total_number_reads_ wrong for " << context << '\n';
 	for( int templ_seg=2; templ_seg--; ){
 		EXPECT_EQ(1, test_->read_lengths_.at(templ_seg).size()) << "SRR490124-4pairs read_lengths_[" << templ_seg << "] wrong for " << context << '\n';
-		EXPECT_EQ(4, test_->read_lengths_.at(templ_seg)[100]) << "SRR490124-4pairs read_lengths_[" << templ_seg << "] wrong for " << context << '\n';
+		EXPECT_EQ(18, test_->read_lengths_.at(templ_seg)[100]) << "SRR490124-4pairs read_lengths_[" << templ_seg << "] wrong for " << context << '\n';
 	}
 
 	if(bwa){
 		EXPECT_EQ(0, test_->proper_pair_mapping_quality_.size()) << "SRR490124-4pairs proper_pair_mapping_quality_ wrong for " << context << '\n';
 		EXPECT_EQ(61, test_->improper_pair_mapping_quality_.size()) << "SRR490124-4pairs improper_pair_mapping_quality_ wrong for " << context << '\n';
-		EXPECT_EQ(1, test_->improper_pair_mapping_quality_[0]) << "SRR490124-4pairs improper_pair_mapping_quality_ wrong for " << context << '\n';
-		EXPECT_EQ(1, test_->improper_pair_mapping_quality_[1]) << "SRR490124-4pairs improper_pair_mapping_quality_ wrong for " << context << '\n';
-		EXPECT_EQ(4, test_->improper_pair_mapping_quality_[60]) << "SRR490124-4pairs improper_pair_mapping_quality_ wrong for " << context << '\n';
+		EXPECT_EQ(8, test_->improper_pair_mapping_quality_[0]) << "SRR490124-4pairs improper_pair_mapping_quality_ wrong for " << context << '\n';
+		EXPECT_EQ(8, test_->improper_pair_mapping_quality_[1]) << "SRR490124-4pairs improper_pair_mapping_quality_ wrong for " << context << '\n';
+		EXPECT_EQ(18, test_->improper_pair_mapping_quality_[60]) << "SRR490124-4pairs improper_pair_mapping_quality_ wrong for " << context << '\n';
 		EXPECT_EQ(1, test_->single_read_mapping_quality_.size()) << "SRR490124-4pairs single_read_mapping_quality_ wrong for " << context << '\n';
 		EXPECT_EQ(1, test_->single_read_mapping_quality_[60]) << "SRR490124-4pairs single_read_mapping_quality_ wrong for " << context << '\n';
 	}
 	else{
 		EXPECT_EQ(19, test_->proper_pair_mapping_quality_.size()) << "SRR490124-4pairs proper_pair_mapping_quality_ wrong for " << context << '\n';
-		EXPECT_EQ(2, test_->proper_pair_mapping_quality_[6]) << "SRR490124-4pairs proper_pair_mapping_quality_ wrong for " << context << '\n';
+		EXPECT_EQ(16, test_->proper_pair_mapping_quality_[6]) << "SRR490124-4pairs proper_pair_mapping_quality_ wrong for " << context << '\n';
 		EXPECT_EQ(2, test_->proper_pair_mapping_quality_[23]) << "SRR490124-4pairs proper_pair_mapping_quality_ wrong for " << context << '\n';
-		EXPECT_EQ(2, test_->proper_pair_mapping_quality_[24]) << "SRR490124-4pairs proper_pair_mapping_quality_ wrong for " << context << '\n';
+		EXPECT_EQ(16, test_->proper_pair_mapping_quality_[24]) << "SRR490124-4pairs proper_pair_mapping_quality_ wrong for " << context << '\n';
 		EXPECT_EQ(0, test_->improper_pair_mapping_quality_.size()) << "SRR490124-4pairs improper_pair_mapping_quality_ wrong for " << context << '\n';
 		EXPECT_EQ(1, test_->single_read_mapping_quality_.size()) << "SRR490124-4pairs single_read_mapping_quality_ wrong for " << context << '\n';
 		EXPECT_EQ(1, test_->single_read_mapping_quality_[3]) << "SRR490124-4pairs single_read_mapping_quality_ wrong for " << context << '\n';
@@ -123,88 +123,88 @@ void DataStatsTest::TestSrr490124Equality(const char *context, bool test_tile_in
 	// samtools view ecoli-SRR490124-4pairs.sam | awk '{print int($2%256/128), gsub("G","",$10)+gsub("C","",$10)}' | sort -n
 	EXPECT_EQ(12, test_->gc_read_content_.at(0).size()) << "SRR490124-4pairs gc_read_content_[0] wrong for " << context << '\n';
 	EXPECT_EQ(1, test_->gc_read_content_.at(0)[48]) << "SRR490124-4pairs gc_read_content_[0] wrong for " << context << '\n';
-	EXPECT_EQ(1, test_->gc_read_content_.at(0)[52]) << "SRR490124-4pairs gc_read_content_[0] wrong for " << context << '\n';
+	EXPECT_EQ(8, test_->gc_read_content_.at(0)[52]) << "SRR490124-4pairs gc_read_content_[0] wrong for " << context << '\n';
 	EXPECT_EQ(1, test_->gc_read_content_.at(0)[53]) << "SRR490124-4pairs gc_read_content_[0] wrong for " << context << '\n';
-	EXPECT_EQ(1, test_->gc_read_content_.at(0)[59]) << "SRR490124-4pairs gc_read_content_[0] wrong for " << context << '\n';
+	EXPECT_EQ(8, test_->gc_read_content_.at(0)[59]) << "SRR490124-4pairs gc_read_content_[0] wrong for " << context << '\n';
 	EXPECT_EQ(20, test_->gc_read_content_.at(1).size()) << "SRR490124-4pairs gc_read_content_[1] wrong for " << context << '\n';
-	EXPECT_EQ(1, test_->gc_read_content_.at(1)[37]) << "SRR490124-4pairs gc_read_content_[1] wrong for " << context << '\n';
-	EXPECT_EQ(2, test_->gc_read_content_.at(1)[47]) << "SRR490124-4pairs gc_read_content_[1] wrong for " << context << '\n';
+	EXPECT_EQ(8, test_->gc_read_content_.at(1)[37]) << "SRR490124-4pairs gc_read_content_[1] wrong for " << context << '\n';
+	EXPECT_EQ(9, test_->gc_read_content_.at(1)[47]) << "SRR490124-4pairs gc_read_content_[1] wrong for " << context << '\n';
 	EXPECT_EQ(1, test_->gc_read_content_.at(1)[56]) << "SRR490124-4pairs gc_read_content_[1] wrong for " << context << '\n';
 	// samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '{print int($2%256/128), $4}' | sort -n | awk '{system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $2 "-" $2+99)}' | seqtk seq | awk '(0==NR%2){print gsub("G","",$0)+gsub("C","",$0)}'
 	EXPECT_EQ(4, test_->gc_read_content_reference_.at(0).size()) << "SRR490124-4pairs gc_read_content_reference_[0] wrong for " << context << '\n';
 	EXPECT_EQ(1, test_->gc_read_content_reference_.at(0)[54]) << "SRR490124-4pairs gc_read_content_reference_[0] wrong for " << context << '\n';
-	EXPECT_EQ(1, test_->gc_read_content_reference_.at(0)[57]) << "SRR490124-4pairs gc_read_content_reference_[0] wrong for " << context << '\n';
+	EXPECT_EQ(8, test_->gc_read_content_reference_.at(0)[57]) << "SRR490124-4pairs gc_read_content_reference_[0] wrong for " << context << '\n';
 	EXPECT_EQ(7, test_->gc_read_content_reference_.at(1).size()) << "SRR490124-4pairs gc_read_content_reference_[1] wrong for " << context << '\n';
-	EXPECT_EQ(1, test_->gc_read_content_reference_.at(1)[46]) << "SRR490124-4pairs gc_read_content_reference_[1] wrong for " << context << '\n';
+	EXPECT_EQ(8, test_->gc_read_content_reference_.at(1)[46]) << "SRR490124-4pairs gc_read_content_reference_[1] wrong for " << context << '\n';
 	EXPECT_EQ(1, test_->gc_read_content_reference_.at(1)[52]) << "SRR490124-4pairs gc_read_content_reference_[1] wrong for " << context << '\n';
 	// samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '{print int($2%256/128), gsub("G","",$10)+gsub("C","",$10)}' | sort -n
 	EXPECT_EQ(7, test_->gc_read_content_mapped_.at(0).size()) << "SRR490124-4pairs gc_read_content_mapped_[0] wrong for " << context << '\n';
 	EXPECT_EQ(1, test_->gc_read_content_mapped_.at(0)[53]) << "SRR490124-4pairs gc_read_content_mapped_[0] wrong for " << context << '\n';
-	EXPECT_EQ(1, test_->gc_read_content_mapped_.at(0)[59]) << "SRR490124-4pairs gc_read_content_mapped_[0] wrong for " << context << '\n';
+	EXPECT_EQ(8, test_->gc_read_content_mapped_.at(0)[59]) << "SRR490124-4pairs gc_read_content_mapped_[0] wrong for " << context << '\n';
 	EXPECT_EQ(10, test_->gc_read_content_mapped_.at(1).size()) << "SRR490124-4pairs gc_read_content_mapped_[1] wrong for " << context << '\n';
-	EXPECT_EQ(1, test_->gc_read_content_mapped_.at(1)[47]) << "SRR490124-4pairs gc_read_content_mapped_[1] wrong for " << context << '\n';
+	EXPECT_EQ(8, test_->gc_read_content_mapped_.at(1)[47]) << "SRR490124-4pairs gc_read_content_mapped_[1] wrong for " << context << '\n';
 	EXPECT_EQ(1, test_->gc_read_content_mapped_.at(1)[56]) << "SRR490124-4pairs gc_read_content_mapped_[1] wrong for " << context << '\n';
 	for( int templ_seg=2; templ_seg--; ){
 		EXPECT_EQ(1, test_->n_content_.at(templ_seg).size()) << "SRR490124-4pairs n_content_[" << templ_seg << "] wrong for " << context << '\n';
-		EXPECT_EQ(4, test_->n_content_.at(templ_seg)[0]) << "SRR490124-4pairs n_content_[" << templ_seg << "] wrong for " << context << '\n';
+		EXPECT_EQ(18, test_->n_content_.at(templ_seg)[0]) << "SRR490124-4pairs n_content_[" << templ_seg << "] wrong for " << context << '\n';
 	}
 
 	// samtools view ecoli-SRR490124-4pairs.sam | awk '(0==int($2%256/128)){print ">a\n" $10}' | seqtk seq -r | awk '(0==NR%2){print substr($0,1,1)}' | sort | uniq -c
-	TestSequenceContent(0, 0, 2, 1, 1, 0, 0, context);
-	TestSequenceContent(0, 1, 1, 2, 0, 1, 0, context);
-	TestSequenceContent(0, 2, 1, 2, 1, 0, 0, context);
-	TestSequenceContent(0, 3, 0, 0, 3, 1, 0, context);
-	TestSequenceContent(0, 4, 2, 0, 1, 1, 0, context);
-	TestSequenceContent(0, 95, 2, 0, 1, 1, 0, context);
-	TestSequenceContent(0, 96, 2, 0, 1, 1, 0, context);
-	TestSequenceContent(0, 97, 2, 0, 1, 1, 0, context);
-	TestSequenceContent(0, 98, 1, 0, 1, 2, 0, context);
-	TestSequenceContent(0, 99, 2, 0, 1, 1, 0, context);
+	TestSequenceContent(0, 0, 9, 8, 1, 0, 0, context);
+	TestSequenceContent(0, 1, 1, 16, 0, 1, 0, context);
+	TestSequenceContent(0, 2, 1, 16, 1, 0, 0, context);
+	TestSequenceContent(0, 3, 0, 0, 17, 1, 0, context);
+	TestSequenceContent(0, 4, 9, 0, 8, 1, 0, context);
+	TestSequenceContent(0, 95, 9, 0, 1, 8, 0, context);
+	TestSequenceContent(0, 96, 2, 0, 8, 8, 0, context);
+	TestSequenceContent(0, 97, 2, 0, 8, 8, 0, context);
+	TestSequenceContent(0, 98, 1, 0, 8, 9, 0, context);
+	TestSequenceContent(0, 99, 9, 0, 1, 8, 0, context);
 	// samtools view ecoli-SRR490124-4pairs.sam | awk '(1==int($2%256/128)){print substr($10,1,1)}' | sort | uniq -c
-	TestSequenceContent(1, 0, 1, 1, 1, 1, 0, context);
-	TestSequenceContent(1, 1, 2, 0, 0, 2, 0, context);
-	TestSequenceContent(1, 2, 2, 0, 1, 1, 0, context);
-	TestSequenceContent(1, 3, 1, 1, 0, 2, 0, context);
-	TestSequenceContent(1, 4, 2, 2, 0, 0, 0, context);
-	TestSequenceContent(1, 95, 0, 3, 0, 1, 0, context);
-	TestSequenceContent(1, 96, 0, 1, 3, 0, 0, context);
-	TestSequenceContent(1, 97, 0, 3, 1, 0, 0, context);
-	TestSequenceContent(1, 98, 1, 0, 0, 3, 0, context);
-	TestSequenceContent(1, 99, 0, 1, 1, 2, 0, context);
+	TestSequenceContent(1, 0, 8, 1, 8, 1, 0, context);
+	TestSequenceContent(1, 1, 16, 0, 0, 2, 0, context);
+	TestSequenceContent(1, 2, 9, 0, 8, 1, 0, context);
+	TestSequenceContent(1, 3, 1, 8, 0, 9, 0, context);
+	TestSequenceContent(1, 4, 9, 9, 0, 0, 0, context);
+	TestSequenceContent(1, 95, 0, 17, 0, 1, 0, context);
+	TestSequenceContent(1, 96, 0, 1, 17, 0, 0, context);
+	TestSequenceContent(1, 97, 0, 17, 1, 0, 0, context);
+	TestSequenceContent(1, 98, 1, 0, 0, 17, 0, context);
+	TestSequenceContent(1, 99, 0, 1, 1, 16, 0, context);
 
 	// Position needs to be updated at the end (starting from 1 not from 0 as in the test function below)
 	// samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(0==int($2%256/128)){print $4}' | sort -n | awk '{system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $1 "-" $1+99)}' | seqtk seq -r | awk '(0==NR%2){print substr($0,1,1)}' | sort | uniq -c
-	TestSequenceContentReference(0, 1, 0, 0, 1, 1, 0, context);
-	TestSequenceContentReference(0, 1, 1, 0, 1, 0, 1, context);
-	TestSequenceContentReference(0, 1, 2, 0, 1, 1, 0, context);
-	TestSequenceContentReference(0, 1, 3, 0, 0, 2, 0, context);
-	TestSequenceContentReference(0, 1, 4, 0, 0, 1, 1, context);
-	TestSequenceContentReference(0, 1, 95, 1, 0, 1, 0, context);
-	TestSequenceContentReference(0, 1, 96, 0, 0, 2, 0, context);
-	TestSequenceContentReference(0, 1, 97, 1, 0, 1, 0, context);
-	TestSequenceContentReference(0, 1, 98, 1, 0, 0, 1, context);
-	TestSequenceContentReference(0, 1, 99, 2, 0, 0, 0, context);
+	TestSequenceContentReference(0, 1, 0, 0, 8, 1, 0, context);
+	TestSequenceContentReference(0, 1, 1, 0, 8, 0, 1, context);
+	TestSequenceContentReference(0, 1, 2, 0, 8, 1, 0, context);
+	TestSequenceContentReference(0, 1, 3, 0, 0, 9, 0, context);
+	TestSequenceContentReference(0, 1, 4, 0, 0, 8, 1, context);
+	TestSequenceContentReference(0, 1, 95, 1, 0, 8, 0, context);
+	TestSequenceContentReference(0, 1, 96, 0, 0, 9, 0, context);
+	TestSequenceContentReference(0, 1, 97, 1, 0, 8, 0, context);
+	TestSequenceContentReference(0, 1, 98, 1, 0, 0, 8, context);
+	TestSequenceContentReference(0, 1, 99, 9, 0, 0, 0, context);
 	// samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(1==int($2%256/128)){print $4}' | sort -n | awk '{system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $1 "-" $1+99)}' | seqtk seq | awk '(0==NR%2){print substr($0,1,1)}' | sort | uniq -c
-	TestSequenceContentReference(1, 0, 0, 0, 0, 1, 1, context);
-	TestSequenceContentReference(1, 0, 1, 1, 0, 0, 1, context);
-	TestSequenceContentReference(1, 0, 2, 1, 0, 1, 0, context);
-	TestSequenceContentReference(1, 0, 3, 0, 1, 0, 1, context);
-	TestSequenceContentReference(1, 0, 4, 1, 1, 0, 0, context);
-	TestSequenceContentReference(1, 0, 95, 0, 2, 0, 0, context);
-	TestSequenceContentReference(1, 0, 96, 1, 0, 1, 0, context);
-	TestSequenceContentReference(1, 0, 97, 0, 1, 1, 0, context);
-	TestSequenceContentReference(1, 0, 98, 0, 1, 0, 1, context);
-	TestSequenceContentReference(1, 0, 99, 1, 0, 0, 1, context);
+	TestSequenceContentReference(1, 0, 0, 0, 0, 8, 1, context);
+	TestSequenceContentReference(1, 0, 1, 8, 0, 0, 1, context);
+	TestSequenceContentReference(1, 0, 2, 1, 0, 8, 0, context);
+	TestSequenceContentReference(1, 0, 3, 0, 8, 0, 1, context);
+	TestSequenceContentReference(1, 0, 4, 8, 1, 0, 0, context);
+	TestSequenceContentReference(1, 0, 95, 0, 9, 0, 0, context);
+	TestSequenceContentReference(1, 0, 96, 1, 0, 8, 0, context);
+	TestSequenceContentReference(1, 0, 97, 0, 8, 1, 0, context);
+	TestSequenceContentReference(1, 0, 98, 0, 1, 0, 8, context);
+	TestSequenceContentReference(1, 0, 99, 1, 0, 0, 8, context);
 	for(int base=4; base--; ){
 		EXPECT_EQ(0, test_->sequence_content_reference_.at(0).at(0).at(base).size()) << "SRR490124-4pairs sequence_content_reference_[0][0][" << base << "].size() not correct for " << context << '\n';
 		EXPECT_EQ(0, test_->sequence_content_reference_.at(1).at(1).at(base).size()) << "SRR490124-4pairs sequence_content_reference_[1][1][" << base << "].size() not correct for " << context << '\n';
 	}
 
 	// cat ecoli-SRR490124-4pairs-R1.fq ecoli-SRR490124-4pairs-R2.fq | awk -v FS="" '(2==NR%4){count=0;base="";for (i=1;i<=NF;i++){ if(base == $i){count+=1}else{if("" != base){print base, count};count=1;base=$i}};print base, count}' | sort | uniq -c
-	TestVectEquality({1,{107,20,9,5,0,0,3}}, test_->homopolymer_distribution_.at(0), context, "SRR490124-4pairs homopolymer_distribution_[0]", " not correct for ");
-	TestVectEquality({1,{131,30,3,3}}, test_->homopolymer_distribution_.at(1), context, "SRR490124-4pairs homopolymer_distribution_[1]", " not correct for ");
-	TestVectEquality({1,{122,21,5,2}}, test_->homopolymer_distribution_.at(2), context, "SRR490124-4pairs homopolymer_distribution_[2]", " not correct for ");
-	TestVectEquality({1,{93,31,5,4}}, test_->homopolymer_distribution_.at(3), context, "SRR490124-4pairs homopolymer_distribution_[3]", " not correct for ");
+	TestVectEquality({1,{492,90,51,19,0,0,10}}, test_->homopolymer_distribution_.at(0), context, "SRR490124-4pairs homopolymer_distribution_[0]", " not correct for ");
+	TestVectEquality({1,{565,121,24,17}}, test_->homopolymer_distribution_.at(1), context, "SRR490124-4pairs homopolymer_distribution_[1]", " not correct for ");
+	TestVectEquality({1,{535,84,26,9}}, test_->homopolymer_distribution_.at(2), context, "SRR490124-4pairs homopolymer_distribution_[2]", " not correct for ");
+	TestVectEquality({1,{422,157,19,18}}, test_->homopolymer_distribution_.at(3), context, "SRR490124-4pairs homopolymer_distribution_[3]", " not correct for ");
 	EXPECT_EQ(0, test_->homopolymer_distribution_.at(4).size()) << "SRR490124-4pairs homopolymer_distribution_[4].size() not correct for " << context << '\n';
 }
 
@@ -258,41 +258,41 @@ void DataStatsTest::TestVariants(){
 	ErrorStatsTest::TestVariants(test_->errors_);
 	QualityStatsTest::TestVariants(test_->qualities_);
 
-	EXPECT_EQ(3, test_->gc_read_content_reference_.at(0).size());
+	EXPECT_EQ(4, test_->gc_read_content_reference_.at(0).size());
 	EXPECT_EQ(1, test_->gc_read_content_reference_.at(0)[55]);
-	EXPECT_EQ(1, test_->gc_read_content_reference_.at(0)[57]);
+	EXPECT_EQ(8, test_->gc_read_content_reference_.at(0)[58]);
 	EXPECT_EQ(9, test_->gc_read_content_reference_.at(1).size());
-	EXPECT_EQ(1, test_->gc_read_content_reference_.at(1)[46]);
+	EXPECT_EQ(8, test_->gc_read_content_reference_.at(1)[46]);
 	EXPECT_EQ(1, test_->gc_read_content_reference_.at(1)[54]);
 
-	EXPECT_EQ(6, test_->gc_read_content_mapped_.at(0).size());
+	EXPECT_EQ(7, test_->gc_read_content_mapped_.at(0).size());
 	EXPECT_EQ(1, test_->gc_read_content_mapped_.at(0)[54]);
-	EXPECT_EQ(1, test_->gc_read_content_mapped_.at(0)[59]);
+	EXPECT_EQ(8, test_->gc_read_content_mapped_.at(0)[60]);
 	EXPECT_EQ(11, test_->gc_read_content_mapped_.at(1).size());
-	EXPECT_EQ(1, test_->gc_read_content_mapped_.at(1)[47]);
+	EXPECT_EQ(8, test_->gc_read_content_mapped_.at(1)[47]);
 	EXPECT_EQ(1, test_->gc_read_content_mapped_.at(1)[57]);
 
-	TestSequenceContentReference(0, 1, 0, 0, 1, 0, 0, "variant test");
-	TestSequenceContentReference(0, 1, 1, 0, 1, 0, 1, "variant test");
-	TestSequenceContentReference(0, 1, 2, 0, 1, 1, 0, "variant test");
-	TestSequenceContentReference(0, 1, 3, 0, 0, 2, 0, "variant test");
-	TestSequenceContentReference(0, 1, 4, 0, 0, 1, 1, "variant test");
-	TestSequenceContentReference(0, 1, 95, 1, 0, 1, 0, "variant test");
-	TestSequenceContentReference(0, 1, 96, 0, 0, 2, 0, "variant test");
-	TestSequenceContentReference(0, 1, 97, 1, 0, 1, 0, "variant test");
-	TestSequenceContentReference(0, 1, 98, 1, 0, 0, 1, "variant test");
-	TestSequenceContentReference(0, 1, 99, 1, 0, 0, 0, "variant test");
+	TestSequenceContentReference(0, 1, 0, 0, 8, 0, 0, "variant test");
+	TestSequenceContentReference(0, 1, 1, 0, 8, 0, 1, "variant test");
+	TestSequenceContentReference(0, 1, 2, 0, 8, 1, 0, "variant test");
+	TestSequenceContentReference(0, 1, 3, 0, 0, 9, 0, "variant test");
+	TestSequenceContentReference(0, 1, 4, 0, 0, 8, 1, "variant test");
+	TestSequenceContentReference(0, 1, 95, 1, 0, 8, 0, "variant test");
+	TestSequenceContentReference(0, 1, 96, 0, 0, 9, 0, "variant test");
+	TestSequenceContentReference(0, 1, 97, 1, 0, 8, 0, "variant test");
+	TestSequenceContentReference(0, 1, 98, 1, 0, 0, 8, "variant test");
+	TestSequenceContentReference(0, 1, 99, 8, 0, 0, 0, "variant test");
 
-	TestSequenceContentReference(1, 0, 0, 0, 0, 1, 0, "variant test");
-	TestSequenceContentReference(1, 0, 1, 1, 0, 0, 1, "variant test");
-	TestSequenceContentReference(1, 0, 2, 1, 0, 1, 0, "variant test");
-	TestSequenceContentReference(1, 0, 3, 0, 1, 0, 1, "variant test");
-	TestSequenceContentReference(1, 0, 4, 1, 1, 0, 0, "variant test");
-	TestSequenceContentReference(1, 0, 95, 0, 2, 0, 0, "variant test");
-	TestSequenceContentReference(1, 0, 96, 1, 0, 1, 0, "variant test");
-	TestSequenceContentReference(1, 0, 97, 0, 1, 1, 0, "variant test");
-	TestSequenceContentReference(1, 0, 98, 0, 1, 0, 1, "variant test");
-	TestSequenceContentReference(1, 0, 99, 0, 0, 0, 1, "variant test");
+	TestSequenceContentReference(1, 0, 0, 0, 0, 8, 0, "variant test");
+	TestSequenceContentReference(1, 0, 1, 8, 0, 0, 1, "variant test");
+	TestSequenceContentReference(1, 0, 2, 1, 0, 8, 0, "variant test");
+	TestSequenceContentReference(1, 0, 3, 0, 8, 0, 1, "variant test");
+	TestSequenceContentReference(1, 0, 4, 8, 1, 0, 0, "variant test");
+	TestSequenceContentReference(1, 0, 95, 0, 9, 0, 0, "variant test");
+	TestSequenceContentReference(1, 0, 96, 1, 0, 8, 0, "variant test");
+	TestSequenceContentReference(1, 0, 97, 0, 8, 1, 0, "variant test");
+	TestSequenceContentReference(1, 0, 98, 0, 1, 0, 8, "variant test");
+	TestSequenceContentReference(1, 0, 99, 0, 0, 0, 0, "variant test");
 	for(int base=4; base--; ){
 		EXPECT_EQ(0, test_->sequence_content_reference_.at(0).at(0).at(base).size());
 		EXPECT_EQ(0, test_->sequence_content_reference_.at(1).at(1).at(base).size());
@@ -396,6 +396,10 @@ namespace reseq{
 		CreateTestObject(&species_reference_);
 
 		// zcat ecoli-SRR490124_1.fastq.gz | head -n16 > ecoli-SRR490124-4pairs-R1.fq
+		// zcat SRR490124_1.fastq.gz | head -n8 | awk '{if(1==NR%4 || 3==NR%4){print $1 "c", $2, $3}else{print $0}}' >> ecoli-SRR490124-4pairs-R1.fq
+		// zcat SRR490124_1.fastq.gz | head -n8 | awk '{if(1==NR%4 || 3==NR%4){print $1 "c2", $2, $3}else{print $0}}' >> ecoli-SRR490124-4pairs-R1.fq
+		// ...
+		// zcat SRR490124_1.fastq.gz | head -n8 | awk '{if(1==NR%4 || 3==NR%4){print $1 "c7", $2, $3}else{print $0}}' >> ecoli-SRR490124-4pairs-R1.fq
 		// bowtie2 -X 2000 -x ecoli-GCF_000005845.2_ASM584v2_genomic.fa -1 <(reseq-prepare-names.py ecoli-SRR490124-4pairs-R1.fq ecoli-SRR490124-4pairs-R2.fq) -2 <(reseq-prepare-names.py ecoli-SRR490124-4pairs-R2.fq ecoli-SRR490124-4pairs-R1.fq) | samtools sort -m 10G -@ 4 -T _tmp -o ecoli-SRR490124-4pairs.sam -
 		LoadStats("ecoli-SRR490124-4pairs.sam");
 		TestSrr490124Equality("samfile");

@@ -69,12 +69,18 @@ void ProbabilityEstimatesTest::SetUpDataDomError(DataStats &stats, const vector<
 	stats.coverage_.dominant_errors_by_distance_.at(0).at(0).at(0) = margins.at(0);
 	stats.coverage_.dominant_errors_by_gc_.at(0).at(0).at(0) = margins.at(1);
 	stats.coverage_.gc_by_distance_de_.at(0).at(0).at(0) = margins.at(2);
+	stats.coverage_.dominant_errors_by_start_rates_.at(0).at(0).at(0) = margins.at(3);
+	stats.coverage_.start_rates_by_distance_de_.at(0).at(0).at(0) = margins.at(4);
+	stats.coverage_.start_rates_by_gc_de_.at(0).at(0).at(0) = margins.at(5);
 }
 
 void ProbabilityEstimatesTest::SetUpDataErrorRate(DataStats &stats, const vector<Vect<Vect<uintMatrixCount>>> &margins){
 	stats.coverage_.error_rates_by_distance_.at(0).at(0) = margins.at(0);
 	stats.coverage_.error_rates_by_gc_.at(0).at(0) = margins.at(1);
 	stats.coverage_.gc_by_distance_er_.at(0).at(0) = margins.at(2);
+	stats.coverage_.error_rates_by_start_rates_.at(0).at(0) = margins.at(3);
+	stats.coverage_.start_rates_by_distance_er_.at(0).at(0) = margins.at(4);
+	stats.coverage_.start_rates_by_gc_er_.at(0).at(0) = margins.at(5);
 }
 
 void ProbabilityEstimatesTest::SetUp(){
@@ -153,13 +159,18 @@ void ProbabilityEstimatesTest::TestLogArrayCalcNormalize(){
 
 void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand(){
 	// Prepare test data
-	DataStorage<3> test;
+	DataStorage<4> test;
 	for(uintMarginId n=3; n--; ){
 		test.dim_size_.at(n) = 3+2*n;
 	}
+	test.dim_size_.at(3) = 1;
+
 	test.data_.at(0).resize(5*3, 0.0); // 1,0
 	test.data_.at(1).resize(7*3, 0.0); // 2,0
-	test.data_.at(2).resize(7*5, 0.0); // 2,1
+	test.data_.at(2).resize(3, 0.0); // 3,0
+	test.data_.at(3).resize(7*5, 0.0); // 2,1
+	test.data_.at(4).resize(5, 0.0); // 3,1
+	test.data_.at(5).resize(7, 0.0); // 3,2
 
 	double value;
 	uintMatrixIndex red_i, red_j, red_k;
@@ -191,15 +202,18 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand(){
 
 					test.data_.at(0).at(j*test.dim_size_.at(0)+i) += value;
 					test.data_.at(1).at(k*test.dim_size_.at(0)+i) += value;
-					test.data_.at(2).at(k*test.dim_size_.at(1)+j) += value;
+					test.data_.at(2).at(i) += value;
+					test.data_.at(3).at(k*test.dim_size_.at(1)+j) += value;
+					test.data_.at(4).at(j) += value;
+					test.data_.at(5).at(k) += value;
 				}
 			}
 		}
 	}
 
 	// Test Reduce function
-	DataStorage<3> reduced_data;
-	std::array<std::vector<uintMatrixIndex>, 3> dim_indices_reduced, dim_indices_count;
+	DataStorage<4> reduced_data;
+	std::array<std::vector<uintMatrixIndex>, 4> dim_indices_reduced, dim_indices_count;
 
 	test.Reduce(reduced_data, dim_indices_reduced, dim_indices_count, 3);
 
@@ -235,11 +249,11 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand(){
 		EXPECT_EQ((2==n?3:1), dim_indices_count.at(n).at( dim_indices_reduced.at(n).at(dim_indices_reduced.at(n).size()-1) )) << "dim_indices_count[" << n << "][" << dim_indices_reduced.at(n).at(dim_indices_reduced.at(n).size()-1) << "] wrong";
 	}
 
-	uintMarginId dim_a(3), dim_b(2);
-	for(uintMarginId n=3; n--; ){
+	uintMarginId dim_a(4), dim_b(3);
+	for(uintMarginId n=6; n--; ){
 		if(--dim_a == dim_b){
 			--dim_b;
-			dim_a = 2;
+			dim_a = 3;
 		}
 
 		for(auto i=dim_indices_reduced.at(dim_a).size(); i--; ){
@@ -251,8 +265,8 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand(){
 	}
 
 	// Test Expand function
-	std::array<std::vector<uintMatrixIndex>, 3> expansion_indices;
-	std::array<std::vector<uintMatrixIndex>, 3> expansion_count;
+	std::array<std::vector<uintMatrixIndex>, 4> expansion_indices;
+	std::array<std::vector<uintMatrixIndex>, 4> expansion_count;
 	EXPECT_TRUE( test.Expand(reduced_data, dim_indices_reduced, dim_indices_count, expansion_indices, expansion_count, 1) ) << "Expansion returns wrong value";
 	for(uintMarginId n=3; n--; ){
 		EXPECT_EQ((2==n?6:3), dim_indices_count.at(n).size()) << "dim_indices_count[" << n << "].size() wrong";
@@ -312,13 +326,17 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand(){
 
 void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand2(){
 	// Prepare test data
-	DataStorage<3> test;
+	DataStorage<4> test;
 	test.dim_size_.at(0) = 1;
 	test.dim_size_.at(1) = 1;
 	test.dim_size_.at(2) = 5;
+	test.dim_size_.at(3) = 1;
 	test.data_.at(0).resize(1, 0.0); // 1,0
 	test.data_.at(1).resize(5, 0.0); // 2,0
-	test.data_.at(2).resize(5, 0.0); // 2,1
+	test.data_.at(2).resize(1, 0.0); // 3,0
+	test.data_.at(3).resize(5, 0.0); // 2,1
+	test.data_.at(4).resize(1, 0.0); // 3,1
+	test.data_.at(5).resize(5, 0.0); // 3,2
 
 	double value;
 
@@ -332,30 +350,33 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand2(){
 
 		test.data_.at(0).at(0) += value;
 		test.data_.at(1).at(k) += value;
-		test.data_.at(2).at(k) += value;
+		test.data_.at(2).at(0) += value;
+		test.data_.at(3).at(k) += value;
+		test.data_.at(4).at(0) += value;
+		test.data_.at(5).at(k) += value;
 	}
 
 	// Test Reduce function
-	std::array<std::vector<uintMatrixIndex>, 3> dim_indices_reduced, dim_indices_count;
+	std::array<std::vector<uintMatrixIndex>, 4> dim_indices_reduced, dim_indices_count;
 
 	for( uint16_t test_case=0; test_case<2; ++test_case){
-		for( uintMarginId n = 3; n--; ){
+		for( uintMarginId n = 4; n--; ){
 			dim_indices_count.at(n).clear();
 			dim_indices_reduced.at(n).clear();
 		}
 
 		if(0 == test_case){
-			DataStorage<3> reduced_data;
+			DataStorage<4> reduced_data;
 
 			test.Reduce(reduced_data, dim_indices_reduced, dim_indices_count, 2);
 		}
 		else{
 			// Test Expand function
-			DataStorage<3> reduced_data;
+			DataStorage<4> reduced_data;
 
 			test.Reduce(reduced_data, dim_indices_reduced, dim_indices_count, 1);
 
-			std::array<std::vector<uintMatrixIndex>, 3> expansion_indices, expansion_count;
+			std::array<std::vector<uintMatrixIndex>, 4> expansion_indices, expansion_count;
 
 			EXPECT_TRUE( test.Expand(reduced_data, dim_indices_reduced, dim_indices_count, expansion_indices, expansion_count, 1) ) << "Expansion returns wrong value";
 
@@ -402,17 +423,17 @@ void ProbabilityEstimatesTest::TestDataStorageReduceAndExpand2(){
 		}
 
 		if(0 == test_case){
-			DataStorage<3> reduced_data;
+			DataStorage<4> reduced_data;
 
 			test.Reduce(reduced_data, dim_indices_reduced, dim_indices_count, 4);
 		}
 		else{
 			// Test Expand function
-			DataStorage<3> reduced_data;
+			DataStorage<4> reduced_data;
 
 			test.Reduce(reduced_data, dim_indices_reduced, dim_indices_count, 1);
 
-			std::array<std::vector<uintMatrixIndex>, 3> expansion_indices, expansion_count;
+			std::array<std::vector<uintMatrixIndex>, 4> expansion_indices, expansion_count;
 
 			EXPECT_TRUE( test.Expand(reduced_data, dim_indices_reduced, dim_indices_count, expansion_indices, expansion_count, 2) ) << "Expansion returns wrong value";
 
@@ -670,7 +691,7 @@ void ProbabilityEstimatesTest::SetMarginDefQual(vector< pair<bool, bool> > &marg
 	margin_def.push_back({false, false}); // pos, sq
 }
 
-void ProbabilityEstimatesTest::SetUpDataStorageErrorRate(ProbabilityEstimatesSubClasses::DataStorage<3> &data, array< vector<uintMatrixIndex>, 3 > &dim_indices, array< vector<uintMatrixIndex>, 3 > &initial_dim_indices, const Vect< Vect< Vect< Vect< Vect<uintMatrixCount> > > > > &counts){
+void ProbabilityEstimatesTest::SetUpDataStorageErrorRate(ProbabilityEstimatesSubClasses::DataStorage<4> &data, array< vector<uintMatrixIndex>, 4 > &dim_indices, array< vector<uintMatrixIndex>, 4 > &initial_dim_indices, const Vect< Vect< Vect< Vect< Vect<uintMatrixCount> > > > > &counts){
 	vector<Vect<Vect<uintMatrixCount>>> margins;
 	Vect<SeqQualityStats<uintMatrixCount>> margin_quality_position;
 	vector< pair<bool, bool> > margin_def;
@@ -680,14 +701,14 @@ void ProbabilityEstimatesTest::SetUpDataStorageErrorRate(ProbabilityEstimatesSub
 	DataStats stats(NULL);
 	SetUpDataErrorRate(stats, margins);
 
-	array< pair<const Vect<Vect<uintMatrixCount>> *, bool>, 3 > margin_def2;
+	array< pair<const Vect<Vect<uintMatrixCount>> *, bool>, 6 > margin_def2;
 	test_.DefineMarginsErrorRate(stats, margin_def2, 0, 0);
 
 	mutex print_mutex;
 	data.SetUp(margin_def2, NULL, dim_indices, initial_dim_indices, print_mutex);
 }
 
-void ProbabilityEstimatesTest::TestDataStorageSetUpErrorRate(ProbabilityEstimatesSubClasses::DataStorage<3> &data, array< vector<uintMatrixIndex>, 3 > &dim_indices, array< vector<uintMatrixIndex>, 3 > &initial_dim_indices, bool middle_bin_inserted){
+void ProbabilityEstimatesTest::TestDataStorageSetUpErrorRate(ProbabilityEstimatesSubClasses::DataStorage<4> &data, array< vector<uintMatrixIndex>, 4 > &dim_indices, array< vector<uintMatrixIndex>, 4 > &initial_dim_indices, bool middle_bin_inserted){
 
 	EXPECT_EQ( 2 , dim_indices.at(0).size() );
 	EXPECT_EQ( 0 , dim_indices.at(0).at(0) );
@@ -725,24 +746,24 @@ void ProbabilityEstimatesTest::TestDataStorageSetUpErrorRate(ProbabilityEstimate
 	EXPECT_DOUBLE_EQ( 6.0/36.0 , data.data_.at(1).at(2) );
 	EXPECT_DOUBLE_EQ( 14.0/36.0 , data.data_.at(1).at(3) );
 
-	EXPECT_EQ( 4 , data.data_.at(2).size() );
-	EXPECT_DOUBLE_EQ( 6.0/36.0 , data.data_.at(2).at(0) );
-	EXPECT_DOUBLE_EQ( 10.0/36.0 , data.data_.at(2).at(1) );
-	EXPECT_DOUBLE_EQ( 8.0/36.0 , data.data_.at(2).at(2) );
-	EXPECT_DOUBLE_EQ( 12.0/36.0 , data.data_.at(2).at(3) );
+	EXPECT_EQ( 4 , data.data_.at(3).size() );
+	EXPECT_DOUBLE_EQ( 6.0/36.0 , data.data_.at(3).at(0) );
+	EXPECT_DOUBLE_EQ( 10.0/36.0 , data.data_.at(3).at(1) );
+	EXPECT_DOUBLE_EQ( 8.0/36.0 , data.data_.at(3).at(2) );
+	EXPECT_DOUBLE_EQ( 12.0/36.0 , data.data_.at(3).at(3) );
 
 	if(middle_bin_inserted){
 		EXPECT_EQ( 0 , initial_dim_indices.at(1).at(0) ) << "initial_dim_indices[" << 0 << "] is wrong";
 		EXPECT_EQ( 0 , initial_dim_indices.at(1).at(1) ) << "initial_dim_indices[" << 0 << "] is wrong";
 		EXPECT_EQ( 1 , initial_dim_indices.at(1).at(2) ) << "initial_dim_indices[" << 0 << "] is wrong";
 
-		for(uintMarginId cur_dim=0; cur_dim < initial_dim_indices.size(); cur_dim+=2){
+		for(uintMarginId cur_dim=0; cur_dim < 3; cur_dim+=2){
 			EXPECT_EQ( 0 , initial_dim_indices.at(cur_dim).at(0) ) << "initial_dim_indices[" << cur_dim << "] is wrong";
 			EXPECT_EQ( 1 , initial_dim_indices.at(cur_dim).at(1) ) << "initial_dim_indices[" << cur_dim << "] is wrong";
 		}
 	}
 	else{
-		for(uintMarginId cur_dim=0; cur_dim < initial_dim_indices.size(); ++cur_dim){
+		for(uintMarginId cur_dim=0; cur_dim < 3; ++cur_dim){
 			EXPECT_EQ( 0 , initial_dim_indices.at(cur_dim).at(0) ) << "initial_dim_indices[" << cur_dim << "] is wrong";
 			EXPECT_EQ( 1 , initial_dim_indices.at(cur_dim).at(1) ) << "initial_dim_indices[" << cur_dim << "] is wrong";
 		}
@@ -848,13 +869,15 @@ void ProbabilityEstimatesTest::GetIPFResultDomError( const ProbabilityEstimates 
 
 	auto tot_counts = SumVect(margins.at(0)); // As the data conversion before the IPF normalizes the sum of the matrix to 1 we have to revert it here
 
-	const std::array< std::vector<uintMatrixIndex>, 3 > &dim_indices(estimate.dom_error_.at(0).at(0).at(0).dim_indices_);
+	const std::array< std::vector<uintMatrixIndex>, 4 > &dim_indices(estimate.dom_error_.at(0).at(0).at(0).dim_indices_);
 
 	// Get result matrix
 	for( uintMatrixIndex dist=0; dist < dim_indices.at(1).size(); ++dist ){
 		for( uintMatrixIndex dom_err=0; dom_err < dim_indices.at(0).size(); ++dom_err ){
 			for( uintMatrixIndex gc=0; gc < dim_indices.at(2).size(); ++gc ){
-				estimated_counts[dim_indices.at(0).at(dom_err)][dim_indices.at(1).at(dist)][dim_indices.at(2).at(gc)][0][0] = estimate.dom_error_.at(0).at(0).at(0).estimates_.GetMatrixElement({dom_err, dist, gc}) * tot_counts;
+				for( uintMatrixIndex start_rate=0; start_rate < dim_indices.at(3).size(); ++start_rate ){
+					estimated_counts[dim_indices.at(0).at(dom_err)][dim_indices.at(1).at(dist)][dim_indices.at(2).at(gc)][dim_indices.at(3).at(start_rate)][0] = estimate.dom_error_.at(0).at(0).at(0).estimates_.GetMatrixElement({dom_err, dist, gc, start_rate}) * tot_counts;
+				}
 			}
 		}
 	}
@@ -867,6 +890,9 @@ void ProbabilityEstimatesTest::SetMarginDefErrorRate(vector< pair<bool, bool> > 
 	margin_def.push_back({false, true}); // dist, er
 	margin_def.push_back({false, true}); // gc, er
 	margin_def.push_back({false, false}); // dist, gc
+	margin_def.push_back({false, true}); // sr, er
+	margin_def.push_back({false, false}); // dist, sr
+	margin_def.push_back({false, false}); // gc, sr
 }
 
 void ProbabilityEstimatesTest::IterativeProportionalFittingErrorRate(const vector<Vect<Vect<uintMatrixCount>>> &margins){
@@ -881,13 +907,15 @@ void ProbabilityEstimatesTest::GetIPFResultErrorRate( const ProbabilityEstimates
 
 	auto tot_counts = SumVect(margins.at(0)); // As the data conversion before the IPF normalizes the sum of the matrix to 1 we have to revert it here
 
-	const std::array< std::vector<uintMatrixIndex>, 3 > &dim_indices(estimate.error_rate_.at(0).at(0).dim_indices_);
+	const std::array< std::vector<uintMatrixIndex>, 4 > &dim_indices(estimate.error_rate_.at(0).at(0).dim_indices_);
 
 	// Get result matrix
 	for( uintMatrixIndex dist=0; dist < dim_indices.at(1).size(); ++dist ){
 		for( uintMatrixIndex er=0; er < dim_indices.at(0).size(); ++er ){
 			for( uintMatrixIndex gc=0; gc < dim_indices.at(2).size(); ++gc ){
-				estimated_counts[dim_indices.at(0).at(er)][dim_indices.at(1).at(dist)][dim_indices.at(2).at(gc)][0][0] = estimate.error_rate_.at(0).at(0).estimates_.GetMatrixElement({er, dist, gc}) * tot_counts;
+				for( uintMatrixIndex start_rate=0; start_rate < dim_indices.at(3).size(); ++start_rate ){
+					estimated_counts[dim_indices.at(0).at(er)][dim_indices.at(1).at(dist)][dim_indices.at(2).at(gc)][dim_indices.at(3).at(start_rate)][0] = estimate.error_rate_.at(0).at(0).estimates_.GetMatrixElement({er, dist, gc, start_rate}) * tot_counts;
+				}
 			}
 		}
 	}
@@ -897,7 +925,7 @@ void ProbabilityEstimatesTest::GetIPFResultErrorRate( const ProbabilityEstimates
 
 namespace reseq{
 	TEST_F(ProbabilityEstimatesTest, DataStorageSetUp){
-		ProbabilityEstimatesSubClasses::DataStorage<3> data;
+		ProbabilityEstimatesSubClasses::DataStorage<4> data;
 
 		Vect< Vect< Vect< Vect< Vect<uintMatrixCount> > > > > counts;
 		uintMatrixCount n(0);
@@ -911,8 +939,8 @@ namespace reseq{
 			}
 		}
 
-		array< vector<uintMatrixIndex>, 3 > dim_indices;
-		array< vector<uintMatrixIndex>, 3 > initial_dim_indices;
+		array< vector<uintMatrixIndex>, 4 > dim_indices;
+		array< vector<uintMatrixIndex>, 4 > initial_dim_indices;
 		SetUpDataStorageErrorRate(data, dim_indices, initial_dim_indices, counts);
 
 		TestDataStorageSetUpErrorRate(data, dim_indices, initial_dim_indices);
@@ -1129,7 +1157,7 @@ namespace reseq{
 
 	TEST_F(ProbabilityEstimatesTest, IPFforDominantError){
 		Vect< Vect< Vect< Vect< Vect<uintMatrixCount> > > > > counts;
-		RandomFillingTestCounts(counts,5,3,3,1,1,793256239);
+		RandomFillingTestCounts(counts,5,3,3,5,1,793256239);
 
 		vector<Vect<Vect<uintMatrixCount>>> margins;
 		Vect<SeqQualityStats<uintMatrixCount>> margin_quality_position;
@@ -1138,6 +1166,9 @@ namespace reseq{
 		margin_def.push_back({false, true}); // dist, domErr
 		margin_def.push_back({false, true}); // gc, domErr
 		margin_def.push_back({false, false}); // dist, gc
+		margin_def.push_back({false, true}); // sr, domErr
+		margin_def.push_back({false, false}); // dist, sr
+		margin_def.push_back({false, false}); // gc, sr
 		CalculateMargins(margin_def, margins, margin_quality_position, counts);
 
 		IterativeProportionalFittingDomError(margins);
@@ -1160,7 +1191,7 @@ namespace reseq{
 
 	TEST_F(ProbabilityEstimatesTest, IPFforErrorRate){
 		Vect< Vect< Vect< Vect< Vect<uintMatrixCount> > > > > counts;
-		RandomFillingTestCounts(counts,5,3,5,1,1,3465435782);
+		RandomFillingTestCounts(counts,5,3,5,5,1,3465435782);
 
 		vector<Vect<Vect<uintMatrixCount>>> margins;
 		Vect<SeqQualityStats<uintMatrixCount>> margin_quality_position;

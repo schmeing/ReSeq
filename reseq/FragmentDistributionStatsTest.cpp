@@ -203,33 +203,33 @@ template<size_t N> void FragmentDistributionStatsTest::CheckDrawnCounts(double b
 
 void FragmentDistributionStatsTest::TestSrr490124Equality(const FragmentDistributionStats &test, const char *context){
 	EXPECT_EQ(1, test.abundance_.size() ) << "SRR490124-4pairs abundance_ wrong for " << context << '\n';
-	EXPECT_EQ(2, test.abundance_.at(0) ) << "SRR490124-4pairs abundance_ wrong for " << context << '\n';
+	EXPECT_EQ(9, test.abundance_.at(0) ) << "SRR490124-4pairs abundance_ wrong for " << context << '\n';
 
-	// samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '{if(1==NR%2){store=$4}else{print store, $4, $4-store+length($10)}}'
+	// samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(NR <= 3 || NR == 12){if(1==NR%2){store=$4}else{print store, $4, $4-store+length($10)}}'
 	EXPECT_EQ(59, test.insert_lengths_.size()) << "SRR490124-4pairs insert_lengths_ wrong for " << context << '\n';
 	EXPECT_EQ(1, test.insert_lengths_[126]) << "SRR490124-4pairs insert_lengths_ wrong for " << context << '\n';
-	EXPECT_EQ(1, test.insert_lengths_[184]) << "SRR490124-4pairs insert_lengths_ wrong for " << context << '\n';
+	EXPECT_EQ(8, test.insert_lengths_[184]) << "SRR490124-4pairs insert_lengths_ wrong for " << context << '\n';
 
-	// samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '{if(1==NR%2){store=$4}else{system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa " $3 ":" store "-" $4+length($10)-1)}}' | seqtk seq | awk '(0==NR%2){len=length($1); print (gsub("G","",$1)+gsub("C","",$1))/len}'
+	// samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(NR <= 3 || NR == 12){if(1==NR%2){store=$4}else{system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa " $3 ":" store "-" $4+length($10)-1)}}' | seqtk seq | awk '(0==NR%2){len=length($1); print (gsub("G","",$1)+gsub("C","",$1))/len}'
 	EXPECT_EQ(2, test.gc_fragment_content_.size()) << "SRR490124-4pairs gc_fragment_content_ wrong for " << context << '\n';
-	EXPECT_EQ(1, test.gc_fragment_content_[52]) << "SRR490124-4pairs gc_fragment_content_ wrong for " << context << '\n';
+	EXPECT_EQ(8, test.gc_fragment_content_[52]) << "SRR490124-4pairs gc_fragment_content_ wrong for " << context << '\n';
 	EXPECT_EQ(1, test.gc_fragment_content_[53]) << "SRR490124-4pairs gc_fragment_content_ wrong for " << context << '\n';
 
 	// cat <(samtools view ecoli-SRR490124-4pairs.bam -q 10 -f 144 -F 32 | awk '($4+2000>$8){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $8-10 "-" $4+length($10)-1+10)}' | seqtk seq) <(samtools view ecoli-SRR490124-4pairs.bam -q 10 -f 80 -F 32 | awk '($4+2000>$8){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $8-10 "-" $4+length($10)-1+10)}' | seqtk seq -r) | awk '(0==NR%2){print ">0", substr($0,1,10); print substr($0,length($0)-9,10); print ">1", substr($0,11,10); print substr($0,length($0)-19,10);print ">2", substr($0,21,10); print substr($0,length($0)-29,10);}' | seqtk seq -r | awk '{if(1==NR%2){sur=substr($0, 2, 1); print "start", sur, $2}else{print "end", sur, $0}}' | awk 'BEGIN{d["A"]=0;d["C"]=1;d["G"]=2;d["T"]=3}{mult=1;sur=0;for(i=length($3);i>0;i-=1){sur+=mult*d[substr($3,i,1)];mult*=4}; print $1, $2, $3, sur}' | sort
-	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(0).at(39619)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
+	EXPECT_EQ(8, test.fragment_surroundings_.counts_.at(0).at(39619)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
 	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(0).at(1009062)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
-	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(1).at(561168)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
+	EXPECT_EQ(8, test.fragment_surroundings_.counts_.at(1).at(561168)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
 	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(1).at(996771)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
 	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(2).at(307041)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
-	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(2).at(856654)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
-	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(0).at(607462)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
+	EXPECT_EQ(8, test.fragment_surroundings_.counts_.at(2).at(856654)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
+	EXPECT_EQ(8, test.fragment_surroundings_.counts_.at(0).at(607462)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
 	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(0).at(983881)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
-	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(1).at(354618)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
+	EXPECT_EQ(8, test.fragment_surroundings_.counts_.at(1).at(354618)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
 	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(1).at(765926)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
 	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(2).at(333453)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
-	EXPECT_EQ(1, test.fragment_surroundings_.counts_.at(2).at(405510)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
+	EXPECT_EQ(8, test.fragment_surroundings_.counts_.at(2).at(405510)) << "SRR490124-4pairs fragment_surroundings_ not correct for " << context << '\n';
 
-	// samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(1==NR%2){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa " $3 ":" $4-20 "-" $4-1)}(0==NR%2){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa " $3 ":" $4+length($10) "-" $4+length($10)+19)}' | seqtk seq -r | awk '(2==NR%4){store=$0}(0==NR%4){print $0 store}' | awk '{for(pos=1;pos<=length($0);pos+=1){print substr($0,pos,1), pos-1}}' | sort | uniq -c | sort -k2,2 -k3,3n
+	// samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(163==$2){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa " $3 ":" $4-20 "-" $4-1)}(83==$2){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa " $3 ":" $4+length($10) "-" $4+length($10)+19)}' | awk '(NR==7){store1=$0}(NR==8){store2=$0}(NR != 7 && NR !=8){print $0}(NR==10){print store1; print store2}' | seqtk seq -r | awk '(2==NR%4){store=$0}(0==NR%4){print $0 store}' | awk '{for(pos=1;pos<=length($0);pos+=1){print substr($0,pos,1), pos-1}}' | sort | uniq -c | sort -k2,2 -k3,3n
 	EXPECT_EQ(0, test.outskirt_content_.at(0).at(0).size()) << "SRR490124-4pairs outskirt_content_[0][0].size() not correct for " << context << '\n';
 	EXPECT_EQ(0, test.outskirt_content_.at(0).at(1).size()) << "SRR490124-4pairs outskirt_content_[0][1].size() not correct for " << context << '\n';
 	EXPECT_EQ(0, test.outskirt_content_.at(0).at(2).size()) << "SRR490124-4pairs outskirt_content_[0][2].size() not correct for " << context << '\n';
@@ -238,22 +238,22 @@ void FragmentDistributionStatsTest::TestSrr490124Equality(const FragmentDistribu
 	EXPECT_EQ(36, test.outskirt_content_.at(1).at(1).size()) << "SRR490124-4pairs outskirt_content_[1][1].size() not correct for " << context << '\n';
 	EXPECT_EQ(40, test.outskirt_content_.at(1).at(2).size()) << "SRR490124-4pairs outskirt_content_[1][2].size() not correct for " << context << '\n';
 	EXPECT_EQ(37, test.outskirt_content_.at(1).at(3).size()) << "SRR490124-4pairs outskirt_content_[1][3].size() not correct for " << context << '\n';
-	// samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(1==NR%2){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa " $3 ":" $4-20 "-" $4-1)}(0==NR%2){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa " $3 ":" $4+length($10) "-" $4+length($10)+19)}' | seqtk seq -r | awk '(2==NR%4){store=$0}(0==NR%4){print $0 store}' | awk '{for(pos=1;pos<=length($0);pos+=1){print substr($0,pos,1), pos-1}}' | sort | uniq -c | sort -k3,3n -k2,2
-	TestOutskirtContent(test, 1, 0, 0, 0, 1, 1, context);
-	TestOutskirtContent(test, 1, 1, 0, 1, 1, 0, context);
-	TestOutskirtContent(test, 1, 2, 1, 0, 1, 0, context);
-	TestOutskirtContent(test, 1, 3, 1, 0, 0, 1, context);
-	TestOutskirtContent(test, 1, 4, 0, 0, 0, 2, context);
-	TestOutskirtContent(test, 1, 18, 0, 1, 1, 0, context);
-	TestOutskirtContent(test, 1, 19, 0, 1, 1, 0, context);
-	TestOutskirtContent(test, 1, 20, 1, 1, 0, 0, context);
-	TestOutskirtContent(test, 1, 21, 0, 0, 1, 1, context);
-	TestOutskirtContent(test, 1, 22, 0, 1, 0, 1, context);
-	TestOutskirtContent(test, 1, 35, 0, 0, 1, 1, context);
-	TestOutskirtContent(test, 1, 36, 0, 1, 0, 1, context);
-	TestOutskirtContent(test, 1, 37, 1, 0, 1, 0, context);
-	TestOutskirtContent(test, 1, 38, 2, 0, 0, 0, context);
-	TestOutskirtContent(test, 1, 39, 0, 0, 2, 0, context);
+	// samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(163==$2){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa " $3 ":" $4-20 "-" $4-1)}(83==$2){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa " $3 ":" $4+length($10) "-" $4+length($10)+19)}' | awk '(NR==7){store1=$0}(NR==8){store2=$0}(NR != 7 && NR !=8){print $0}(NR==10){print store1; print store2}' | seqtk seq -r | awk '(2==NR%4){store=$0}(0==NR%4){print $0 store}' | awk '{for(pos=1;pos<=length($0);pos+=1){print substr($0,pos,1), pos-1}}' | sort | uniq -c | sort -k3,3n -k2,2
+	TestOutskirtContent(test, 1, 0, 0, 0, 8, 1, context);
+	TestOutskirtContent(test, 1, 1, 0, 8, 1, 0, context);
+	TestOutskirtContent(test, 1, 2, 8, 0, 1, 0, context);
+	TestOutskirtContent(test, 1, 3, 8, 0, 0, 1, context);
+	TestOutskirtContent(test, 1, 4, 0, 0, 0, 9, context);
+	TestOutskirtContent(test, 1, 18, 0, 8, 1, 0, context);
+	TestOutskirtContent(test, 1, 19, 0, 1, 8, 0, context);
+	TestOutskirtContent(test, 1, 20, 8, 1, 0, 0, context);
+	TestOutskirtContent(test, 1, 21, 0, 0, 1, 8, context);
+	TestOutskirtContent(test, 1, 22, 0, 1, 0, 8, context);
+	TestOutskirtContent(test, 1, 35, 0, 0, 8, 1, context);
+	TestOutskirtContent(test, 1, 36, 0, 8, 0, 1, context);
+	TestOutskirtContent(test, 1, 37, 8, 0, 1, 0, context);
+	TestOutskirtContent(test, 1, 38, 9, 0, 0, 0, context);
+	TestOutskirtContent(test, 1, 39, 0, 0, 9, 0, context);
 }
 
 void FragmentDistributionStatsTest::TestDuplicates(const FragmentDistributionStats &test){

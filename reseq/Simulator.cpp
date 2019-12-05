@@ -466,7 +466,7 @@ bool Simulator::FillRead(
 	// Roll sequence quality
 	vector<double> prob_seq_qual;
 	double prob_sum;
-	par.seq_qual_ = estimates.SequenceQuality(template_segment, tile_id).Draw(prob_seq_qual, prob_sum, {par.gc_seq_, mean_error_rate, fragment_length}, rdist.ZeroToOne(rgen));
+	par.seq_qual_ = estimates.SequenceQuality(template_segment, tile_id).Draw(prob_seq_qual, prob_sum, {par.gc_seq_, mean_error_rate, fragment_length/QualityStats::kSqFragmentLengthBinSize}, rdist.ZeroToOne(rgen));
 	if( 0.0 == prob_sum ){
 		par.seq_qual_ = estimates.SequenceQuality(template_segment, tile_id).MostLikely(); // Take the one with the highest general probability, as parameter specific probabilities do not exist
 	}
@@ -673,6 +673,7 @@ void Simulator::ResetSystematicErrorCounters(const Reference &ref){
 	sys_gc_bases_ = 0;
 
 	distance_to_start_of_error_region_ = 0;
+	start_error_rate_ = 0;
 }
 
 bool Simulator::LoadSysErrorRecord(uintRefSeqId ref_id, const Reference &ref){
@@ -694,7 +695,7 @@ bool Simulator::LoadSysErrorRecord(uintRefSeqId ref_id, const Reference &ref){
 	return true;
 }
 
-void Simulator::SetSystematicErrorVariantsReverse(uintSeqLen &start_dist_error_region, SimBlock &block, uintRefSeqId ref_seq_id, uintSeqLen end_pos, const Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates){
+void Simulator::SetSystematicErrorVariantsReverse(uintSeqLen &start_dist_error_region, uintPercent &start_rate, SimBlock &block, uintRefSeqId ref_seq_id, uintSeqLen end_pos, const Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates){
 	if(ref.VariantsLoaded()){
 		uintAlleleId chosen_allele;
 		vector<pair<Dna5,uintPercent>> tmp_sys_errors;
@@ -740,12 +741,12 @@ void Simulator::SetSystematicErrorVariantsReverse(uintSeqLen &start_dist_error_r
 			// Get start_dist_error_region (Variants cannot start an error region)
 			if( block.first_variant_id_ == var_id ){
 				for(auto pos = 0; pos < block_pos; ++pos){
-					stats.Coverage().UpdateDistances(start_dist_error_region, block.sys_errors_.at(pos).second);
+					stats.Coverage().UpdateDistances(start_dist_error_region, start_rate, block.sys_errors_.at(pos).second);
 				}
 			}
 			else{
 				for(auto pos = block.start_pos_+block.sys_errors_.size()-ref.Variants(ref_seq_id).at(var_id+1).position_-1; pos < block_pos; ++pos){
-					stats.Coverage().UpdateDistances(start_dist_error_region, block.sys_errors_.at(pos).second);
+					stats.Coverage().UpdateDistances(start_dist_error_region, start_rate, block.sys_errors_.at(pos).second);
 				}
 			}
 
@@ -766,7 +767,7 @@ void Simulator::SetSystematicErrorVariantsReverse(uintSeqLen &start_dist_error_r
 				for(uintSeqLen vpos=length(var.var_seq_); vpos--; ){
 					base = Complement::Dna(at(var.var_seq_, vpos));
 					sys_dom_base_per_allele_.at(chosen_allele).Update(base);
-					DrawSystematicError(tmp_sys_errors, base, last_base, sys_dom_base_per_allele_.at(chosen_allele).Get(), SafePercent(gc, gc_bases), TransformDistanceToStartOfErrorRegion(start_dist_error_region), estimates);
+					DrawSystematicError(tmp_sys_errors, base, last_base, sys_dom_base_per_allele_.at(chosen_allele).Get(), SafePercent(gc, gc_bases), TransformDistanceToStartOfErrorRegion(start_dist_error_region), start_rate, estimates);
 					last_base = base;
 				}
 			}
@@ -824,12 +825,12 @@ void Simulator::SetSystematicErrorVariantsReverse(uintSeqLen &start_dist_error_r
 		if(sys_from_file_){
 			if( block.first_variant_id_ == var_id ){
 				for(auto pos = 0; pos < block.sys_errors_.size(); ++pos){
-					stats.Coverage().UpdateDistances(start_dist_error_region, block.sys_errors_.at(pos).second);
+					stats.Coverage().UpdateDistances(start_dist_error_region, start_rate, block.sys_errors_.at(pos).second);
 				}
 			}
 			else{
 				for(auto pos = block.start_pos_+block.sys_errors_.size()-ref.Variants(ref_seq_id).at(var_id+1).position_-1; pos < block.sys_errors_.size(); ++pos){
-					stats.Coverage().UpdateDistances(start_dist_error_region, block.sys_errors_.at(pos).second);
+					stats.Coverage().UpdateDistances(start_dist_error_region, start_rate, block.sys_errors_.at(pos).second);
 				}
 			}
 		}
@@ -890,12 +891,13 @@ bool Simulator::CreateUnit(uintRefSeqId ref_id, uintRefSeqBin first_block_id, Re
 		block->sys_errors_.reserve(end_pos - start_pos);
 		if(sys_from_file_){
 			ReadSystematicErrors(block->sys_errors_, start_pos, end_pos);
-			SetSystematicErrorVariantsReverse(distance_to_start_of_error_region_, *block, unit->ref_seq_id_, block->start_pos_, ref, stats, estimates);
+			SetSystematicErrorVariantsReverse(distance_to_start_of_error_region_, start_error_rate_, *block, unit->ref_seq_id_, block->start_pos_, ref, stats, estimates);
 		}
 		else{
 			auto tmp_distance_to_start_of_error_region = distance_to_start_of_error_region_;
+			auto tmp_start_error_rate = start_error_rate_;
 			SetSystematicErrors(block->sys_errors_, reversed_ref, start_pos, end_pos, stats, estimates);
-			SetSystematicErrorVariantsReverse(tmp_distance_to_start_of_error_region, *block, unit->ref_seq_id_, block->start_pos_, ref, stats, estimates);
+			SetSystematicErrorVariantsReverse(tmp_distance_to_start_of_error_region, tmp_start_error_rate, *block, unit->ref_seq_id_, block->start_pos_, ref, stats, estimates);
 		}
 
 		start_pos = end_pos;
@@ -913,7 +915,7 @@ bool Simulator::CreateUnit(uintRefSeqId ref_id, uintRefSeqBin first_block_id, Re
 	return true;
 }
 
-void Simulator::SetSystematicErrorVariantsForward(uintSeqLen &start_dist_error_region, SimBlock &block, uintRefSeqId ref_seq_id, uintSeqLen end_pos, const Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates){
+void Simulator::SetSystematicErrorVariantsForward(uintSeqLen &start_dist_error_region, uintPercent &start_rate, SimBlock &block, uintRefSeqId ref_seq_id, uintSeqLen end_pos, const Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates){
 	if(ref.VariantsLoaded()){
 		uintAlleleId chosen_allele;
 		vector<pair<Dna5,uintPercent>> tmp_sys_errors;
@@ -956,12 +958,12 @@ void Simulator::SetSystematicErrorVariantsForward(uintSeqLen &start_dist_error_r
 			// Get start_dist_error_region (Variants cannot start an error region)
 			if( block.first_variant_id_ == var_id ){
 				for(auto pos = 0; pos < var.position_-block.start_pos_; ++pos){
-					stats.Coverage().UpdateDistances(start_dist_error_region, block.sys_errors_.at(pos).second);
+					stats.Coverage().UpdateDistances(start_dist_error_region, start_rate, block.sys_errors_.at(pos).second);
 				}
 			}
 			else{
 				for(auto pos = ref.Variants(ref_seq_id).at(var_id-1).position_-block.start_pos_; pos < var.position_-block.start_pos_; ++pos){
-					stats.Coverage().UpdateDistances(start_dist_error_region, block.sys_errors_.at(pos).second);
+					stats.Coverage().UpdateDistances(start_dist_error_region, start_rate, block.sys_errors_.at(pos).second);
 				}
 			}
 
@@ -982,7 +984,7 @@ void Simulator::SetSystematicErrorVariantsForward(uintSeqLen &start_dist_error_r
 				for(uintSeqLen vpos=0; vpos < length(var.var_seq_); ++vpos){
 					base = at(var.var_seq_, vpos);
 					sys_dom_base_per_allele_.at(chosen_allele).Update(base);
-					DrawSystematicError(tmp_sys_errors, base, last_base, sys_dom_base_per_allele_.at(chosen_allele).Get(), SafePercent(gc, gc_bases), TransformDistanceToStartOfErrorRegion(start_dist_error_region), estimates);
+					DrawSystematicError(tmp_sys_errors, base, last_base, sys_dom_base_per_allele_.at(chosen_allele).Get(), SafePercent(gc, gc_bases), TransformDistanceToStartOfErrorRegion(start_dist_error_region), start_rate, estimates);
 					last_base = base;
 				}
 			}
@@ -1039,12 +1041,12 @@ void Simulator::SetSystematicErrorVariantsForward(uintSeqLen &start_dist_error_r
 		if(sys_from_file_){
 			if( block.first_variant_id_ == var_id ){
 				for(auto pos = 0; pos < block.sys_errors_.size(); ++pos){
-					stats.Coverage().UpdateDistances(start_dist_error_region, block.sys_errors_.at(pos).second);
+					stats.Coverage().UpdateDistances(start_dist_error_region, start_rate, block.sys_errors_.at(pos).second);
 				}
 			}
 			else{
 				for(auto pos = ref.Variants(ref_seq_id).at(var_id-1).position_-block.start_pos_; pos < block.sys_errors_.size(); ++pos){
-					stats.Coverage().UpdateDistances(start_dist_error_region, block.sys_errors_.at(pos).second);
+					stats.Coverage().UpdateDistances(start_dist_error_region, start_rate, block.sys_errors_.at(pos).second);
 				}
 			}
 		}
@@ -1128,12 +1130,13 @@ bool Simulator::CreateBlock(Reference &ref, const DataStats &stats, const Probab
 		block->sys_errors_.reserve(end_pos - block->start_pos_);
 		if(sys_from_file_){
 			ReadSystematicErrors(block->sys_errors_, block->start_pos_, end_pos);
-			SetSystematicErrorVariantsForward(distance_to_start_of_error_region_, *block, unit->ref_seq_id_, end_pos, ref, stats, estimates);
+			SetSystematicErrorVariantsForward(distance_to_start_of_error_region_, start_error_rate_, *block, unit->ref_seq_id_, end_pos, ref, stats, estimates);
 		}
 		else{
 			auto tmp_distance_to_start_of_error_region = distance_to_start_of_error_region_;
+			auto tmp_start_error_rate = start_error_rate_;
 			SetSystematicErrors(block->sys_errors_, ref.ReferenceSequence(unit->ref_seq_id_), block->start_pos_, end_pos, stats, estimates);
-			SetSystematicErrorVariantsForward(tmp_distance_to_start_of_error_region, *block, unit->ref_seq_id_, end_pos, ref, stats, estimates);
+			SetSystematicErrorVariantsForward(tmp_distance_to_start_of_error_region, tmp_start_error_rate, *block, unit->ref_seq_id_, end_pos, ref, stats, estimates);
 		}
 
 		// Delete old blocks and units that are not needed anymore
