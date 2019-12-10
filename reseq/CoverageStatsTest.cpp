@@ -344,7 +344,7 @@ void CoverageStatsTest::TestVariants(const CoverageStats &test){
 
 void CoverageStatsTest::TestCrossDuplicates(const CoverageStats &test){
 	// seqtk seq drosophila-GCF_000001215.4_cut.fna | awk 'BEGIN{sum=0}(0==NR%2 && length($0)>2100){sum += length($0)-100}END{print sum}'
-	TestVectEquality({0,{3780545}}, test.coverage_, "cross duplicates test", "coverage_", " not correct for ");
+	TestVectEquality({0,{2940870}}, test.coverage_, "cross duplicates test", "coverage_", " not correct for ");
 
 	EXPECT_EQ(NULL, test.first_block_ ) << "SRR490124-4pairs first_block_ wrong in cross duplicates test\n";
 	EXPECT_TRUE(NULL == test.last_block_ ) << "SRR490124-4pairs last_block_ wrong in cross duplicates test\n";
@@ -353,7 +353,7 @@ void CoverageStatsTest::TestCrossDuplicates(const CoverageStats &test){
 
 void CoverageStatsTest::TestCoverage(const CoverageStats &test){
 	// seqtk seq drosophila-GCF_000001215.4_cut.fna | awk 'BEGIN{sum=0}(0==NR%2 && length($0)>2100){sum += length($0)-100}END{print sum-300}'
-	TestVectEquality({0,{3780245, 300}}, test.coverage_, "coverage test", "coverage_", " not correct for ");
+	TestVectEquality({0,{2940670, 200}}, test.coverage_, "coverage test", "coverage_", " not correct for ");
 
 	EXPECT_EQ(NULL, test.first_block_ ) << "SRR490124-4pairs first_block_ wrong in coverage test\n";
 	EXPECT_TRUE(NULL == test.last_block_ ) << "SRR490124-4pairs last_block_ wrong in coverage test\n";

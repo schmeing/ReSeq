@@ -73,7 +73,7 @@ namespace reseq{
 				}
 			}
 		}
-		void AddDuplicates( std::vector<uintRefLenCalc> &fragment_positions, uintRefSeqId ref_seq_id, uintSeqLen insert_length, const Reference &reference );
+		void AddDuplicates( std::vector<uintSeqLen> &fragment_positions, uintRefSeqId ref_seq_id, uintSeqLen insert_length, uintSeqLen base_pos, const Reference &reference );
 		void FinalizeDuplicationVector(const std::vector<std::vector<utilities::VectorAtomic<uintFragCount>>> &site_count_by_insert_length_gc);
 
 		void CalculateDispersionPlot();

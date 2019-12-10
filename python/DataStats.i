@@ -37,6 +37,8 @@ typedef unsigned long int size_t;
 %template(UInt32Pair) std::pair<uint32_t,uint32_t>;
 %template(UInt64MapUInt32Pair) std::map<std::pair<uint32_t,uint32_t>, uint64_t>;
 
+%include "SurroundingBase.hpp"
+%template(SurroundingBaseSurrounding) reseq::SurroundingBase<3,10,10,int32_t>;
 %include "Surrounding.h"
 %include "Reference.h"
 /* Let's just grab the original header file here */

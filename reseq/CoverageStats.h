@@ -191,8 +191,10 @@ namespace reseq{
 		CoverageBlock *first_block_;
 		std::atomic<CoverageBlock *> last_block_;
 		std::vector<CoverageBlock *> reusable_blocks_;
-		//std::array<std::pair<std::atomic_flag, CoverageBlock *>, kMaxKeptBlocks> reusable_blocks_;
-		intFragCountShift zero_coverage_region_; // We need the possibility for negative numbers as from the total zero_coverage_region_ we subtract excluded zero coverage regions at the beginning and end of read, which are not necessarily added before due to fixed block length that reaches past the last read in a reference sequence
+
+		uintRefLenCalc zero_coverage_region_;
+		uintRefLenCalc excluded_bases_;
+		uintRefLenCalc num_exclusion_regions_;
 
 		std::vector<ErrorInfo> tmp_errors_forward_;
 		std::vector<ErrorInfo> tmp_errors_reverse_;
@@ -202,7 +204,7 @@ namespace reseq{
 		// Helper functions
 		inline bool CoveragePosValid(intSeqShift coverage_pos, CoverageStats::CoverageBlock *coverage_block) const{
 			if(0 > coverage_pos){
-				return coverage_block->previous_coverage_.at(-1*coverage_pos).valid_;
+				return coverage_block->previous_coverage_.at(-1*coverage_pos-1).valid_;
 			}
 			else{
 				return coverage_block->coverage_.at(coverage_pos).valid_;
@@ -213,7 +215,7 @@ namespace reseq{
 		inline void CountEmptyEndOfSequence(const Reference &reference){
 			zero_coverage_region_ += reference.SequenceLength((*last_block_).sequence_id_) - (*last_block_).start_pos_ - (*last_block_).coverage_.size();
 		}
-		inline void UpdateZeroCoverageRegion(intFragCountShift zero_coverage_length);
+		inline void ApplyZeroCoverageRegion();
 		uintCovCount GetNormalErrorCount(double error_rate, uintCovCount coverage);
 		std::pair<double, double> GetMaxNonSystematicError(CoverageBlock *block, const Reference &reference);
 		inline reseq::uintCovCount GetMaxNonSystematicError(std::pair<double, double> non_systematic_error, uintCovCount coverage){
@@ -275,7 +277,9 @@ namespace reseq{
 			coverage_threshold_(10),
 			first_block_(NULL),
 			last_block_(NULL),
-			zero_coverage_region_(0){
+			zero_coverage_region_(0),
+			excluded_bases_(0),
+			num_exclusion_regions_(0){
 		}
 
 		// Getter functions
@@ -380,7 +384,7 @@ namespace reseq{
 		void Prepare(uintCovCount average_coverage, uintReadLen average_read_length, uintReadLen maximum_read_length_on_reference);
 
 		CoverageBlock *FindBlock(uintRefSeqId ref_seq_id, uintSeqLen ref_pos);
-		bool EnsureSpace(uintRefSeqId ref_seq_id, uintSeqLen start_pos, uintSeqLen end_pos, FullRecord *record, Reference &reference, uintReadLen minimum_sequence_length);
+		bool EnsureSpace(uintRefSeqId ref_seq_id, uintSeqLen start_pos, uintSeqLen end_pos, FullRecord *record, Reference &reference);
 
 		void AddFragment( uintRefSeqId ref_seq_id, uintSeqLen ref_pos, CoverageBlock *&block );
 		void RemoveFragment( uintRefSeqId ref_seq_id, uintSeqLen ref_pos, CoverageBlock *&block, uintFragCount &processed_fragments );
@@ -428,9 +432,13 @@ namespace reseq{
 		void UpdateDistances(uintSeqLen &distance_to_start_of_error_region, uintPercent &start_rate, uintPercent error_rate) const;
 		uintRefSeqId CleanUp(uintSeqLen &still_needed_position, Reference &reference, QualityStats &qualities, ErrorStats &errors, uintQual phred_quality_offset, CoverageBlock *cov_block, uintFragCount &processed_fragments);
 		bool PreLoadVariants(Reference &reference);
-		bool Finalize(const Reference &reference, QualityStats &qualities, ErrorStats &errors, uintQual phred_quality_offset, uintReadLen minimum_sequence_length, std::mutex &print_mutex);
+		bool Finalize(const Reference &reference, QualityStats &qualities, ErrorStats &errors, uintQual phred_quality_offset, std::mutex &print_mutex);
 		inline void SetAllZero(const Reference &reference){
 			zero_coverage_region_ = reference.TotalSize();
+			for( auto seq_id = reference.NumberSequences(); seq_id--; ){
+				excluded_bases_ += reference.SumExcludedBases(seq_id);
+				num_exclusion_regions_ += reference.NumExcludedRegions(seq_id);
+			}
 		}
 
 		void Shrink();

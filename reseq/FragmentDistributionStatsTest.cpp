@@ -42,16 +42,39 @@ void FragmentDistributionStatsTest::Register(uintNumThreads num_threads){
 	test_with_num_threads = num_threads;
 }
 
+void FragmentDistributionStatsTest::SetExlusionRegionsAtEnds(){
+	// Add them at the end
+	species_reference_.excluded_regions_.resize( species_reference_.NumberSequences() );
+	species_reference_.sum_of_excluded_bases_.resize( species_reference_.NumberSequences(), 2*Reference::kMinDistToContigEnds );
+	for(auto ref_seq = species_reference_.NumberSequences(); ref_seq--; ){
+		species_reference_.excluded_regions_.at(ref_seq).emplace_back(0, Reference::kMinDistToContigEnds);
+		species_reference_.excluded_regions_.at(ref_seq).emplace_back(species_reference_.SequenceLength(ref_seq) - Reference::kMinDistToContigEnds, species_reference_.SequenceLength(ref_seq));
+	}
+	species_reference_.obtained_exclusion_regions_for_num_sequences_ = species_reference_.NumberSequences();
+	species_reference_.cleared_exclusion_regions_for_num_sequences_ = 0;
+}
+
+void FragmentDistributionStatsTest::AddExlusionRegionsDrosophila(){
+	species_reference_.excluded_regions_.at(1200).emplace(species_reference_.excluded_regions_.at(1200).begin()+1, 50000, 53000 );
+	species_reference_.sum_of_excluded_bases_.at(1200) += 3000;
+
+	species_reference_.excluded_regions_.at(1225).emplace(species_reference_.excluded_regions_.at(1225).begin()+1, 50000, 50001 );
+	species_reference_.sum_of_excluded_bases_.at(1225) += 1;
+}
+
 void FragmentDistributionStatsTest::CreateTestObject(const Reference *ref){
 	ASSERT_TRUE( test_ = new FragmentDistributionStats ) << "Could not allocate memory for FragmentDistributionStats object\n";
 
-	test_->CreateRefBins(*ref, 100000000);
+	auto maximum_insert_length = 100;
+	uintRefLenCalc num_bins(0);
+	for(auto ref_seq = ref->NumberSequences(); ref_seq--; ){
+		num_bins += ref->SequenceLength(ref_seq)/maximum_insert_length + 1;
+	}
+	vector<uintFragCount> reads_per_frag_len_bin;
+	reads_per_frag_len_bin.resize(num_bins, 0);
+	test_->Prepare(*ref, maximum_insert_length, 100000000, reads_per_frag_len_bin);
 
-	vector<uintFragCount> reads_per_ref_seq_;
-	reads_per_ref_seq_.resize(ref->NumberSequences(), 0);
-	test_->Prepare(*ref, 100, reads_per_ref_seq_);
-
-	test_->Finalize();
+	//test_->Finalize();
 	test_->tmp_insert_lengths_.resize(101); // Reverted in Finalize, so it has to be done here
 }
 
@@ -145,13 +168,13 @@ void FragmentDistributionStatsTest::CreateCoverageDataHelper(uintPercent gc_perc
 
 	auto count = FragmentDistributionStats::NegativeBinomial(probability, dispersion, zero_to_one(rgen));
 	for(uintSeqLen entries=count; entries--; ){
-		test_->fragment_sites_by_ref_seq_bin_.at(ref_seq_id).push_back({start_pos << 1, fragment_length}); // Forward
+		test_->fragment_sites_by_ref_seq_bin_.at(ref_seq_id).push_back({(start_pos-Reference::kMinDistToContigEnds) << 1, fragment_length}); // Forward
 		++test_->fragment_sites_by_ref_seq_bin_cur_id_.at(ref_seq_id);
 	}
 
 	count = FragmentDistributionStats::NegativeBinomial(probability, dispersion, zero_to_one(rgen));
 	for(uintSeqLen entries=count; entries--; ){
-		test_->fragment_sites_by_ref_seq_bin_.at(ref_seq_id).push_back({(start_pos << 1)+1, fragment_length}); // Reverse
+		test_->fragment_sites_by_ref_seq_bin_.at(ref_seq_id).push_back({((start_pos-Reference::kMinDistToContigEnds) << 1)+1, fragment_length}); // Reverse
 		++test_->fragment_sites_by_ref_seq_bin_cur_id_.at(ref_seq_id);
 	}
 }
@@ -162,7 +185,7 @@ void FragmentDistributionStatsTest::CreateCoverageData(uintSeqLen fragment_lengt
 
 	uintRefSeqId ref_seq_id(0);
 	test_->fragment_sites_by_ref_seq_bin_.at(ref_seq_id).reserve(4*species_reference_.SequenceLength(ref_seq_id));
-	uintSeqLen dist_ref_seq_ends(50);
+	uintSeqLen dist_ref_seq_ends(Reference::kMinDistToContigEnds);
 
 	uintPercent gc_perc;
 	uintSeqLen n_count(0);
@@ -172,11 +195,11 @@ void FragmentDistributionStatsTest::CreateCoverageData(uintSeqLen fragment_lengt
 	CreateCoverageDataHelper(gc_perc, dist_ref_seq_ends, fragment_length, rgen);
 
 	const Dna5String &ref_seq(species_reference_.ReferenceSequence(ref_seq_id));
-	for( uintSeqLen start_pos=dist_ref_seq_ends; start_pos < length(ref_seq)-fragment_length-dist_ref_seq_ends; ){
-		species_reference_.UpdateGC( gc, n_count, ref_seq_id, start_pos, start_pos+fragment_length );
+	for( uintSeqLen start_pos=dist_ref_seq_ends; ++start_pos < length(ref_seq)-fragment_length-dist_ref_seq_ends-1; ){
+		species_reference_.UpdateGC( gc, n_count, ref_seq_id, start_pos-1, start_pos+fragment_length-1 );
 		gc_perc = SafePercent(gc, fragment_length-n_count);
 
-		CreateCoverageDataHelper(gc_perc, ++start_pos, fragment_length, rgen);
+		CreateCoverageDataHelper(gc_perc, start_pos, fragment_length, rgen);
 	}
 }
 
@@ -278,7 +301,7 @@ void FragmentDistributionStatsTest::TestCrossDuplicates(const FragmentDistributi
 void FragmentDistributionStatsTest::TestCoverage(const FragmentDistributionStats &test){
 	// The tests below were done manually and are not updated yet with verification commands
 	EXPECT_EQ(1230, test.abundance_.size() ) << "abundance_ wrong in coverage test\n";
-	EXPECT_EQ(1, test.abundance_.at(2) ) << "abundance_ wrong in coverage test\n";
+	EXPECT_EQ(0, test.abundance_.at(2) ) << "abundance_ wrong in coverage test\n"; // Excluded region due to N's
 	EXPECT_EQ(1, test.abundance_.at(3) ) << "abundance_ wrong in coverage test\n";
 	EXPECT_EQ(1, test.abundance_.at(8) ) << "abundance_ wrong in coverage test\n";
 }
@@ -656,7 +679,7 @@ void FragmentDistributionStatsTest::TestBiasCalculation(){
 	FragmentDuplicationStats duplications;
 	duplications.PrepareTmpDuplicationVector(100);
 	uintNumThreads num_threads = min(static_cast<uintNumThreads>(4), test_with_num_threads);
-	array<FragmentDistributionStats::ThreadData, 4> thread_data = {FragmentDistributionStats::ThreadData(100, species_reference_.SequenceLength(0)), FragmentDistributionStats::ThreadData(100, species_reference_.SequenceLength(0)), FragmentDistributionStats::ThreadData(100, species_reference_.SequenceLength(0)), FragmentDistributionStats::ThreadData(100, species_reference_.SequenceLength(0))};
+	array<FragmentDistributionStats::ThreadData, 4> thread_data = {FragmentDistributionStats::ThreadData(100, species_reference_.SequenceLength(0), Reference::kMinDistToContigEnds), FragmentDistributionStats::ThreadData(100, species_reference_.SequenceLength(0), Reference::kMinDistToContigEnds), FragmentDistributionStats::ThreadData(100, species_reference_.SequenceLength(0), Reference::kMinDistToContigEnds), FragmentDistributionStats::ThreadData(100, species_reference_.SequenceLength(0), Reference::kMinDistToContigEnds)};
 	mutex print_mutex;
 
 	ReduceVerbosity(1); // Suppress warnings
@@ -683,7 +706,7 @@ void FragmentDistributionStatsTest::TestBiasCalculation(){
 	EXPECT_NEAR(0.4, test_->gc_fragment_content_bias_.at(34), 0.2);
 	EXPECT_DOUBLE_EQ(1.0, *max_element(test_->gc_fragment_content_bias_.begin(), test_->gc_fragment_content_bias_.end()));
 
-	intSurrounding pos_base = 262144;
+	Surrounding::intType pos_base = 262144;
 	EXPECT_NEAR(-0.4, accumulate(test_->fragment_surroundings_bias_.bias_.at(1).begin(), test_->fragment_surroundings_bias_.bias_.at(1).begin()+pos_base, 0.0)/pos_base, 0.2);
 	EXPECT_NEAR(-0.4, accumulate(test_->fragment_surroundings_bias_.bias_.at(1).begin()+pos_base, test_->fragment_surroundings_bias_.bias_.at(1).begin()+2*pos_base, 0.0)/pos_base, 0.2);
 	EXPECT_NEAR(0.4, accumulate(test_->fragment_surroundings_bias_.bias_.at(1).begin()+2*pos_base, test_->fragment_surroundings_bias_.bias_.at(1).begin()+3*pos_base, 0.0)/pos_base, 0.2);
@@ -805,10 +828,10 @@ void FragmentDistributionStatsTest::TestRefSeqSplitting(){
 	EXPECT_EQ(1206+8, test_->ref_seq_start_bin_.at(1206));
 
 	// seqtk seq drosophila-GCF_000001215.4_cut.fna | awk '(NR%2==0){print length($0)}' | head -n5
-	EXPECT_EQ(33220, test_->RefSeqSplitLength(0, species_reference_) );
-	EXPECT_EQ(33316, test_->RefSeqSplitLength(1, species_reference_) );
-	EXPECT_EQ(29122, test_->RefSeqSplitLength(1200, species_reference_) );
-	EXPECT_EQ(29589, test_->RefSeqSplitLength(1225, species_reference_) );
+	EXPECT_EQ(33170, test_->RefSeqSplitLength(0, species_reference_) );
+	EXPECT_EQ(33216, test_->RefSeqSplitLength(1, species_reference_) );
+	EXPECT_EQ(28088, test_->RefSeqSplitLength(1200, species_reference_) );
+	EXPECT_EQ(29556, test_->RefSeqSplitLength(1225, species_reference_) );
 
 	EXPECT_EQ(0, test_->GetRefSeqId(0));
 	EXPECT_EQ(0, test_->GetRefSeqId(1));
@@ -820,24 +843,23 @@ void FragmentDistributionStatsTest::TestRefSeqSplitting(){
 	EXPECT_EQ(1200, test_->GetRefSeqId(1208));
 	EXPECT_EQ(1201, test_->GetRefSeqId(1209));
 
-	EXPECT_EQ(0, test_->GetRefSeqBin(0, 0, species_reference_));
-	EXPECT_EQ(0, test_->GetRefSeqBin(0, 33219, species_reference_));
-	EXPECT_EQ(1, test_->GetRefSeqBin(0, 33220, species_reference_));
-	EXPECT_EQ(1, test_->GetRefSeqBin(0, 66438, species_reference_));
-	EXPECT_EQ(2, test_->GetRefSeqBin(1, 0, species_reference_));
-	EXPECT_EQ(2, test_->GetRefSeqBin(1, 33315, species_reference_));
-	EXPECT_EQ(1206, test_->GetRefSeqBin(1200, 0, species_reference_));
-	EXPECT_EQ(1206, test_->GetRefSeqBin(1200, 29121, species_reference_));
-	EXPECT_EQ(1207, test_->GetRefSeqBin(1200, 29122, species_reference_));
-	EXPECT_EQ(1207, test_->GetRefSeqBin(1200, 58243, species_reference_));
-	EXPECT_EQ(1208, test_->GetRefSeqBin(1200, 58244, species_reference_));
-	EXPECT_EQ(1208, test_->GetRefSeqBin(1200, 87364, species_reference_));
-	EXPECT_EQ(1240, test_->GetRefSeqBin(1225, 0, species_reference_));
-	EXPECT_EQ(1240, test_->GetRefSeqBin(1225, 29588, species_reference_));
-	EXPECT_EQ(1241, test_->GetRefSeqBin(1225, 29589, species_reference_));
-	EXPECT_EQ(1241, test_->GetRefSeqBin(1225, 59177, species_reference_));
-	EXPECT_EQ(1242, test_->GetRefSeqBin(1225, 59178, species_reference_));
-	EXPECT_EQ(1242, test_->GetRefSeqBin(1225, 88767, species_reference_));
+	FragmentDistributionStats::ThreadData thread(0, 0, Reference::kMinDistToContigEnds); // Set the first two to zero so no vector space is acquired
+	array<uintRefSeqId, 18> ref_seq_ids =       {    0,     0,     0,     0,     1,     1,  1200,  1200,  1200,  1200,  1200,  1200,  1225,  1225,  1225,  1225,  1225,  1225};
+	array<uintSeqLen, 18> positions =           {   50, 33219, 33220, 66388,    50, 33265,    50, 28137, 28138, 59225, 59226, 87314,    50, 29605, 29606, 59162, 59163, 88717};
+	array<uintRefSeqBin, 18> ref_seq_bins =     {    0,     0,     1,     1,     2,     2,  1206,  1206,  1207,  1207,  1208,  1208,  1240,  1240,  1241,  1241,  1242,  1242};
+	array<uintSeqLen, 18> corrected_positions = {    0, 33169,     0, 33168,     0, 33215,     0, 28087,     0, 28087,     0, 28088,     0, 29555,     0, 29555,     0, 29554};
+
+	for(auto i=0; i < ref_seq_ids.size(); ++i){
+		auto result = test_->GetRefSeqBin(ref_seq_ids.at(i), positions.at(i), species_reference_, thread);
+		EXPECT_EQ(ref_seq_bins.at(i), result.first) << "RefSeq: " << ref_seq_ids.at(i) << " Pos: " << positions.at(i);
+		EXPECT_EQ(corrected_positions.at(i), result.second) << "RefSeq: " << ref_seq_ids.at(i) << " Pos: " << positions.at(i);
+	}
+
+	for(auto i=ref_seq_ids.size(); i-- ; ){
+		auto result = test_->GetRefSeqBin(ref_seq_ids.at(i), positions.at(i), species_reference_, thread);
+		EXPECT_EQ(ref_seq_bins.at(i), result.first) << "RefSeq: " << ref_seq_ids.at(i) << " Pos: " << positions.at(i);
+		EXPECT_EQ(corrected_positions.at(i), result.second) << "RefSeq: " << ref_seq_ids.at(i) << " Pos: " << positions.at(i);
+	}
 
 	vector<bool> used_ref_seqs;
 	used_ref_seqs.resize(species_reference_.NumberSequences(), false);
@@ -848,8 +870,8 @@ void FragmentDistributionStatsTest::TestRefSeqSplitting(){
 	used_ref_seqs.at(1206) = true;
 	EXPECT_EQ(10 , species_reference_.NumRefSeqBinsInNxx(used_ref_seqs, 40000) );
 
-	// seqtk seq drosophila-GCF_000001215.4_cut.fna | awk '(NR%2==0){print length($0)/(1+int(length($0)/40000))}' | sort -nr | head -n5
-	EXPECT_EQ( 39041, test_->MaxRefSeqBinLength(species_reference_) );
+	// seqtk seq drosophila-GCF_000001215.4_cut.fna | awk '(NR%2==0){print (length($0)-100)/(1+int((length($0)-100)/40000))}' | sort -nr | head -n5
+	EXPECT_EQ( 38942, test_->MaxRefSeqBinLength(species_reference_) );
 }
 
 void FragmentDistributionStatsTest::TestRefBinProcessing(){
@@ -865,27 +887,46 @@ void FragmentDistributionStatsTest::TestRefBinProcessing(){
 	test_->fragment_sites_by_ref_seq_bin_cur_id_.resize( num_bins );
 	test_->fragment_sites_by_ref_seq_bin_by_insert_length_.resize(num_bins);
 
+	FragmentDistributionStats::ThreadData thread(0, 0, Reference::kMinDistToContigEnds); // Set the first two to zero so no vector space is acquired
 	// seqtk seq drosophila-GCF_000001215.4_cut.fna | awk '(NR%2==0 && length($0) > 40000){print NR/2-1, length($0)}'
 	// seqtk seq drosophila-GCF_000001215.4_cut.fna | awk '(NR%2==0){print length($0)}' | head -n5
-	std::array<uintRefSeqBin, 9> ref_seq_ids = {0, 0, 1, 1200, 1200, 1200, 1225, 1225, 1225};
-	std::array<uintRefSeqBin, 18> frag_length = {250, 500, 750, 1000, 250, 500, 750, 1000, 250, 500, 750, 1000, 250, 500, 750, 1000, 250, 500};
-	std::array<uintRefSeqBin, 9> start = {0, 33220, 0, 0, 29122, 58244, 0, 29589, 59178};
-	std::array<uintRefSeqBin, 9> end = {33220, 66439, 33316, 29122, 58244, 87365, 29589, 59178, 88768};
-	std::array<uintRefSeqBin, 18> positions = {50, 33219, 33220, 66439-50-1000, 50, 33316-50-500, 50, 29121, 29122, 58243, 58244, 87365-50-1000, 50, 29588, 29589, 59177, 59178, 88768-50-500}; // Remove kMinDistToRefSeqEnds and Fragment length from last position in last bin of reference sequence
-	std::array<uintRefSeqBin, 18> orientation = {0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0};
+	std::array<uintRefSeqBin, 9> ref_seq_ids =  {    0,            0,            1,         1200,         1200,         1200,         1225,         1225,         1225};
+	std::array<uintSeqLen, 18> frag_length =    {  250,   500,   750,  1000,   250,   500,   750,  1000,   250,   500,   750,  1000,   250,   500,   750,  1000,   250,   500};
+	std::array<uintSeqLen, 9> start =           {    0,        33220,            0,            0,        28138,        59226,            0,        29606,        59163};
+	std::array<uintSeqLen, 9> end =             {33220,        66439,        33316,        28138,        59226,        87365,        29606,        59163,        88768};
+	array<uintSeqLen, 18> positions =           {   50, 33219, 33220, 65389,    50, 32766,    50, 28137, 28138, 59225, 59226, 86315,    50, 29605, 29606, 59162, 59163, 88218}; // Remove kMinDistToContigEnds and Fragment length from last position in last bin of reference sequence
+	array<uintSeqLen, 18> corrected_positions = {    0, 33169,     0, 32169,     0, 32716,     0, 28087,     0, 28087,     0, 27089,     0, 29555,     0, 29555,     0, 29055};
+	std::array<uint16_t, 18> orientation =      {    0,     0,     1,     0,     0,     1,     0,     0,     1,     1,     1,     0,     1,      1,    0,     1,     1,     0};
 
 	for( auto i=ref_seq_ids.size() ; i--; ){
 		for( auto k=2; k--; ){
-			test_->AddFragmentSite(ref_seq_ids.at(i), frag_length.at(2*i+k), positions.at(2*i+k), orientation.at(2*i+k), species_reference_);
+			test_->AddFragmentSite(ref_seq_ids.at(i), frag_length.at(2*i+k), positions.at(2*i+k), orientation.at(2*i+k), species_reference_, thread);
 		}
 	}
 
 	for( auto i=ref_seq_ids.size() ; i--; ){
 		for( auto k=2; k--; ){
-			EXPECT_EQ( 2*positions.at(2*i+k)+orientation.at(2*i+k), test_->fragment_sites_by_ref_seq_bin_.at(used_bins.at(i)).at(!k).first ) << "Bin " << used_bins.at(i) << " k " << k;
+			EXPECT_EQ( 2*corrected_positions.at(2*i+k)+orientation.at(2*i+k), test_->fragment_sites_by_ref_seq_bin_.at(used_bins.at(i)).at(!k).first ) << "Bin " << used_bins.at(i) << " k " << k;
 			EXPECT_EQ( frag_length.at(2*i+k), test_->fragment_sites_by_ref_seq_bin_.at(used_bins.at(i)).at(!k).second ) << "Bin " << used_bins.at(i) << " k " << k;
 		}
 	}
+
+	test_->fragment_sites_by_ref_seq_bin_cur_id_.clear();
+	test_->fragment_sites_by_ref_seq_bin_cur_id_.resize( num_bins );
+
+	for( auto i=0 ; i < ref_seq_ids.size(); ++i ){
+		for( auto k=0; k < 2;++k ){
+			test_->AddFragmentSite(ref_seq_ids.at(i), frag_length.at(2*i+k), positions.at(2*i+k), orientation.at(2*i+k), species_reference_, thread);
+		}
+	}
+
+	for( auto i=0 ; i < ref_seq_ids.size(); ++i ){
+		for( auto k=0; k < 2;++k ){
+			EXPECT_EQ( 2*corrected_positions.at(2*i+k)+orientation.at(2*i+k), test_->fragment_sites_by_ref_seq_bin_.at(used_bins.at(i)).at(k).first ) << "Bin " << used_bins.at(i) << " k " << k;
+			EXPECT_EQ( frag_length.at(2*i+k), test_->fragment_sites_by_ref_seq_bin_.at(used_bins.at(i)).at(k).second ) << "Bin " << used_bins.at(i) << " k " << k;
+		}
+	}
+
 
 	vector<uintSeqLen> tmp_storage;
 	vector<FragmentSite> sites;
@@ -894,16 +935,15 @@ void FragmentDistributionStatsTest::TestRefBinProcessing(){
 
 		for( auto k=2; k--; ){
 			species_reference_.GetFragmentSites( sites, ref_seq_ids.at(i), frag_length.at(2*i+k), start.at(i), end.at(i) );
-			test_->AddFragmentsToSites(sites, test_->fragment_sites_by_ref_seq_bin_by_insert_length_.at(used_bins.at(i)).at(frag_length.at(2*i+k)), max(Reference::kMinDistToRefSeqEnds, start.at(i)) );
+			test_->AddFragmentsToSites(sites, test_->fragment_sites_by_ref_seq_bin_by_insert_length_.at(used_bins.at(i)).at(frag_length.at(2*i+k)) );
 
 			if(0==k){
 				EXPECT_EQ( !orientation.at(2*i+k), sites.at(0).count_forward_ ) << "Bin " << used_bins.at(i) << " k " << k;
 				EXPECT_EQ( orientation.at(2*i+k), sites.at(0).count_reverse_ ) << "Bin " << used_bins.at(i) << " k " << k;
 			}
 			else{
-				auto pos = positions.at(2*i+k)-max(Reference::kMinDistToRefSeqEnds, start.at(i));
-				EXPECT_EQ( !orientation.at(2*i+k), sites.at(pos).count_forward_ ) << "Bin " << used_bins.at(i) << " k " << k;
-				EXPECT_EQ( orientation.at(2*i+k), sites.at(pos).count_reverse_ ) << "Bin " << used_bins.at(i) << " k " << k;
+				EXPECT_EQ( !orientation.at(2*i+k), sites.at(corrected_positions.at(2*i+k)).count_forward_ ) << "Bin " << used_bins.at(i) << " k " << k;
+				EXPECT_EQ( orientation.at(2*i+k), sites.at(corrected_positions.at(2*i+k)).count_reverse_ ) << "Bin " << used_bins.at(i) << " k " << k;
 			}
 		}
 	}
@@ -912,6 +952,7 @@ void FragmentDistributionStatsTest::TestRefBinProcessing(){
 namespace reseq{
 	TEST_F(FragmentDistributionStatsTest, BiasCalculationVectors){
 		LoadReference("reference-test-withN.fa");
+		SetExlusionRegionsAtEnds();
 
 		TestBiasCalculationVectorsPreprocessing();
 		TestBiasCalculationVectorsNormalizations();
@@ -922,6 +963,7 @@ namespace reseq{
 	TEST_F(FragmentDistributionStatsTest, BiasCalculation){
 		// samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:100-199 | awk '(NR==1){print $0 "_1000times"}(NR==2){for(i=0;i<1000;i++){print $0}}' | seqtk seq > reference-bias-calculation.fa
 		LoadReference("reference-bias-calculation.fa");
+		SetExlusionRegionsAtEnds();
 		CreateTestObject(&species_reference_);
 
 		TestBiasCalculation();
@@ -930,6 +972,7 @@ namespace reseq{
 
 	TEST_F(FragmentDistributionStatsTest, UpdateRefSeqBias){
 		LoadReference("reference-test.fa");
+		SetExlusionRegionsAtEnds();
 		CreateTestObject(&species_reference_);
 		std::mt19937_64 rgen;
 
@@ -965,6 +1008,8 @@ namespace reseq{
 
 	TEST_F(FragmentDistributionStatsTest, Functionality){
 		LoadReference("drosophila-GCF_000001215.4_cut.fna"); // So we have many sequences
+		SetExlusionRegionsAtEnds();
+		AddExlusionRegionsDrosophila();
 		ASSERT_TRUE( test_ = new FragmentDistributionStats ) << "Could not allocate memory for FragmentDistributionStats object\n";
 
 		TestDrawCounts();

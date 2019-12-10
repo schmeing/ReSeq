@@ -49,8 +49,13 @@ namespace reseq{
 
 			FragmentDistributionStats::ThreadData fragment_distribution_;
 
-			ThreadData( uintSeqLen maximum_insert_length, uintSeqLen max_seq_bin_len ):
-				fragment_distribution_(maximum_insert_length, max_seq_bin_len)
+			uintSeqLen last_exclusion_region_id_;
+			uintRefSeqId last_exclusion_ref_seq_;
+
+			ThreadData( uintSeqLen maximum_insert_length, uintSeqLen max_seq_bin_len, uintSeqLen start_exclusion_length ):
+				fragment_distribution_(maximum_insert_length, max_seq_bin_len, start_exclusion_length),
+				last_exclusion_region_id_(0),
+				last_exclusion_ref_seq_(0)
 			{}
 		};
 
@@ -102,7 +107,7 @@ namespace reseq{
 
 		std::array<std::vector<utilities::VectorAtomic<uintNucCount>>, 5> tmp_homopolymer_distribution_;
 
-		std::vector<uintFragCount> reads_per_ref_seq_bin_; // reads_per_ref_seq_bin_[ReferenceSequenceBin] = #Reads
+		std::vector<uintFragCount> reads_per_frag_len_bin_; // reads_per_frag_len_bin_[BinOfReferenceSequenceBinnedInBinsOfFragmentLength] = #Reads
 
 		// Collected variables for simulation
 		std::array<Vect<uintFragCount>, 2> read_lengths_; // read_lengths_[first/second][length] = #reads
@@ -134,7 +139,7 @@ namespace reseq{
 		std::atomic<uintFragCount> reads_in_unmapped_pairs_with_adapters_;
 		std::atomic<uintFragCount> reads_with_low_quality_;
 		std::atomic<uintFragCount> reads_on_too_short_fragments_;
-		std::atomic<uintFragCount> reads_to_close_to_ref_seq_ends_;
+		std::atomic<uintFragCount> reads_in_excluded_regions_;
 		std::atomic<uintFragCount> reads_used_;
 
 		// Private functions
@@ -147,17 +152,17 @@ namespace reseq{
 		bool CheckForAdapters(const seqan::BamAlignmentRecord &record_first, const seqan::BamAlignmentRecord &record_second);
 		void EvalBaseLevelStats( CoverageStats::FullRecord *full_record, uintTempSeq template_segment, uintTempSeq strand, uintTileId tile_id, uintQual &paired_seq_qual );
 		bool EvalReferenceStatistics( CoverageStats::FullRecord *record, uintTempSeq template_segment, CoverageStats::CoverageBlock *coverage_block );
-		bool EvalRecord( std::pair<CoverageStats::FullRecord *, CoverageStats::FullRecord *> record ); // Don't use a reference hear, so it isn't affected by a pointer switch
+		bool EvalRecord( std::pair<CoverageStats::FullRecord *, CoverageStats::FullRecord *> record, ThreadData &thread ); // Don't use a reference hear, so it isn't affected by a pointer switch
 
 		bool SignsOfPairsWithNamesNotIdentical();
-		void PrepareReadIn(uintQual size_mapping_quality, uintReadLen size_indel);
+		void PrepareReadIn(uintQual size_mapping_quality, uintReadLen size_indel, uintSeqLen max_ref_seq_bin_size);
 		bool FinishReadIn();
 		void Shrink(); // Reduce all arrays to minimal size by removing unused bins at the beginning and end
 		bool Calculate(uintNumThreads num_threads);
 		void PrepareGeneral();
 
 		bool OrderOfBamFileCorrect( const seqan::BamAlignmentRecord &record, std::pair< uintRefSeqId, uintSeqLen > last_record_pos );
-		bool PreRun(seqan::BamFileIn &bam, const char *bam_file, seqan::BamHeader &header, uintQual &size_mapping_quality, uintReadLen &size_indel, uintSeqLen max_ref_seq_bin_size);
+		bool PreRun(seqan::BamFileIn &bam, const char *bam_file, seqan::BamHeader &header, uintQual &size_mapping_quality, uintReadLen &size_indel);
 		bool ReadRecords( seqan::BamFileIn &bam, bool &not_done, ThreadData &thread_data );
 
 		static void ReadThread( DataStats &self, seqan::BamFileIn &bam, uintSeqLen max_seq_bin_len );

@@ -490,7 +490,7 @@ void BiasCalculationVectors::CalculateSpline(const vector<double> &spline_pars){
 
 	// Constant bias values for gc above any observed sites: Extrapolate the linear function at the highest measured GC by half a GC unit and use this value
 	uintPercent cur_gc = gc_knots_.at(k)-gc_knots_.at(k-1);
-	double upper_const_no_logit = gc_spline_pars_.at(k) + 0.5*(b+c*cur_gc);
+	double upper_const_no_logit = gc_spline_pars_.at(k) + 0.5*(b + c*cur_gc); // d=0 since second derivative must be 0 (natural spline)
 	double upper_const = norm*InvLogit2( upper_const_no_logit ) + kBaseValue;
 	for(uintPercent gc=gc_knots_.at(k)+1; gc < gc_bias_.size(); ++gc){
 		gc_bias_no_logit_.at(gc) = upper_const_no_logit;
@@ -1133,9 +1133,41 @@ inline void FragmentDistributionStats::IncreaseErrorCounter(uintErrorCount &erro
 	}
 }
 
-void FragmentDistributionStats::PrepareBiasCalculation( const Reference &ref, uintSeqLen maximum_insert_length, const vector<uintFragCount> &reads_per_ref_seq_bin ){
+void FragmentDistributionStats::PrepareBiasCalculation( const Reference &ref, uintSeqLen maximum_insert_length, uintSeqLen max_ref_seq_bin_size, const vector<uintFragCount> &reads_per_frag_len_bin ){
+	// Bin reference sequence
+	auto num_bins = CreateRefBins(ref, max_ref_seq_bin_size);
+
+	vector<uintFragCount> reads_per_ref_seq_bin;
+	reads_per_ref_seq_bin.resize(num_bins);
+
+	uintRefLenCalc ref_seq_start_bin(0);
+	uintRefSeqBin ref_seq_bin(0);
+	for(uintRefSeqId ref_seq = 0; ref_seq < ref.NumberSequences(); ++ref_seq){
+		if( !ref.ReferenceSequenceExcluded(ref_seq) ){
+			for(uintSeqLen cur_bin = 0; cur_bin <= ref.SequenceLength(ref_seq)/maximum_insert_length; ++cur_bin){
+				ref_seq_bin = GetRefSeqBin(ref_seq, cur_bin*maximum_insert_length, ref_seq_bin);
+				reads_per_ref_seq_bin.at(ref_seq_bin) += reads_per_frag_len_bin.at(ref_seq_start_bin+cur_bin);
+
+				// Add it also to all bins the fragment might overlap, as we don' know the exact start position of the fragment
+				if(cur_bin < ref.SequenceLength(ref_seq)/maximum_insert_length){
+					auto ref_seq_bin2 = GetRefSeqBin(ref_seq, cur_bin*maximum_insert_length - maximum_insert_length, ref_seq_bin);
+					if(ref_seq_bin != ref_seq_bin2){
+						reads_per_ref_seq_bin.at(ref_seq_bin2) += reads_per_frag_len_bin.at(ref_seq_start_bin+cur_bin);
+					}
+				}
+
+				if(cur_bin){
+					auto ref_seq_bin2 = GetRefSeqBin(ref_seq, cur_bin*maximum_insert_length + maximum_insert_length, ref_seq_bin);
+					if(ref_seq_bin != ref_seq_bin2){
+						reads_per_ref_seq_bin.at(ref_seq_bin2) += reads_per_frag_len_bin.at(ref_seq_start_bin+cur_bin);
+					}
+				}
+			}
+		}
+		ref_seq_start_bin += ref.SequenceLength(ref_seq)/maximum_insert_length + 1;
+	}
+
 	// Read in vectors to calculate bias from
-	auto num_bins = ref_seq_start_bin_.at(ref_seq_start_bin_.size()-1);
 	fragment_sites_by_ref_seq_bin_.resize(num_bins);
 	for( uintRefSeqBin ref_bin=0; ref_bin < fragment_sites_by_ref_seq_bin_.size(); ++ref_bin){
 		fragment_sites_by_ref_seq_bin_.at(ref_bin).resize(reads_per_ref_seq_bin.at(ref_bin)/2); // Sites are defined by a read pair, so /2
@@ -1304,7 +1336,7 @@ void FragmentDistributionStats::FillParams(vector<BiasCalculationParams> &params
 	for( auto frag_length=max(static_cast<uintSeqLen>(1),static_cast<uintSeqLen>(insert_lengths_.from())); frag_length < insert_lengths_.to(); ++frag_length){
 		if(insert_lengths_.at(frag_length)){
 			for( uintRefSeqId ref_id=abundance_.size(); ref_id--; ){
-				if(abundance_.at(ref_id) && reference.SequenceLength(ref_id) >= insert_lengths_.to()+2*Reference::kMinDistToRefSeqEnds){
+				if(abundance_.at(ref_id) && !reference.ReferenceSequenceExcluded(ref_id)){
 					// Add parameters for later calculation
 					params.push_back({ref_id, frag_length});
 				}
@@ -1315,16 +1347,16 @@ void FragmentDistributionStats::FillParams(vector<BiasCalculationParams> &params
 }
 
 void FragmentDistributionStats::CountDuplicates(FragmentDuplicationStats &duplications, const BiasCalculationParamsSplitSeqs &params, const Reference &reference){
-	duplications.AddDuplicates( fragment_sites_by_ref_seq_bin_by_insert_length_.at(params.ref_seq_bin_).at(params.fragment_length_), GetRefSeqId(params.ref_seq_bin_), params.fragment_length_, reference  );
+	duplications.AddDuplicates( fragment_sites_by_ref_seq_bin_by_insert_length_.at(params.ref_seq_bin_).at(params.fragment_length_), GetRefSeqId(params.ref_seq_bin_), params.fragment_length_, ref_seq_bin_def_.at(params.ref_seq_bin_).second, reference  );
 }
 
-void FragmentDistributionStats::AddFragmentsToSites(vector<FragmentSite> &sites, const vector<uintRefLenCalc> &fragment_positions, uintSeqLen min_dist_to_ref_seq_ends){
+void FragmentDistributionStats::AddFragmentsToSites(vector<FragmentSite> &sites, const vector<uintSeqLen> &fragment_positions){
 	for(auto pos : fragment_positions){
 		if(pos%2){
-			++sites.at(pos/2-min_dist_to_ref_seq_ends).count_reverse_;
+			++sites.at(pos/2).count_reverse_;
 		}
 		else{
-			++sites.at(pos/2-min_dist_to_ref_seq_ends).count_forward_;
+			++sites.at(pos/2).count_forward_;
 		}
 	}
 }
@@ -1332,17 +1364,17 @@ void FragmentDistributionStats::AddFragmentsToSites(vector<FragmentSite> &sites,
 void FragmentDistributionStats::CalculateBiasByBin(BiasCalculationVectors &tmp_calc, const Reference &reference, FragmentDuplicationStats &duplications, uintRefSeqBin ref_seq_bin, uintSeqLen insert_length){
 	// Prepare fits
 	auto ref_seq_id = GetRefSeqId(ref_seq_bin);
-	uintSeqLen ref_start = (ref_seq_bin-ref_seq_start_bin_.at(ref_seq_id))*RefSeqSplitLength(ref_seq_id, reference);
+	uintSeqLen ref_start = ref_seq_bin_def_[ref_seq_bin].second;
 	uintSeqLen ref_end = reference.SequenceLength(ref_seq_id);
 	if(ref_seq_bin+1 < ref_seq_start_bin_.at(ref_seq_id+1)){ // Not the last bin of the reference
-		ref_end = (ref_seq_bin+1-ref_seq_start_bin_.at(ref_seq_id))*RefSeqSplitLength(ref_seq_id, reference);
+		ref_end = ref_seq_bin_def_[ref_seq_bin+1].second;
 	}
 
 	tmp_calc.ref_seq_bin_ = ref_seq_bin;
 	tmp_calc.insert_length_ = insert_length;
 
 	reference.GetFragmentSites(tmp_calc.sites_, ref_seq_id, insert_length, ref_start, ref_end);
-	AddFragmentsToSites(tmp_calc.sites_, fragment_sites_by_ref_seq_bin_by_insert_length_.at(ref_seq_bin).at(insert_length), max(Reference::kMinDistToRefSeqEnds, ref_start) );
+	AddFragmentsToSites(tmp_calc.sites_, fragment_sites_by_ref_seq_bin_by_insert_length_.at(ref_seq_bin).at(insert_length) );
 	duplications.AddSites(tmp_calc.sites_, insert_length);
 	tmp_calc.GetCounts();
 	tmp_calc.RemoveUnnecessarySites();
@@ -1702,14 +1734,35 @@ reseq::uintRefSeqBin FragmentDistributionStats::CreateRefBins( const Reference &
 	uintRefSeqBin start_id = 0;
 	ref_seq_start_bin_.at(0) = 0;
 	for(uintRefSeqId ref_seq=1; ref_seq < ref_seq_start_bin_.size(); ++ref_seq){
-		start_id += DivideAndCeil(ref.SequenceLength(ref_seq-1), max_ref_seq_bin_length_);
+		start_id += DivideAndCeil(ref.SequenceLength(ref_seq-1)-ref.SumExcludedBases(ref_seq-1), max_ref_seq_bin_length_);
 		ref_seq_start_bin_.at(ref_seq) = start_id;
+	}
+
+	ref_seq_bin_def_.resize(ref_seq_start_bin_.back());
+	uintRefSeqBin cur_start_bin = 0;
+	uintSeqLen cur_exclusion_region;
+	for(uintRefSeqId ref_seq=0; ref_seq < ref_seq_start_bin_.size()-1; ++ref_seq){
+		auto num_bins = DivideAndCeil(ref.SequenceLength(ref_seq)-ref.SumExcludedBases(ref_seq), max_ref_seq_bin_length_);
+		if(num_bins){
+			ref_seq_bin_def_.at(cur_start_bin).first = ref_seq;
+			ref_seq_bin_def_.at(cur_start_bin).second = 0;
+			cur_exclusion_region = 0;
+		}
+
+		for( uintRefSeqBin cur_bin=1; cur_bin < num_bins; ++cur_bin){
+			auto start_pos = ref_seq_bin_def_.at(cur_start_bin+cur_bin-1).second + RefSeqSplitLength(ref_seq, ref);
+			ref.CorrectPositionAddingExcludedRegions(start_pos, cur_exclusion_region, ref_seq);
+
+			ref_seq_bin_def_.at(cur_start_bin+cur_bin).first = ref_seq;
+			ref_seq_bin_def_.at(cur_start_bin+cur_bin).second = start_pos;
+		}
+		cur_start_bin += num_bins;
 	}
 
 	return ref_seq_start_bin_.at(ref_seq_start_bin_.size()-1);
 }
 
-void FragmentDistributionStats::Prepare( const Reference &ref, uintSeqLen maximum_insert_length, const vector<uintFragCount> &reads_per_ref_seq_bin ){
+void FragmentDistributionStats::Prepare( const Reference &ref, uintSeqLen maximum_insert_length, uintSeqLen max_ref_seq_bin_size, const vector<uintFragCount> &reads_per_frag_len_bin ){
 	tmp_abundance_.resize(ref.NumberSequences());
 	tmp_insert_lengths_.resize(maximum_insert_length+1);
 	tmp_gc_fragment_content_.resize(101);
@@ -1720,7 +1773,7 @@ void FragmentDistributionStats::Prepare( const Reference &ref, uintSeqLen maximu
 		}
 	}
 
-	PrepareBiasCalculation( ref, maximum_insert_length, reads_per_ref_seq_bin );
+	PrepareBiasCalculation( ref, maximum_insert_length, max_ref_seq_bin_size, reads_per_frag_len_bin );
 }
 
 void FragmentDistributionStats::FillInOutskirtContent( const Reference &reference, const BamAlignmentRecord &record_start, uintSeqLen fragment_start_pos, uintSeqLen fragment_end_pos ){
@@ -1801,7 +1854,11 @@ void FragmentDistributionStats::FillInOutskirtContent( const Reference &referenc
 void FragmentDistributionStats::HandleReferenceSequencesUntil(uintRefSeqId still_needed_reference_sequence, uintSeqLen still_needed_position, ThreadData &thread, const Reference &reference, FragmentDuplicationStats &duplications, mutex &print_mutex){
 	// Check if new biases can be added for calculation
 	auto still_needed_ref_bin = ref_seq_start_bin_.at(still_needed_reference_sequence);
-	still_needed_ref_bin += still_needed_position / RefSeqSplitLength(still_needed_reference_sequence, reference);
+	while(still_needed_ref_bin+1 < ref_seq_start_bin_.at(still_needed_reference_sequence+1) && still_needed_position > ref_seq_bin_def_[still_needed_ref_bin+1].second){
+		// Not the last bin of the reference and next bin starts before still_needed_position
+		++still_needed_ref_bin;
+	}
+
 	HandleReferenceSequencesUntil(still_needed_ref_bin, thread, reference, duplications, print_mutex);
 }
 
@@ -1831,6 +1888,13 @@ void FragmentDistributionStats::Finalize(){
 			outskirt_content_.at(strand).at(nuc).Acquire(tmp_outskirt_content_.at(strand).at(nuc));
 		}
 	}
+
+	ref_seq_in_nxx_.clear();
+	ref_seq_in_nxx_.shrink_to_fit();
+	ref_seq_start_bin_.clear();
+	ref_seq_start_bin_.shrink_to_fit();
+	ref_seq_bin_def_.clear();
+	ref_seq_bin_def_.shrink_to_fit();
 }
 
 void FragmentDistributionStats::CalculateInsertLengthAndRefSeqBias(const Reference &reference, uintNumThreads num_threads, vector<vector<VectorAtomic<uintFragCount>>> &site_count_by_insert_length_gc){

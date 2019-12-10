@@ -14,8 +14,9 @@ using std::vector;
 using seqan::DnaString;
 
 #include "utilities.hpp"
-using reseq::utilities::VectorAtomic;
 using reseq::utilities::at;
+using reseq::utilities::VectorAtomic;
+using reseq::utilities::Complement;
 using reseq::utilities::IsN;
 #include "Surrounding.h"
 using reseq::Surrounding;
@@ -350,7 +351,7 @@ void ReferenceTest::TestSumBias(){
 	// cat <(seqtk seq reference-test.fa | awk '(2==NR)') <(seqtk seq -r reference-test.fa | awk '(2==NR)') | awk '{for(i=21;i<=length($0)-50; i+=1){print substr($0,i-10,30), NR, i-1}}' | awk '{print ">"$1, $2, $3; print $1}' | seqtk seq -r | awk '(1==NR%2){full=substr($1,2,length($1)-1); strand=$2-1; pos=$3}(0==NR%2){print strand, pos, substr(full,11,10), full, $0}' | awk '{print $1, $2, gsub(/[GC]/,"",$3), substr($4,1,10), substr($4, 11, 10), substr($4, 21, 10) , substr($5,1,10), substr($5, 11, 10), substr( $5, 21, 10)}' | awk '(0==$1 && (27 == $2 || 50 == $2 || 90 == $2 || 100 == $2 || 162 == $2 || 242 == $2) || 1==$1 && 381==$2)' | awk '{print $1, $2, $3; print $4; print $5; print $6; print $7; print $8; print $9}' | awk 'BEGIN{d["A"]=0;d["C"]=1;d["G"]=2;d["T"]=3}{if(NR%7==1){print $0}else{mult=1;sur=0;for(i=length($0);i>0;i-=1){sur+=mult*d[substr($0,i,1)];mult*=4}; print $0, sur}}'
 	// cat <(seqtk seq reference-test.fa | awk '(2==NR)') <(seqtk seq -r reference-test.fa | awk '(2==NR)') | awk '{print substr($0,length($0)-9,length($0)) $0 substr($0,1,10)}' | awk '{for(i=11;i<=length($0)-20; i+=1){print substr($0,i-10,30), NR, i-11}}' | awk '{print ">"$1, $2, $3; print $1}' | seqtk seq -r | awk '(1==NR%2){full=substr($1,2,length($1)-1); strand=$2-1; pos=$3}(0==NR%2){print strand, pos, substr(full,11,10), full, $0}' | awk '{print $1, $2, gsub(/[GC]/,"",$3), substr($4,1,10), substr($4, 11, 10), substr($4, 21, 10) , substr($5,1,10), substr($5, 11, 10), substr( $5, 21, 10)}' | awk 'BEGIN{gc[0] = 1.0; gc[3] = 0.1; gc[4] = 0.3; gc[9] = 0.2; base=10; high=base+0.5; normal=base+0.0; low=base-0.5; very_low=base-1; sur["GCAACGGGCA"]=normal; sur["TGGATTAAAA"]=normal; sur["GTTACCTGCC"]=normal; sur["GTGAGTAAAT"]=normal; sur["GCACAGACAG"]=very_low; sur["CCACAGGTAA"]=normal; sur["ATTTAGTGAC"]=high; sur["ATATGTCTCT"]=normal; sur["AAAGAGTGTC"]=normal; sur["GTGAGTAAAT"]=normal; sur["TAAAATTTTA"]=high; sur["ATAAAAATTA"]=normal; sur["CGGTGCGGGC"]=normal; sur["CTAAGTCAAT"]=normal; sur["GTGTGGATTA"]=normal; sur["TGATAGCAGC"]=normal; sur["TAAAATTTTA"]=high; sur["TTGACTTAGG"]=normal; sur["CAGAGTACAC"]=normal; sur["TGACGCGTAC"]=normal; sur["AAAATTTTAA"]=low; sur["TAATCCACAC"]=normal; sur["GCTGCTATCA"]=normal; sur["TAAAATTTTA"]=high; sur["CCTAAGTCAA"]=normal; sur["GTGTACTCTG"]=normal; sur["GTACGCGTCA"]=normal; sur["TTAAAATTTT"]=normal; sur["AGAGACATAT"]=normal; sur["GACACTCTTT"]=normal; sur["ATTTACTCAC"]=normal; sur["TAATTTTTAT"]=normal; sur["GCCCGCACCG"]=normal; sur["ATTGACTTAG"]=normal; sur["TGCCCGTTGC"]=normal; sur["TTTTAATCCA"]=normal; sur["GGCAGGTAAC"]=low; sur["ATTTACTCAC"]=normal; sur["CTGTCTGTGC"]=normal; sur["TTACCTGTGG"]=normal; sur["GTCACTAAAT"]=high}{start=0; for(i=4; i <= 6; i++){if(sur[$i] > 5){start+=sur[$i]-base}else{start-=1000}}; end=0; for(i=7; i <= 9; i++){if(sur[$i] > 5){end+=sur[$i]-base}else{end-=1000}}; print $0, 0.0+gc[$3], start, end}' | awk '{print $0, 2/(1+exp(-$11)), 2/(1+exp(-$12))}' 2>/dev/null | awk '{print $0, $10*$13*$14}' | awk '{print $0, 0.5*$15}' | awk 'BEGIN{sum=0; max=0}{sum += $16; if($16 > max){max=$16}}END{print "sum:", sum, " max: ", max}'
 	Vect<double> gc_bias;
-	gc_bias[30] = 0.1; // Filtered because it is at ref seq ends for stats creation: So SumBias counts it, GetFragmentSites completely excludes it
+	gc_bias[30] = 0.1; // Filtered because it is at ref seq ends for stats creation: So the SumBias function for simulations tested here counts it, GetFragmentSites completely excludes it
 	gc_bias[40] = 0.3; // Right at the beginning of the accepted sequence, so should be counted in SumBias and the first one entered in GetFragmentSites
 	// gc_bias[30] = 0.1;
 	gc_bias[0] = 1.0;
@@ -424,6 +425,8 @@ void ReferenceTest::TestGetFragmentSites(){
 	at(at(ref_.reference_sequences_, 0), 253) = 'N';
 	at(at(ref_.reference_sequences_, 0), 256) = 'N';
 	at(at(ref_.reference_sequences_, 0), 263) = 'N';
+	ref_.PrepareExclusionRegions();
+	ref_.ObtainExclusionRegions(ref_.NumberSequences(), 100);
 
 	string error_msg = "The function GetFragmentSites returns wrong results\n";
 	std::vector<FragmentSite> frag_sites;
@@ -472,7 +475,7 @@ void ReferenceTest::TestGetFragmentSites(){
 	EXPECT_EQ(0, frag_sites.at(350).count_reverse_) << error_msg;
 	EXPECT_EQ(1.0, frag_sites.at(350).bias_) << error_msg;
 
-	ref_.GetFragmentSites(frag_sites, 0, 10, 50+50, 193+50); // +50 from kMinDistToRefSeqEnds
+	ref_.GetFragmentSites(frag_sites, 0, 10, 50+50, 193+50); // +50 from kMinNToSplitContigs
 	EXPECT_EQ(143, frag_sites.size() );
 	EXPECT_EQ(0, frag_sites.at(0).gc_);
 	EXPECT_EQ(756483, frag_sites.at(0).start_surrounding_.sur_.at(0));
@@ -533,6 +536,116 @@ void ReferenceTest::TestReplaceN(){
 	}
 }
 
+void ReferenceTest::TestExclusionRegions(){
+	ASSERT_TRUE( ref_.ReadFasta( (string(PROJECT_SOURCE_DIR)+"/test/reference-test.fa").c_str() ) );
+
+	// Shorten second sequence so it is invalid
+	resize(at(ref_.reference_sequences_, 1), 140);
+
+	// Add repeats and N's to first sequence
+	auto &ref_seq = at(ref_.reference_sequences_, 0);
+	for(auto pos=0; pos<3; ++pos){
+		at( ref_seq, pos ) = 'N'; // Add N's at the start that should be added to kMinDistToContigEnds
+	}
+
+	for(auto pos=14; pos<23; ++pos){
+		at( ref_seq, pos ) = 'N'; // Add N's that are below kMinNToSplitContigs so should be ignored
+	}
+
+	for(auto pos=95; pos<104; ++pos){
+		at( ref_seq, pos ) = 'N'; // Add N's that are below kMinNToSplitContigs so should be ignored
+	}
+	for(auto pos=104; pos<125; ++pos){
+		at( ref_seq, pos ) = 'C'; // But add repeats at the end that result in a single position marked as exclusion region
+	}
+
+	for(auto pos=210; pos<220; ++pos){
+		at( ref_seq, pos ) = 'N'; // Add N's that hit kMinNToSplitContigs so should be excluded
+	}
+
+	auto copy_pos = 349;
+	for(auto pos=355; pos<425; ++pos){
+		at( ref_seq, pos ) = Complement::Dna5(at( ref_seq, --copy_pos )); // Add inverse repeat that is not joined, but first part is joined with N exclusion region before
+	}
+
+	for(auto pos=length(ref_seq)-2; pos<length(ref_seq); ++pos){
+		at( ref_seq, pos ) = 'N'; // Add N's at the end that should be added to kMinDistToContigEnds
+	}
+
+	// Get exclusion regions
+	ref_.PrepareExclusionRegions();
+	ref_.ObtainExclusionRegions(5, 50); // Check if setting a too high value for ref seq id is an issue
+
+	// Test results
+	EXPECT_EQ(1, ref_.excluded_regions_.at(1).size());
+	auto excluded_regions( ref_.excluded_regions_.at(0) );
+	EXPECT_EQ(3, excluded_regions.size()); //5
+	for( auto id=0; id < excluded_regions.size(); ++id ){
+		// Make sure we do not check a non existing region if number of regions is less than expected
+		switch(id){
+		case 0:
+			EXPECT_EQ(0, excluded_regions.at(id).first );
+			EXPECT_EQ(53, excluded_regions.at(id).second );
+			break;
+		//case 1:
+		//	EXPECT_EQ(105, excluded_regions.at(id).first );
+		//	EXPECT_EQ(106, excluded_regions.at(id).second );
+		//	break;
+		case 1:
+			EXPECT_EQ(160, excluded_regions.at(id).first );
+			EXPECT_EQ(270, excluded_regions.at(id).second ); //319
+			break;
+		//case 3:
+		//	EXPECT_EQ(385, excluded_regions.at(id).first );
+		//	EXPECT_EQ(395, excluded_regions.at(id).second );
+		//	break;
+		case 4:
+			EXPECT_EQ(length(ref_seq)-52, excluded_regions.at(id).first );
+			EXPECT_EQ(length(ref_seq), excluded_regions.at(id).second );
+			break;
+		}
+	}
+
+
+	// Test checking functions
+	EXPECT_TRUE( ref_.ObtainedExclusionRegionsForSequence(0) );
+	EXPECT_TRUE( ref_.ObtainedExclusionRegionsForSequence(1) );
+	EXPECT_TRUE( ref_.ExclusionRegionsCompletelyObtained() );
+
+	uintSeqLen last_region_id(0), last_ref_seq(0);
+	EXPECT_TRUE( ref_.FragmentExcluded(last_region_id, last_ref_seq, 0, 140, 161) );
+	EXPECT_FALSE( ref_.FragmentExcluded(last_region_id, last_ref_seq, 0, 140, 160) );
+	EXPECT_TRUE( ref_.FragmentExcluded(last_region_id, last_ref_seq, 0, length(ref_seq)-2, length(ref_seq)) );
+	EXPECT_EQ(2, last_region_id); //4
+	EXPECT_TRUE( ref_.FragmentExcluded(last_region_id, last_ref_seq, 0, 1, 5) );
+	EXPECT_TRUE( ref_.FragmentExcluded(last_region_id, last_ref_seq, 0, 52, 70) );
+	EXPECT_EQ(0, last_region_id);
+	EXPECT_FALSE( ref_.FragmentExcluded(last_region_id, last_ref_seq, 0, 53, 70) );
+	last_region_id = 100;
+	last_ref_seq = 1;
+	EXPECT_TRUE( ref_.FragmentExcluded(last_region_id, last_ref_seq, 0, length(ref_seq)-2, length(ref_seq)) );
+	EXPECT_TRUE( ref_.FragmentExcluded(last_region_id, last_ref_seq, 1, 10, 20) );
+	EXPECT_EQ(1, last_ref_seq);
+	EXPECT_EQ(0, last_region_id);
+	EXPECT_TRUE( ref_.FragmentExcluded(last_region_id, last_ref_seq, 1, 60, 70) );
+
+	EXPECT_FALSE( ref_.ReferenceSequenceExcluded(0) );
+	EXPECT_TRUE( ref_.ReferenceSequenceExcluded(1) );
+	EXPECT_EQ(215, ref_.SumExcludedBases(0)); //275
+	EXPECT_EQ(140, ref_.SumExcludedBases(1));
+	EXPECT_EQ(3, ref_.NumExcludedRegions(0)); //5
+	EXPECT_EQ(1, ref_.NumExcludedRegions(1));
+
+
+	// Test clearing exclusion regions
+	ref_.ClearExclusionRegions(2);
+	EXPECT_EQ(0, ref_.excluded_regions_.at(0).size());
+	EXPECT_EQ(0, ref_.excluded_regions_.at(1).size());
+
+	ref_.ClearAllExclusionRegions();
+	EXPECT_EQ(0, ref_.excluded_regions_.size());
+}
+
 namespace reseq{
 	TEST_F(ReferenceTest, Variants){
 		ASSERT_TRUE( ref_.ReadFasta( (string(PROJECT_SOURCE_DIR)+"/test/ecoli-GCF_000005845.2_ASM584v2_genomic.fa").c_str() ) );
@@ -561,5 +674,9 @@ namespace reseq{
 		ASSERT_TRUE( ref_.ReadFasta( (string(PROJECT_SOURCE_DIR)+"/test/reference-test.fa.bz2").c_str() ) );
 
 		ASSERT_EQ(2, ref_.NumberSequences()) << "The bz2 test file did not load properly\n";
+	}
+
+	TEST_F(ReferenceTest, ExclusionRegions){
+		TestExclusionRegions();
 	}
 }

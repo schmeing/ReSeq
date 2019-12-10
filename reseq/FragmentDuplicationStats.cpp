@@ -43,9 +43,12 @@ inline void FragmentDuplicationStats::SumUpDuplicationNumber(){
 	duplication_number_.Shrink();
 }
 
-void FragmentDuplicationStats::AddDuplicates( vector<uintRefLenCalc> &fragment_positions, uintRefSeqId ref_seq_id, uintSeqLen insert_length, const Reference &reference ){
+void FragmentDuplicationStats::AddDuplicates( vector<uintSeqLen> &fragment_positions, uintRefSeqId ref_seq_id, uintSeqLen insert_length, uintSeqLen base_pos, const Reference &reference ){
 	sort(fragment_positions.begin(), fragment_positions.end());
-	uintRefLenCalc cur_pos = 0;
+
+	uintSeqLen cur_pos(0), last_pos(0);
+	auto corrected_pos = max(reference.StartExclusion(ref_seq_id), base_pos);
+	auto next_exclusion_region = reference.NextExclusionRegion(ref_seq_id, corrected_pos);
 	uintDupCount count = 0;
 	for( auto pos : fragment_positions ){
 		if(pos == cur_pos){
@@ -53,7 +56,10 @@ void FragmentDuplicationStats::AddDuplicates( vector<uintRefLenCalc> &fragment_p
 		}
 		else{
 			if(count){
-				AddDuplication(insert_length, reference.GCContent(ref_seq_id, cur_pos/2, cur_pos/2+insert_length ), count);
+				corrected_pos += cur_pos/2-last_pos;
+				reference.CorrectPositionAddingExcludedRegions(corrected_pos, next_exclusion_region, ref_seq_id);
+				AddDuplication(insert_length, reference.GCContent(ref_seq_id, corrected_pos, corrected_pos+insert_length), count);
+				last_pos = cur_pos/2;
 			}
 
 			cur_pos = pos;
@@ -61,7 +67,9 @@ void FragmentDuplicationStats::AddDuplicates( vector<uintRefLenCalc> &fragment_p
 		}
 	}
 	// Insert last position
-	AddDuplication(insert_length, reference.GCContent(ref_seq_id, cur_pos/2, cur_pos/2+insert_length ), count);
+	corrected_pos += cur_pos/2-last_pos;
+	reference.CorrectPositionAddingExcludedRegions(corrected_pos, next_exclusion_region, ref_seq_id);
+	AddDuplication(insert_length, reference.GCContent(ref_seq_id, corrected_pos, corrected_pos+insert_length), count);
 }
 
 void FragmentDuplicationStats::FinalizeDuplicationVector(const vector<vector<VectorAtomic<uintFragCount>>> &site_count_by_insert_length_gc){

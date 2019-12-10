@@ -13,6 +13,8 @@ using std::pow;
 using std::round;
 #include <iostream>
 using std::cout;
+#include <iterator>
+using std::distance;
 #include <limits>
 using std::numeric_limits;
 #include <random>
@@ -59,7 +61,31 @@ using reseq::utilities::DivideAndCeil;
 using reseq::utilities::IsN;
 using reseq::utilities::Percent;
 using reseq::utilities::ReverseComplementorDna;
+using reseq::utilities::SetToMin;
 
+
+inline void Reference::PushBackExclusionRegion( pair<uintSeqLen, uintSeqLen> region, uintRefSeqId ref_seq, uintSeqLen maximum_fragment_length){
+	// If not all fragment length fit between the two regions, merge them
+	if(excluded_regions_.at(ref_seq).back().second + maximum_fragment_length <= region.first){
+		// Distance is big enough, insert new region
+		excluded_regions_.at(ref_seq).push_back(region);
+	}
+	else{
+		// Merge regions
+		auto it_first_merged_region = excluded_regions_.at(ref_seq).rbegin() + 1;
+		while( it_first_merged_region != excluded_regions_.at(ref_seq).rend() && (it_first_merged_region)->second + maximum_fragment_length > region.first ){
+			++it_first_merged_region;
+		}
+		--it_first_merged_region; // Go back to the element that needed merging
+
+		// Set new values to the first region that still needs to be merged
+		SetToMin(it_first_merged_region->first, region.first);
+		it_first_merged_region->second = max(excluded_regions_.at(ref_seq).back().second, region.second);
+
+		// Remove all the regions after it that are merged
+		excluded_regions_.at(ref_seq).resize( excluded_regions_.at(ref_seq).size() - distance(excluded_regions_.at(ref_seq).rbegin(), it_first_merged_region) );
+	}
+}
 
 bool Reference::CheckVcf() const{
 	auto contigs = contigNames(context(vcf_file_));
@@ -410,7 +436,7 @@ inline void Reference::AddFragmentSite(
 		sites.emplace_back(gc_perc, start_sur, end_sur);
 	}
 	else{
-		sites.emplace_back(); // Just a placeholder, so that the indexes in sites match starting positions(with the shift due to kMinDistToRefSeqEnds), will be removed after counts have been entered
+		sites.emplace_back(); // Just a placeholder, so that the indexes in sites match starting positions(with the shift due to kMinDistToContigEnds), will be removed after counts have been entered
 	}
 }
 
@@ -577,7 +603,7 @@ double Reference::SumBias(
 		double general_bias,
 		const Vect<double> &gc_bias,
 		const SurroundingBias &sur_bias) const{
-	// Ignores kMinDistToRefSeqEnds and does not account for N's as it is used for simulation only
+	// Ignores exclusion regions and does not account for N's as it is used for simulation only
 	double tot(0.0);
 
 	uintSeqLen n_count(0);
@@ -616,15 +642,16 @@ double Reference::SumBias(
 		double general_bias,
 		const Vect<double> &gc_bias,
 		const SurroundingBias &sur_bias) const{
-	// Uses kMinDistToRefSeqEnds as it is used for stats creation
+	// Uses exclusion regions as it is used for stats creation
 	double tot(0.0);
 
 	uintSeqLen n_count(0);
-	uintSeqLen gc = GCContentAbsolut(n_count, ref_seq_id, kMinDistToRefSeqEnds, kMinDistToRefSeqEnds+fragment_length);
+	uintSeqLen start_pos = excluded_regions_.at(ref_seq_id).front().second;
+	uintSeqLen gc = GCContentAbsolut(n_count, ref_seq_id, start_pos, start_pos+fragment_length);
 
 	Surrounding start_sur, end_sur;
-	ForwardSurroundingWithN(start_sur, ref_seq_id, kMinDistToRefSeqEnds);
-	ReverseSurroundingWithN(end_sur, ref_seq_id, kMinDistToRefSeqEnds+fragment_length-1);
+	ForwardSurroundingWithN(start_sur, ref_seq_id, start_pos);
+	ReverseSurroundingWithN(end_sur, ref_seq_id, start_pos+fragment_length-1);
 
 	if(start_sur.Valid() && end_sur.Valid()){
 		tot += Bias(general_bias, gc_bias[Percent(gc, fragment_length)], sur_bias.Bias(start_sur), sur_bias.Bias(end_sur));
@@ -632,10 +659,25 @@ double Reference::SumBias(
 	}
 
 	const Dna5String &ref_seq(ReferenceSequence(ref_seq_id));
-	for( uintSeqLen start_pos=kMinDistToRefSeqEnds; start_pos < seqan::length(ref_seq)-fragment_length-kMinDistToRefSeqEnds; ){
-		UpdateGC( gc, n_count, ref_seq, start_pos, start_pos+fragment_length );
-		end_sur.UpdateReverseWithN( ref_seq, start_pos+fragment_length );
-		start_sur.UpdateForwardWithN( ref_seq, ++start_pos );
+	uintSeqLen next_exclusion_region(1);
+	for( ; ++start_pos < length(ref_seq); ){
+		if(start_pos == excluded_regions_.at(ref_seq_id).at(next_exclusion_region).first-fragment_length+1){
+			// We hit an exclusion region, go to end of it
+			start_pos = excluded_regions_.at(ref_seq_id).at(next_exclusion_region++).second;
+
+			if(start_pos >= length(ref_seq)){
+				break;
+			}
+
+			gc = GCContentAbsolut(n_count, ref_seq_id, start_pos, start_pos+fragment_length);
+			ForwardSurroundingWithN(start_sur, ref_seq_id, start_pos);
+			ReverseSurroundingWithN(end_sur, ref_seq_id, start_pos+fragment_length-1);
+		}
+		else{
+			UpdateGC( gc, n_count, ref_seq, start_pos-1, start_pos+fragment_length-1 );
+			end_sur.UpdateReverseWithN( ref_seq, start_pos+fragment_length-1);
+			start_sur.UpdateForwardWithN( ref_seq, start_pos );
+		}
 
 		if(start_sur.Valid() && end_sur.Valid()){
 			// If 0==fragment_length-n_count surrounding would be invalid, so no check needed
@@ -648,12 +690,12 @@ double Reference::SumBias(
 }
 
 void Reference::GetFragmentSites( vector<FragmentSite> &sites, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintSeqLen start, uintSeqLen end ) const{
-	// Uses kMinDistToRefSeqEnds as it is used for stats creation
+	// Uses exclusion regions as it is used for stats creation
 	sites.clear();
 
 	const Dna5String &ref_seq(ReferenceSequence(ref_seq_id));
-	auto start_pos = max(kMinDistToRefSeqEnds, start);
-	auto end_pos = min(static_cast<uintSeqLen>(length(ref_seq))-fragment_length-kMinDistToRefSeqEnds, end-1);
+	auto start_pos = max(excluded_regions_.at(ref_seq_id).front().second, start);
+	auto end_pos = min(excluded_regions_.at(ref_seq_id).back().first-fragment_length+1, end);
 
 	uintSeqLen n_count(0);
 	uintSeqLen gc = GCContentAbsolut(n_count, ref_seq_id, start_pos, start_pos+fragment_length);
@@ -664,10 +706,30 @@ void Reference::GetFragmentSites( vector<FragmentSite> &sites, uintRefSeqId ref_
 
 	AddFragmentSite( sites, fragment_length, gc, n_count, start_sur, end_sur );
 
-	for( uintSeqLen frag_start=start_pos; frag_start < end_pos; ){
-		UpdateGC( gc, n_count, ref_seq, frag_start, frag_start+fragment_length );
-		end_sur.UpdateReverseWithN( ref_seq, frag_start+fragment_length );
-		start_sur.UpdateForwardWithN( ref_seq, ++frag_start );
+	auto next_exclusion_region = NextExclusionRegion(ref_seq_id, start_pos);
+
+	for( uintSeqLen frag_start=start_pos; ++frag_start < end_pos; ){
+		if(frag_start == excluded_regions_.at(ref_seq_id).at(next_exclusion_region).first-fragment_length+1){
+			// We hit an exclusion region, go to end of it
+			frag_start = excluded_regions_.at(ref_seq_id).at(next_exclusion_region++).second;
+
+			if(frag_start >= end_pos){
+				break;
+			}
+
+			// Add placeholder for the fragment length as corrected positions only handle the excluded regions themselves
+			sites.resize( sites.size()+fragment_length-1 );
+
+			// Set values to end of excluded region
+			gc = GCContentAbsolut(n_count, ref_seq_id, frag_start, frag_start+fragment_length);
+			ForwardSurroundingWithN(start_sur, ref_seq_id, frag_start);
+			ReverseSurroundingWithN(end_sur, ref_seq_id, frag_start+fragment_length-1);
+		}
+		else{
+			UpdateGC( gc, n_count, ref_seq, frag_start-1, frag_start+fragment_length-1 );
+			end_sur.UpdateReverseWithN( ref_seq, frag_start+fragment_length-1 );
+			start_sur.UpdateForwardWithN( ref_seq, frag_start );
+		}
 
 		AddFragmentSite( sites, fragment_length, gc, n_count, start_sur, end_sur );
 	}
@@ -770,6 +832,88 @@ bool Reference::WriteFasta(const char *fasta_file) const{
 	}
 
 	return success;
+}
+
+void Reference::PrepareExclusionRegions(){
+	excluded_regions_.resize( NumberSequences() );
+	sum_of_excluded_bases_.resize( NumberSequences() );
+	obtained_exclusion_regions_for_num_sequences_ = 0;
+	cleared_exclusion_regions_for_num_sequences_ = 0;
+}
+
+void Reference::ObtainExclusionRegions( uintRefSeqId end_ref_seq_id, uintSeqLen maximum_fragment_length ){
+	for(uintRefSeqId ref_seq = obtained_exclusion_regions_for_num_sequences_; ref_seq < end_ref_seq_id && ref_seq < NumberSequences(); ++ref_seq){
+		excluded_regions_.at(ref_seq).clear();
+
+		if(SequenceLength(ref_seq) < maximum_fragment_length + 2*kMinDistToContigEnds){
+			excluded_regions_.at(ref_seq).emplace_back(0, SequenceLength(ref_seq)); // Sequence is too short and completely excluded
+		}
+		else{
+			// Add first region of ref seq
+			uintSeqLen pos=0;
+			for(; pos < SequenceLength(ref_seq) && IsN(at(ReferenceSequence(ref_seq), pos)); ++pos); // Count starting N's
+			excluded_regions_.at(ref_seq).emplace_back(0,pos+kMinDistToContigEnds);
+
+			// Add regions in the middle of ref seq
+			uintSeqLen counted_ns(0);
+			for(; pos < SequenceLength(ref_seq); ++pos){
+				if( IsN(at(ReferenceSequence(ref_seq), pos)) ){
+					++counted_ns;
+				}
+				else{
+					if( kMinNToSplitContigs <= counted_ns ){
+						if( kMinDistToContigEnds < pos-counted_ns){
+							PushBackExclusionRegion({pos-counted_ns - kMinDistToContigEnds, pos + kMinDistToContigEnds}, ref_seq, maximum_fragment_length);
+						}
+						else{
+							PushBackExclusionRegion({0, pos + kMinDistToContigEnds}, ref_seq, maximum_fragment_length);
+						}
+					}
+
+					counted_ns = 0;
+				}
+
+			}
+
+			// Add last region of ref seq
+			PushBackExclusionRegion({SequenceLength(ref_seq) - counted_ns - kMinDistToContigEnds, SequenceLength(ref_seq)}, ref_seq, maximum_fragment_length);
+		}
+
+		// Sum excluded regions
+		sum_of_excluded_bases_.at(ref_seq) = 0;
+		for(auto &region : excluded_regions_.at(ref_seq) ){
+			sum_of_excluded_bases_.at(ref_seq) += region.second - region.first;
+		}
+
+		++obtained_exclusion_regions_for_num_sequences_;
+	}
+}
+
+bool Reference::FragmentExcluded( uintSeqLen &last_region_id, uintRefSeqId &last_ref_seq, uintRefSeqId ref_seq_id, uintSeqLen fragment_start, uintSeqLen fragment_end ) const{
+	// Check if fragment overlaps with an exclusion region
+	if(last_ref_seq != ref_seq_id){
+		if( last_ref_seq < ref_seq_id ){
+			last_region_id = 0;
+		}
+		else{
+			last_region_id = excluded_regions_.at(ref_seq_id).size()-1;
+		}
+
+		last_ref_seq = ref_seq_id;
+	}
+
+	// Find a region that starts before the fragment end
+	while( excluded_regions_.at(ref_seq_id).at(last_region_id).first >= fragment_end ){ // Cannot reach negative last_region_id, because first exclusion region starts at ref seq start
+		--last_region_id;
+	}
+
+	// Find a region that ends after the fragment start
+	while( excluded_regions_.at(ref_seq_id).at(last_region_id).second <= fragment_start ){ // Cannot reach over size of excluded_regions_, because last exclusion region end at ref seq end
+		++last_region_id;
+	}
+
+	// If an overlapping region exists last_region_id is now pointing at it
+	return excluded_regions_.at(ref_seq_id).at(last_region_id).first < fragment_end; // excluded_regions_.at(last_region_id).second > fragment_start is already valid
 }
 
 bool Reference::PrepareVariantFile(const string &var_file){

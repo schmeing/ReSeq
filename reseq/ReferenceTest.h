@@ -25,6 +25,7 @@ namespace reseq{
 		void TestSumBias();
 		void TestGetFragmentSites();
 		void TestReplaceN();
+		void TestExclusionRegions();
 	};
 }
 

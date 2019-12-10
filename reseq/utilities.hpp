@@ -51,7 +51,6 @@ namespace reseq{
 	typedef uint16_t uintTileId; // Tile ids
 
 	typedef int32_t intSeqShift; // Sequence length with direction information for shifts
-	typedef int32_t intSurrounding; // Stored surrounding value
 	typedef int32_t intVariantId; // Variant id, number, etc. (id can be invalid < 0)
 
 	typedef uint32_t uintCovCount; // Count for position coverage

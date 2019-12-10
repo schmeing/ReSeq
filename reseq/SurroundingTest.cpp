@@ -411,7 +411,7 @@ void SurroundingTest::TestModifiers(){
 
 void SurroundingTest::TestModifiersExtremCases(){
 	Surrounding surrounding;
-	intSurrounding comp_surrounding_full_t, comp_surrounding_full_a, comp_surrounding_start_a, comp_surrounding_end_a;
+	Surrounding::intType comp_surrounding_full_t, comp_surrounding_full_a, comp_surrounding_start_a, comp_surrounding_end_a;
 
 	comp_surrounding_full_t = Surrounding::Size()-1;
 	comp_surrounding_full_a = 0;

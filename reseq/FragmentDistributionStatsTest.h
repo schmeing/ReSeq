@@ -19,6 +19,9 @@ namespace reseq{
 	protected:
 		FragmentDistributionStats *test_;
 
+		void SetExlusionRegionsAtEnds();
+		void AddExlusionRegionsDrosophila();
+
 		void CreateTestObject(const Reference *ref);
 		void DeleteTestObject();
 

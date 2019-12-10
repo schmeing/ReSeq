@@ -15,16 +15,18 @@ using seqan::Dna;
 using seqan::DnaString;
 
 //include "utilities.hpp"
+using reseq::uintSurBlockId;
+using reseq::uintSurPos;
 using reseq::utilities::at;
 
 void Surrounding::ChangeSurroundingBase(uintSurPos pos, Dna new_base){
 	auto bit_in_block = 2*(kRange - (pos%kRange) - 1);
 	// ~ = bit-wise not
-	sur_.at(pos/kRange) = ( sur_.at(pos/kRange) & ~(3 << bit_in_block) ) + ( static_cast<intSurrounding>(new_base) << bit_in_block );
+	sur_.at(pos/kRange) = ( sur_.at(pos/kRange) & ~(3 << bit_in_block) ) + ( static_cast<intType>(new_base) << bit_in_block );
 }
 
 void Surrounding::DeleteSurroundingBaseShiftingOnRightSide(uintSurPos pos, Dna new_end_base){
-	intSurrounding new_base = new_end_base;
+	intType new_base = new_end_base;
 	auto del_block = pos/kRange;
 
 	// Add base at end and shift bases from end block to block with deletion
@@ -41,7 +43,7 @@ void Surrounding::DeleteSurroundingBaseShiftingOnRightSide(uintSurPos pos, Dna n
 }
 
 void Surrounding::DeleteSurroundingBaseShiftingOnLeftSide(uintSurPos pos, Dna new_end_base){
-	intSurrounding new_base = new_end_base;
+	intType new_base = new_end_base;
 	auto del_block = pos/kRange;
 
 	// Add base in front and shift bases from first block to block with deletion
@@ -71,7 +73,7 @@ void Surrounding::InsertSurroundingBasesShiftingOnRightSide(uintSurPos pos, DnaS
 	}
 
 	uintSurPos inv_pos_in_block = kRange - (pos%kRange);
-	intSurrounding tmp_sur = sur_.at(block) % (1 << 2*inv_pos_in_block); // Store everything that needs to be shifted out of the start block
+	intType tmp_sur = sur_.at(block) % (1 << 2*inv_pos_in_block); // Store everything that needs to be shifted out of the start block
 	sur_.at(block) >>= 2*inv_pos_in_block; // And remove it from the block
 	tmp_sur >>= 2*shift_bases; // Remove what was already shifted
 
@@ -136,7 +138,7 @@ void Surrounding::InsertSurroundingBasesShiftingOnLeftSide(uintSurPos pos, DnaSt
 	}
 
 	uintSurPos pos_in_block = pos%kRange+1; // 1-bases position in block
-	intSurrounding tmp_sur = sur_.at(block) % (1 << 2*(kRange-pos_in_block)); // Store everything that needs to stay in the start block
+	intType tmp_sur = sur_.at(block) % (1 << 2*(kRange-pos_in_block)); // Store everything that needs to stay in the start block
 	if(pos_in_block > shift_bases){
 		// Keep the stuff that is after the shift on the left before the insertion
 		sur_.at(block) >>= 2*(kRange-pos_in_block);
@@ -200,7 +202,7 @@ void SurroundingBias::CombinePositions(const array<double, 4*Surrounding::Length
 	for( uintSurBlockId block=0; block < Surrounding::kNumBlocks; ++block ){
 		bases.clear();
 		bases.resize(Surrounding::kRange+1, 0); // We need a buffer to catch the final increase in the loop so +1 here
-		for(intSurrounding sur=0; sur < Surrounding::Size(); ++sur){
+		for(Surrounding::intType sur=0; sur < Surrounding::Size(); ++sur){
 			// Bias for a surrounding is the sum/product of all biases from the given bases at its positions
 			for(pos=0; pos < Surrounding::kRange; ++pos){
 				bias_.at(block).at(sur) += separated.at(bases.at(Surrounding::kRange-1-pos) + pos*4 + block*Surrounding::kRange*4);
@@ -224,7 +226,7 @@ void SurroundingBias::SeparatePositions(array<double, 4*Surrounding::Length()> &
 	for( uintSurBlockId block=0; block < Surrounding::kNumBlocks; ++block ){
 		bases.clear();
 		bases.resize(Surrounding::kRange+1, 0); // We need a buffer to catch the final increase in the loop so +1 here
-		for(intSurrounding sur=0; sur < Surrounding::Size(); ++sur){
+		for(Surrounding::intType sur=0; sur < Surrounding::Size(); ++sur){
 			// Add surrounding bias to the corresponding base at each position
 			for(pos=0; pos < Surrounding::kRange; ++pos){
 				separated.at(bases.at(Surrounding::kRange-1-pos) + pos*4 + block*Surrounding::kRange*4) += bias_.at(block).at(sur);

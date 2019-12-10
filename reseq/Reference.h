@@ -14,7 +14,6 @@
 #include "utilities.hpp"
 #include "Vect.hpp"
 
-
 namespace reseq{
 	struct FragmentSite;
 
@@ -57,10 +56,12 @@ namespace reseq{
 		};
 #endif //SWIG
 
-		static const uintSeqLen kMinDistToRefSeqEnds = 50; // Minimum distance from reference sequence ends to be taken into account for statistics so mapping issues at the border are avoided
+		static const uintSeqLen kMinDistToContigEnds = 50; // Minimum distance from reference sequence ends to be taken into account for statistics so mapping issues at the border are avoided
 
 	private:
 		const uintSeqLen kMaxNInFragmentSite = 50; // The maximum number of n that is allowed in a fragment site to be counted for the bias calculation as it is highly likely that the fragment length and GC from those sites are wrong and highly unlikely that real fragments are found in this regions
+		const uintSeqLen kMinNToSplitContigs = 10; // At positions with minimum kMinNToSplitContigs N's scaffolds will be broken into contigs, which means kMinDistToContigEnds applies
+		const uintReadLen kMinMappedBases = 20; // How many bases need to map outside of a repeat region to still take the fragment into account
 		const uintErrorCount kMaxErrorsShownPerFile = 50;
 
 		seqan::StringSet<seqan::CharString> reference_ids_;
@@ -75,6 +76,13 @@ namespace reseq{
 		}
 
 #ifndef SWIG // This part is not needed for the python plotting
+		// Exclusion regions variables
+		std::atomic<uintRefSeqId> obtained_exclusion_regions_for_num_sequences_;
+		std::atomic<uintRefSeqId> cleared_exclusion_regions_for_num_sequences_;
+		std::vector<std::vector<std::pair<uintSeqLen,uintSeqLen>>> excluded_regions_; // excluded_regions_[RefSeqId][PositionSortedExclusionRegionID] = {Start,End}
+		std::vector<uintSeqLen> sum_of_excluded_bases_;
+
+		// Variants variables
 		uintAlleleId num_alleles_;
 		seqan::VcfFileIn vcf_file_;
 		seqan::VcfRecord cur_vcf_record_; // Already read but not yet handled vcf record (mostly the first of the next reference sequence, that is not yet prepared)
@@ -83,6 +91,10 @@ namespace reseq{
 		std::vector<std::vector<Reference::Variant>> variants_; // variants_[RefSeqId][PositionSortedVariantID] = {Position,VarSeq,[Yes/No per allele]}
 		std::vector<std::vector<uintSeqLen>> variant_positions_; // variant_positions_[RefSeqId][PositionSortedVariantID] = VariantPosition
 
+		// Exclusion regions private functions
+		inline void PushBackExclusionRegion( std::pair<uintSeqLen, uintSeqLen> region, uintRefSeqId ref_seq, uintSeqLen maximum_fragment_length);
+
+		// Variants private functions
 		bool CheckVcf() const;
 
 		template<typename T> void InsertVariant(uintRefSeqId ref_seq_id, uintSeqLen position, const T &var_seq, uintAlleleBitArray allele){
@@ -140,6 +152,7 @@ namespace reseq{
 
 		// Google test
 		friend class ReferenceTest;
+		friend class FragmentDistributionStatsTest;
 		friend class SimulatorTest;
 		friend class SurroundingTest;
 	public:
@@ -250,8 +263,8 @@ namespace reseq{
 		static inline double Bias( double ref_seq, double fragment_length, double gc, double start_sur, double end_sur ){
 			return Bias(ref_seq*fragment_length, gc, start_sur, end_sur);
 		}
-		double SumBias(std::vector<utilities::VectorAtomic<uintFragCount>> &gc_sites, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, double general_bias, const Vect<double> &gc_bias, const SurroundingBias &sur_bias) const;
 		double SumBias(double &max_bias, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, double general_bias, const Vect<double> &gc_bias, const SurroundingBias &sur_bias) const;
+		double SumBias(std::vector<utilities::VectorAtomic<uintFragCount>> &gc_sites, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, double general_bias, const Vect<double> &gc_bias, const SurroundingBias &sur_bias) const;
 		void GetFragmentSites(std::vector<FragmentSite> &sites, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintSeqLen start, uintSeqLen end) const;
 #endif //SWIG
 
@@ -261,6 +274,58 @@ namespace reseq{
 		bool WriteFasta(const char *fasta_file) const;
 
 #ifndef SWIG // This part is not needed for the python plotting
+		// Exclusion regions public functions
+		void PrepareExclusionRegions();
+		void ObtainExclusionRegions( uintRefSeqId end_ref_seq_id, uintSeqLen maximum_fragment_length );
+		inline bool ObtainedExclusionRegionsForSequence(uintRefSeqId ref_seq_id) const{ return obtained_exclusion_regions_for_num_sequences_ >= ref_seq_id; }
+		inline bool ExclusionRegionsCompletelyObtained() const{ return obtained_exclusion_regions_for_num_sequences_ >= NumberSequences(); }
+		bool FragmentExcluded( uintSeqLen &last_region_id, uintRefSeqId &last_ref_seq, uintRefSeqId ref_seq_id, uintSeqLen fragment_start, uintSeqLen fragment_end ) const;
+		bool ReferenceSequenceExcluded( uintRefSeqId ref_seq_id ) const{ return 1 == excluded_regions_.at(ref_seq_id).size(); }
+		uintSeqLen SumExcludedBases( uintRefSeqId ref_seq_id ) const{
+			return sum_of_excluded_bases_.at(ref_seq_id);
+		}
+		uintSeqLen NumExcludedRegions( uintRefSeqId ref_seq_id ) const{
+			return excluded_regions_.at(ref_seq_id).size();
+		}
+		uintSeqLen StartExclusion( uintRefSeqId ref_seq_id ) const{
+			return excluded_regions_.at(ref_seq_id).front().second;
+		}
+		uintSeqLen NextExclusionRegion(uintRefSeqId ref_seq_id, uintSeqLen position) const{
+			uintSeqLen next_exclusion_region(1);
+			while(position > excluded_regions_.at(ref_seq_id).at(next_exclusion_region).first){
+				++next_exclusion_region;
+			}
+			return next_exclusion_region;
+		}
+		void CorrectPositionAddingExcludedRegions(uintSeqLen &start_pos, uintSeqLen &next_exclusion_region, uintRefSeqId ref_seq) const{
+			while( start_pos >= excluded_regions_.at(ref_seq).at(next_exclusion_region).first ){ // We don't reach the end of the list because we don't test for the last bin (start of last bin is tested on second to last bin)
+				start_pos += excluded_regions_.at(ref_seq).at(next_exclusion_region).second - excluded_regions_.at(ref_seq).at(next_exclusion_region).first;
+				++next_exclusion_region;
+			}
+		}
+		void CorrectPositionRemovingExcludedRegions(uintSeqLen &correction, uintSeqLen &cur_exclusion_region, uintRefSeqId ref_seq_id, uintSeqLen position) const{
+			while( cur_exclusion_region+1 < NumExcludedRegions(ref_seq_id) && position > excluded_regions_.at(ref_seq_id).at(cur_exclusion_region+1).first ){
+				++cur_exclusion_region;
+				correction += excluded_regions_.at(ref_seq_id).at(cur_exclusion_region).second - excluded_regions_.at(ref_seq_id).at(cur_exclusion_region).first;
+			}
+
+			while( cur_exclusion_region && position < excluded_regions_.at(ref_seq_id).at(cur_exclusion_region).second ){
+				correction -= excluded_regions_.at(ref_seq_id).at(cur_exclusion_region).second - excluded_regions_.at(ref_seq_id).at(cur_exclusion_region).first;
+				--cur_exclusion_region;
+			}
+		}
+		inline void ClearExclusionRegions( uintRefSeqId end_ref_seq_id ){
+			while( cleared_exclusion_regions_for_num_sequences_ < end_ref_seq_id ){
+				excluded_regions_.at(cleared_exclusion_regions_for_num_sequences_).clear();
+				excluded_regions_.at(cleared_exclusion_regions_for_num_sequences_++).shrink_to_fit();
+			}
+		}
+		inline void ClearAllExclusionRegions(){
+			excluded_regions_.clear();
+			excluded_regions_.shrink_to_fit();
+		}
+
+		// Variants public functions
 		inline uintAlleleId NumAlleles() const{ return num_alleles_; }
 		inline bool VariantsLoaded() const{ return variants_.size(); }
 		inline bool VariantPositionsLoaded() const{ return variant_positions_.size(); }

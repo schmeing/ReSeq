@@ -81,7 +81,7 @@ bool  DataStats::RecordEqual::operator() (CoverageStats::FullRecord * const &lhs
 }
 
 inline bool DataStats::PotentiallyValidGeneral( const seqan::BamAlignmentRecord &record ) const{
-	return !hasFlagNextUnmapped(record) && !hasFlagUnmapped(record) && record.rNextId == record.rID && reference_->SequenceLength(record.rID) > maximum_insert_length_+2*Reference::kMinDistToRefSeqEnds;
+	return !hasFlagNextUnmapped(record) && !hasFlagUnmapped(record) && record.rNextId == record.rID && !reference_->ReferenceSequenceExcluded(record.rID);
 }
 inline bool DataStats::PotentiallyValidFirst( const seqan::BamAlignmentRecord &record_first ) const{
 	return PotentiallyValidGeneral(record_first) && record_first.beginPos + maximum_insert_length_ >= record_first.pNext;
@@ -379,7 +379,7 @@ bool DataStats::EvalReferenceStatistics(
 	return true;
 }
 
-bool DataStats::EvalRecord( pair<CoverageStats::FullRecord *, CoverageStats::FullRecord *> record ){
+bool DataStats::EvalRecord( pair<CoverageStats::FullRecord *, CoverageStats::FullRecord *> record, ThreadData &thread ){
 	// Start handling pair by determining tile(and counting it) and template segment
 	uintTileId tile_id;
 	if( !tiles_.GetTileId(tile_id, record.first->record_.qName) ){
@@ -442,7 +442,7 @@ bool DataStats::EvalRecord( pair<CoverageStats::FullRecord *, CoverageStats::Ful
 		}
 		else{
 			if( record.first->record_.rID == record.second->record_.rID ){
-				if( reference_->SequenceLength(record.first->record_.rID) > maximum_insert_length_+2*Reference::kMinDistToRefSeqEnds ){
+				if( !reference_->ReferenceSequenceExcluded(record.first->record_.rID) ){
 					uintSeqLen start_pos_first, start_pos_second, end_pos_first, end_pos_second;
 					GetReadPosOnReference(start_pos_first, end_pos_first, record.first->record_);
 					GetReadPosOnReference(start_pos_second, end_pos_second, record.second->record_);
@@ -463,17 +463,20 @@ bool DataStats::EvalRecord( pair<CoverageStats::FullRecord *, CoverageStats::Ful
 						end_pos_second = tmp2;
 					}
 
-					if(Reference::kMinDistToRefSeqEnds <= min(start_pos_first, start_pos_second) && reference_->SequenceLength(record.first->record_.rID)-max(end_pos_first, end_pos_second) >= Reference::kMinDistToRefSeqEnds ){
-						bool adapter_detected(false);
-						if(hasFlagRC(record.first->record_) && !hasFlagRC(record.second->record_) && end_pos_first > start_pos_second && end_pos_first - start_pos_second > (end_pos_first - start_pos_first)/2 ){
-							uintReadLen adapter_position_first, adapter_position_second;
-							// Reads in proper direction for adapters (reverse-forward) and overlap is large enough (minimum half of the read length)
-							adapters_.Detect(adapter_position_first, adapter_position_second, record.first->record_, record.second->record_, *reference_, true); // Call it just to insert the adapter stats, position is better known from mapping
-							adapter_detected = true;
-						}
+					bool adapter_detected(false);
+					if(hasFlagRC(record.first->record_) && !hasFlagRC(record.second->record_) && end_pos_first > start_pos_second && end_pos_first - start_pos_second > (end_pos_first - start_pos_first)/2 ){
+						adapter_detected = true;
+					}
 
-						if(InProperDirection( record.first->record_, end_pos_second, start_pos_first, start_pos_second ) || adapter_detected){
+					if(InProperDirection( record.first->record_, end_pos_second, start_pos_first, start_pos_second ) || adapter_detected){
+						if( (!adapter_detected && !reference_->FragmentExcluded( thread.last_exclusion_region_id_, thread.last_exclusion_ref_seq_, record.first->record_.rID, start_pos_first, end_pos_second )) || (adapter_detected && !reference_->FragmentExcluded( thread.last_exclusion_region_id_, thread.last_exclusion_ref_seq_, record.first->record_.rID, start_pos_second, end_pos_first )) ){
 							reads_used_ += 2;
+
+							if(adapter_detected ){
+								uintReadLen adapter_position_first, adapter_position_second;
+								// Reads in proper direction for adapters (reverse-forward) and overlap is large enough (minimum half of the read length)
+								adapters_.Detect(adapter_position_first, adapter_position_second, record.first->record_, record.second->record_, *reference_, true); // Call it just to insert the adapter stats, position is better known from mapping
+							}
 
 							CoverageStats::CoverageBlock *coverage_block;
 							// Pair stats
@@ -490,7 +493,7 @@ bool DataStats::EvalRecord( pair<CoverageStats::FullRecord *, CoverageStats::Ful
 								record.first->to_ref_pos_ = end_pos_first;
 								record.second->to_ref_pos_ = end_pos_first;
 
-								fragment_distribution_.AddFragmentSite(record.first->record_.rID, insert_length, record.first->from_ref_pos_, template_segment, *reference_); // If second record(must be forward to be accepted due to adapter) is sequenced second, fragment is reversed
+								fragment_distribution_.AddFragmentSite(record.first->record_.rID, insert_length, record.first->from_ref_pos_, template_segment, *reference_, thread.fragment_distribution_); // If second record(must be forward to be accepted due to adapter) is sequenced second, fragment is reversed
 							}
 							else{
 								insert_length = end_pos_second - start_pos_first;
@@ -504,7 +507,7 @@ bool DataStats::EvalRecord( pair<CoverageStats::FullRecord *, CoverageStats::Ful
 								record.first->to_ref_pos_ = end_pos_first;
 								record.second->to_ref_pos_ = end_pos_second;
 
-								fragment_distribution_.AddFragmentSite(record.first->record_.rID, insert_length, record.first->from_ref_pos_, (template_segment+1)%2, *reference_); // If first record(must be forward to be accepted without adapters) is sequenced second, fragment is reversed
+								fragment_distribution_.AddFragmentSite(record.first->record_.rID, insert_length, record.first->from_ref_pos_, (template_segment+1)%2, *reference_, thread.fragment_distribution_); // If first record(must be forward to be accepted without adapters) is sequenced second, fragment is reversed
 							}
 
 							fragment_distribution_.AddAbundance(record.first->record_.rID);
@@ -525,9 +528,9 @@ bool DataStats::EvalRecord( pair<CoverageStats::FullRecord *, CoverageStats::Ful
 								return false;
 							}
 						}
-					}
-					else{
-						reads_to_close_to_ref_seq_ends_ += 2;
+						else{
+							reads_in_excluded_regions_ += 2;
+						}
 					}
 				}
 				else{
@@ -550,7 +553,7 @@ bool DataStats::SignsOfPairsWithNamesNotIdentical(){
 	return false;
 }
 
-void DataStats::PrepareReadIn(uintQual size_mapping_quality, uintReadLen size_indel){
+void DataStats::PrepareReadIn(uintQual size_mapping_quality, uintReadLen size_indel, uintSeqLen max_ref_seq_bin_size){
 	uintReadLen size_pos = max(read_lengths_.at(0).to(), read_lengths_.at(1).to());
 
 	uintFragCount num_reads(0);
@@ -565,7 +568,7 @@ void DataStats::PrepareReadIn(uintQual size_mapping_quality, uintReadLen size_in
 	coverage_.Prepare( Divide(num_bases,reference_->TotalSize()), Divide(num_bases,num_reads), maximum_read_length_on_reference_ );
 	duplicates_.PrepareTmpDuplicationVector(maximum_insert_length_);
 	errors_.Prepare(tiles_.NumTiles(), maximum_quality_+1, size_pos, size_indel);
-	fragment_distribution_.Prepare(*reference_, maximum_insert_length_, reads_per_ref_seq_bin_);
+	fragment_distribution_.Prepare(*reference_, maximum_insert_length_, max_ref_seq_bin_size, reads_per_frag_len_bin_);
 	qualities_.Prepare(tiles_.NumTiles(), maximum_quality_+1, size_pos, maximum_insert_length_);
 
 	// Prepare vector in this class
@@ -676,7 +679,7 @@ bool DataStats::OrderOfBamFileCorrect(const seqan::BamAlignmentRecord &record, p
 	return true;
 }
 
-bool DataStats::PreRun(BamFileIn &bam, const char *bam_file, BamHeader &header, uintQual &size_mapping_quality, uintReadLen &size_indel, uintSeqLen max_ref_seq_bin_size){
+bool DataStats::PreRun(BamFileIn &bam, const char *bam_file, BamHeader &header, uintQual &size_mapping_quality, uintReadLen &size_indel){
 	printInfo << "Starting PreRun" << std::endl;
 
 	bool error = false;
@@ -687,8 +690,13 @@ bool DataStats::PreRun(BamFileIn &bam, const char *bam_file, BamHeader &header, 
 	uintQual min_mapq(255), max_mapq(0);
 	size_indel = 0;
 
-	auto num_ref_bins = fragment_distribution_.CreateRefBins(*reference_, max_ref_seq_bin_size);
-	reads_per_ref_seq_bin_.resize(num_ref_bins);
+	uintRefLenCalc num_bins(0);
+	for(auto ref_seq = reference_->NumberSequences(); ref_seq--; ){
+		num_bins += reference_->SequenceLength(ref_seq)/maximum_insert_length_ + 1;
+	}
+	reads_per_frag_len_bin_.resize(num_bins);
+	uintRefSeqId cur_ref_seq(0);
+	uintRefLenCalc ref_seq_start_bin(0);
 
 	do{
 		try{
@@ -709,27 +717,16 @@ bool DataStats::PreRun(BamFileIn &bam, const char *bam_file, BamHeader &header, 
 						}
 
 						// Determine read length range on reference
-						if(!hasFlagUnmapped(record)){
+						if(PotentiallyValid(record)){ // Does not include excluded sequences, but does not crash when vector is created before, so it's ok
 							read_length_on_reference = GetReadLengthOnReference(record, size_indel);
 							SetToMax(maximum_read_length_on_reference_, read_length_on_reference);
 							SetToMin(minimum_read_length_on_reference_, read_length_on_reference);
 
-							auto ref_bin = fragment_distribution_.GetRefSeqBin(record.rID, record.beginPos, *reference_);
-							++reads_per_ref_seq_bin_.at(ref_bin);
-
-							// Check if it is close to the border of a bin in which case add it to the other bin as well
-							if(record.beginPos+maximum_insert_length_ < reference_->SequenceLength(record.rID)){
-								auto ref_bin2 = fragment_distribution_.GetRefSeqBin(record.rID, record.beginPos+maximum_insert_length_, *reference_);
-								if(ref_bin2 != ref_bin){
-									++reads_per_ref_seq_bin_.at(ref_bin2);
-								}
+							while(record.rID > cur_ref_seq){
+								ref_seq_start_bin += reference_->SequenceLength(cur_ref_seq)/maximum_insert_length_ + 1;
+								++cur_ref_seq;
 							}
-							if(record.beginPos>=maximum_insert_length_){
-								auto ref_bin2 = fragment_distribution_.GetRefSeqBin(record.rID, record.beginPos-maximum_insert_length_, *reference_);
-								if(ref_bin2 != ref_bin){
-									++reads_per_ref_seq_bin_.at(ref_bin2);
-								}
-							}
+							++reads_per_frag_len_bin_.at( ref_seq_start_bin + record.beginPos/maximum_insert_length_ );
 						}
 
 						// Determine quality range
@@ -823,7 +820,7 @@ bool DataStats::ReadRecords( BamFileIn &bam, bool &not_done, ThreadData &thread_
 			else{
 				if( PotentiallyValid(record->record_) ){
 					// Use record->record_.beginPos-maximum_read_length_on_reference_ as start, because of potentially soft-clipped bases at the beginning
-					if( !coverage_.EnsureSpace(record->record_.rID, (record->record_.beginPos>maximum_read_length_on_reference_?record->record_.beginPos-maximum_read_length_on_reference_:0), record->record_.beginPos+maximum_read_length_on_reference_, record, *reference_, maximum_insert_length_+2*Reference::kMinDistToRefSeqEnds) ){
+					if( !coverage_.EnsureSpace(record->record_.rID, (record->record_.beginPos>maximum_read_length_on_reference_?record->record_.beginPos-maximum_read_length_on_reference_:0), record->record_.beginPos+maximum_read_length_on_reference_, record, *reference_) ){
 						return false;
 					}
 				}
@@ -855,7 +852,7 @@ void DataStats::ReadThread( DataStats &self, BamFileIn &bam, uintSeqLen max_seq_
 	CoverageStats::CoverageBlock *cov_block;
 	uintFragCount processed_fragments(0);
 	bool not_done(true);
-	ThreadData thread_data( self.maximum_insert_length_, max_seq_bin_len );
+	ThreadData thread_data( self.maximum_insert_length_, max_seq_bin_len, self.reference_->StartExclusion(0) );
 	thread_data.rec_store_.reserve(self.kBatchSize);
 	uintRefSeqId still_needed_reference_sequence(0);
 	uintSeqLen still_needed_position(0);
@@ -873,7 +870,7 @@ void DataStats::ReadThread( DataStats &self, BamFileIn &bam, uintSeqLen max_seq_
 				// Set to_ref_pos for valid reads, that to_ref_pos==0 is used in coverage_.CleanUp to remove the non-valid reads
 				// Calculate all the statistics that are independent of other reads
 				// Fills the coverage information in the coverage blocks
-				if(self.EvalRecord(rec)){
+				if(self.EvalRecord(rec, thread_data)){
 					if( self.PotentiallyValidFirst(rec.first->record_) ){
 						// coverage_.RemoveFragment
 						// Marks the reads as processed in the first block of first read, so the fully processed coverage blocks can be handled after all reads are processed
@@ -917,7 +914,7 @@ void DataStats::ReadThread( DataStats &self, BamFileIn &bam, uintSeqLen max_seq_
 		self.finish_threads_cv_.notify_all();
 
 		// This finalization might take a bit of time so do it already here
-		if( !self.coverage_.Finalize(*self.reference_, self.qualities_, self.errors_, self.phred_quality_offset_, self.maximum_insert_length_+2*Reference::kMinDistToRefSeqEnds, self.print_mutex_) ){
+		if( !self.coverage_.Finalize(*self.reference_, self.qualities_, self.errors_, self.phred_quality_offset_, self.print_mutex_) ){
 			self.reading_success_ = false;
 		}
 	}
@@ -945,7 +942,7 @@ DataStats::DataStats(Reference *ref, uintSeqLen maximum_insert_length, uintQual 
 	reads_in_unmapped_pairs_with_adapters_(0),
 	reads_with_low_quality_(0),
 	reads_on_too_short_fragments_(0),
-	reads_to_close_to_ref_seq_ends_(0),
+	reads_in_excluded_regions_(0),
 	reads_used_(0){
 	for( uintTempSeq template_segment=2; template_segment--; ){
 		read_lengths_.at(template_segment).SetOffset(1); // As a read with length of 0 cannot be considered a read, this length can be excluded right from the start
@@ -1097,8 +1094,13 @@ bool DataStats::ReadBam( const char *bam_file, const char *adapter_file, const c
 					if(reference_ordering_identical){
 						uintQual size_mapping_quality;
 						uintReadLen size_indel;
-						if( PreRun(bam, bam_file, header, size_mapping_quality, size_indel, max_ref_seq_bin_size) ){
+
+						reference_->PrepareExclusionRegions();
+
+						if( PreRun(bam, bam_file, header, size_mapping_quality, size_indel) ){
 							if( adapters_.LoadAdapters( adapter_file, adapter_matrix, phred_quality_offset_, std::max(read_lengths_.at(0).to(), read_lengths_.at(1).to())) ){
+								reference_->ObtainExclusionRegions(reference_->NumberSequences(), maximum_insert_length_); // At the end we need all of them together anyways, so it makes no sense to read them in one after another
+
 								if(!variant_file.empty()){
 									if(reference_->PrepareVariantFile(variant_file)){
 										if(!reference_->ReadFirstVariantPositions()){
@@ -1111,7 +1113,7 @@ bool DataStats::ReadBam( const char *bam_file, const char *adapter_file, const c
 								}
 
 								if(success){
-									PrepareReadIn(size_mapping_quality, size_indel);
+									PrepareReadIn(size_mapping_quality, size_indel, max_ref_seq_bin_size);
 
 									printInfo << "Starting main read-in" << std::endl;
 
@@ -1119,6 +1121,7 @@ bool DataStats::ReadBam( const char *bam_file, const char *adapter_file, const c
 									thread threads[num_threads];
 									running_threads_ = num_threads;
 									finish_threads_ = false;
+
 									for(auto i = num_threads; i--; ){
 										threads[i] = thread(ReadThread, std::ref(*this), std::ref(bam), max_seq_bin_len);
 									}
@@ -1158,12 +1161,12 @@ bool DataStats::ReadBam( const char *bam_file, const char *adapter_file, const c
 
 	reference_->ClearAllVariantPositions();
 
-	uintFragCount reads_in_wrong_place = total_number_reads_ - reads_in_unmapped_pairs_without_adapters_ - reads_in_unmapped_pairs_with_adapters_ - reads_with_low_quality_ - reads_on_too_short_fragments_ - reads_to_close_to_ref_seq_ends_ - reads_used_;
+	uintFragCount reads_in_wrong_place = total_number_reads_ - reads_in_unmapped_pairs_without_adapters_ - reads_in_unmapped_pairs_with_adapters_ - reads_with_low_quality_ - reads_on_too_short_fragments_ - reads_in_excluded_regions_ - reads_used_;
 	printInfo << "Of the " << total_number_reads_ << " reads in the file" << std::endl;
 	printInfo << reads_used_ << " (" << static_cast<uintPercentPrint>(Percent(reads_used_, total_number_reads_)) << "\%) could be used for all statistics" << std::endl;
 	printInfo << reads_with_low_quality_ << " (" << static_cast<uintPercentPrint>(Percent(reads_with_low_quality_, total_number_reads_)) << "\%) had too low mapping qualities" << std::endl;
 	printInfo << reads_on_too_short_fragments_ << " (" << static_cast<uintPercentPrint>(Percent(reads_on_too_short_fragments_, total_number_reads_)) << "\%) are on reference sequences that are too short" << std::endl;
-	printInfo << reads_to_close_to_ref_seq_ends_ << " (" << static_cast<uintPercentPrint>(Percent(reads_to_close_to_ref_seq_ends_, total_number_reads_)) << "\%) mapped to close to the ends of a reference sequence" << std::endl;
+	printInfo << reads_in_excluded_regions_ << " (" << static_cast<uintPercentPrint>(Percent(reads_in_excluded_regions_, total_number_reads_)) << "\%) mapped to excluded regions of the reference" << std::endl;
 	printInfo << reads_in_wrong_place << " (" << static_cast<uintPercentPrint>(Percent(reads_in_wrong_place, total_number_reads_)) << "\%) were mapping too far apart from their partner or in wrong direction" << std::endl;
 	printInfo << reads_in_unmapped_pairs_with_adapters_ << " (" << static_cast<uintPercentPrint>(Percent(reads_in_unmapped_pairs_with_adapters_, total_number_reads_)) << "\%) were in an unmapped pair with adapters detected" << std::endl;
 	printInfo << reads_in_unmapped_pairs_without_adapters_ << " (" << static_cast<uintPercentPrint>(Percent(reads_in_unmapped_pairs_without_adapters_, total_number_reads_)) << "\%) were in an unmapped pair without adapters detected" << std::endl;
@@ -1183,6 +1186,8 @@ bool DataStats::ReadBam( const char *bam_file, const char *adapter_file, const c
 		total_number_reads_ = 0; // Marking that the reading in was not successful
 		return false;
 	}
+
+	reference_->ClearAllExclusionRegions(); // Don't remove any of it earlier because we still need all of them in Calculate
 
 	return true;
 }

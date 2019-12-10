@@ -90,8 +90,8 @@ void CoverageStats::EvalRead( FullRecord *record, CoverageStats::CoverageBlock *
 						}
 						else{
 							if(0 > coverage_pos){
-								error_rate = coverage_block->previous_coverage_.at(-1*coverage_pos).error_rate_.at(hasFlagRC(record->record_));
-								dom_error = coverage_block->previous_coverage_.at(-1*coverage_pos).dom_error_.at(hasFlagRC(record->record_));
+								error_rate = coverage_block->previous_coverage_.at(-1*coverage_pos-1).error_rate_.at(hasFlagRC(record->record_));
+								dom_error = coverage_block->previous_coverage_.at(-1*coverage_pos-1).dom_error_.at(hasFlagRC(record->record_));
 							}
 							else{
 								error_rate = coverage_block->coverage_.at(coverage_pos).error_rate_.at(hasFlagRC(record->record_));
@@ -99,6 +99,7 @@ void CoverageStats::EvalRead( FullRecord *record, CoverageStats::CoverageBlock *
 							}
 							qualities.AddRefBase(hasFlagLast(record->record_), ref_base, dom_error, record->tile_id_, qual, error_rate, last_qual, record->sequence_quality_, read_pos);
 							errors.AddBase(hasFlagLast(record->record_), ref_base, dom_error, record->tile_id_, base, qual, read_pos, num_errors, error_rate);
+
 							error_rate_sum += error_rate;
 
 							if( ref_base != base ){
@@ -133,12 +134,12 @@ void CoverageStats::EvalRead( FullRecord *record, CoverageStats::CoverageBlock *
 							ref_base = at(reference.ReferenceSequence(record->record_.rID), ref_pos);
 						}
 
-						if( CoveragePosValid(coverage_pos, coverage_block) ){
+						if( !CoveragePosValid(coverage_pos, coverage_block) ){
 							++(not_considered_ref_bases);
 						}
 						else{
 							if(0 > coverage_pos){
-								error_rate_sum += coverage_block->previous_coverage_.at(-1*coverage_pos).error_rate_.at(hasFlagRC(record->record_));
+								error_rate_sum += coverage_block->previous_coverage_.at(-1*coverage_pos-1).error_rate_.at(hasFlagRC(record->record_));
 							}
 							else{
 								error_rate_sum += coverage_block->coverage_.at(coverage_pos).error_rate_.at(hasFlagRC(record->record_));
@@ -186,10 +187,12 @@ void CoverageStats::EvalRead( FullRecord *record, CoverageStats::CoverageBlock *
 	delete record;
 }
 
-inline void CoverageStats::UpdateZeroCoverageRegion(intFragCountShift zero_coverage_length){
-	tmp_coverage_.at( 0 ) += zero_coverage_length;
+inline void CoverageStats::ApplyZeroCoverageRegion(){
+	tmp_coverage_.at( 0 ) += zero_coverage_region_;
+	tmp_coverage_.at( 0 ) -= excluded_bases_;
 	for( int strand=2; strand--; ){
-		tmp_coverage_stranded_.at(strand).at(0) += zero_coverage_length;
+		tmp_coverage_stranded_.at(strand).at(0) += zero_coverage_region_;
+		tmp_coverage_stranded_.at(strand).at(0) -= excluded_bases_;
 	}
 }
 
@@ -708,7 +711,7 @@ CoverageStats::CoverageBlock *CoverageStats::FindBlock(uintRefSeqId ref_seq_id, 
 	return block;
 }
 
-bool CoverageStats::EnsureSpace(uintRefSeqId ref_seq_id, uintSeqLen start_pos, uintSeqLen end_pos, FullRecord *record, Reference &reference, uintReadLen minimum_sequence_length){
+bool CoverageStats::EnsureSpace(uintRefSeqId ref_seq_id, uintSeqLen start_pos, uintSeqLen end_pos, FullRecord *record, Reference &reference){
 	// Make sure the variation for the given reference sequence is already loaded
 	if( reference.VariantPositionsLoaded() && !reference.VariantPositionsLoadedForSequence(ref_seq_id) ){
 		lock_guard<mutex> lock(variant_loading_mutex_);
@@ -726,16 +729,15 @@ bool CoverageStats::EnsureSpace(uintRefSeqId ref_seq_id, uintSeqLen start_pos, u
 
 			// Account for the not covered reference sequences in between
 			for( auto seq_id = ref_seq_id; --seq_id > (*last_block_).sequence_id_ ; ){
-				if(reference.SequenceLength(seq_id) > minimum_sequence_length ){
-					zero_coverage_region_ += reference.SequenceLength(seq_id);
-				}
-				else{
-					zero_coverage_region_ += 2*Reference::kMinDistToRefSeqEnds; // This is what we remove later from every sequence, so make sure we get to zero and not below
-				}
+				zero_coverage_region_ += reference.SequenceLength(seq_id);
+				excluded_bases_ += reference.SumExcludedBases(seq_id);
+				num_exclusion_regions_ += reference.NumExcludedRegions(seq_id);
 			}
 
 			// Account for the not covered region in the current reference sequence before the first position
 			zero_coverage_region_ += start_pos;
+			excluded_bases_ += reference.SumExcludedBases(ref_seq_id);
+			num_exclusion_regions_ += reference.NumExcludedRegions(ref_seq_id);
 
 			// Create first block of next reference sequence
 			last_block_ = CreateBlock(ref_seq_id, start_pos);
@@ -755,16 +757,15 @@ bool CoverageStats::EnsureSpace(uintRefSeqId ref_seq_id, uintSeqLen start_pos, u
 		// Initialize first block
 		// Account for the not covered reference sequences before the first position
 		for( auto seq_id = ref_seq_id; seq_id-- ; ){
-			if(reference.SequenceLength(seq_id) > minimum_sequence_length ){
-				zero_coverage_region_ += reference.SequenceLength(seq_id);
-			}
-			else{
-				zero_coverage_region_ += 2*Reference::kMinDistToRefSeqEnds; // This is what we remove later from every sequence, so make sure we get to zero and not below
-			}
+			zero_coverage_region_ += reference.SequenceLength(seq_id);
+			excluded_bases_ += reference.SumExcludedBases(seq_id);
+			num_exclusion_regions_ += reference.NumExcludedRegions(seq_id);
 		}
 
 		// Account for the not covered region in the current reference sequence before the first position
 		zero_coverage_region_ += start_pos;
+		excluded_bases_ += reference.SumExcludedBases(ref_seq_id);
+		num_exclusion_regions_ += reference.NumExcludedRegions(ref_seq_id);
 
 		// Create new block
 		first_block_ = new CoverageBlock(ref_seq_id, start_pos, NULL);
@@ -897,7 +898,7 @@ bool CoverageStats::PreLoadVariants(Reference &reference){
 	return true;
 }
 
-bool CoverageStats::Finalize(const Reference &reference, QualityStats &qualities, ErrorStats &errors, uintQual phred_quality_offset, uintReadLen minimum_sequence_length, mutex &print_mutex){
+bool CoverageStats::Finalize(const Reference &reference, QualityStats &qualities, ErrorStats &errors, uintQual phred_quality_offset, mutex &print_mutex){
 	// Remove all reusable_blocks_ as they are not needed anymore
 	for( auto block : reusable_blocks_ ){
 		delete block;
@@ -911,12 +912,9 @@ bool CoverageStats::Finalize(const Reference &reference, QualityStats &qualities
 			CountEmptyEndOfSequence(reference);
 
 			for( auto seq_id = (*last_block_).sequence_id_+1; seq_id < reference.NumberSequences(); ++seq_id ){
-				if( reference.SequenceLength(seq_id) > minimum_sequence_length ){
-					zero_coverage_region_ += reference.SequenceLength(seq_id);
-				}
-				else{
-					zero_coverage_region_ += 2*Reference::kMinDistToRefSeqEnds; // This is what we remove later from every sequence, so make sure we get to zero and not below
-				}
+				zero_coverage_region_ += reference.SequenceLength(seq_id);
+				excluded_bases_ += reference.SumExcludedBases(seq_id);
+				num_exclusion_regions_ += reference.NumExcludedRegions(seq_id);
 			}
 
 			// Update coverage of remaining blocks and delete them
@@ -961,9 +959,11 @@ bool CoverageStats::Finalize(const Reference &reference, QualityStats &qualities
 	{
 		lock_guard<mutex> lock(print_mutex);
 		printInfo << "Needed to create " << final_num_blocks << " coverage blocks." << std::endl;
+		auto total_size = reference.TotalSize();
+		printInfo << "Excluded " << excluded_bases_ << " of " << total_size << " bases [" << static_cast<uintPercentPrint>(Percent(excluded_bases_, total_size)) << "%] in the reference due to repeats and N's distributed over " << num_exclusion_regions_ << " regions." << std::endl;
 	}
 
-	UpdateZeroCoverageRegion(zero_coverage_region_-2*Reference::kMinDistToRefSeqEnds*reference.NumberSequences()); // Subtract excluded region due to minimum distance to reference sequence ends for accepting fragments
+	ApplyZeroCoverageRegion();
 	tmp_errors_forward_.shrink_to_fit();
 	tmp_errors_reverse_.shrink_to_fit();
 
