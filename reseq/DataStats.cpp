@@ -125,8 +125,8 @@ bool DataStats::CheckForAdapters(const seqan::BamAlignmentRecord &record_first, 
 	if(adapter_detected){
 		auto insert_length = MeanWithRoundingToFirst(adapter_position_first,adapter_position_second);
 		fragment_distribution_.AddInsertLengths(insert_length);
-		++tmp_read_lengths_by_fragment_length_.at(0).at(insert_length).at(length(record_first.seq));
-		++tmp_read_lengths_by_fragment_length_.at(1).at(insert_length).at(length(record_second.seq));
+		++tmp_non_mapped_read_lengths_by_fragment_length_.at(0).at(insert_length).at(length(record_first.seq));
+		++tmp_non_mapped_read_lengths_by_fragment_length_.at(1).at(insert_length).at(length(record_second.seq));
 
 		return true;
 	}
@@ -578,6 +578,7 @@ void DataStats::PrepareReadIn(uintQual size_mapping_quality, uintReadLen size_in
 
 	for( auto template_segment=2; template_segment--; ){
 		SetDimensions( tmp_read_lengths_by_fragment_length_.at(template_segment), maximum_insert_length_+1, size_pos );
+		SetDimensions( tmp_non_mapped_read_lengths_by_fragment_length_.at(template_segment), maximum_insert_length_+1, size_pos );
 
 		tmp_gc_read_content_.at(template_segment).resize(101);
 		tmp_gc_read_content_reference_.at(template_segment).resize(101);
@@ -613,6 +614,13 @@ bool DataStats::FinishReadIn(){
 	single_read_mapping_quality_.Acquire(tmp_single_read_mapping_quality_);
 
 	for( auto template_segment=2; template_segment--; ){
+		non_mapped_read_lengths_by_fragment_length_.at(template_segment).Acquire(tmp_non_mapped_read_lengths_by_fragment_length_.at(template_segment));
+		ShrinkVect(non_mapped_read_lengths_by_fragment_length_.at(template_segment));
+		for(auto frag_len = non_mapped_read_lengths_by_fragment_length_.at(template_segment).from(); frag_len < non_mapped_read_lengths_by_fragment_length_.at(template_segment).to(); ++frag_len){
+			for(auto read_len = non_mapped_read_lengths_by_fragment_length_.at(template_segment).at(frag_len).from(); read_len < non_mapped_read_lengths_by_fragment_length_.at(template_segment).at(frag_len).to(); ++read_len){
+				tmp_read_lengths_by_fragment_length_.at(template_segment).at(frag_len).at(read_len) += non_mapped_read_lengths_by_fragment_length_.at(template_segment).at(frag_len).at(read_len);
+			}
+		}
 		read_lengths_by_fragment_length_.at(template_segment).Acquire(tmp_read_lengths_by_fragment_length_.at(template_segment));
 
 		gc_read_content_.at(template_segment).Acquire(tmp_gc_read_content_.at(template_segment));
@@ -717,7 +725,7 @@ bool DataStats::PreRun(BamFileIn &bam, const char *bam_file, BamHeader &header, 
 						}
 
 						// Determine read length range on reference
-						if(PotentiallyValid(record)){ // Does not include excluded sequences, but does not crash when vector is created before, so it's ok
+						if(PotentiallyValid(record)){
 							read_length_on_reference = GetReadLengthOnReference(record, size_indel);
 							SetToMax(maximum_read_length_on_reference_, read_length_on_reference);
 							SetToMin(minimum_read_length_on_reference_, read_length_on_reference);
@@ -1096,11 +1104,10 @@ bool DataStats::ReadBam( const char *bam_file, const char *adapter_file, const c
 						uintReadLen size_indel;
 
 						reference_->PrepareExclusionRegions();
+						reference_->ObtainExclusionRegions(reference_->NumberSequences(), maximum_insert_length_); // At the end we need all of them together anyways, so it makes no sense to read them in one after another
 
 						if( PreRun(bam, bam_file, header, size_mapping_quality, size_indel) ){
 							if( adapters_.LoadAdapters( adapter_file, adapter_matrix, phred_quality_offset_, std::max(read_lengths_.at(0).to(), read_lengths_.at(1).to())) ){
-								reference_->ObtainExclusionRegions(reference_->NumberSequences(), maximum_insert_length_); // At the end we need all of them together anyways, so it makes no sense to read them in one after another
-
 								if(!variant_file.empty()){
 									if(reference_->PrepareVariantFile(variant_file)){
 										if(!reference_->ReadFirstVariantPositions()){

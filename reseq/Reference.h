@@ -61,7 +61,6 @@ namespace reseq{
 	private:
 		const uintSeqLen kMaxNInFragmentSite = 50; // The maximum number of n that is allowed in a fragment site to be counted for the bias calculation as it is highly likely that the fragment length and GC from those sites are wrong and highly unlikely that real fragments are found in this regions
 		const uintSeqLen kMinNToSplitContigs = 10; // At positions with minimum kMinNToSplitContigs N's scaffolds will be broken into contigs, which means kMinDistToContigEnds applies
-		const uintReadLen kMinMappedBases = 20; // How many bases need to map outside of a repeat region to still take the fragment into account
 		const uintErrorCount kMaxErrorsShownPerFile = 50;
 
 		seqan::StringSet<seqan::CharString> reference_ids_;

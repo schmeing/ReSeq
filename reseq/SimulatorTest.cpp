@@ -43,12 +43,13 @@ void SimulatorTest::TestCoverageConversion(){
 
 	stats.read_lengths_by_fragment_length_.at(1)[200][150] = 10;
 	stats.read_lengths_by_fragment_length_.at(0)[150][150] = 10;
-	stats.read_lengths_by_fragment_length_.at(1)[100][150] = 5;
-	stats.read_lengths_by_fragment_length_.at(1)[50][150] = 5;
-	stats.read_lengths_by_fragment_length_.at(0)[0][150] = 10;
+	stats.read_lengths_by_fragment_length_.at(1)[100][150] = 5; // 5*50
+	stats.read_lengths_by_fragment_length_.at(1)[50][150] = 10; // (10-5)*100 [-5 due to next line]
+	stats.non_mapped_read_lengths_by_fragment_length_.at(1)[50][150] = 5; // 5*150
+	stats.read_lengths_by_fragment_length_.at(0)[0][150] = 10; // 10*150
 
 	double adapter_part = test_->CoveragePropLostFromAdapters(stats);
-	EXPECT_DOUBLE_EQ( 2250.0/(40*150), adapter_part );
+	EXPECT_DOUBLE_EQ( 3000.0/(45*150), adapter_part );
 
 	// CoverageToNumberPairs
 	double coverage = 100;
@@ -56,7 +57,7 @@ void SimulatorTest::TestCoverageConversion(){
 	double average_read_length = 150;
 
 	uintFragCount total_pairs = test_->CoverageToNumberPairs(coverage, total_ref_size, average_read_length, adapter_part);
-	EXPECT_EQ( 26667, total_pairs );
+	EXPECT_EQ( 30000, total_pairs );
 
 	// NumberPairsToCoverage
 	EXPECT_NEAR( coverage, test_->NumberPairsToCoverage(total_pairs, total_ref_size, average_read_length, adapter_part), 0.01 );

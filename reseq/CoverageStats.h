@@ -443,6 +443,21 @@ namespace reseq{
 
 		void Shrink();
 		void PreparePlotting();
+		uintCovCount CoveragePeakPosition() const{
+			uintCovCount peak(coverage_.from());
+			// As long as coverage is strictly monotonously falling it still belongs to the uncovered parts of the genome
+			while(peak+1 < coverage_.to() && coverage_.at(peak+1) < coverage_.at(peak)){
+				++peak;
+			}
+
+			for(auto cov=peak; cov < coverage_.to(); ++cov){
+				if(coverage_.at(peak) < coverage_.at(cov)){
+					peak = cov;
+				}
+			}
+
+			return peak;
+		}
 	};
 }
 

@@ -124,52 +124,7 @@ namespace reseq{
 	template <uintSurPos K> class Kmer : public SurroundingBase<1, K, 0, int64_t>{
 		friend class KmerCount;
 	};
-/*
-	template <uintSurPos K> class RepeatedKmerStore{ // K must be odd, for search to work properly, otherwise spurious wrong calls happen
-	private:
-		std::vector<std::pair<uintRefSeqId,uintSeqLen>> repeat_pos_;
 
-	public:
-		void Add( const Kmer<K> &kmer, std::vector<std::pair<Kmer::intType, std::pair<uintRefSeqId,uintSeqLen>>> &store ){
-
-				store.push_back()
-			}
-		}
-
-		void SearchRepeatedKmers(const seqan::StringSet<seqan::Dna5String> &sequences){
-			printInfo << "Searching for repeated kmers" << std::endl;
-
-			uintNucCount total_num_kmers(0);
-			for( auto &seq : sequences ){
-				total_num_kmers += length(seq);
-			}
-			std::vector<std::pair<Kmer::intType, std::pair<uintRefSeqId,uintSeqLen>>> kmer_store;
-			kmer_store.reserve(total_num_kmers*2); // We also add reverse
-
-			// Add sequences
-			Kmer<K> kmer_forward, kmer_reverse;
-			for( uintRefSeqId seq_id=0; seq_id < length(sequences); ++seq_id)
-				kmer_forward.ForwardWithN(at(sequences, seq_id), 0);
-				if(0 <= kmer_forward.sur_.at(0)){
-					kmer_store.emplace_back(kmer_forward.sur_.at(0), {seq_id, 0})
-				}
-				kmer_reverse.ReverseWithN(at(sequences, seq_id), kmer_forward.Length()-1);
-				if(0 <= kmer_reverse.sur_.at(0)){
-					kmer_store.emplace_back(kmer_reverse.sur_.at(0), {seq_id, 0})
-				}
-
-				for(uintSeqLen pos=1; pos <= length(at(sequences, seq_id))-kmer_forward.Length(); ++pos){
-					kmer_forward.UpdateForwardWithN(at(sequences, seq_id), pos);
-					Count(kmer_forward);
-					kmer_reverse.UpdateReverseWithN(at(sequences, seq_id), pos + kmer_forward.Length()-1);
-					if(kmer_forward.sur_.at(0) != kmer_reverse.sur_.at(0)){
-						// If the reverse of the kmer is the kmer itself, don't add it twice
-						Count(kmer_reverse);
-					}
-				}
-		}
-	};
-*/
 	template <uintSurPos K> class KmerCount{
 	private:
 		std::vector<uintNucCount> counts_;

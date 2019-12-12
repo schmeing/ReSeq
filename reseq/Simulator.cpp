@@ -92,7 +92,8 @@ double Simulator::CoveragePropLostFromAdapters(const DataStats &stats){
 			for(uintReadLen read_len=stats.ReadLengthsByFragmentLength(seg).at(frag_len).from(); read_len < stats.ReadLengthsByFragmentLength(seg).at(frag_len).to(); ++read_len){
 				total_bases += stats.ReadLengthsByFragmentLength(seg).at(frag_len).at(read_len) * read_len;
 				if(frag_len < read_len){
-					adapter_bases += stats.ReadLengthsByFragmentLength(seg).at(frag_len).at(read_len) * (read_len-frag_len);
+					adapter_bases += (stats.ReadLengthsByFragmentLength(seg).at(frag_len).at(read_len)-stats.NonMappedReadLengthsByFragmentLength(seg)[frag_len][read_len]) * (read_len-frag_len);
+					adapter_bases += stats.NonMappedReadLengthsByFragmentLength(seg)[frag_len][read_len] * read_len;
 				}
 			}
 		}
@@ -2065,10 +2066,15 @@ void Simulator::Simulate(
 				num_adapter_only_pairs_ = round( static_cast<double>(total_pairs_)*stats.FragmentDistribution().InsertLengths()[0]/(stats.TotalNumberReads()/2) );
 			}
 			else{
+				// Keep the coverage from the original dataset
+				total_pairs_ = CoverageToNumberPairs(stats.Coverage().CoveragePeakPosition(), total_ref_size, average_read_length, adapter_part);
+				// Keep the percentage of adapter only pairs
+				num_adapter_only_pairs_ = round( static_cast<double>(total_pairs_)*stats.FragmentDistribution().InsertLengths()[0]/(stats.TotalNumberReads()/2) );
+
 				// Adapter only pairs(InsertLength == 0) are handled separately
-				num_adapter_only_pairs_ = stats.FragmentDistribution().InsertLengths()[0];
-				 // We only need to generate a number of pairs equal to half of the reads
-				total_pairs_ = stats.TotalNumberReads()/2;
+				//num_adapter_only_pairs_ = stats.FragmentDistribution().InsertLengths()[0];
+				// We only need to generate a number of pairs equal to half of the reads
+				//total_pairs_ = stats.TotalNumberReads()/2;
 			}
 
 			printInfo << "Aiming for " << total_pairs_ << " read pairs, which corresponds to an approximated read depth of " << setprecision(4) << NumberPairsToCoverage(total_pairs_, total_ref_size, average_read_length, adapter_part) << setprecision(6) << "x" << std::endl;

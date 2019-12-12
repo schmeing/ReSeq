@@ -93,7 +93,7 @@ namespace reseq{
 		// Definitions for paper (extra output)
 		static const bool kSurMult = false; // This is only for the fit for the comparison plots, the rest of the program is using the better sum without a toggle, so do not switch this to true and use the simulator
 
-		static constexpr const char *kParameterInfoFile = NULL; // "maxlike_fit2.csv";
+		static constexpr const char *kParameterInfoFile = NULL; // "maxlike_fit.csv";
 		static constexpr const char *kDispersionInfoFile = NULL; // "dispersion_fit2.csv";
 		static const uintDupCount kMaxDuplications = 100; // Maximum number of duplications used for dispersion fit reported in kDispersionInfoFile
 		static const uintSeqLen kDispersionBinSize = 200000; // Bin size used to get sample mean and for dispersion fit reported in kDispersionInfoFile (2*sites, due to forward+reverse)
@@ -325,6 +325,7 @@ namespace reseq{
 		void SortFragmentSites(uintRefSeqBin ref_seq_bin, std::vector<uintSeqLen> &num_sites_per_insert_length);
 		void UpdateBiasCalculationParams(uintRefSeqBin ref_seq_bin, uint32_t queue_spot, std::vector<std::pair<uintSeqLen, std::pair<uintRefSeqBin, uintSeqLen>>> &tmp_params, std::mutex &print_mutex );
 		void FillParams(std::vector<BiasCalculationParams> &params, const Reference &reference) const;
+		void FillParamsSimulation(std::vector<BiasCalculationParams> &params) const;
 
 		void CountDuplicates(FragmentDuplicationStats &duplications, const BiasCalculationParamsSplitSeqs &params, const Reference &reference);
 		void AddFragmentsToSites(std::vector<FragmentSite> &sites, const std::vector<uintSeqLen> &fragment_positions);

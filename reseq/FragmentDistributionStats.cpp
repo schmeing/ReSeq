@@ -1346,6 +1346,22 @@ void FragmentDistributionStats::FillParams(vector<BiasCalculationParams> &params
 	params.shrink_to_fit();
 }
 
+void FragmentDistributionStats::FillParamsSimulation(vector<BiasCalculationParams> &params) const{
+	params.reserve( insert_lengths_.size() * abundance_.size() );
+
+	for( auto frag_length=max(static_cast<uintSeqLen>(1),static_cast<uintSeqLen>(insert_lengths_.from())); frag_length < insert_lengths_.to(); ++frag_length){
+		if(insert_lengths_.at(frag_length)){
+			for( uintRefSeqId ref_id=abundance_.size(); ref_id--; ){
+				if(abundance_.at(ref_id)){
+					// Add parameters for later calculation
+					params.push_back({ref_id, frag_length});
+				}
+			}
+		}
+	}
+	params.shrink_to_fit();
+}
+
 void FragmentDistributionStats::CountDuplicates(FragmentDuplicationStats &duplications, const BiasCalculationParamsSplitSeqs &params, const Reference &reference){
 	duplications.AddDuplicates( fragment_sites_by_ref_seq_bin_by_insert_length_.at(params.ref_seq_bin_).at(params.fragment_length_), GetRefSeqId(params.ref_seq_bin_), params.fragment_length_, ref_seq_bin_def_.at(params.ref_seq_bin_).second, reference  );
 }
@@ -2149,7 +2165,7 @@ bool FragmentDistributionStats::UpdateRefSeqBias(RefSeqBiasSimulation model, con
 double FragmentDistributionStats::CalculateBiasNormalization(double &max_bias, const Reference &reference, uintNumThreads num_threads, uintFragCount total_reads) const{
 	atomic<uintNumFits> current_param(0);
 	vector<BiasCalculationParams> params;
-	FillParams(params, reference);
+	FillParamsSimulation(params);
 
 	mutex result_mutex;
 	double normalization(0.0);

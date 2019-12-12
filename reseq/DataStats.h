@@ -92,6 +92,7 @@ namespace reseq{
 		uintFragCount read_records_;
 		
 		std::array<std::vector<std::vector<utilities::VectorAtomic<uintFragCount>>>, 2> tmp_read_lengths_by_fragment_length_;
+		std::array<std::vector<std::vector<utilities::VectorAtomic<uintFragCount>>>, 2> tmp_non_mapped_read_lengths_by_fragment_length_;
 
 		std::vector<utilities::VectorAtomic<uintFragCount>> tmp_proper_pair_mapping_quality_;
 		std::vector<utilities::VectorAtomic<uintFragCount>> tmp_improper_pair_mapping_quality_;
@@ -112,6 +113,7 @@ namespace reseq{
 		// Collected variables for simulation
 		std::array<Vect<uintFragCount>, 2> read_lengths_; // read_lengths_[first/second][length] = #reads
 		std::array<Vect<Vect<uintFragCount>>, 2> read_lengths_by_fragment_length_; // read_lengths_by_fragment_length_[first/second][fragment_length][read_length] = #reads
+		std::array<Vect<Vect<uintFragCount>>, 2> non_mapped_read_lengths_by_fragment_length_; // non_mapped_read_lengths_by_fragment_length_[first/second][fragment_length][read_length] = #reads
 		uintQual phred_quality_offset_;
 		uintQual minimum_quality_;
 		uintQual maximum_quality_;
@@ -180,6 +182,7 @@ namespace reseq{
 
 			ar & read_lengths_;
 			ar & read_lengths_by_fragment_length_;
+			ar & non_mapped_read_lengths_by_fragment_length_;
 			ar & phred_quality_offset_;
 			ar & minimum_quality_;
 			ar & maximum_quality_;
@@ -224,6 +227,7 @@ namespace reseq{
 
 		const Vect<uintFragCount> &ReadLengths(uintTempSeq template_segment) const{ return read_lengths_.at(template_segment); }
 		const Vect<Vect<uintFragCount>> &ReadLengthsByFragmentLength(uintTempSeq template_segment) const{ return read_lengths_by_fragment_length_.at(template_segment); }
+		const Vect<Vect<uintFragCount>> &NonMappedReadLengthsByFragmentLength(uintTempSeq template_segment) const{ return non_mapped_read_lengths_by_fragment_length_.at(template_segment); }
 
 		const Vect<uintFragCount> &ProperPairMappingQuality() const{ return proper_pair_mapping_quality_; }
 		const Vect<uintFragCount> &ImproperPairMappingQuality() const{ return improper_pair_mapping_quality_; }
