@@ -750,14 +750,34 @@ void ProbabilityEstimates::SetVariables(uintTileId num_tiles){
 	precision_improved_ = false;
 
 	for(auto template_segment=0; template_segment<2; ++template_segment){
+		quality_.at(template_segment).clear();
 		quality_.at(template_segment).resize(num_tiles);
 		quality_.at(template_segment).shrink_to_fit();
 
+		sequence_quality_.at(template_segment).clear();
 		sequence_quality_.at(template_segment).resize(num_tiles);
 		sequence_quality_.at(template_segment).shrink_to_fit();
 
+		base_call_.at(template_segment).clear();
 		base_call_.at(template_segment).resize(num_tiles);
 		base_call_.at(template_segment).shrink_to_fit();
+	}
+
+	for( auto ref_base=dom_error_.size(); ref_base--; ){
+		for( auto last_ref_base=dom_error_.at(ref_base).size(); last_ref_base--; ){
+			for( auto dom_last5=dom_error_.at(ref_base).at(last_ref_base).size(); dom_last5--; ){
+				dom_error_.at(ref_base).at(last_ref_base).at(dom_last5).Clear();
+			}
+		}
+		for( auto dom_error=error_rate_.at(ref_base).size(); dom_error--; ){
+			error_rate_.at(ref_base).at(dom_error).Clear();
+		}
+	}
+
+	for( auto type=indels_.size(); type--; ){
+		for( auto last_call=indels_.at(type).size(); last_call--; ){
+			indels_.at(type).at(last_call).Clear();
+		}
 	}
 }
 
@@ -1043,6 +1063,7 @@ bool ProbabilityEstimates::Save( const char *archive_file ) const{
 bool ProbabilityEstimates::Estimate(const DataStats &stats, uintNumFits max_iterations, double precision_aim, uintNumThreads num_threads, const char *output, const char *input){
 	if( string("") == input){
 		printInfo << "Starting new probability estimates" << std::endl;
+		stats_creation_time_ = stats.CreationTime();
 		SetVariables(stats.Tiles().NumTiles());
 	}
 	else{
@@ -1051,9 +1072,10 @@ bool ProbabilityEstimates::Estimate(const DataStats &stats, uintNumFits max_iter
 			return false;
 		}
 
-		if(quality_.at(0).size() != stats.Tiles().NumTiles()){
-			printErr << "Tile numbers do not match! Loaded estimation has " << quality_.at(0).size() << " tiles, loaded statistics have " << stats.Tiles().NumTiles() << " tiles. Did you create one with deactivated tiles?" << std::endl;
-			return false;
+		if( stats_creation_time_ != stats.CreationTime() ){
+			printInfo << "Statistics file has been updated, the probability estimates will be overwritten." << std::endl;
+			stats_creation_time_ = stats.CreationTime();
+			SetVariables(stats.Tiles().NumTiles());
 		}
 	}
 

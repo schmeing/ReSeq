@@ -467,7 +467,10 @@ int main(int argc, char *argv[]) {
 				cout << usage_str;
 				cout << opt_desc_full << std::endl;
 			}
-			else if(AutoDetectThreads(num_threads, opt_desc_full, usage_str)){
+			else if(!AutoDetectThreads(num_threads, opt_desc_full, usage_str)){
+				return 1;
+			}
+			else{
 				auto it_ref_in = opts_map.find("refIn");
 				auto it_ref_out = opts_map.find("refSim");
 				string ref_input, ref_output;
@@ -475,6 +478,7 @@ int main(int argc, char *argv[]) {
 					printErr << "refIn option is mandatory." << std::endl;
 					cout << usage_str;
 					cout << opt_desc_full << std::endl;
+					return 1;
 				}
 				else{
 					ref_input =  it_ref_in->second.as<string>();
@@ -484,6 +488,7 @@ int main(int argc, char *argv[]) {
 						printErr << "refSim option is mandatory." << std::endl;
 						cout << usage_str;
 						cout << opt_desc_full << std::endl;
+						return 1;
 					}
 					else{
 						ref_output = it_ref_out->second.as<string>();
@@ -498,6 +503,12 @@ int main(int argc, char *argv[]) {
 							if( species_reference.WriteFasta( ref_output.c_str() ) ){
 								printInfo << "Finished replacing N's." << std::endl;
 							}
+							else{
+								return 1;
+							}
+						}
+						else{
+							return 1;
 						}
 					}
 				}
@@ -546,8 +557,8 @@ int main(int argc, char *argv[]) {
 			opt_desc_sim.add_options()
 				("firstReadsOut,1", value<string>(), "Writes the simulated first reads into this file [reseq-R1.fq]")
 				("secondReadsOut,2", value<string>(), "Writes the simulated second reads into this file [reseq-R2.fq]")
-				("coverage,c", value<double>(&coverage)->default_value(0.0), "Approximate average read depth simulated (0 = Use <numReads>)")
-				("numReads", value<uintFragCount>(&num_read_pairs)->default_value(0), "Approximate number of read pairs simulated (0 = Original number of reads)")
+				("coverage,c", value<double>(&coverage)->default_value(0.0), "Approximate average read depth simulated (0 = Corrected original coverage)")
+				("numReads", value<uintFragCount>(&num_read_pairs)->default_value(0), "Approximate number of read pairs simulated (0 = Use <coverage>)")
 				("readSysError", value<string>(), "Read systematic errors from file in fastq format (seq=dominant error, qual=error percentage)")
 				("recordBaseIdentifier", value<string>(&record_base_identifier)->default_value("ReseqRead"), "Base Identifier for the simulated fastq records, followed by a count and other information about the read")
 				("refBias", value<string>(), "Way to select the reference biases for simulation (keep [from refIn]/no [biases]/draw [with replacement from original biases]/file) [keep/no]")
@@ -580,13 +591,18 @@ int main(int argc, char *argv[]) {
 				printErr << "ipfPrecision must be positive." << std::endl;
 				cout << usage_str;
 				cout << opt_desc_full << std::endl;
+				return 1;
 			}
 			else if(0 != num_read_pairs && 0.0 != coverage){
 				printErr << "numReads and coverage set the same value. Use either the one or the other." << std::endl;
 				cout << usage_str;
 				cout << opt_desc_full << std::endl;
+				return 1;
 			}
-			else if(AutoDetectThreads(num_threads, opt_desc_full, usage_str)){
+			else if(!AutoDetectThreads(num_threads, opt_desc_full, usage_str)){
+				return 1;
+			}
+			else{
 				auto it_ref_in = opts_map.find("refIn");
 				auto it_ref_out = opts_map.find("refSim");
 				bool stop_after_estimation = opts_map.count("stopAfterEstimation");
@@ -594,6 +610,7 @@ int main(int argc, char *argv[]) {
 					printErr << "refIn or refSim option mandatory." << std::endl;
 					cout << usage_str;
 					cout << opt_desc_full << std::endl;
+					return 1;
 				}
 				else{
 					string ref_input, ref_output;
@@ -607,7 +624,10 @@ int main(int argc, char *argv[]) {
 					}
 
 					Reference species_reference;
-					if( opts_map.end() == it_ref_in || species_reference.ReadFasta( ref_input.c_str() ) ){
+					if( opts_map.end() != it_ref_in && !species_reference.ReadFasta( ref_input.c_str() ) ){
+						return 1;
+					}
+					else{
 						DataStats real_data_stats( (opts_map.end() == it_ref_in ? NULL : &species_reference), maximum_insert_length, minimum_mapping_quality);
 						bool stats_only = opts_map.count("statsOnly");
 						string stats_file;
@@ -615,19 +635,34 @@ int main(int argc, char *argv[]) {
 
 						GetDataStats(real_data_stats, stats_file, loaded_stats, stats_only, max_ref_seq_bin_size, opts_map, opt_desc_full, usage_str, num_threads);
 
-						if( real_data_stats.TotalNumberReads() && !stats_only ){ // Data stats have been loaded or computed
+						if( 0 == real_data_stats.TotalNumberReads() ){
+							return 1;
+						}
+
+						if( !stats_only ){ // Data stats have been loaded or computed
 							string probs_in, probs_out;
 
 							PrepareProbabilityEstimation( probs_in, probs_out, stats_file+".ipf", loaded_stats, opts_map );
 
 							ProbabilityEstimates probabilities;
-							if( probabilities.Estimate(real_data_stats, ipf_iterations, ipf_precision, num_threads, probs_out.c_str(), probs_in.c_str()) && (!stop_after_estimation || opts_map.count("writeSysError"))){
-								if(opts_map.end() == it_ref_out || species_reference.ReadFasta( ref_output.c_str() )){
+
+							if( !probabilities.Estimate(real_data_stats, ipf_iterations, ipf_precision, num_threads, probs_out.c_str(), probs_in.c_str()) ){
+								return 1;
+							}
+
+							if( !stop_after_estimation || opts_map.count("writeSysError") ){
+								if(opts_map.end() != it_ref_out && !species_reference.ReadFasta( ref_output.c_str() )){
+									return 1;
+								}
+								else{
 									probabilities.PrepareResult();
 
 									string sys_error_file;
 									uintSeed seed;
-									if( WriteSysError(sys_error_file, seed, stop_after_estimation, opts_map, opt_desc_full, usage_str, species_reference, real_data_stats, probabilities) ){
+									if( !WriteSysError(sys_error_file, seed, stop_after_estimation, opts_map, opt_desc_full, usage_str, species_reference, real_data_stats, probabilities) ){
+										return 1;
+									}
+									else{
 										if( !stop_after_estimation ){
 											string sim_output_first, sim_output_second;
 
@@ -671,6 +706,10 @@ int main(int argc, char *argv[]) {
 												}
 											}
 
+											if(RefSeqBiasSimulation::kError == ref_bias_model){
+												return 1;
+											}
+
 											string ref_bias_file;
 											auto it_ref_bias_file = opts_map.find("refBiasFile");
 											if(RefSeqBiasSimulation::kFile == ref_bias_model){
@@ -686,11 +725,17 @@ int main(int argc, char *argv[]) {
 											}
 											else{
 												if(opts_map.end() != it_ref_bias_file){
-													printErr << "refBiasFile option mandatory only allowed if for refBias option file was chosen" << std::endl;
+													printErr << "refBiasFile option only allowed if for refBias option file was chosen" << std::endl;
+													cout << usage_str;
+													cout << opt_desc_full << std::endl;
+													ref_bias_model = RefSeqBiasSimulation::kError;
 												}
 											}
 
-											if(RefSeqBiasSimulation::kError != ref_bias_model){
+											if(RefSeqBiasSimulation::kError == ref_bias_model){
+												return 1;
+											}
+											else{
 												// Load variation
 												auto it_var_file = opts_map.find("vcfSim");
 
@@ -698,6 +743,7 @@ int main(int argc, char *argv[]) {
 													printErr << "vcfIn specified but not used as stats were loaded. Did you mean vcfSim?" << std::endl;
 													cout << usage_str;
 													cout << opt_desc_full << std::endl;
+													return 1;
 												}
 												else{
 													string var_file("");
@@ -710,7 +756,9 @@ int main(int argc, char *argv[]) {
 													}
 
 													Simulator sim;
-													sim.Simulate(sim_output_first.c_str(), sim_output_second.c_str(), species_reference, real_data_stats, probabilities, num_threads, seed, num_read_pairs, coverage, ref_bias_model, ref_bias_file, sys_error_file, record_base_identifier, var_file);
+													if( !sim.Simulate(sim_output_first.c_str(), sim_output_second.c_str(), species_reference, real_data_stats, probabilities, num_threads, seed, num_read_pairs, coverage, ref_bias_model, ref_bias_file, sys_error_file, record_base_identifier, var_file) ){
+														return 1;
+													}
 												}
 											}
 										}

@@ -4,6 +4,7 @@
 #include <atomic>
 #include <array>
 #include <condition_variable>
+#include <chrono>
 #include <map>
 #include <mutex>
 #include <stdint.h>
@@ -47,6 +48,7 @@ namespace reseq{
 		struct ThreadData{
 			std::vector< std::pair<CoverageStats::FullRecord *, CoverageStats::FullRecord *> > rec_store_;
 
+			CoverageStats::ThreadData coverage_;
 			FragmentDistributionStats::ThreadData fragment_distribution_;
 
 			uintSeqLen last_exclusion_region_id_;
@@ -111,6 +113,7 @@ namespace reseq{
 		std::vector<uintFragCount> reads_per_frag_len_bin_; // reads_per_frag_len_bin_[BinOfReferenceSequenceBinnedInBinsOfFragmentLength] = #Reads
 
 		// Collected variables for simulation
+		uint64_t creation_time_; // Store time when bam file was completelly read, can be used to check whether the stats file was updated
 		std::array<Vect<uintFragCount>, 2> read_lengths_; // read_lengths_[first/second][length] = #reads
 		std::array<Vect<Vect<uintFragCount>>, 2> read_lengths_by_fragment_length_; // read_lengths_by_fragment_length_[first/second][fragment_length][read_length] = #reads
 		std::array<Vect<Vect<uintFragCount>>, 2> non_mapped_read_lengths_by_fragment_length_; // non_mapped_read_lengths_by_fragment_length_[first/second][fragment_length][read_length] = #reads
@@ -119,6 +122,7 @@ namespace reseq{
 		uintQual maximum_quality_;
 		uintReadLen minimum_read_length_on_reference_;
 		uintReadLen maximum_read_length_on_reference_;
+		double percentage_high_enough_quality_reads_;
 
 		// Collected variables for plotting
 		Vect<uintFragCount> proper_pair_mapping_quality_; // proper_pair_mapping_quality_[mappingQuality] = #readsWithProperPairFlag
@@ -139,7 +143,8 @@ namespace reseq{
 		uintFragCount total_number_reads_;
 		std::atomic<uintFragCount> reads_in_unmapped_pairs_without_adapters_;
 		std::atomic<uintFragCount> reads_in_unmapped_pairs_with_adapters_;
-		std::atomic<uintFragCount> reads_with_low_quality_;
+		std::atomic<uintFragCount> reads_with_low_quality_with_adapters_;
+		std::atomic<uintFragCount> reads_with_low_quality_without_adapters_;
 		std::atomic<uintFragCount> reads_on_too_short_fragments_;
 		std::atomic<uintFragCount> reads_in_excluded_regions_;
 		std::atomic<uintFragCount> reads_used_;
@@ -180,6 +185,7 @@ namespace reseq{
 			ar & qualities_;
 			ar & tiles_;
 
+			ar & creation_time_;
 			ar & read_lengths_;
 			ar & read_lengths_by_fragment_length_;
 			ar & non_mapped_read_lengths_by_fragment_length_;
@@ -188,6 +194,7 @@ namespace reseq{
 			ar & maximum_quality_;
 			ar & minimum_read_length_on_reference_;
 			ar & maximum_read_length_on_reference_;
+			ar & percentage_high_enough_quality_reads_;
 
 			ar & proper_pair_mapping_quality_;
 			ar & improper_pair_mapping_quality_;
@@ -225,10 +232,15 @@ namespace reseq{
 		uintQual PhredQualityOffset() const{ return phred_quality_offset_; }
 		uintFragCount TotalNumberReads() const{ return total_number_reads_; }
 
+		uint64_t CreationTime() const{
+			return creation_time_;
+		}
+
 		const Vect<uintFragCount> &ReadLengths(uintTempSeq template_segment) const{ return read_lengths_.at(template_segment); }
 		const Vect<Vect<uintFragCount>> &ReadLengthsByFragmentLength(uintTempSeq template_segment) const{ return read_lengths_by_fragment_length_.at(template_segment); }
 		const Vect<Vect<uintFragCount>> &NonMappedReadLengthsByFragmentLength(uintTempSeq template_segment) const{ return non_mapped_read_lengths_by_fragment_length_.at(template_segment); }
 
+		double PercentageHighEnoughQualityReads() const{return percentage_high_enough_quality_reads_; }
 		const Vect<uintFragCount> &ProperPairMappingQuality() const{ return proper_pair_mapping_quality_; }
 		const Vect<uintFragCount> &ImproperPairMappingQuality() const{ return improper_pair_mapping_quality_; }
 		const Vect<uintFragCount> &SingleReadMappingQuality() const{ return single_read_mapping_quality_; }

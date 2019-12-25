@@ -22,7 +22,7 @@ find_package(ZLIB REQUIRED)
 find_package(BZip2 REQUIRED)
 
 # Add boost
-find_package(Boost 1.48.0 REQUIRED filesystem program_options serialization system)
+find_package(Boost 1.48.0 REQUIRED filesystem math_c99 math_c99f math_c99l math_tr1 math_tr1f math_tr1l program_options serialization system)
 include_directories(${Boost_INCLUDE_DIRS})
 link_directories(${Boost_LIBRARY_DIRS})
 SET( BOOST_LIBRARY_FLAGS "-lboost_serialization -lboost_program_options -lboost_filesystem -lboost_system" )
@@ -69,7 +69,7 @@ configure_file(
 )
 
 # Compiler flags
-SET(GCC_COVERAGE_COMPILE_FLAGS "-std=c++14 -fPIC")
+SET(GCC_COVERAGE_COMPILE_FLAGS "-std=c++14 -fPIC -lrt")
 SET( CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} ${GCC_COVERAGE_COMPILE_FLAGS}" )
 
 # Include directories

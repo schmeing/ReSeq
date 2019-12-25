@@ -428,7 +428,7 @@ namespace reseq{
 		Simulator();
 
 		bool CreateSystematicErrorProfile(const char *destination_file, const Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates, uintSeed seed);
-		void Simulate(const char *destination_file_first, const char *destination_file_second, Reference &ref, DataStats &stats, const ProbabilityEstimates &estimates, uintNumThreads num_threads, uintSeed seed, uintFragCount num_read_pairs=0, double coverage=0.0, RefSeqBiasSimulation ref_bias_model=kKeep, const std::string &ref_bias_file=std::string(), const std::string &sys_error_file=std::string(), const std::string &record_base_identifier=std::string(), const std::string &var_file=std::string());
+		bool Simulate(const char *destination_file_first, const char *destination_file_second, Reference &ref, DataStats &stats, const ProbabilityEstimates &estimates, uintNumThreads num_threads, uintSeed seed, uintFragCount num_read_pairs=0, double coverage=0.0, RefSeqBiasSimulation ref_bias_model=kKeep, const std::string &ref_bias_file=std::string(), const std::string &sys_error_file=std::string(), const std::string &record_base_identifier=std::string(), const std::string &var_file=std::string());
 	};
 }
 #endif // SIMULATOR_H

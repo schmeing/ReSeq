@@ -4,9 +4,11 @@ using reseq::CoverageStats;
 //include <algorithm>
 using std::min;
 using std::max;
+using std::sort;
 //include <array>
 using std::array;
 //include <cmath>
+using std::ceil;
 using std::exp;
 using std::pow;
 using std::round;
@@ -17,6 +19,10 @@ using std::mutex;
 using std::lock_guard;
 //include <utility>
 using std::pair;
+
+#include <boost/math/distributions/poisson.hpp>
+using boost::math::cdf;
+using boost::math::poisson_distribution;
 
 //include <seqan/bam_io.h>
 using seqan::Dna;
@@ -196,172 +202,167 @@ inline void CoverageStats::ApplyZeroCoverageRegion(){
 	}
 }
 
-reseq::uintCovCount CoverageStats::GetNormalErrorCount(double error_rate, uintCovCount coverage){
-	// binom: (1-p)^(n-k) * p^k * prod(j=1..k)[(n+1-j)/j]
-	double pmf = pow(1-error_rate, coverage);
-	uintNucCount normal_error_count(1);
-	double probability = 1-pmf; // Probability to have at least normal_error_count errors at position
+double CoverageStats::GetPositionProbabilities(CoverageBlock *block, const Reference &reference, ThreadData &thread){
+	// Get coverage weighted median error rate
+	thread.block_coverage_.clear();
+	thread.block_coverage_.resize(block->coverage_.size(), {0,0});
+	thread.error_rates_sorted_.clear();
 
-	while(probability > kRejectingBinomialP){
-		pmf *= error_rate/(1-error_rate) * static_cast<double>(coverage+1-normal_error_count)/normal_error_count;
-		probability -= pmf;
-		++normal_error_count;
-	}
-
-	return normal_error_count;
-}
-
-pair<double, double> CoverageStats::GetMaxNonSystematicError(CoverageBlock *block, const Reference &reference){
 	uintNucCount total_bases(0), correct_bases(0);
-	uintCovCount bases_forward, bases_reverse, min_cov(numeric_limits<uintCovCount>::max()), max_cov(0);
 	for( uintSeqLen pos = 0; pos < block->coverage_.size(); ++pos ){
 		if( block->coverage_.at(pos).valid_ ){
-			bases_forward = 0;
-			bases_reverse = 0;
+			auto ref_base = at(reference.ReferenceSequence(block->sequence_id_), block->start_pos_ + pos);
+			auto rev_base = Complement::Dna5(ref_base);
 			for( int i=5; i--; ){
-				bases_forward += block->coverage_.at(pos).coverage_forward_.at(i);
-				bases_reverse += block->coverage_.at(pos).coverage_reverse_.at(i);
+				thread.block_coverage_.at(pos).at(0) += block->coverage_.at(pos).coverage_forward_.at(i);
+				if(block->coverage_.at(pos).coverage_forward_.at(i) > block->coverage_.at(pos).coverage_forward_.at( block->coverage_.at(pos).dom_error_.at(0) ) && i != ref_base){
+					block->coverage_.at(pos).dom_error_.at(0) = i;
+				}
+				thread.block_coverage_.at(pos).at(1) += block->coverage_.at(pos).coverage_reverse_.at(i);
+				if(block->coverage_.at(pos).coverage_reverse_.at(i) > block->coverage_.at(pos).coverage_reverse_.at( block->coverage_.at(pos).dom_error_.at(1) ) && i != rev_base){
+					block->coverage_.at(pos).dom_error_.at(1) = i;
+				}
 			}
 
-			total_bases += bases_forward + bases_reverse;
-			auto ref_base = at(reference.ReferenceSequence(block->sequence_id_), block->start_pos_ + pos);
-			correct_bases += block->coverage_.at(pos).coverage_forward_.at(ref_base) + block->coverage_.at(pos).coverage_reverse_.at(Complement::Dna5(ref_base));
+			total_bases += thread.block_coverage_.at(pos).at(0) + thread.block_coverage_.at(pos).at(1);
+			correct_bases += block->coverage_.at(pos).coverage_forward_.at(ref_base) + block->coverage_.at(pos).coverage_reverse_.at(rev_base);
 
-			SetToMin(min_cov, bases_forward);
-			SetToMin(min_cov, bases_reverse);
-			SetToMax(max_cov, bases_forward);
-			SetToMax(max_cov, bases_reverse);
+			thread.error_rates_sorted_.emplace_back(static_cast<double>(thread.block_coverage_.at(pos).at(0)-block->coverage_.at(pos).coverage_forward_.at(ref_base)) / thread.block_coverage_.at(pos).at(0), thread.block_coverage_.at(pos).at(0));
+			thread.error_rates_sorted_.emplace_back(static_cast<double>(thread.block_coverage_.at(pos).at(1)-block->coverage_.at(pos).coverage_reverse_.at(rev_base)) / thread.block_coverage_.at(pos).at(1), thread.block_coverage_.at(pos).at(1));
 		}
 	}
 
-	if(3 > max_cov || correct_bases == total_bases){
-		return {numeric_limits<uintCovCount>::max(), 0.0}; // Nothing is systematic for super low coverage or if we only have errors
+	thread.non_sytematic_probability_.clear();
+	thread.non_sytematic_probability_.resize(block->coverage_.size(), {1.0,1.0});
+	thread.non_sytematic_probability_sorted_.clear();
+
+	if(correct_bases == total_bases){
+		return 0.0; // Nothing is systematic if we don't have errors
 	}
 
-	// Linear approximation for errors over coverage (using the two points at 0.25 and 0.75 of the coverage interval)
-	double error_rate = static_cast<double>(total_bases-correct_bases)/total_bases;
-	++block_error_rate_[static_cast<uintPercent>(round(error_rate*100))];
+	sort(thread.error_rates_sorted_.begin(), thread.error_rates_sorted_.end());
+	uintNucCount sum_bases(0);
+	uintSeqLen median_error_pos(0);
+	while(sum_bases < total_bases/2){
+		sum_bases += thread.error_rates_sorted_.at(median_error_pos++).second;
+	}
+	while( median_error_pos < thread.error_rates_sorted_.size() && thread.error_rates_sorted_.at(median_error_pos).first == 0.0 ){ // If the median error is exactly zero, get next non-zero error
+		++median_error_pos;
+	}
+	if(median_error_pos == thread.error_rates_sorted_.size()){
+		return 0.0;
+	}
+
+	double error_rate = thread.error_rates_sorted_.at(median_error_pos).first;
+	SetToMin( error_rate, static_cast<double>(total_bases-correct_bases) / total_bases ); // If the mean is lower than the median use mean (should only happen if we shift median to non-zero value before)
+
+	++tmp_block_error_rate_.at(static_cast<uintPercent>(round(error_rate*100)));
 	error_rate /= 3.0; // Systematic is only for one base
 
-	uintCovCount lower_coverage = max(static_cast<uintCovCount>(2), min_cov+(max_cov-min_cov)/4); // GetNormalErrorCount calculation doesn't make sense for coverage lower than 2
-	auto lower_errors = GetNormalErrorCount(error_rate, lower_coverage);
-	++block_non_systematic_error_rate_[Percent(min(lower_errors, lower_coverage), lower_coverage)];
+	if(0.0 == error_rate){
+		return 0.0; // Nothing is systematic if we have super low error rates
+	}
 
-	uintCovCount upper_coverage = max(min_cov+1, max_cov-(max_cov-min_cov)/4); // Prevent min_cov == max_cov
-	auto upper_errors = GetNormalErrorCount(error_rate, upper_coverage);
-	++block_non_systematic_error_rate_[Percent(min(upper_errors, upper_coverage), upper_coverage)];
+	for( uintSeqLen pos = 0; pos < block->coverage_.size(); ++pos ){
+		if( block->coverage_.at(pos).valid_ ){
+			// Handle forward direction
+			uintCovCount errors = block->coverage_.at(pos).coverage_forward_.at(block->coverage_.at(pos).dom_error_.at(0));
+			if( 0 < thread.block_coverage_.at(pos).at(0) ){
+				if(0 == errors){
+					thread.non_sytematic_probability_sorted_.push_back(1.0);
+				}
+				else{
+					poisson_distribution<> pois_dist( thread.block_coverage_.at(pos).at(0)*error_rate );
+					thread.non_sytematic_probability_sorted_.push_back( 1-cdf( pois_dist, errors-1 ) ); // Probability to have at least that many errors (1-probability to have less errors)
+				}
+				thread.non_sytematic_probability_.at(pos).at(0) = thread.non_sytematic_probability_sorted_.back();
+				++tmp_systematic_error_p_values_.at(static_cast<size_t>(thread.non_sytematic_probability_sorted_.back()*kPValueHistBins));
+			}
 
-	pair<double, double> non_systematic_error;
-	non_systematic_error.second = static_cast<double>(upper_errors-lower_errors) / (upper_coverage-lower_coverage); // slope
-	non_systematic_error.first = static_cast<double>(lower_errors) - non_systematic_error.second*lower_coverage; // y-interrcept
+			// Handle reverse direction
+			if( 0 < thread.block_coverage_.at(pos).at(1) ){
+				errors = block->coverage_.at(pos).coverage_reverse_.at(block->coverage_.at(pos).dom_error_.at(1));
+				if(0 == errors){
+					thread.non_sytematic_probability_sorted_.push_back(1.0);
+				}
+				else{
+					poisson_distribution<> pois_dist( thread.block_coverage_.at(pos).at(1)*error_rate );
+					thread.non_sytematic_probability_sorted_.push_back( 1-cdf( pois_dist, errors-1 ) ); // Probability to have at least that many errors (1-probability to have less errors)
+				}
+				thread.non_sytematic_probability_.at(pos).at(1) = thread.non_sytematic_probability_sorted_.back();
+				++tmp_systematic_error_p_values_.at(static_cast<size_t>(thread.non_sytematic_probability_sorted_.back()*kPValueHistBins));
+			}
+		}
+	}
 
-	return non_systematic_error;
+	// Bejamini-Hochberg
+	sort(thread.non_sytematic_probability_sorted_.begin(), thread.non_sytematic_probability_sorted_.end());
+	size_t last_systematic(thread.non_sytematic_probability_sorted_.size());
+	while(--last_systematic && thread.non_sytematic_probability_sorted_.at(last_systematic) > kSystematicErrorFDR*(last_systematic+1)/thread.non_sytematic_probability_sorted_.size() );
+
+	if( 0==last_systematic && thread.non_sytematic_probability_sorted_.at(0) > kSystematicErrorFDR/thread.non_sytematic_probability_sorted_.size() ){
+		++tmp_block_percent_systematic_.at(0);
+		return 0.0; // No index has a probability lower than expected, so seems like we don't have systematic errors
+	}
+	else if( last_systematic == thread.non_sytematic_probability_sorted_.size()-1 ){
+		++tmp_block_percent_systematic_.at(100);
+		return 1.0; // Final probability is lower than expected, so seems like we only have systematic errors;
+	}
+	else{
+		++tmp_block_percent_systematic_.at(Percent(last_systematic+1, thread.non_sytematic_probability_sorted_.size()));
+		return thread.non_sytematic_probability_sorted_.at(last_systematic);
+	}
 }
 
-void CoverageStats::UpdateCoverageAtSinglePosition(CoveragePosition &coverage, Dna5 ref_base, pair<double, double> non_systematic_error){
+void CoverageStats::UpdateCoverageAtSinglePosition(CoveragePosition &nuc_coverage, array<uintCovCount, 2> &coverage, Dna5 ref_base){
 	Dna5 reverse_base = Complement::Dna5(ref_base);
 
-	// Stored error rate for the simulation is the rate of the dominant error, real error rate is calculated further below for plotting stats
-	uintCovCount errors(1); // Enforce at least 2 errors to call it a systematic error
-	uintPercent error_rate;
-	Dna5 dom_error(4);
-	uintCovCount coverage_forward = 0;
-	for( int i=5; i--; ){
-		coverage_forward += coverage.coverage_forward_.at(i);
-		if(i != ref_base){
-			if(coverage.coverage_forward_.at(i) > errors){
-				errors = coverage.coverage_forward_.at(i);
-				dom_error = i;
-			}
-		}
+	if( coverage_threshold_ > coverage.at(0) ){
+		nuc_coverage.coverage_sufficient_.at(0) = false;
 	}
-	if(coverage_forward && coverage.valid_){
-		if(errors <= GetMaxNonSystematicError(non_systematic_error, coverage_forward)){
-			error_rate = 0;
-			dom_error = 4;
-		}
-		else{
-			error_rate = Percent(errors,coverage_forward);
-		}
-		tmp_errors_forward_.emplace_back(dom_error, error_rate, coverage_threshold_ <= coverage_forward);
-		coverage.dom_error_.at(0) = dom_error;
-		coverage.error_rate_.at(0) = error_rate;
-	}
-	else{
-		tmp_errors_forward_.emplace_back(4, 0, false);
-		coverage.dom_error_.at(0) = 4;
-		coverage.error_rate_.at(0) = 0;
+	if( coverage_threshold_ > coverage.at(1) ){
+		nuc_coverage.coverage_sufficient_.at(1) = false;
 	}
 
-	errors = 1; // Enforce at least 2 errors to call it a systematic error
-	dom_error = 4;
-	uintCovCount coverage_reverse = 0;
-	for( int i=5; i--; ){
-		coverage_reverse += coverage.coverage_reverse_.at(i);
-		if(i != reverse_base){
-			if(coverage.coverage_reverse_.at(i) > errors){
-				errors = coverage.coverage_reverse_.at(i);
-				dom_error = i;
-			}
-		}
-	}
-	if(coverage_reverse && coverage.valid_){
-		if(errors <= GetMaxNonSystematicError(non_systematic_error, coverage_reverse)){
-			error_rate = 0;
-			dom_error = 4;
-		}
-		else{
-			error_rate = Percent(errors,coverage_reverse);
-		}
-		tmp_errors_reverse_.emplace_back(dom_error, error_rate, coverage_threshold_ <= coverage_reverse);
-		coverage.dom_error_.at(1) = dom_error;
-		coverage.error_rate_.at(1) = error_rate;
-	}
-	else{
-		tmp_errors_reverse_.emplace_back(4, 0, false);
-		coverage.dom_error_.at(1) = 4;
-		coverage.error_rate_.at(1) = 0;
-	}
+	auto errors_forward = coverage.at(0) - nuc_coverage.coverage_forward_.at(ref_base);
+	auto errors_reverse = coverage.at(1) - nuc_coverage.coverage_reverse_.at(reverse_base);
 
-	auto errors_forward = coverage_forward - coverage.coverage_forward_.at(ref_base);
-	auto errors_reverse = coverage_reverse - coverage.coverage_reverse_.at(reverse_base);
-
-	auto cov_sum = coverage_forward + coverage_reverse;
+	auto cov_sum = coverage.at(0) + coverage.at(1);
 	auto error_sum = errors_forward + errors_reverse;
 
 	// Account for coverage and error_coverage at that position
 	++tmp_coverage_.at( min(cov_sum, kMaxCoverage) );
-	++tmp_coverage_stranded_.at(0).at( min(coverage_forward, kMaxCoverage) );
-	++tmp_coverage_stranded_.at(1).at( min(coverage_reverse, kMaxCoverage) );
+	++tmp_coverage_stranded_.at(0).at( min(coverage.at(0), kMaxCoverage) );
+	++tmp_coverage_stranded_.at(1).at( min(coverage.at(1), kMaxCoverage) );
 	if(cov_sum){
-		++tmp_coverage_stranded_percent_.at(0).at( Percent(coverage_forward, cov_sum) );
-		++tmp_coverage_stranded_percent_.at(1).at( Percent(coverage_reverse, cov_sum) );
+		++tmp_coverage_stranded_percent_.at(0).at( Percent(coverage.at(0), cov_sum) );
+		++tmp_coverage_stranded_percent_.at(1).at( Percent(coverage.at(1), cov_sum) );
 
-		if(coverage.valid_){
+		if(nuc_coverage.valid_){
 			++tmp_error_coverage_.at( error_sum );
 			++tmp_error_coverage_percent_.at( Percent(error_sum, cov_sum) );
-			if(coverage_forward && coverage_reverse){
-				++tmp_error_coverage_percent_stranded_.at( Percent(errors_forward, coverage_forward) ).at( Percent(errors_reverse, coverage_reverse) );
+			if(coverage.at(0) && coverage.at(1)){
+				++tmp_error_coverage_percent_stranded_.at( Percent(errors_forward, coverage.at(0)) ).at( Percent(errors_reverse, coverage.at(1)) );
 			}
 		}
 
 		if( 10 <= cov_sum ){
-			++tmp_coverage_stranded_percent_min_cov_10_.at(0).at( Percent(coverage_forward, cov_sum) );
-			++tmp_coverage_stranded_percent_min_cov_10_.at(1).at( Percent(coverage_reverse, cov_sum) );
-			if(coverage.valid_){
+			++tmp_coverage_stranded_percent_min_cov_10_.at(0).at( Percent(coverage.at(0), cov_sum) );
+			++tmp_coverage_stranded_percent_min_cov_10_.at(1).at( Percent(coverage.at(1), cov_sum) );
+			if(nuc_coverage.valid_){
 				++tmp_error_coverage_percent_min_cov_10_.at( Percent(error_sum, cov_sum) );
 			}
 
 			if( 20 <= cov_sum ){
-				++tmp_coverage_stranded_percent_min_cov_20_.at(0).at( Percent(coverage_forward, cov_sum) );
-				++tmp_coverage_stranded_percent_min_cov_20_.at(1).at( Percent(coverage_reverse, cov_sum) );
-				if(coverage.valid_){
+				++tmp_coverage_stranded_percent_min_cov_20_.at(0).at( Percent(coverage.at(0), cov_sum) );
+				++tmp_coverage_stranded_percent_min_cov_20_.at(1).at( Percent(coverage.at(1), cov_sum) );
+				if(nuc_coverage.valid_){
 					++tmp_error_coverage_percent_min_cov_20_.at( Percent(error_sum, cov_sum) );
 
-					if(10 <=coverage_forward && 10 <= coverage_reverse){
-						++tmp_error_coverage_percent_stranded_min_strand_cov_10_.at( Percent(errors_forward, coverage_forward) ).at( Percent(errors_reverse, coverage_reverse) );
-						if(20 <=coverage_forward && 20 <= coverage_reverse){
-							++tmp_error_coverage_percent_stranded_min_strand_cov_20_.at( Percent(errors_forward, coverage_forward) ).at( Percent(errors_reverse, coverage_reverse) );
+					if(10 <= coverage.at(0) && 10 <= coverage.at(1)){
+						++tmp_error_coverage_percent_stranded_min_strand_cov_10_.at( Percent(errors_forward, coverage.at(0)) ).at( Percent(errors_reverse, coverage.at(1)) );
+						if(20 <= coverage.at(0) && 20 <= coverage.at(1)){
+							++tmp_error_coverage_percent_stranded_min_strand_cov_20_.at( Percent(errors_forward, coverage.at(0)) ).at( Percent(errors_reverse, coverage.at(1)) );
 						}
 					}
 				}
@@ -404,6 +405,8 @@ CoverageStats::CoverageBlock *CoverageStats::CreateBlock(uintRefSeqId seq_id, ui
 			new_block->coverage_.clear();
 			new_block->previous_coverage_.clear();
 			new_block->reads_.clear();
+			new_block->scheduled_for_processing_.clear();
+			new_block->processed_ = false;
 		}
 		else{
 			reuse_mutex_.unlock();
@@ -459,18 +462,59 @@ void CoverageStats::InitBlock(CoverageBlock &block, const Reference &reference){
 	}
 }
 
-void CoverageStats::ProcessBlock(CoverageBlock *block, const Reference &reference){
-	auto non_systematic_error = GetMaxNonSystematicError(block, reference);
+void CoverageStats::ProcessBlock(CoverageBlock *block, const Reference &reference, ThreadData &thread){
+	//auto non_systematic_error = GetMaxNonSystematicError(block, reference);
+	auto max_probability_systematic = GetPositionProbabilities(block, reference, thread);
 	for( uintSeqLen pos = 0; pos < block->coverage_.size(); ++pos ){
-		UpdateCoverageAtSinglePosition( block->coverage_.at(pos), at(reference.ReferenceSequence(block->sequence_id_), block->start_pos_ + pos), non_systematic_error );
+		// Forward
+		uintCovCount errors = block->coverage_.at(pos).coverage_forward_.at(block->coverage_.at(pos).dom_error_.at(0));
+		auto coverage = thread.block_coverage_.at(pos).at(0);
+		if(coverage && block->coverage_.at(pos).valid_){
+			if(1 >= errors || 0 == Percent(errors,coverage) || thread.non_sytematic_probability_.at(pos).at(0) > max_probability_systematic){
+				block->coverage_.at(pos).dom_error_.at(0) = 4;
+			}
+			else{
+				block->coverage_.at(pos).error_rate_.at(0) = Percent(errors,coverage);
+			}
+		}
+
+		// Reverse
+		errors = block->coverage_.at(pos).coverage_reverse_.at(block->coverage_.at(pos).dom_error_.at(1));
+		coverage = thread.block_coverage_.at(pos).at(1);
+		if(coverage && block->coverage_.at(pos).valid_){
+			if(1 >= errors || 0 == Percent(errors,coverage) || thread.non_sytematic_probability_.at(pos).at(1) > max_probability_systematic){
+				block->coverage_.at(pos).dom_error_.at(1) = 4;
+			}
+			else{
+				block->coverage_.at(pos).error_rate_.at(1) = Percent(errors,coverage);
+			}
+		}
+
+
+		// Both strands
+		UpdateCoverageAtSinglePosition( block->coverage_.at(pos), thread.block_coverage_.at(pos), at(reference.ReferenceSequence(block->sequence_id_), block->start_pos_ + pos) );
 	}
 
 	// Save information that is still needed in next_block_
-	if(block->next_block_ && block->start_pos_+kBlockSize == (*block->next_block_).start_pos_ && block->sequence_id_ == (*block->next_block_).sequence_id_){
-		for(uintReadLen pos_before = 1; pos_before < maximum_read_length_on_reference_+1; ++pos_before){
-			(*block->next_block_).previous_coverage_.emplace_back( block->coverage_.at(kBlockSize-pos_before) );
+	if( NextBlockWithInSysErrorResetDistance(block) ){
+		auto overlap = BasesWithInSysErrorResetDistance(block);
+		uintSeqLen overlap_start(1);
+		if(block->start_pos_+kBlockSize == (*block->next_block_).start_pos_){
+			SetToMax(overlap, maximum_read_length_on_reference_);
+		}
+		else{
+			overlap_start += reset_distance_ - overlap;
+		}
+
+		for(uintReadLen pos_before = 1; pos_before < overlap_start; ++pos_before){
+			(*block->next_block_).previous_coverage_.emplace_back(); // Insert dummy as we have a short empty region between the two blocks
+		}
+		for(uintReadLen pos_overlap = 1; pos_overlap <= overlap; ++pos_overlap){
+			(*block->next_block_).previous_coverage_.emplace_back( block->coverage_.at(kBlockSize-pos_overlap) );
 		}
 	}
+
+	block->processed_ = true;
 }
 
 void CoverageStats::CountBlock(CoverageBlock *block, const Reference &reference){
@@ -484,35 +528,28 @@ void CoverageStats::CountBlock(CoverageBlock *block, const Reference &reference)
 	uintSeqLen gc_bases = min(block->start_pos_, gc_range_);
 	uintSeqLen n_count(0);
 	uintSeqLen gc = reference.GCContentAbsolut( n_count, block->sequence_id_, block->start_pos_-gc_bases, block->start_pos_);
-	uintPercent gc_percent;
 
-	for( uintSeqLen pos = 0; pos < tmp_errors_forward_.size(); ++pos ){
+	// Initialize distance and start_rate
+	uintSeqLen distance_to_start_of_error_region_forward(0);
+	uintPercent start_rate_forward(0);
+	if( block->previous_coverage_.size() ){
+		for(auto rev_pos = reset_distance_; --rev_pos; ){ // Index 0 is the one directly before this block, so correct order from low to high reference pos is reverse order in previous_coverage_
+			UpdateDistances(distance_to_start_of_error_region_forward, start_rate_forward, (block->previous_coverage_.at(rev_pos).valid_ && block->previous_coverage_.at(rev_pos).coverage_sufficient_.at(0)?block->previous_coverage_.at(rev_pos).error_rate_.at(0):0));
+		}
+	}
+
+	for( uintSeqLen pos = 0; pos < block->coverage_.size(); ++pos ){
 		ref_base = at(reference.ReferenceSequence(block->sequence_id_), block->start_pos_ + pos);
-		gc_percent = SafePercent(gc,gc_bases-n_count);
 
 		// Enter values
-		if(tmp_errors_forward_.at(pos).valid_and_coverage_sufficient_){
-			auto distance = TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_forward_);
-
-			++tmp_dominant_errors_by_distance_.at(ref_base).at(prev_ref_base).at(dom_ref_base.Get()).at(distance).at(tmp_errors_forward_.at(pos).base_);
-			++tmp_dominant_errors_by_gc_.at(ref_base).at(prev_ref_base).at(dom_ref_base.Get()).at(gc_percent).at(tmp_errors_forward_.at(pos).base_);
-			++tmp_gc_by_distance_de_.at(ref_base).at(prev_ref_base).at(dom_ref_base.Get()).at(distance).at(gc_percent);
-			++tmp_dominant_errors_by_start_rates_.at(ref_base).at(prev_ref_base).at(dom_ref_base.Get()).at(start_rate_forward_).at(tmp_errors_forward_.at(pos).base_);
-			++tmp_start_rates_by_distance_de_.at(ref_base).at(prev_ref_base).at(dom_ref_base.Get()).at(distance).at(start_rate_forward_);
-			++tmp_start_rates_by_gc_de_.at(ref_base).at(prev_ref_base).at(dom_ref_base.Get()).at(gc_percent).at(start_rate_forward_);
-
-			++tmp_error_rates_by_distance_.at(ref_base).at(tmp_errors_forward_.at(pos).base_).at(distance).at(tmp_errors_forward_.at(pos).rate_);
-			++tmp_error_rates_by_gc_.at(ref_base).at(tmp_errors_forward_.at(pos).base_).at(gc_percent).at(tmp_errors_forward_.at(pos).rate_);
-			++tmp_gc_by_distance_er_.at(ref_base).at(tmp_errors_forward_.at(pos).base_).at(distance).at(gc_percent);
-			++tmp_error_rates_by_start_rates_.at(ref_base).at(tmp_errors_forward_.at(pos).base_).at(start_rate_forward_).at(tmp_errors_forward_.at(pos).rate_);
-			++tmp_start_rates_by_distance_er_.at(ref_base).at(tmp_errors_forward_.at(pos).base_).at(distance).at(start_rate_forward_);
-			++tmp_start_rates_by_gc_er_.at(ref_base).at(tmp_errors_forward_.at(pos).base_).at(gc_percent).at(start_rate_forward_);
+		if(block->coverage_.at(pos).valid_ && block->coverage_.at(pos).coverage_sufficient_.at(0)){
+			AddSysError(ref_base, prev_ref_base, dom_ref_base.Get(), block->coverage_.at(pos).dom_error_.at(0), block->coverage_.at(pos).error_rate_.at(0), TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_forward), SafePercent(gc,gc_bases-n_count), start_rate_forward);
 		}
 
 		// Set values for next iteration
 		prev_ref_base = ref_base;
 		dom_ref_base.Update( ref_base, reference.ReferenceSequence(block->sequence_id_), block->start_pos_ + pos);
-		UpdateDistances(distance_to_start_of_error_region_forward_, start_rate_forward_, (tmp_errors_forward_.at(pos).valid_and_coverage_sufficient_?tmp_errors_forward_.at(pos).rate_:0));
+		UpdateDistances(distance_to_start_of_error_region_forward, start_rate_forward, (block->coverage_.at(pos).valid_ && block->coverage_.at(pos).coverage_sufficient_.at(0)?block->coverage_.at(pos).error_rate_.at(0):0));
 		auto new_pos = block->start_pos_ + pos;
 		if(gc_bases<gc_range_){
 			++gc_bases;
@@ -528,87 +565,78 @@ void CoverageStats::CountBlock(CoverageBlock *block, const Reference &reference)
 		}
 	}
 
-	// Remove already handled elements from tmp_errors_forward_
-	tmp_errors_forward_.clear(); // In forward direction we can always handle all
-
-	// Prepare distance_to_start_of_error_region_forward_ for next block
-	if(block->next_block_){
-		if( (*(block->next_block_)).sequence_id_ == block->sequence_id_){
-			// Reference sequence changes between this block and the next or we are at the end of the file: Error region will be reseted
-			distance_to_start_of_error_region_forward_ = 0;
-			start_rate_forward_ = 0;
-		}
-		else{
-			distance_to_start_of_error_region_forward_ += (*(block->next_block_)).start_pos_ - block->start_pos_ - block->coverage_.size(); // Take the uncovered region between blocks into account
-			if( reset_distance_ <= distance_to_start_of_error_region_forward_ ){
-				// Error region ends
-				distance_to_start_of_error_region_forward_ = 0;
-				start_rate_forward_ = 0;
-			}
-		}
-	}
-
 	// Enter error_rates_ and dominant_errors_ in reverse direction
-	intSeqShift last_pos = tmp_errors_reverse_.size(); // Might get negative when we subtract
-	if(block->next_block_ && (*(block->next_block_)).sequence_id_ == block->sequence_id_){
-		// Everything that is potentially in an error region starting in the next block cannot be handled yet
-		last_pos -= reset_distance_+1;
+	uintSeqLen last_pos = block->coverage_.size();
+	if( NextBlockWithInSysErrorResetDistance(block) ){
+		// Next block is at the same reference sequence and closer than reset_distance: Everything that is potentially in an error region starting in the next block cannot be handled yet
+		last_pos -= BasesWithInSysErrorResetDistance(block);
+	}
+	--last_pos; // Shift it from end pos to last valid pos
+
+	ConstDna5StringReverseComplement reversed_seq(reference.ReferenceSequence(block->sequence_id_));
+	uintSeqLen ref_pos = reference.SequenceLength(block->sequence_id_) - (block->start_pos_ + last_pos) - 1;
+	dom_ref_base.Clear();
+	if(ref_pos){
+		prev_ref_base = at(reversed_seq, ref_pos - 1);
+		dom_ref_base.Set( reversed_seq, ref_pos );
 	}
 	else{
-		// Reference sequence changes between this block and the next or we are at the end of the file: We can handle all positions
-		--last_pos; // Shift it from end pos to last valid pos
+		prev_ref_base = 4;
+	}
+	gc_bases = min(ref_pos, gc_range_);
+	n_count = 0;
+	gc = reference.GCContentAbsolut( n_count, block->sequence_id_, block->start_pos_+last_pos + 1, block->start_pos_+last_pos + 1 + gc_bases); // + 1 because we want the bases after first one we handle (previous bases in reverse direction)
+
+	// Initialize distance and start_rate
+	uintSeqLen distance_to_start_of_error_region_reverse(0);
+	uintPercent start_rate_reverse(0);
+	for( uintSeqLen pos = block->coverage_.size(); pos-- > last_pos; ){
+		UpdateDistances(distance_to_start_of_error_region_reverse, start_rate_reverse, (block->coverage_.at(pos).valid_ && block->coverage_.at(pos).coverage_sufficient_.at(1)?block->coverage_.at(pos).error_rate_.at(1):0));
 	}
 
-	if(0 <= last_pos){
-		ConstDna5StringReverseComplement reversed_seq(reference.ReferenceSequence(block->sequence_id_));
-		uintSeqLen ref_pos = reference.SequenceLength(block->sequence_id_) + tmp_errors_reverse_.size() - block->start_pos_ - block->coverage_.size() - last_pos - 1; // tmp_errors_reverse_.size() - block->coverage_.size() is the shift to the left of block->start_pos_ due to the non-handleable reverse errors taken from the previous block
-		dom_ref_base.Clear();
-		if(ref_pos){
-			prev_ref_base = at(reversed_seq, ref_pos - 1);
-			dom_ref_base.Set( reversed_seq, ref_pos );
+	for( uintSeqLen pos = last_pos+1; pos--; ){
+		ref_base = at(reversed_seq, ref_pos);
+
+		// Enter values
+		if(block->coverage_.at(pos).valid_ && block->coverage_.at(pos).coverage_sufficient_.at(1)){
+			AddSysError(ref_base, prev_ref_base, dom_ref_base.Get(), block->coverage_.at(pos).dom_error_.at(1), block->coverage_.at(pos).error_rate_.at(1), TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_reverse), SafePercent(gc,gc_bases-n_count), start_rate_reverse);
+		}
+
+		// Set values for next iteration
+		prev_ref_base = ref_base;
+		dom_ref_base.Update( ref_base, reversed_seq, ref_pos);
+		UpdateDistances(distance_to_start_of_error_region_reverse, start_rate_reverse, (block->coverage_.at(pos).valid_ && block->coverage_.at(pos).coverage_sufficient_.at(1)?block->coverage_.at(pos).error_rate_.at(1):0));
+		auto new_pos = block->start_pos_+pos;
+		if(gc_bases<gc_range_){
+			++gc_bases;
+			if( reference.GC( block->sequence_id_, new_pos ) ){
+				++gc;
+			}
+			else if( reference.N( block->sequence_id_, new_pos ) ){
+				++n_count;
+			}
 		}
 		else{
-			prev_ref_base = 4;
+			reference.UpdateGC( gc, n_count, block->sequence_id_, new_pos + gc_bases, new_pos);
 		}
-		gc_bases = min(ref_pos, gc_range_);
-		n_count = 0;
-		gc = reference.GCContentAbsolut( n_count, block->sequence_id_, reference.SequenceLength(block->sequence_id_)-ref_pos, reference.SequenceLength(block->sequence_id_)-ref_pos+gc_bases);
+		ref_pos++;
+	}
 
-		// Initialize distance and start_rate
-		uintSeqLen distance_to_start_of_error_region_reverse(0);
-		uintPercent start_rate_reverse(0);
-		for( uintSeqLen pos = tmp_errors_reverse_.size(); pos-- > last_pos; ){
-			UpdateDistances(distance_to_start_of_error_region_reverse, start_rate_reverse, (tmp_errors_reverse_.at(pos).valid_and_coverage_sufficient_?tmp_errors_reverse_.at(pos).rate_:0));
-		}
-
-		for( uintSeqLen pos = last_pos+1; pos--; ){
+	// Handle values from last block that are not added yet due to the overlap based on reset_distance
+	if( block->previous_coverage_.size() ){
+		for(auto rev_pos = 0; rev_pos < reset_distance_; ++rev_pos){ // Index 0 is the one directly before this block, so correct order from high to low reference pos is normal order in previous_coverage_
 			ref_base = at(reversed_seq, ref_pos);
-			gc_percent = SafePercent(gc,gc_bases-n_count);
 
 			// Enter values
-			if(tmp_errors_reverse_.at(pos).valid_and_coverage_sufficient_){
-				auto distance = TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_reverse);
-
-				++tmp_dominant_errors_by_distance_.at(ref_base).at(prev_ref_base).at(dom_ref_base.Get()).at(distance).at(tmp_errors_reverse_.at(pos).base_);
-				++tmp_dominant_errors_by_gc_.at(ref_base).at(prev_ref_base).at(dom_ref_base.Get()).at(gc_percent).at(tmp_errors_reverse_.at(pos).base_);
-				++tmp_gc_by_distance_de_.at(ref_base).at(prev_ref_base).at(dom_ref_base.Get()).at(distance).at(gc_percent);
-				++tmp_dominant_errors_by_start_rates_.at(ref_base).at(prev_ref_base).at(dom_ref_base.Get()).at(start_rate_reverse).at(tmp_errors_reverse_.at(pos).base_);
-				++tmp_start_rates_by_distance_de_.at(ref_base).at(prev_ref_base).at(dom_ref_base.Get()).at(distance).at(start_rate_reverse);
-				++tmp_start_rates_by_gc_de_.at(ref_base).at(prev_ref_base).at(dom_ref_base.Get()).at(gc_percent).at(start_rate_reverse);
-
-				++tmp_error_rates_by_distance_.at(ref_base).at(tmp_errors_reverse_.at(pos).base_).at(distance).at(tmp_errors_reverse_.at(pos).rate_);
-				++tmp_error_rates_by_gc_.at(ref_base).at(tmp_errors_reverse_.at(pos).base_).at(gc_percent).at(tmp_errors_reverse_.at(pos).rate_);
-				++tmp_gc_by_distance_er_.at(ref_base).at(tmp_errors_reverse_.at(pos).base_).at(distance).at(gc_percent);
-				++tmp_error_rates_by_start_rates_.at(ref_base).at(tmp_errors_reverse_.at(pos).base_).at(start_rate_reverse).at(tmp_errors_reverse_.at(pos).rate_);
-				++tmp_start_rates_by_distance_er_.at(ref_base).at(tmp_errors_reverse_.at(pos).base_).at(distance).at(start_rate_reverse);
-				++tmp_start_rates_by_gc_er_.at(ref_base).at(tmp_errors_reverse_.at(pos).base_).at(gc_percent).at(start_rate_reverse);
+			if(block->previous_coverage_.at(rev_pos).valid_ && block->previous_coverage_.at(rev_pos).coverage_sufficient_.at(1)){
+				AddSysError(ref_base, prev_ref_base, dom_ref_base.Get(), block->previous_coverage_.at(rev_pos).dom_error_.at(1), block->previous_coverage_.at(rev_pos).error_rate_.at(1), TransformDistanceToStartOfErrorRegion(distance_to_start_of_error_region_reverse), SafePercent(gc,gc_bases-n_count), start_rate_reverse);
 			}
 
 			// Set values for next iteration
 			prev_ref_base = ref_base;
 			dom_ref_base.Update( ref_base, reversed_seq, ref_pos);
-			UpdateDistances(distance_to_start_of_error_region_reverse, start_rate_reverse, (tmp_errors_reverse_.at(pos).valid_and_coverage_sufficient_?tmp_errors_reverse_.at(pos).rate_:0));
-			auto new_pos = reference.SequenceLength(block->sequence_id_)-ref_pos-1;
+			UpdateDistances(distance_to_start_of_error_region_reverse, start_rate_reverse, (block->previous_coverage_.at(rev_pos).valid_ && block->previous_coverage_.at(rev_pos).coverage_sufficient_.at(1)?block->previous_coverage_.at(rev_pos).error_rate_.at(1):0));
+			auto new_pos = block->start_pos_-rev_pos-1;
 			if(gc_bases<gc_range_){
 				++gc_bases;
 				if( reference.GC( block->sequence_id_, new_pos ) ){
@@ -623,9 +651,6 @@ void CoverageStats::CountBlock(CoverageBlock *block, const Reference &reference)
 			}
 			ref_pos++;
 		}
-
-		// Remove already handled elements from tmp_errors_reverse_
-		tmp_errors_reverse_.erase(tmp_errors_reverse_.begin(), tmp_errors_reverse_.begin()+(last_pos+1));
 	}
 }
 
@@ -637,10 +662,6 @@ CoverageStats::CoverageBlock *CoverageStats::RemoveBlock(CoverageBlock *block){
 
 void CoverageStats::Prepare(uintCovCount average_coverage, uintReadLen average_read_length, uintReadLen maximum_read_length_on_reference){
 	reusable_blocks_.reserve(100);
-	tmp_errors_forward_.reserve(2*kBlockSize);
-	tmp_errors_reverse_.reserve(2*kBlockSize);
-	distance_to_start_of_error_region_forward_ = 0;
-	start_rate_forward_ = 0;
 
 	if(coverage_threshold_ > average_coverage/4 ){
 		if( 1 < average_coverage/4 ){
@@ -679,8 +700,9 @@ void CoverageStats::Prepare(uintCovCount average_coverage, uintReadLen average_r
 	}
 
 	// Setting the size, those aren't atomics
-	block_error_rate_[100];
-	block_non_systematic_error_rate_[100];
+	tmp_block_error_rate_.resize(101);
+	tmp_block_percent_systematic_.resize(101);
+	tmp_systematic_error_p_values_.resize(kPValueHistBins+1);
 
 	tmp_coverage_.resize(kMaxCoverage+1);
 	for( auto strand=2; strand--; ){
@@ -768,13 +790,14 @@ bool CoverageStats::EnsureSpace(uintRefSeqId ref_seq_id, uintSeqLen start_pos, u
 		num_exclusion_regions_ += reference.NumExcludedRegions(ref_seq_id);
 
 		// Create new block
-		first_block_ = new CoverageBlock(ref_seq_id, start_pos, NULL);
-		first_block_->coverage_.resize( kBlockSize );
-		first_block_->previous_coverage_.reserve(maximum_read_length_on_reference_);
-		first_block_->reads_.reserve( 2*kBlockSize );
+		auto new_block = new CoverageBlock(ref_seq_id, start_pos, NULL);
+		new_block->coverage_.resize( kBlockSize );
+		new_block->previous_coverage_.reserve(maximum_read_length_on_reference_);
+		new_block->reads_.reserve( 2*kBlockSize );
+		InitBlock(*new_block, reference);
 
-		last_block_ = first_block_;
-		InitBlock(*last_block_, reference);
+		first_block_ = new_block;
+		last_block_ = new_block;
 	}
 
 	// Create blocks until end_pos is reached
@@ -832,27 +855,35 @@ void CoverageStats::RemoveFragment( uintRefSeqId ref_seq_id, uintSeqLen ref_pos,
 	++processed_fragments; // Store processed fragments instead of subtracting them directly so that last fragments from this batch can be removed after the CleanUp step, so at least one block remains during CleanUp
 }
 
-reseq::uintRefSeqId CoverageStats::CleanUp(uintSeqLen &still_needed_position, Reference &reference, QualityStats &qualities, ErrorStats &errors, uintQual phred_quality_offset, CoverageBlock *cov_block, uintFragCount &processed_fragments){
-	CoverageBlock *until_block;
+reseq::uintRefSeqId CoverageStats::CleanUp(uintSeqLen &still_needed_position, Reference &reference, QualityStats &qualities, ErrorStats &errors, uintQual phred_quality_offset, CoverageBlock *cov_block, uintFragCount &processed_fragments, ThreadData &thread){
+	// Process all blocks that are not needed anymore
+	CoverageBlock *until_block = first_block_;
+	while(!until_block->unprocessed_fragments_){ // The unprocessed fragments from the current read haven't been removed yet, so end of list cannot be reached
+		if( !until_block->scheduled_for_processing_.test_and_set() ){
+			ProcessBlock(until_block, reference, thread);
+		}
+
+		until_block = until_block->next_block_;
+	}
+
+	// Remove pointers to blocks that are not needed anymore
 	uintRefSeqId still_needed_reference_sequence(0);
 	still_needed_position = 0;
 	{
 		lock_guard<mutex> lock(clean_up_mutex_);
 
 		until_block = first_block_;
-		while(!until_block->unprocessed_fragments_){ // The unprocessed fragments from the current read haven't been removed yet, so end of list cannot be reached
-			ProcessBlock(until_block, reference);
-			CountBlock(until_block, reference);
+		while(!until_block->unprocessed_fragments_ && until_block->processed_){ // The unprocessed fragments from the current read haven't been removed yet, so end of list cannot be reached
 			until_block = until_block->next_block_;
+			first_block_ = until_block;
 		}
 		until_block = until_block->previous_block_;
 
 		if(until_block){
-			first_block_ = until_block->next_block_;
-			still_needed_reference_sequence = first_block_->sequence_id_;
-			still_needed_position = first_block_->start_pos_;
-			first_block_->previous_block_ = NULL;
+			(*first_block_).previous_block_ = NULL;
 			until_block->next_block_ = NULL;
+			still_needed_reference_sequence = (*first_block_).sequence_id_;
+			still_needed_position = (*first_block_).start_pos_;
 		}
 	}
 
@@ -860,14 +891,17 @@ reseq::uintRefSeqId CoverageStats::CleanUp(uintSeqLen &still_needed_position, Re
 	cov_block->unprocessed_fragments_ -= processed_fragments;
 	processed_fragments = 0;
 
+	// Count and remove blocks, where we removed the pointers before
 	if(until_block){
 		while(until_block->previous_block_){
+			CountBlock(until_block, reference);
 			for( auto rec : until_block->reads_){
 				EvalRead(rec, until_block, reference, qualities, errors, phred_quality_offset);
 			}
 			until_block = until_block->previous_block_;
 		}
 
+		CountBlock(until_block, reference);
 		for( auto rec : until_block->reads_){
 			EvalRead(rec, until_block, reference, qualities, errors, phred_quality_offset);
 		}
@@ -898,7 +932,7 @@ bool CoverageStats::PreLoadVariants(Reference &reference){
 	return true;
 }
 
-bool CoverageStats::Finalize(const Reference &reference, QualityStats &qualities, ErrorStats &errors, uintQual phred_quality_offset, mutex &print_mutex){
+bool CoverageStats::Finalize(const Reference &reference, QualityStats &qualities, ErrorStats &errors, uintQual phred_quality_offset, mutex &print_mutex, ThreadData &thread){
 	// Remove all reusable_blocks_ as they are not needed anymore
 	for( auto block : reusable_blocks_ ){
 		delete block;
@@ -918,27 +952,29 @@ bool CoverageStats::Finalize(const Reference &reference, QualityStats &qualities
 			}
 
 			// Update coverage of remaining blocks and delete them
-			while(first_block_->next_block_){
+			CoverageBlock *first_block = first_block_; // Use non atomic pointer for the finalization
+			first_block_ = NULL;
+			last_block_ = NULL;
+
+			while(first_block->next_block_){
 				++final_num_blocks;
-				ProcessBlock(first_block_, reference);
-				CountBlock(first_block_, reference);
-				for( auto rec : first_block_->reads_){
-					EvalRead(rec, first_block_, reference, qualities, errors, phred_quality_offset);
+				ProcessBlock(first_block, reference, thread);
+				CountBlock(first_block, reference);
+				for( auto rec : first_block->reads_){
+					EvalRead(rec, first_block, reference, qualities, errors, phred_quality_offset);
 				}
 
-				first_block_ = first_block_->next_block_;
-				delete first_block_->previous_block_;
+				first_block = first_block->next_block_;
+				delete first_block->previous_block_;
 			}
 
 			++final_num_blocks;
-			ProcessBlock(first_block_, reference);
-			CountBlock(first_block_, reference);
-			for( auto rec : first_block_->reads_){
-				EvalRead(rec, first_block_, reference, qualities, errors, phred_quality_offset);
+			ProcessBlock(first_block, reference, thread);
+			CountBlock(first_block, reference);
+			for( auto rec : first_block->reads_){
+				EvalRead(rec, first_block, reference, qualities, errors, phred_quality_offset);
 			}
-			delete first_block_;
-			first_block_ = NULL;
-			last_block_ = NULL;
+			delete first_block;
 		}
 		else{
 			printErr << "first_block_ set, but last_block_ not. Something dodgy is going on here" << std::endl;
@@ -964,8 +1000,6 @@ bool CoverageStats::Finalize(const Reference &reference, QualityStats &qualities
 	}
 
 	ApplyZeroCoverageRegion();
-	tmp_errors_forward_.shrink_to_fit();
-	tmp_errors_reverse_.shrink_to_fit();
 
 	for( auto ref_base=4; ref_base--; ){
 		for( auto prev_ref_base=5; prev_ref_base--; ){
@@ -988,6 +1022,12 @@ bool CoverageStats::Finalize(const Reference &reference, QualityStats &qualities
 			start_rates_by_gc_er_.at(ref_base).at(dom_error).Acquire( tmp_start_rates_by_gc_er_.at(ref_base).at(dom_error) );
 		}
 	}
+
+	block_error_rate_.Acquire( tmp_block_error_rate_ );
+	block_percent_systematic_.Acquire( tmp_block_percent_systematic_ );
+	tmp_systematic_error_p_values_.at(kPValueHistBins-1) += tmp_systematic_error_p_values_.at(kPValueHistBins); // Last bin only contains p-values of exactly 1.0, so merge it with the one before
+	tmp_systematic_error_p_values_.at(kPValueHistBins) = 0;
+	systematic_error_p_values_.Acquire( tmp_systematic_error_p_values_ );
 
 	coverage_.Acquire( tmp_coverage_ );
 	for( auto strand=2; strand--; ){
@@ -1029,9 +1069,6 @@ void CoverageStats::Shrink(){
 			ShrinkVect( start_rates_by_gc_er_.at(ref_base).at(dom_error) );
 		}
 	}
-
-	block_error_rate_.Shrink();
-	block_non_systematic_error_rate_.Shrink();
 
 	ShrinkVect( error_coverage_percent_stranded_ );
 	ShrinkVect( error_coverage_percent_stranded_min_strand_cov_10_ );

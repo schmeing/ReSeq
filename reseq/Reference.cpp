@@ -455,19 +455,14 @@ void Reference::ReferenceSequence(
 		DnaString &insert_string,
 		uintRefSeqId seq_id,
 		uintSeqLen start_pos,
-		uintSeqLen min_length,
-		bool reversed,
-		uintSeqLen seq_size ) const{
+		uintSeqLen frag_length,
+		bool reversed) const{
 	if( reversed ){
-		insert_string = infix(ReferenceSequence(seq_id), start_pos-min_length, start_pos);
+		insert_string = infix(ReferenceSequence(seq_id), start_pos-frag_length, start_pos);
 		reverseComplement(insert_string);
 	}
 	else{
-		insert_string = infix(ReferenceSequence(seq_id), start_pos, start_pos+min_length);
-	}
-
-	if( seq_size > length(insert_string) ){
-		resize(insert_string, seq_size);
+		insert_string = infix(ReferenceSequence(seq_id), start_pos, start_pos+frag_length);
 	}
 }
 
@@ -475,12 +470,11 @@ void Reference::ReferenceSequence(
 		DnaString &insert_string,
 		uintRefSeqId seq_id,
 		uintSeqLen start_pos,
-		uintSeqLen min_length,
+		uintSeqLen frag_length,
 		bool reversed,
 		const vector<Variant> &variants,
 		pair<intVariantId, uintSeqLen> first_variant, // {id, posCurrentlyAt}
-		uintAlleleId allele,
-		uintSeqLen seq_size ) const{
+		uintAlleleId allele) const{
 	if( reversed ){
 		insert_string = "";
 		auto cur_start = start_pos;
@@ -490,11 +484,11 @@ void Reference::ReferenceSequence(
 			--cur_var;
 			--cur_start;
 		}
-		for( ; cur_var >= 0 && length(insert_string) < min_length; --cur_var ){
+		for( ; cur_var >= 0 && length(insert_string) < frag_length; --cur_var ){
 			if(variants.at(cur_var).InAllele(allele)){
-				if(cur_start-variants.at(cur_var).position_ > min_length-length(insert_string)){
+				if(cur_start-variants.at(cur_var).position_ > frag_length-length(insert_string)){
 					// Variant after return sequence
-					insert_string += ReverseComplementorDna(infix(ReferenceSequence(seq_id), cur_start+length(insert_string)-min_length, cur_start));
+					insert_string += ReverseComplementorDna(infix(ReferenceSequence(seq_id), cur_start+length(insert_string)-frag_length, cur_start));
 				}
 				else{
 					// Variant inside return sequence
@@ -504,9 +498,9 @@ void Reference::ReferenceSequence(
 				}
 			}
 		}
-		if(cur_var == -1 && length(insert_string) < min_length){
+		if(cur_var == -1 && length(insert_string) < frag_length){
 			// Fill rest after the last variant
-			insert_string += ReverseComplementorDna(infix(ReferenceSequence(seq_id), cur_start+length(insert_string)-min_length, cur_start));
+			insert_string += ReverseComplementorDna(infix(ReferenceSequence(seq_id), cur_start+length(insert_string)-frag_length, cur_start));
 		}
 	}
 	else{
@@ -518,11 +512,11 @@ void Reference::ReferenceSequence(
 			++cur_var;
 			++cur_start;
 		}
-		for( ; cur_var < variants.size() && length(insert_string) < min_length; ++cur_var ){
+		for( ; cur_var < variants.size() && length(insert_string) < frag_length; ++cur_var ){
 			if(variants.at(cur_var).InAllele(allele)){
-				if(variants.at(cur_var).position_-cur_start >= min_length-length(insert_string)){
+				if(variants.at(cur_var).position_-cur_start >= frag_length-length(insert_string)){
 					// Variant after return sequence
-					insert_string += infix(ReferenceSequence(seq_id), cur_start, cur_start+min_length-length(insert_string));
+					insert_string += infix(ReferenceSequence(seq_id), cur_start, cur_start+frag_length-length(insert_string));
 				}
 				else{
 					// Variant inside return sequence
@@ -532,14 +526,14 @@ void Reference::ReferenceSequence(
 				}
 			}
 		}
-		if(cur_var == variants.size() && length(insert_string) < min_length){
+		if(cur_var == variants.size() && length(insert_string) < frag_length){
 			// Fill rest after the last variant
-			insert_string += infix(ReferenceSequence(seq_id), cur_start, cur_start+min_length-length(insert_string));
+			insert_string += infix(ReferenceSequence(seq_id), cur_start, cur_start+frag_length-length(insert_string));
 		}
 	}
 
-	if( seq_size > length(insert_string) ){
-		resize(insert_string, seq_size);
+	if(length(insert_string) > frag_length){ // This can happen if we insert a variant that is longer than the end of the sequence as we do not check for the length of variants
+		resize(insert_string, frag_length);
 	}
 }
 

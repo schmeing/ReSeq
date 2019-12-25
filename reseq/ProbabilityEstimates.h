@@ -312,6 +312,7 @@ namespace reseq{
 					dim2_.at(n).clear();
 					dim2_.at(n).shrink_to_fit();
 				}
+				dim_size_.fill(0);
 			}
 
 			template<uintMarginId A, uintMarginId B> inline double &dim2( decltype(dim2_.at(0).size()) index1, decltype(dim2_.at(0).size()) index2 ){
@@ -951,10 +952,20 @@ namespace reseq{
 			}
 
 			inline void Clear(){
+				steps_ = 0;
+				needed_updates_ = 0;
+				precision_ = std::numeric_limits<double>::max();
+				margin_precision_.fill(std::numeric_limits<double>::max());
+				last_margin_ = 0;
+				last_update_.fill(0);
+				update_dist_.fill(2);
+
 				estimates_.Clear();
 				for(auto n=N; n--; ){
 					dim_indices_.at(n).clear();
 					dim_indices_.at(n).shrink_to_fit();
+					initial_dim_indices_reduced_.at(n).clear();
+					initial_dim_indices_reduced_.at(n).shrink_to_fit();
 					dim_indices_reduced_.at(n).clear();
 					dim_indices_reduced_.at(n).shrink_to_fit();
 				}
@@ -1265,6 +1276,8 @@ namespace reseq{
 		std::atomic<bool> error_during_fitting_;
 		std::atomic<bool> precision_improved_;
 
+		uint64_t stats_creation_time_; // Store and redo fits if stats file has been updated
+
 		// ipf calc
 		std::array<std::vector<std::array<ProbabilityEstimatesSubClasses::LogIPF<5>,4>>, 2> quality_; // quality_[template_segment][tile_id][ref_base] : quality, sequence quality, previous quality, position, error rate
 		std::array<std::vector<ProbabilityEstimatesSubClasses::LogIPF<4>>, 2> sequence_quality_; // sequence_quality_[template_segment][tile_id]: sequence quality, gc, mean error rate, fragment length
@@ -1430,6 +1443,7 @@ namespace reseq{
 		// boost serialization
 		friend class boost::serialization::access;
 		template<class Archive> void serialize(Archive & ar, const unsigned int UNUSED(version)){
+			ar & stats_creation_time_;
 			ar & quality_;
 			ar & sequence_quality_;
 			ar & base_call_;

@@ -65,8 +65,12 @@ const std::pair< std::vector<uintNucCount>::size_type, std::vector<uintNucCount>
 const pair< vector<uintSurBlockId>::size_type, vector<uintSurBlockId> > &DataStatsInterface::BlockErrorRate() const{
 	return stats_.Coverage().BlockErrorRate().std();
 }
-const pair< vector<uintSurBlockId>::size_type, vector<uintSurBlockId> > &DataStatsInterface::BlockNonSystematicErrorRate() const{
-	return stats_.Coverage().BlockNonSystematicErrorRate().std();
+const pair< vector<uintSurBlockId>::size_type, vector<uintSurBlockId> > &DataStatsInterface::BlockPercentSystematic() const{
+	return stats_.Coverage().BlockPercentSystematic().std();
+}
+
+const pair< vector<uintNucCount>::size_type, vector<uintNucCount> > &DataStatsInterface::SystematicErrorPValues() const{
+	return stats_.Coverage().SystematicErrorPValues().std();
 }
 
 const pair< vector<uintNucCount>::size_type, vector<uintNucCount> > &DataStatsInterface::Coverage() const{

@@ -1174,17 +1174,22 @@ namespace reseq{
 		IterativeProportionalFittingDomError(margins);
 		ASSERT_TRUE( test_.Save(kSaveTestFile.c_str()) );
 
+		auto iterations = GetIterationsDomError(test_);
+		auto precision = GetPrecisionDomError(test_);
+
 		Vect< Vect< Vect< Vect< Vect<double> > > > > estimated_counts;
 		GetIPFResultDomError(test_, estimated_counts, margins);
 
 		test_.PrepareResult();
-		CheckIPFResult( GetIterationsDomError(test_), GetPrecisionDomError(test_), margins, margin_quality_position, margin_def, estimated_counts, "estimation" );
+		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, estimated_counts, "estimation" );
 
 		ProbabilityEstimates test2;
 		ASSERT_TRUE( test2.Load(kSaveTestFile.c_str()) );
+		iterations = GetIterationsDomError(test2);
+		precision = GetPrecisionDomError(test2);
 		GetIPFResultDomError(test2, estimated_counts, margins);
 		test2.PrepareResult();
-		CheckIPFResult( GetIterationsDomError(test2), GetPrecisionDomError(test2), margins, margin_quality_position, margin_def, estimated_counts, "loading" );
+		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, estimated_counts, "loading" );
 
 		EXPECT_EQ( 0, remove(kSaveTestFile.c_str()) ) << "Error deleting file: " << kSaveTestFile << '\n';
 	}
@@ -1203,17 +1208,22 @@ namespace reseq{
 		IterativeProportionalFittingErrorRate(margins);
 		ASSERT_TRUE( test_.Save(kSaveTestFile.c_str()) );
 
+		auto iterations = GetIterationsErrorRate(test_);
+		auto precision = GetPrecisionErrorRate(test_);
+
 		Vect< Vect< Vect< Vect< Vect<double> > > > > estimated_counts;
 		GetIPFResultErrorRate(test_, estimated_counts, margins);
 
 		test_.PrepareResult();
-		CheckIPFResult( GetIterationsErrorRate(test_), GetPrecisionErrorRate(test_), margins, margin_quality_position, margin_def, estimated_counts, "estimation" );
+		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, estimated_counts, "estimation" );
 
 		ProbabilityEstimates test2;
 		ASSERT_TRUE( test2.Load(kSaveTestFile.c_str()) );
+		iterations = GetIterationsErrorRate(test2);
+		precision = GetPrecisionErrorRate(test2);
 		GetIPFResultErrorRate(test2, estimated_counts, margins);
 		test2.PrepareResult();
-		CheckIPFResult( GetIterationsErrorRate(test2), GetPrecisionErrorRate(test2), margins, margin_quality_position, margin_def, estimated_counts, "loading" );
+		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, estimated_counts, "loading" );
 
 		EXPECT_EQ( 0, remove(kSaveTestFile.c_str()) ) << "Error deleting file: " << kSaveTestFile << '\n';
 	}

@@ -18,14 +18,15 @@ void CoverageStatsTest::TearDown(){
 }
 
 void CoverageStatsTest::TestNonSystematicErrorRate(){
-	test_->block_error_rate_[100];
-	test_->block_non_systematic_error_rate_[100];
+	test_->tmp_block_error_rate_.resize(101);
+	test_->tmp_block_percent_systematic_.resize(101);
+	test_->tmp_systematic_error_p_values_.resize(101);
 
 	// samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:101-110
 	// TAAAATTTTA
 	CoverageStats::CoverageBlock block(0, 100, NULL);
 	block.coverage_.resize(10);
-	block.coverage_.at(0).coverage_forward_.at(4) = 1;
+	block.coverage_.at(0).coverage_forward_.at(4) = 3;
 	block.coverage_.at(0).coverage_forward_.at(1) = 1;
 	block.coverage_.at(0).coverage_forward_.at(3) = 23;
 	block.coverage_.at(0).coverage_reverse_.at(0) = 23;
@@ -37,27 +38,16 @@ void CoverageStatsTest::TestNonSystematicErrorRate(){
 	block.coverage_.at(7).valid_ = false;
 	block.coverage_.at(7).coverage_forward_.at(4) = 100;
 
-	auto non_sys_error = test_->GetMaxNonSystematicError(&block, species_reference_);
-	EXPECT_DOUBLE_EQ(2.0, non_sys_error.first );
-	EXPECT_DOUBLE_EQ(0.0, non_sys_error.second );
-	EXPECT_EQ(1, test_->block_error_rate_.at(1) );
-	EXPECT_EQ(1, test_->block_non_systematic_error_rate_.at(33) );
-	EXPECT_EQ(1, test_->block_non_systematic_error_rate_.at(11) );
-	EXPECT_EQ(2, test_->GetMaxNonSystematicError(non_sys_error, 22) );
-
-	non_sys_error = {-8.0, 0.5};
-	EXPECT_EQ(1, test_->GetMaxNonSystematicError(non_sys_error, 1) );
-	EXPECT_EQ(1, test_->GetMaxNonSystematicError(non_sys_error, 16) );
-	EXPECT_EQ(1, test_->GetMaxNonSystematicError(non_sys_error, 18) );
-	EXPECT_EQ(2, test_->GetMaxNonSystematicError(non_sys_error, 20) );
-	EXPECT_EQ(4, test_->GetMaxNonSystematicError(non_sys_error, 23) );
-	EXPECT_EQ(7, test_->GetMaxNonSystematicError(non_sys_error, 30) );
+	CoverageStats::ThreadData thread;
+	// R: 1-ppois(2, 27*4/(88+46+4)/3)
+	EXPECT_NEAR(0.002436186, test_->GetPositionProbabilities(&block, species_reference_, thread), 0.000000001);
+	EXPECT_EQ(1, test_->tmp_block_error_rate_.at(3) );
+	EXPECT_EQ(1, test_->tmp_block_percent_systematic_.at(17) );
+	EXPECT_EQ(5, test_->tmp_systematic_error_p_values_.at(100) );
+	EXPECT_EQ(1, test_->tmp_systematic_error_p_values_.at(0) );
 }
 
 void CoverageStatsTest::TestSrr490124Equality(const CoverageStats &test, const char *context){
-	EXPECT_EQ(0, test.tmp_errors_forward_.size()) << "SRR490124-4pairs tmp_errors_forward_ not empty for " << context << '\n';
-	EXPECT_EQ(0, test.tmp_errors_reverse_.size()) << "SRR490124-4pairs tmp_errors_reverse_ not empty for " << context << '\n';
-
 	// echo "count ref prev last5 dist gc err pos seq";samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '{pos=0;num=0;for(i=6;i<=length($18);i+=1){b=substr($18,i,1);if(b ~ /^[0-9]/){num=num*10+b}else{pos+=num+1; num=0; print int($2%32/16), pos+$4-1, substr($10,pos,1)}}}' | sort -k1,1 -k2,2nr | awk 'BEGIN{start=0}{if(start+100<$2 || start-100>$2){start=$2};print $0, start}' |sort -k1,1 -k2,2n | awk 'BEGIN{start=0}{if(start+100<$2 || start-100>$2){start=$2}; if(0==$1){dist=$2-start;comp=$3}else{dist=$4-$2;comp="N"; if("A"==$3){comp="T"}; if("C"==$3){comp="G"}; if("G"==$3){comp="C"}; if("T"==$3){comp="A"}}; print $1, $2, int((dist+9)/10), comp; if(0==$1){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $2-50 "-" $2 " | seqtk seq")}else{system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $2 "-" $2+50 " | seqtk seq -r")}}' | awk '(1==NR%3){store=$0}(0==NR%3){print store, substr($0,1,length($0)-1), substr($0,length($0),1)}' | awk '{print $6, substr($5,length($5),1), substr($5,length($5)-4,5), $3, (gsub("G","",$5)+gsub("C","",$5))*2, $4, $2, $1}' | sort | uniq -c
 	EXPECT_EQ(1, test.dominant_errors_by_distance_.at(0).at(0).at(0)[1][1]) << "SRR490124-4pairs dominant_errors_by_distance_ wrong for " << context << '\n';
 	EXPECT_EQ(1, test.dominant_errors_by_distance_.at(0).at(0).at(0)[3][1]) << "SRR490124-4pairs dominant_errors_by_distance_ wrong for " << context << '\n';
@@ -207,7 +197,7 @@ void CoverageStatsTest::TestSrr490124Equality(const CoverageStats &test, const c
 	EXPECT_EQ(0, test.error_coverage_percent_stranded_min_strand_cov_10_.size() ) << "SRR490124-4pairs error_coverage_percent_stranded_min_strand_cov_10_.size() wrong for " << context << '\n';
 	EXPECT_EQ(0, test.error_coverage_percent_stranded_min_strand_cov_20_.size() ) << "SRR490124-4pairs error_coverage_percent_stranded_min_strand_cov_20_.size() wrong for " << context << '\n';
 
-	EXPECT_EQ(NULL, test.first_block_ ) << "SRR490124-4pairs first_block_ wrong for " << context << '\n';
+	EXPECT_TRUE(NULL == test.first_block_ ) << "SRR490124-4pairs first_block_ wrong for " << context << '\n';
 	EXPECT_TRUE(NULL == test.last_block_ ) << "SRR490124-4pairs last_block_ wrong for " << context << '\n';
 	EXPECT_EQ(0, test.reusable_blocks_.size() ) << "SRR490124-4pairs reusable_blocks_ wrong for " << context << '\n';
 }
@@ -217,7 +207,7 @@ void CoverageStatsTest::TestDuplicates(const CoverageStats &test){
 	// samtools view -q 10 -f 3 ecoli-duplicates.bam | awk '(0 != substr($1,12,1)){pos=$4; for(i=1;i<=length($6);i+=1){e=substr($6,i,1);if(e ~ /^[0-9]/){num=num*10+e}else{if("M"==e){while(0<num){print pos; ++pos; --num}};if("D"==e){pos+=num};num=0}}}' | sort -n | uniq -c | awk '{print $1}' | sort -n | uniq -c | awk 'BEGIN{sum=0}{print $0; sum+=$1}END{print 4641552-sum, 0}'
 	TestVectEquality({0,{4641252,1,101,98,24,1,0,0,25,3,22,0,0,2,21,0,2}}, test.coverage_, "duplicates test", "coverage_", " not correct for ");
 
-	EXPECT_EQ(NULL, test.first_block_ ) << "SRR490124-4pairs first_block_ wrong in duplicates test\n";
+	EXPECT_TRUE(NULL == test.first_block_ ) << "SRR490124-4pairs first_block_ wrong in duplicates test\n";
 	EXPECT_TRUE(NULL == test.last_block_ ) << "SRR490124-4pairs last_block_ wrong in duplicates test\n";
 	EXPECT_EQ(0, test.reusable_blocks_.size() ) << "SRR490124-4pairs reusable_blocks_ wrong in duplicates test\n";
 }
@@ -346,7 +336,7 @@ void CoverageStatsTest::TestCrossDuplicates(const CoverageStats &test){
 	// seqtk seq drosophila-GCF_000001215.4_cut.fna | awk 'BEGIN{sum=0}(0==NR%2 && length($0)>2100){sum += length($0)-100}END{print sum}'
 	TestVectEquality({0,{2940870}}, test.coverage_, "cross duplicates test", "coverage_", " not correct for ");
 
-	EXPECT_EQ(NULL, test.first_block_ ) << "SRR490124-4pairs first_block_ wrong in cross duplicates test\n";
+	EXPECT_TRUE(NULL == test.first_block_ ) << "SRR490124-4pairs first_block_ wrong in cross duplicates test\n";
 	EXPECT_TRUE(NULL == test.last_block_ ) << "SRR490124-4pairs last_block_ wrong in cross duplicates test\n";
 	EXPECT_EQ(0, test.reusable_blocks_.size() ) << "SRR490124-4pairs reusable_blocks_ wrong in cross duplicates test\n";
 }
@@ -355,7 +345,7 @@ void CoverageStatsTest::TestCoverage(const CoverageStats &test){
 	// seqtk seq drosophila-GCF_000001215.4_cut.fna | awk 'BEGIN{sum=0}(0==NR%2 && length($0)>2100){sum += length($0)-100}END{print sum-300}'
 	TestVectEquality({0,{2940670, 200}}, test.coverage_, "coverage test", "coverage_", " not correct for ");
 
-	EXPECT_EQ(NULL, test.first_block_ ) << "SRR490124-4pairs first_block_ wrong in coverage test\n";
+	EXPECT_TRUE(NULL == test.first_block_ ) << "SRR490124-4pairs first_block_ wrong in coverage test\n";
 	EXPECT_TRUE(NULL == test.last_block_ ) << "SRR490124-4pairs last_block_ wrong in coverage test\n";
 	EXPECT_EQ(0, test.reusable_blocks_.size() ) << "SRR490124-4pairs reusable_blocks_ wrong in coverage test\n";
 }

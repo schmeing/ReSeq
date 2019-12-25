@@ -266,12 +266,6 @@ void ReferenceTest::TestLoadingAndAccess(){
 	ref_.ReferenceSequence(test_string, 0, 500, 10, true);
 	EXPECT_TRUE("ATGGTTTTTT" == test_string) << test_string << "\nReferenceSequence function does return correct reversed result\n";
 	EXPECT_EQ(10, length(test_string)) << "ReferenceSequence function does return correct size if reversed\n";
-	ref_.ReferenceSequence(test_string, 0, 0, 10, false, 20);
-	EXPECT_TRUE(infix(test_string, 0, 10) == "AGCTTTTCAT") << test_string << "\nReferenceSequence function does return correct result with size specified\n";
-	EXPECT_EQ(20, length(test_string)) << "ReferenceSequence function does return correct size with size specified\n";
-	ref_.ReferenceSequence(test_string, 0, 500, 10, true, 20);
-	EXPECT_TRUE(infix(test_string, 0, 10) == "ATGGTTTTTT") << test_string << "\nReferenceSequence function does return correct reversed result with size specified\n";
-	EXPECT_EQ(20, length(test_string)) << "ReferenceSequence function does return correct size if reversed with size specified\n";
 
 	vector<Reference::Variant> test_variants;
 	test_variants.push_back({2, "", 2}); // Allele 1
@@ -301,12 +295,20 @@ void ReferenceTest::TestLoadingAndAccess(){
 	test_variants.push_back({499, "TAG", 3}); // Allele 0 + 1
 	ref_.ReferenceSequence(test_string, 0, 500, 12, true, test_variants, {3, 0}, 0);
 	EXPECT_TRUE("CTATGGTTTTTT" == test_string) << test_string << "\n";
-	ref_.ReferenceSequence(test_string, 0, 0, 11, false, test_variants, {0, 0}, 1, 20);
-	EXPECT_TRUE(infix(test_string, 0, 11) == "AGTTAGTTCAT") << test_string << "\n";
-	EXPECT_EQ(20, length(test_string));
-	ref_.ReferenceSequence(test_string, 0, 500, 12, true, test_variants, {3, 0}, 0, 20);
-	EXPECT_TRUE(infix(test_string, 0, 12) == "CTATGGTTTTTT") << test_string << "\n";
-	EXPECT_EQ(20, length(test_string));
+
+	// Test what happens if given fragment length is shorter than variant length
+	ref_.ReferenceSequence(test_string, 0, 4, 1, false, test_variants, {1, 0}, 1);
+	EXPECT_TRUE("T" == test_string) << test_string << "\n";
+	ref_.ReferenceSequence(test_string, 0, 4, 1, false, test_variants, {1, 1}, 1);
+	EXPECT_TRUE("A" == test_string) << test_string << "\n";
+	ref_.ReferenceSequence(test_string, 0, 4, 1, false, test_variants, {1, 2}, 1);
+	EXPECT_TRUE("G" == test_string) << test_string << "\n";
+	ref_.ReferenceSequence(test_string, 0, 5, 1, true, test_variants, {1, 0}, 0);
+	EXPECT_TRUE("C" == test_string) << test_string << "\n";
+	ref_.ReferenceSequence(test_string, 0, 5, 1, true, test_variants, {1, 2}, 0);
+	EXPECT_TRUE("T" == test_string) << test_string << "\n";
+	ref_.ReferenceSequence(test_string, 0, 5, 1, true, test_variants, {1, 1}, 0);
+	EXPECT_TRUE("A" == test_string) << test_string << "\n";
 
 	string error_msg = "\nThe extraction of only the first part by cutting at the first space does not work\n";
 	EXPECT_TRUE(ref_.ReferenceIdFirstPart(0) == "NC_000913.3_1-500") << ref_.ReferenceIdFirstPart(0) << error_msg;

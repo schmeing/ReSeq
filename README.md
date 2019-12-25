@@ -129,8 +129,8 @@ bowtie2 -p 32 -X 2000 -x my_reference -1 <(reseq-prepare-names.py my_data_1.fq m
 | **Simulation**    |
 | `-1` `--firstReadsOut` | reseq-R1.fq | Writes the simulated first reads into this file |
 | `-2` `--secondReadsOut` | reseq-R2.fq | Writes the simulated second reads into this file |
-| `-c` `--coverage` | 0       | Approximate average read depth simulated (0 = Use `--numReads`) |
-| `--numReads`      | 0       | Approximate number of read pairs simulated (0 = Original number of reads) |
+| `-c` `--coverage` | 0       | Approximate average read depth simulated (0 = Corrected original coverage) |
+| `--numReads`      | 0       | Approximate number of read pairs simulated (0 = Use `--coverage`) |
 | `--readSysError`  | None    | Read systematic errors from file in fastq format (seq=dominant error, qual=error percentage) |
 | `--recordBaseIdentifier` | ReseqRead | Base Identifier for the simulated fastq records, followed by a count and other information about the read |
 | `--refBias`       | keep/no | Way to select the reference biases for simulation (keep [from refIn] / no [biases] / draw [with replacement from original biases] / file) |

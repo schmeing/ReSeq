@@ -642,6 +642,79 @@ bool Simulator::CreateReads(
 		auto tile_id = rdist.TileId( rgen );
 
 		for(uintTempSeq template_segment=2; template_segment--; ){
+if(block.at(template_segment)){
+	auto test_block = block.at(template_segment);
+	auto test_block_pos = block_start_pos.at(template_segment);
+	auto test_cur_var = variant.at(template_segment).first;
+	auto test_var_pos = variant.at(template_segment).second;
+	int count_var_bases = 0;
+
+	for( auto test_pos=length(sim_reads.org_seq_.at(template_segment)); test_pos--; ){
+		bool no_variant(true);
+		if(!test_block){
+			printErr << "No next block available" << std::endl;
+			printErr << "Template segment: " << static_cast<uint16_t>(template_segment) << ' ' << static_cast<uint16_t>(strand) << std::endl;
+			printErr << "Variant shift: " << count_var_bases << std::endl;
+			printErr << "Reference sequence " << ref_seq_id << ": " << ref.SequenceLength(ref_seq_id) << std::endl;
+			printErr << "Simulated sequence: " << start_position_forward << " - " << end_position_forward << " (" << end_position_forward - start_position_forward << ")[" << length(sim_reads.org_seq_.at(template_segment)) << "]" << std::endl;
+			printErr << "Block info: " << block_start_pos.at(template_segment) << " " << block.at(template_segment)->sys_errors_.size() << std::endl;
+			printErr << "Fragment length: " << fragment_length << std::endl;
+		}
+
+		if(test_var_pos){
+			no_variant = false;
+			++count_var_bases;
+			if(++test_var_pos >= test_block->err_variants_.at(test_cur_var).var_errors_.size()){
+				test_var_pos = 0;
+				IncrementBlockPos(test_block_pos, test_block, ++test_cur_var);
+			}
+		}
+		else{
+			while(test_cur_var < test_block->err_variants_.size() && test_block->err_variants_.at(test_cur_var).position_ <= test_block_pos){
+				if(!test_block){
+					printErr << "No next block available" << std::endl;
+					printErr << "Template segment: " << static_cast<uint16_t>(template_segment) << ' ' << static_cast<uint16_t>(strand) << std::endl;
+					printErr << "Variant shift: " << count_var_bases << std::endl;
+					printErr << "Reference sequence " << ref_seq_id << ": " << ref.SequenceLength(ref_seq_id) << std::endl;
+					printErr << "Simulated sequence: " << start_position_forward << " - " << end_position_forward << " (" << end_position_forward - start_position_forward << ")[" << length(sim_reads.org_seq_.at(template_segment)) << "]" << std::endl;
+					printErr << "Block info: " << block_start_pos.at(template_segment) << " " << block.at(template_segment)->sys_errors_.size() << std::endl;
+					printErr << "Fragment length: " << fragment_length << std::endl;
+				}
+				if(test_block->err_variants_.at(test_cur_var).InAllele(allele)){
+					if(0 == test_block->err_variants_.at(test_cur_var).var_errors_.size()){
+						// Deletion
+						IncrementBlockPos(test_block_pos, test_block, ++test_cur_var);
+						--count_var_bases;
+					}
+					else{
+						no_variant = false;
+
+						if(1 == test_block->err_variants_.at(test_cur_var).var_errors_.size()){
+							// Substitution
+							IncrementBlockPos(test_block_pos, test_block, ++test_cur_var);
+							++test_cur_var;
+						}
+						else{
+							// Insertion
+							test_var_pos = 1;
+						}
+
+						break;
+					}
+				}
+				else{
+					++test_cur_var;
+				}
+			}
+		}
+
+		if(no_variant){
+			IncrementBlockPos(test_block_pos, test_block, test_cur_var);
+		}
+	}
+}
+
+
 			if(!FillRead(sim_reads, template_segment, tile_id, fragment_length, block.at(template_segment), block_start_pos.at(template_segment), variant.at(template_segment), allele, stats, estimates, rdist, rgen)){
 				return false;
 			}
@@ -1599,9 +1672,9 @@ void Simulator::UpdateBiasModForCurrentFragmentLength(
 		uintSeqLen cur_end_position,
 		Surrounding &surrounding_end) const{
 	if(ref.VariantsLoaded()){
-		if(bias_mod.start_variant_pos_ && cur_end_position-cur_start_position <= length(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_)-bias_mod.start_variant_pos_){
+		if(bias_mod.start_variant_pos_ && cur_end_position+bias_mod.fragment_length_extension_-cur_start_position <= length(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_)-bias_mod.start_variant_pos_){
 			// Still in start variant insertion
-			auto pos = bias_mod.start_variant_pos_ + cur_end_position-cur_start_position - 1;
+			auto pos = bias_mod.start_variant_pos_ + cur_end_position+bias_mod.fragment_length_extension_-cur_start_position - 1;
 			if( IsGC(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_, pos) ){
 				for(uintAlleleId all=0; all < ref.NumAlleles(); ++all){
 					++bias_mod.gc_mod_.at(all);
@@ -1987,7 +2060,7 @@ bool Simulator::CreateSystematicErrorProfile(
 	return true;
 }
 
-void Simulator::Simulate(
+bool Simulator::Simulate(
 		const char *destination_file_first,
 		const char *destination_file_second,
 		Reference &ref,
@@ -2055,27 +2128,21 @@ void Simulator::Simulate(
 			// Get number of read pairs to simulate
 			auto total_ref_size = ref.TotalSize();
 			double adapter_part = CoveragePropLostFromAdapters(stats);
-			if(0 != num_read_pairs || 0.0 != coverage){
-				if(0 != num_read_pairs){
-					total_pairs_ = num_read_pairs;
-				}
-				else{ //0.0 != coverage
-					total_pairs_ = CoverageToNumberPairs(coverage, total_ref_size, average_read_length, adapter_part);
-				}
-				// Keep the percentage of adapter only pairs
-				num_adapter_only_pairs_ = round( static_cast<double>(total_pairs_)*stats.FragmentDistribution().InsertLengths()[0]/(stats.TotalNumberReads()/2) );
+			double percentage_non_quality_excluded = stats.PercentageHighEnoughQualityReads();
+			if(0 != num_read_pairs){
+				total_pairs_ = num_read_pairs;
 			}
 			else{
-				// Keep the coverage from the original dataset
-				total_pairs_ = CoverageToNumberPairs(stats.Coverage().CoveragePeakPosition(), total_ref_size, average_read_length, adapter_part);
-				// Keep the percentage of adapter only pairs
-				num_adapter_only_pairs_ = round( static_cast<double>(total_pairs_)*stats.FragmentDistribution().InsertLengths()[0]/(stats.TotalNumberReads()/2) );
+				if(0.0 == coverage){
+					// Keep the coverage from the original dataset
+					coverage = stats.Coverage().MeanCoverage() / percentage_non_quality_excluded;
+				}
 
-				// Adapter only pairs(InsertLength == 0) are handled separately
-				//num_adapter_only_pairs_ = stats.FragmentDistribution().InsertLengths()[0];
-				// We only need to generate a number of pairs equal to half of the reads
-				//total_pairs_ = stats.TotalNumberReads()/2;
+				total_pairs_ = CoverageToNumberPairs(coverage, total_ref_size, average_read_length, adapter_part);
 			}
+
+			// Keep the percentage of adapter only pairs
+			num_adapter_only_pairs_ = round( static_cast<double>(total_pairs_)*stats.FragmentDistribution().InsertLengths()[0]/(stats.TotalNumberReads()/2) );
 
 			printInfo << "Aiming for " << total_pairs_ << " read pairs, which corresponds to an approximated read depth of " << setprecision(4) << NumberPairsToCoverage(total_pairs_, total_ref_size, average_read_length, adapter_part) << setprecision(6) << "x" << std::endl;
 			// Adapter only pairs(InsertLength == 0) are handled separately
@@ -2224,5 +2291,9 @@ void Simulator::Simulate(
 		// Remove the simulated files so it is clear that we encountered an error and do not accidentally continue with the old file
 		DeleteFile( destination_file_first );
 		DeleteFile( destination_file_second );
+		return false;
+	}
+	else{
+		return true;
 	}
 }

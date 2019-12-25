@@ -171,9 +171,9 @@ namespace reseq{
 			return utilities::at(reference_sequences_, n);
 		}
 
-		void ReferenceSequence(seqan::DnaString &insert_string, uintRefSeqId seq_id, uintSeqLen start_pos, uintSeqLen min_length, bool reversed=false, uintSeqLen seq_size=0) const;
+		void ReferenceSequence(seqan::DnaString &insert_string, uintRefSeqId seq_id, uintSeqLen start_pos, uintSeqLen frag_length, bool reversed=false) const;
 #ifndef SWIG // This part is not needed for the python plotting and swig can't handle the nested classes
-		void ReferenceSequence(seqan::DnaString &insert_string, uintRefSeqId seq_id, uintSeqLen start_pos, uintSeqLen min_length, bool reversed, const std::vector<Variant> &variants, std::pair<intVariantId, uintSeqLen> first_variant, uintAlleleId allele, uintSeqLen seq_size=0) const;
+		void ReferenceSequence(seqan::DnaString &insert_string, uintRefSeqId seq_id, uintSeqLen start_pos, uintSeqLen frag_length, bool reversed, const std::vector<Variant> &variants, std::pair<intVariantId, uintSeqLen> first_variant, uintAlleleId allele) const;
 #endif //SWIG
 
 		inline const seqan::Dna5String &operator[]( uintRefSeqId n ) const{

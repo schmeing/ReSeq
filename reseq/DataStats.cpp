@@ -436,13 +436,29 @@ bool DataStats::EvalRecord( pair<CoverageStats::FullRecord *, CoverageStats::Ful
 		}
 
 		if( !QualitySufficient( record.first->record_ ) || !QualitySufficient( record.second->record_ ) ){
-			CheckForAdapters(record.first->record_, record.second->record_); // We don't trust the mapping, so look for adapters like in unmapped case
-
-			reads_with_low_quality_ += 2;
+			if( reference_->ReferenceSequenceExcluded(record.first->record_.rID) || reference_->ReferenceSequenceExcluded(record.second->record_.rID) ){
+				reads_on_too_short_fragments_ += 2;
+			}
+			else{
+				if( reference_->FragmentExcluded( thread.last_exclusion_region_id_, thread.last_exclusion_ref_seq_, record.first->record_.rID, record.first->record_.beginPos, record.first->record_.beginPos+length(record.first->record_.seq) ) || reference_->FragmentExcluded( thread.last_exclusion_region_id_, thread.last_exclusion_ref_seq_, record.second->record_.rID, record.second->record_.beginPos, record.second->record_.beginPos+length(record.second->record_.seq) ) ){
+					reads_in_excluded_regions_ += 2;
+				}
+				else{
+					if( CheckForAdapters(record.first->record_, record.second->record_) ){ // We don't trust the mapping, so look for adapters like in unmapped case
+						reads_with_low_quality_with_adapters_ += 2;
+					}
+					else{
+						reads_with_low_quality_without_adapters_ += 2;
+					}
+				}
+			}
 		}
 		else{
 			if( record.first->record_.rID == record.second->record_.rID ){
-				if( !reference_->ReferenceSequenceExcluded(record.first->record_.rID) ){
+				if( reference_->ReferenceSequenceExcluded(record.first->record_.rID) ){
+					reads_on_too_short_fragments_ += 2;
+				}
+				else{
 					uintSeqLen start_pos_first, start_pos_second, end_pos_first, end_pos_second;
 					GetReadPosOnReference(start_pos_first, end_pos_first, record.first->record_);
 					GetReadPosOnReference(start_pos_second, end_pos_second, record.second->record_);
@@ -469,7 +485,10 @@ bool DataStats::EvalRecord( pair<CoverageStats::FullRecord *, CoverageStats::Ful
 					}
 
 					if(InProperDirection( record.first->record_, end_pos_second, start_pos_first, start_pos_second ) || adapter_detected){
-						if( (!adapter_detected && !reference_->FragmentExcluded( thread.last_exclusion_region_id_, thread.last_exclusion_ref_seq_, record.first->record_.rID, start_pos_first, end_pos_second )) || (adapter_detected && !reference_->FragmentExcluded( thread.last_exclusion_region_id_, thread.last_exclusion_ref_seq_, record.first->record_.rID, start_pos_second, end_pos_first )) ){
+						if( (!adapter_detected && reference_->FragmentExcluded( thread.last_exclusion_region_id_, thread.last_exclusion_ref_seq_, record.first->record_.rID, start_pos_first, end_pos_second )) || (adapter_detected && reference_->FragmentExcluded( thread.last_exclusion_region_id_, thread.last_exclusion_ref_seq_, record.first->record_.rID, start_pos_second, end_pos_first )) ){
+							reads_in_excluded_regions_ += 2;
+						}
+						else{
 							reads_used_ += 2;
 
 							if(adapter_detected ){
@@ -528,13 +547,7 @@ bool DataStats::EvalRecord( pair<CoverageStats::FullRecord *, CoverageStats::Ful
 								return false;
 							}
 						}
-						else{
-							reads_in_excluded_regions_ += 2;
-						}
 					}
-				}
-				else{
-					reads_on_too_short_fragments_ += 2;
 				}
 			}
 		}
@@ -900,7 +913,7 @@ void DataStats::ReadThread( DataStats &self, BamFileIn &bam, uintSeqLen max_seq_
 				// coverage_.CleanUp:
 				// Once all reads in it have been handled processes the coverage blocks: The coverage itself and all the read statistics that depend on the other reads (systematic error)
 				// Removes the processed blocks
-				still_needed_reference_sequence = self.coverage_.CleanUp(still_needed_position, *self.reference_, self.qualities_, self.errors_, self.phred_quality_offset_, cov_block, processed_fragments);
+				still_needed_reference_sequence = self.coverage_.CleanUp(still_needed_position, *self.reference_, self.qualities_, self.errors_, self.phred_quality_offset_, cov_block, processed_fragments, thread_data.coverage_);
 			}
 
 			self.coverage_.PreLoadVariants(*self.reference_);
@@ -922,7 +935,7 @@ void DataStats::ReadThread( DataStats &self, BamFileIn &bam, uintSeqLen max_seq_
 		self.finish_threads_cv_.notify_all();
 
 		// This finalization might take a bit of time so do it already here
-		if( !self.coverage_.Finalize(*self.reference_, self.qualities_, self.errors_, self.phred_quality_offset_, self.print_mutex_) ){
+		if( !self.coverage_.Finalize(*self.reference_, self.qualities_, self.errors_, self.phred_quality_offset_, self.print_mutex_, thread_data.coverage_) ){
 			self.reading_success_ = false;
 		}
 	}
@@ -948,7 +961,8 @@ DataStats::DataStats(Reference *ref, uintSeqLen maximum_insert_length, uintQual 
 	total_number_reads_(0),
 	reads_in_unmapped_pairs_without_adapters_(0),
 	reads_in_unmapped_pairs_with_adapters_(0),
-	reads_with_low_quality_(0),
+	reads_with_low_quality_with_adapters_(0),
+	reads_with_low_quality_without_adapters_(0),
 	reads_on_too_short_fragments_(0),
 	reads_in_excluded_regions_(0),
 	reads_used_(0){
@@ -1168,13 +1182,14 @@ bool DataStats::ReadBam( const char *bam_file, const char *adapter_file, const c
 
 	reference_->ClearAllVariantPositions();
 
-	uintFragCount reads_in_wrong_place = total_number_reads_ - reads_in_unmapped_pairs_without_adapters_ - reads_in_unmapped_pairs_with_adapters_ - reads_with_low_quality_ - reads_on_too_short_fragments_ - reads_in_excluded_regions_ - reads_used_;
+	uintFragCount reads_in_wrong_place = total_number_reads_ - reads_in_unmapped_pairs_without_adapters_ - reads_in_unmapped_pairs_with_adapters_ - reads_with_low_quality_with_adapters_ - reads_with_low_quality_without_adapters_ - reads_on_too_short_fragments_ - reads_in_excluded_regions_ - reads_used_;
 	printInfo << "Of the " << total_number_reads_ << " reads in the file" << std::endl;
 	printInfo << reads_used_ << " (" << static_cast<uintPercentPrint>(Percent(reads_used_, total_number_reads_)) << "\%) could be used for all statistics" << std::endl;
-	printInfo << reads_with_low_quality_ << " (" << static_cast<uintPercentPrint>(Percent(reads_with_low_quality_, total_number_reads_)) << "\%) had too low mapping qualities" << std::endl;
-	printInfo << reads_on_too_short_fragments_ << " (" << static_cast<uintPercentPrint>(Percent(reads_on_too_short_fragments_, total_number_reads_)) << "\%) are on reference sequences that are too short" << std::endl;
+	printInfo << reads_with_low_quality_with_adapters_ << " (" << static_cast<uintPercentPrint>(Percent(reads_with_low_quality_with_adapters_, total_number_reads_)) << "\%) had too low mapping qualities with adapters detected" << std::endl;
+	printInfo << reads_with_low_quality_without_adapters_ << " (" << static_cast<uintPercentPrint>(Percent(reads_with_low_quality_without_adapters_, total_number_reads_)) << "\%) had too low mapping qualities without adapters detected" << std::endl;
 	printInfo << reads_in_excluded_regions_ << " (" << static_cast<uintPercentPrint>(Percent(reads_in_excluded_regions_, total_number_reads_)) << "\%) mapped to excluded regions of the reference" << std::endl;
 	printInfo << reads_in_wrong_place << " (" << static_cast<uintPercentPrint>(Percent(reads_in_wrong_place, total_number_reads_)) << "\%) were mapping too far apart from their partner or in wrong direction" << std::endl;
+	printInfo << reads_on_too_short_fragments_ << " (" << static_cast<uintPercentPrint>(Percent(reads_on_too_short_fragments_, total_number_reads_)) << "\%) are on reference sequences that are too short" << std::endl;
 	printInfo << reads_in_unmapped_pairs_with_adapters_ << " (" << static_cast<uintPercentPrint>(Percent(reads_in_unmapped_pairs_with_adapters_, total_number_reads_)) << "\%) were in an unmapped pair with adapters detected" << std::endl;
 	printInfo << reads_in_unmapped_pairs_without_adapters_ << " (" << static_cast<uintPercentPrint>(Percent(reads_in_unmapped_pairs_without_adapters_, total_number_reads_)) << "\%) were in an unmapped pair without adapters detected" << std::endl;
 
@@ -1182,6 +1197,8 @@ bool DataStats::ReadBam( const char *bam_file, const char *adapter_file, const c
 		printErr << "No reads in the file passed all criteria to be used for the statistics" << std::endl;
 		success = false;
 	}
+
+	percentage_high_enough_quality_reads_ = static_cast<double>(reads_used_)/(reads_used_+reads_with_low_quality_without_adapters_);
 
 	if(!success || SignsOfPairsWithNamesNotIdentical() || !FinishReadIn() ){
 		total_number_reads_ = 0; // Marking that the reading in was not successful
@@ -1195,6 +1212,8 @@ bool DataStats::ReadBam( const char *bam_file, const char *adapter_file, const c
 	}
 
 	reference_->ClearAllExclusionRegions(); // Don't remove any of it earlier because we still need all of them in Calculate
+
+	creation_time_ = std::chrono::time_point_cast<std::chrono::seconds>( std::chrono::system_clock::now() ).time_since_epoch().count();
 
 	return true;
 }

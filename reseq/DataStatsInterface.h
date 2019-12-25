@@ -32,7 +32,8 @@ namespace reseq{
 		const std::pair< std::vector<uintNucCount>::size_type, std::vector<uintNucCount> > &ErrorRatesByGC(uintPercent gc) const;
 
 		const std::pair< std::vector<uintSurBlockId>::size_type, std::vector<uintSurBlockId> > &BlockErrorRate() const;
-		const std::pair< std::vector<uintSurBlockId>::size_type, std::vector<uintSurBlockId> > &BlockNonSystematicErrorRate() const;
+		const std::pair< std::vector<uintSurBlockId>::size_type, std::vector<uintSurBlockId> > &BlockPercentSystematic() const;
+		const std::pair< std::vector<uintNucCount>::size_type, std::vector<uintNucCount> > &SystematicErrorPValues() const;
 
 		const std::pair< std::vector<uintNucCount>::size_type, std::vector<uintNucCount> > &Coverage() const;
 		const std::pair< std::vector<uintNucCount>::size_type, std::vector<uintNucCount> > &CoverageStranded( bool reverse_strand ) const;

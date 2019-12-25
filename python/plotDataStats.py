@@ -14,9 +14,11 @@ import os
 import sys
 from time import clock
 
-if os.path.isdir(os.path.dirname(os.path.realpath(__file__)) + "/../build/pyMods/"):
+if 'RESEQ_PYMODS' in os.environ and os.path.isdir(os.path.realpath(os.environ['RESEQ_PYMODS'])):
+    sys.path.append(os.path.realpath(os.environ['RESEQ_PYMODS']))
+elif os.path.isdir(os.path.dirname(os.path.realpath(__file__)) + "/../build/pyMods/"):
     sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../build/pyMods/")
-if os.path.isdir(os.path.dirname(os.path.realpath(__file__)) + "/../lib/"):
+elif os.path.isdir(os.path.dirname(os.path.realpath(__file__)) + "/../lib/"):
     sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../lib/")
 import DataStats
 
@@ -24,7 +26,7 @@ text_size = 20
 colour_scheme = ["#D92120","#488BC2","#7FB972","#E6642C","#781C81","#D9AD3C","#BBBBBB","#4065B1"]
 #colour_scheme = ['#D92120', '#4065B1', '#7FB972']
 #colour_scheme = ['#D92120', '#7FB972', '#4065B1']
-fill_colour_scheme = ["#C8100F","#377AB1","#6EA861","#D5531B","#670B7)","#C89C2B","#AAAAAA","#2F54A0"]
+fill_colour_scheme = ["#C8100F","#377AB1","#6EA861","#D5531B","#670B70","#C89C2B","#AAAAAA","#2F54A0"]
 #fill_colour_scheme = ['#E6642C', '#488BC2', '#63AD99']
 #fill_colour_scheme = ['#E6642C', '#63AD99', '#488BC2']
 
@@ -46,13 +48,13 @@ def getMinMaxX(hists,zero_padding=True, cov_plot=False):
         
         # Cut at 5 times the mean
         val = 0
-        median_count = sum(hists[0][1])/2
+        quantile_count = sum(hists[0][1])*cov_plot
         count = 0
-        median = -1
-        while count < median_count:
-            median += 1
-            count += hists[0][1][median]
-        max_x = min(max_x, min_x+5*int(median) )
+        quantile = -1
+        while count < quantile_count:
+            quantile += 1
+            count += hists[0][1][quantile]
+        max_x = min(max_x, min_x+int(ceil(1.1*quantile)) )
 
     else:
         for hist in hists:
@@ -68,11 +70,11 @@ def getMinMaxX(hists,zero_padding=True, cov_plot=False):
     
     return (min_x,max_x)
 
-def getMinMaxY(hists, cov_plot=False):
+def getMinMaxY(hists, ignore_zero_for_y_scale=False):
     min_y = sys.maxint
     max_y = 0
     
-    if cov_plot:
+    if ignore_zero_for_y_scale:
         # Do not count x=0
         for hist in hists:
             min_y = min( min_y, min(hist[1][1:]) )
@@ -172,7 +174,7 @@ def setAxis(ax, log, ylimits=None):
     
     return
 
-def plotMinimal(ax, names, hists, min_x, max_x, x_vals, log=False, marker=None, linewidth=line_width, linestyle='-', normalize=False, normVectors=False, cov_plot=False):
+def plotMinimal(ax, names, hists, min_x, max_x, x_vals, log=False, marker=None, linewidth=line_width, linestyle='-', normalize=False, normVectors=False, cov_plot=False, ignore_zero_for_y_scale=False):
     if not normVectors:
         normVectors = [False] * len(names)
         pass
@@ -184,8 +186,8 @@ def plotMinimal(ax, names, hists, min_x, max_x, x_vals, log=False, marker=None, 
         ax.plot(x_vals, padList(hist, min_x, max_x, normalize=normalize, normVector=norm), linewidth=linewidth, marker=marker, linestyle=linestyle, label=name, color=col)
         pass
 
-    if cov_plot:
-        ylimits = getMinMaxY(hists, cov_plot=True)
+    if ignore_zero_for_y_scale:
+        ylimits = getMinMaxY(hists, ignore_zero_for_y_scale=True)
     else:
         ylimits = None
 
@@ -193,17 +195,17 @@ def plotMinimal(ax, names, hists, min_x, max_x, x_vals, log=False, marker=None, 
 
     return
 
-def plotBackend(xtitle, ytitle, names, hists, ax=plt, zero_padding=True, log=False, shift_x=0, multiply_x=1, baseline=None, normalize=False, normVectors=False, cov_plot=False):
+def plotBackend(xtitle, ytitle, names, hists, ax=plt, zero_padding=True, log=False, shift_x=0, multiply_x=1, baseline=None, normalize=False, normVectors=False, cov_plot=False, ignore_zero_for_y_scale=False):
     (min_x, max_x) = getMinMaxX(hists, zero_padding, cov_plot=cov_plot)
 
     if 1 < max_x-min_x: # Otherwise the plot has only one data point and no lines can be plotted
-        x_vals = [x*multiply_x for x in range(min_x+shift_x, max_x+shift_x)]
+        x_vals = [x*multiply_x for x in np.arange(min_x+shift_x, max_x+shift_x)]
 
         if baseline:
             ax.fill_between(x_vals, padList(baseline[1], min_x*multiply_x, max_x*multiply_x), label=baseline[0], color=baseline_colour)
             pass
         
-        plotMinimal(ax, names, hists, min_x, max_x, x_vals, log=log, normalize=normalize, normVectors=normVectors, cov_plot=cov_plot)
+        plotMinimal(ax, names, hists, min_x, max_x, x_vals, log=log, normalize=normalize, normVectors=normVectors, cov_plot=cov_plot, ignore_zero_for_y_scale=ignore_zero_for_y_scale)
     
         finalizePlot(xtitle, ytitle)
     
@@ -211,10 +213,10 @@ def plotBackend(xtitle, ytitle, names, hists, ax=plt, zero_padding=True, log=Fal
     else:
         return False
 
-def plot(pdf, xtitle, ytitle, names, hists, zero_padding=True, log=False, shift_x=0, multiply_x=1, baseline=None, legend='upper right', normalize=False, normVectors=False, cov_plot=False):
+def plot(pdf, xtitle, ytitle, names, hists, zero_padding=True, log=False, shift_x=0, multiply_x=1, baseline=None, legend='upper right', normalize=False, normVectors=False, cov_plot=False, ignore_zero_for_y_scale=False):
     plt.close()
     
-    if plotBackend(xtitle, ytitle, names, hists, zero_padding=zero_padding, log=log, shift_x=shift_x, multiply_x=multiply_x, baseline=baseline, normalize=normalize, normVectors=normVectors, cov_plot=cov_plot):
+    if plotBackend(xtitle, ytitle, names, hists, zero_padding=zero_padding, log=log, shift_x=shift_x, multiply_x=multiply_x, baseline=baseline, normalize=normalize, normVectors=normVectors, cov_plot=cov_plot, ignore_zero_for_y_scale=ignore_zero_for_y_scale):
         if plot_legend:
             plt.legend(loc=legend, shadow=True)
             pass
@@ -874,7 +876,7 @@ def plotDataStats(statsFiles, oFile):
             plt.ioff()
             print "Start plotting files: ", clock()
             
-            plot( pdf, "Coverage", "# bases of reference", names, [st.Coverage() for st in stats], zero_padding=False, cov_plot=True )
+            plot( pdf, "Coverage", "# bases of reference", names, [st.Coverage() for st in stats], zero_padding=False, cov_plot=0.99, ignore_zero_for_y_scale=True )
             #plot( pdf, "Coverage + strand", "# bases of reference", names, [st.CoverageStranded(False) for st in stats], zero_padding=False )
             #plot( pdf, "Coverage - strand", "# bases of reference", names, [st.CoverageStranded(True) for st in stats], zero_padding=False )
             plot( pdf, "Coverage + strand / total Coverage [%]", "# bases of reference", names, [st.CoverageStrandedPercent(False) for st in stats], zero_padding=False )
@@ -911,10 +913,10 @@ def plotDataStats(statsFiles, oFile):
             nucleotidePlot( pdf, "position before(-)/after(+) fragment (reverse)", "% A/C/G/T at position", names, [ [st.OutskirtContent(1,n) for st in stats] for n in xrange(4)], zero_padding=False, shift_x=-20, pos_normalize=True )
             plot( pdf, "Read position (first)", "# N", names, [st.SequenceContent(0,4) for st in stats], zero_padding=False, shift_x=1, legend='upper left' )
             plot( pdf, "Read position (second)", "# N", names, [st.SequenceContent(1,4) for st in stats], zero_padding=False, shift_x=1, legend='upper left' )
-            
+
             print "Plotted coverage information: ", clock()
-            
-            
+
+
             plotBaseQualities( pdf, "Read position (first)", "Quality", names, [st.BaseQualityMean(0) for st in stats], [st.BaseQualityMinimum(0) for st in stats], [st.BaseQualityFirstQuartile(0) for st in stats], [st.BaseQualityMedian(0) for st in stats], [st.BaseQualityThirdQuartile(0) for st in stats], [st.BaseQualityMaximum(0) for st in stats] )
             plotBaseQualities( pdf, "Read position (second)", "Quality", names, [st.BaseQualityMean(1) for st in stats], [st.BaseQualityMinimum(1) for st in stats], [st.BaseQualityFirstQuartile(1) for st in stats], [st.BaseQualityMedian(1) for st in stats], [st.BaseQualityThirdQuartile(1) for st in stats], [st.BaseQualityMaximum(1) for st in stats] )
             #plotBaseQualities( pdf, "Read position (first)", "Quality (mapped reads)", names, [st.BaseQualityMeanReference(0) for st in stats], [st.BaseQualityMinimumReference(0) for st in stats], [st.BaseQualityFirstQuartileReference(0) for st in stats], [st.BaseQualityMedianReference(0) for st in stats], [st.BaseQualityThirdQuartileReference(0) for st in stats], [st.BaseQualityMaximumReference(0) for st in stats] )
@@ -961,7 +963,8 @@ def plotDataStats(statsFiles, oFile):
  
             print "Plotted quality information: ", clock()
             
-            plot( pdf, "Error Coverage", "# bases of reference", names, [st.ErrorCoverage() for st in stats], zero_padding=False, log=True )
+            plot( pdf, "Error Coverage", "# bases of reference", names, [st.ErrorCoverage() for st in stats], zero_padding=False, cov_plot=0.99 )
+            plot( pdf, "Error Coverage", "# bases of reference", names, [st.ErrorCoverage() for st in stats], zero_padding=False, cov_plot=0.99999, log=True )
             plot( pdf, "Error Coverage / Base Coverage [%]", "# bases of reference", names, [st.ErrorCoveragePercent() for st in stats], zero_padding=False, log=True )
             #plot( pdf, "Error Coverage / Base Coverage [%]", "# bases of reference (min cov 10)", names, [st.ErrorCoveragePercentMinCov10() for st in stats], zero_padding=False, log=True )
             #plot( pdf, "Error Coverage / Base Coverage [%]", "# bases of reference (min cov 20)", names, [st.ErrorCoveragePercentMinCov20() for st in stats], zero_padding=False, log=True )
@@ -981,7 +984,8 @@ def plotDataStats(statsFiles, oFile):
             #plotCalledBases( pdf, "Position (second)", "% Called", names, [ [ [st.CalledBasesByPosition(1, i, j) for j in range(5)] for i in range(4)] for st in stats], [ [st.SequenceContent(1,n) for n in xrange(5)] for st in stats] )
             
             plot( pdf, "Mean Error Rate", "% Coverage Blocks", names, [st.BlockErrorRate() for st in stats], normalize=True )
-            plot( pdf, "Non Systematic Error Rate", "% Coverage Blocks", names, [st.BlockNonSystematicErrorRate() for st in stats], normalize=True )
+            plot( pdf, "% Systematic Error Positions", "% Coverage Blocks", names, [st.BlockPercentSystematic() for st in stats], normalize=True )
+            plot( pdf, "p-value", "% Valid Positions", names, [st.SystematicErrorPValues() for st in stats], normalize=True, shift_x=0.5, multiply_x=0.01 )
             
             #for prev_nuc in range(4):
             #    plotCalledBases( pdf, "Base Quality (first) call {}".format(prev_nuc), "% Called", names, [ [ [st.CalledBasesByBaseQualityPerPreviousCalledBase(0, i, j, prev_nuc) for j in range(5)] for i in range(4)] for st in stats], [ [st.NucleotideQuality(0,n) for n in xrange(5)] for st in stats], False )
