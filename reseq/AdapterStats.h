@@ -20,14 +20,18 @@ namespace reseq{
 		// Definitions
 		const uintReadLen kMinimumAdapterLengthUnmapped = 15; // Minimum adapter length required to insert not completely mapped read pair into statistics (15 should stop bowtie2 from mapping correctly)
 		const double kMinFractionOfMaximumForSimulation = 0.1; // Minimum fraction of the highest adapter count that an adapter needs to have to be simulated (Removes garbage from adapter reading stage)
+		static const uintReadLen kKmerLength = 10;
 
 		// Temporary variables
+		std::array<KmerCount<kKmerLength>, 2> adapter_kmers_; // adapter_kmers_[first/second] = KmerCounts
+		std::array<std::vector<uintNucCount>, 2> adapter_start_kmers_; // adapter_start_kmers_[first/second] = StartKmerCount
+
 		std::vector<std::vector<std::vector<std::vector<utilities::VectorAtomic<uintFragCount>>>>> tmp_counts_; // counts_[AdapterID][secondAdapterID][firstAdapterLength][secondAdapterLength] = #adapters
 		std::array<std::vector<std::vector<utilities::VectorAtomic<uintFragCount>>>, 2> tmp_start_cut_; // start_cut_[templateSegment][AdapterID][basesCutFromTheBeginningOfTheAdapterAtPos0] = #adapters
 		std::vector<utilities::VectorAtomic<uintFragCount>> tmp_polya_tail_length_; // polya_tail_length_[lengthOfPolyATailAfterAdapter] = #adapters
 		std::array<std::atomic<uintNucCount>, 5> tmp_overrun_bases_; // overrun_bases_[nucleotide] = #basesAfterPolyATailWithThisNucleotide
 
-		// Adapter infos loaded
+		// Adapter infos loaded/detected
 		std::array<std::vector<std::string>, 2> names_; // names_[templateSegment][AdapterID] = adapterNameFromFasta
 		std::array<std::vector<seqan::DnaString>, 2> seqs_; // seqs_[templateSegment][AdapterID] = adapterSequenceFromFasta
 		std::vector<std::vector<bool>> combinations_; // combinations_[AdapterID][secondAdapterID] = notValid(false)/Valid(true)
@@ -101,7 +105,11 @@ namespace reseq{
 		const std::array<uintNucCount, 5> &OverrunBases() const{ return overrun_bases_; }
 	
 		// Main functions
-		bool LoadAdapters(const char *adapter_file, const char *adapter_matrix, uintQual phred_quality_offset, uintReadLen size_read_length);
+		bool LoadAdapters(const char *adapter_file, const char *adapter_matrix);
+		void PrepareAdapterPrediction();
+		void ExtractAdapterPart(const seqan::BamAlignmentRecord &record);
+		bool PredictAdapters();
+		void PrepareAdapters(uintReadLen size_read_length, uintQual phred_quality_offset);
 		bool Detect(uintReadLen &adapter_position_first, uintReadLen &adapter_position_second, const seqan::BamAlignmentRecord &record_first, const seqan::BamAlignmentRecord &record_second, const Reference &reference, bool properly_mapped=false);
 		void Finalize();
 		void SumCounts();

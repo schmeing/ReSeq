@@ -72,7 +72,9 @@ void FragmentDistributionStatsTest::CreateTestObject(const Reference *ref){
 	}
 	vector<uintFragCount> reads_per_frag_len_bin;
 	reads_per_frag_len_bin.resize(num_bins, 0);
-	test_->Prepare(*ref, maximum_insert_length, 100000000, reads_per_frag_len_bin);
+	vector<uintFragCount> lowq_reads_per_frag_len_bin;
+	lowq_reads_per_frag_len_bin.resize(num_bins, 0);
+	test_->Prepare(*ref, maximum_insert_length, 100000000, reads_per_frag_len_bin, lowq_reads_per_frag_len_bin);
 
 	//test_->Finalize();
 	test_->tmp_insert_lengths_.resize(101); // Reverted in Finalize, so it has to be done here
@@ -639,7 +641,26 @@ void FragmentDistributionStatsTest::TestBiasCalculationVectorsSpline(){
 	EXPECT_EQ(30, test.gc_knots_.at(4));
 	EXPECT_EQ(33, test.gc_knots_.at(5));
 
-	//void PrepareSplines();
+	// Linear spline
+	vector<double> spline_pars;
+	spline_pars.resize(BiasCalculationVectors::kGCSplineDf+1, 1.0);
+	test.gc_knots_.at(0) = 10;
+	spline_pars.at(1) = test.gc_knots_.at(0);
+	for(uintPercent k=1; k<test.gc_knots_.size(); ++k){
+		test.gc_knots_.at(k) = test.gc_knots_.at(k-1) + 5;
+		spline_pars.at(k+1) = test.gc_knots_.at(k);
+	}
+	test.PrepareSplines();
+
+	double a, b, c, d;
+	for(uintPercent k=0; k+1<test.gc_knots_.size(); ++k){
+		test.GetSplineCoefficients(a, b, c, d, k, spline_pars);
+		for(uintPercent gc=test.gc_knots_.at(k); gc <= test.gc_knots_.at( k+1 ); ++gc){
+			uintPercent cur_gc = gc-test.gc_knots_.at(k);
+			EXPECT_DOUBLE_EQ(gc, a + b*cur_gc + c*cur_gc*cur_gc + d*cur_gc*cur_gc*cur_gc);
+		}
+	}
+
 	//void GetSplineCoefficients(double &a, double &b, double &c, double &d, uintPercent k, const std::vector<double> &spline_pars);
 	//void CalculateSpline(const std::vector<double> &spline_pars);
 	//void CalculateSplineGrad(const std::vector<double> &spline_pars, std::vector<double> &grad, uintNumFits grad_offset);
@@ -674,6 +695,7 @@ void FragmentDistributionStatsTest::TestBiasCalculation(){
 		last_size = test_->fragment_sites_by_ref_seq_bin_.at(0).size();
 	}
 	test_->abundance_.at(0) += test_->fragment_sites_by_ref_seq_bin_.at(0).size();
+	test_->insert_lengths_.Shrink();
 
 	// Fit data
 	FragmentDuplicationStats duplications;
@@ -683,7 +705,7 @@ void FragmentDistributionStatsTest::TestBiasCalculation(){
 	mutex print_mutex;
 
 	ReduceVerbosity(1); // Suppress warnings
-	test_->AddNewBiasCalculations(1, thread_data.at(0), print_mutex);
+	test_->AddNewBiasCalculations(1, thread_data.at(0), print_mutex, species_reference_);
 
 	thread threads[num_threads];
 	for(auto i = num_threads; i--; ){

@@ -8,6 +8,8 @@ using std::max;
 using std::min;
 //include <array>
 using std::array;
+#include <cstring>
+using std::strlen;
 #include <exception>
 using std::exception;
 #include <fstream>
@@ -440,7 +442,10 @@ bool DataStats::EvalRecord( pair<CoverageStats::FullRecord *, CoverageStats::Ful
 				reads_on_too_short_fragments_ += 2;
 			}
 			else{
-				if( reference_->FragmentExcluded( thread.last_exclusion_region_id_, thread.last_exclusion_ref_seq_, record.first->record_.rID, record.first->record_.beginPos, record.first->record_.beginPos+length(record.first->record_.seq) ) || reference_->FragmentExcluded( thread.last_exclusion_region_id_, thread.last_exclusion_ref_seq_, record.second->record_.rID, record.second->record_.beginPos, record.second->record_.beginPos+length(record.second->record_.seq) ) ){
+				uintSeqLen start_pos_first, end_pos_first, start_pos_second, end_pos_second;
+				GetReadPosOnReference(start_pos_first, end_pos_first, record.first->record_);
+				GetReadPosOnReference(start_pos_second, end_pos_second, record.second->record_);
+				if( reference_->FragmentExcluded( thread.last_exclusion_region_id_, thread.last_exclusion_ref_seq_, record.first->record_.rID, start_pos_first, end_pos_first ) || reference_->FragmentExcluded( thread.last_exclusion_region_id_, thread.last_exclusion_ref_seq_, record.second->record_.rID, start_pos_second, end_pos_second ) ){
 					reads_in_excluded_regions_ += 2;
 				}
 				else{
@@ -578,10 +583,15 @@ void DataStats::PrepareReadIn(uintQual size_mapping_quality, uintReadLen size_in
 		}
 	}
 
+	adapters_.PrepareAdapters(size_pos, phred_quality_offset_);
 	coverage_.Prepare( Divide(num_bases,reference_->TotalSize()), Divide(num_bases,num_reads), maximum_read_length_on_reference_ );
 	duplicates_.PrepareTmpDuplicationVector(maximum_insert_length_);
 	errors_.Prepare(tiles_.NumTiles(), maximum_quality_+1, size_pos, size_indel);
-	fragment_distribution_.Prepare(*reference_, maximum_insert_length_, max_ref_seq_bin_size, reads_per_frag_len_bin_);
+	fragment_distribution_.Prepare(*reference_, maximum_insert_length_, max_ref_seq_bin_size, reads_per_frag_len_bin_, lowq_reads_per_frag_len_bin_);
+	reads_per_frag_len_bin_.clear();
+	reads_per_frag_len_bin_.shrink_to_fit();
+	lowq_reads_per_frag_len_bin_.clear();
+	lowq_reads_per_frag_len_bin_.shrink_to_fit();
 	qualities_.Prepare(tiles_.NumTiles(), maximum_quality_+1, size_pos, maximum_insert_length_);
 
 	// Prepare vector in this class
@@ -673,6 +683,19 @@ void DataStats::Shrink(){
 
 // Deactivation of bias calculation only for speeding up of tests
 bool DataStats::Calculate(uintNumThreads num_threads){
+	// Calculate coverage corrected for low quality sites
+	uintFragCount num_reads(0);
+	uintNucCount num_bases(0);
+	for( int template_segment = 2; template_segment--; ){
+		for(auto len=read_lengths_.at(template_segment).from(); len < read_lengths_.at(template_segment).to(); ++len ){
+			num_reads += read_lengths_.at(template_segment).at(len);
+			num_bases += read_lengths_.at(template_segment).at(len)*len;
+		}
+	}
+	double average_read_len = static_cast<double>(num_bases)/num_reads;
+	corrected_coverage_ = fragment_distribution_.CorrectedTotalAbundance() * average_read_len * 2 / (reference_->TotalSize() - reference_->TotalExcludedBases());
+	printInfo << "Estimated a corrected mean coverage of " << corrected_coverage_ << "x" << std::endl;
+
 	// Calculate the duplicates from observation of fragments at same position and reference characteristics
 	if(!fragment_distribution_.FinalizeBiasCalculation(*reference_, num_threads, duplicates_)){
 		return false;
@@ -716,9 +739,11 @@ bool DataStats::PreRun(BamFileIn &bam, const char *bam_file, BamHeader &header, 
 		num_bins += reference_->SequenceLength(ref_seq)/maximum_insert_length_ + 1;
 	}
 	reads_per_frag_len_bin_.resize(num_bins);
+	lowq_reads_per_frag_len_bin_.resize(num_bins);
 	uintRefSeqId cur_ref_seq(0);
 	uintRefLenCalc ref_seq_start_bin(0);
 
+	adapters_.PrepareAdapterPrediction();
 	do{
 		try{
 			++total_number_reads_; // Counter total_number_reads_ for read in, later in Calculate correct it with the number of accepted reads from read_length_
@@ -749,6 +774,13 @@ bool DataStats::PreRun(BamFileIn &bam, const char *bam_file, BamHeader &header, 
 							}
 							++reads_per_frag_len_bin_.at( ref_seq_start_bin + record.beginPos/maximum_insert_length_ );
 						}
+						if( !hasFlagUnmapped(record) && record.mapQ < minimum_mapping_quality_ ){
+							while(record.rID > cur_ref_seq){
+								ref_seq_start_bin += reference_->SequenceLength(cur_ref_seq)/maximum_insert_length_ + 1;
+								++cur_ref_seq;
+							}
+							++lowq_reads_per_frag_len_bin_.at( ref_seq_start_bin + record.beginPos/maximum_insert_length_ );
+						}
 
 						// Determine quality range
 						for( auto i=length(record.qual); i--;){
@@ -758,6 +790,8 @@ bool DataStats::PreRun(BamFileIn &bam, const char *bam_file, BamHeader &header, 
 
 						SetToMax(max_mapq, record.mapQ);
 						SetToMin(min_mapq, record.mapQ);
+
+						adapters_.ExtractAdapterPart(record);
 					}
 				}
 				else{
@@ -821,7 +855,7 @@ bool DataStats::PreRun(BamFileIn &bam, const char *bam_file, BamHeader &header, 
 	size_mapping_quality = max_mapq+1;
 	++size_indel; // Add one to go from index of last value to size
 
-	return true;
+	return adapters_.PredictAdapters();
 }
 
 bool DataStats::ReadRecords( BamFileIn &bam, bool &not_done, ThreadData &thread_data ){
@@ -843,6 +877,22 @@ bool DataStats::ReadRecords( BamFileIn &bam, bool &not_done, ThreadData &thread_
 					// Use record->record_.beginPos-maximum_read_length_on_reference_ as start, because of potentially soft-clipped bases at the beginning
 					if( !coverage_.EnsureSpace(record->record_.rID, (record->record_.beginPos>maximum_read_length_on_reference_?record->record_.beginPos-maximum_read_length_on_reference_:0), record->record_.beginPos+maximum_read_length_on_reference_, record, *reference_) ){
 						return false;
+					}
+				}
+
+				// Add low q sites
+				if( !QualitySufficient( record->record_ ) && !hasFlagUnmapped(record->record_) && !reference_->ReferenceSequenceExcluded(record->record_.rID) && // low quality and not excluded
+					(hasFlagNextUnmapped(record->record_) || record->record_.rID != record->record_.rNextId || (!hasFlagRC(record->record_) && (record->record_.beginPos < record->record_.pNext || record->record_.beginPos > record->record_.pNext+length(record->record_.seq))) || (hasFlagRC(record->record_) && (record->record_.beginPos > record->record_.pNext || record->record_.beginPos+length(record->record_.seq) < record->record_.pNext)) ) ){ // not in an adapter pair
+					uintSeqLen start_pos, end_pos;
+					GetReadPosOnReference(start_pos, end_pos, record->record_);
+
+					if( !reference_->FragmentExcluded( thread_data.last_exclusion_region_id_, thread_data.last_exclusion_ref_seq_, record->record_.rID, start_pos, end_pos ) ){
+						if(hasFlagRC(record->record_)){
+							fragment_distribution_.AddLowQSiteEnd(record->record_.rID, end_pos, *reference_, thread_data.fragment_distribution_);
+						}
+						else{
+							fragment_distribution_.AddLowQSiteStart(record->record_.rID, start_pos, *reference_, thread_data.fragment_distribution_);
+						}
 					}
 				}
 
@@ -1120,8 +1170,8 @@ bool DataStats::ReadBam( const char *bam_file, const char *adapter_file, const c
 						reference_->PrepareExclusionRegions();
 						reference_->ObtainExclusionRegions(reference_->NumberSequences(), maximum_insert_length_); // At the end we need all of them together anyways, so it makes no sense to read them in one after another
 
-						if( PreRun(bam, bam_file, header, size_mapping_quality, size_indel) ){
-							if( adapters_.LoadAdapters( adapter_file, adapter_matrix, phred_quality_offset_, std::max(read_lengths_.at(0).to(), read_lengths_.at(1).to())) ){
+						if( (0 == strlen(adapter_file) && 0 == strlen(adapter_matrix)) || adapters_.LoadAdapters(adapter_file, adapter_matrix) ){
+							if( PreRun(bam, bam_file, header, size_mapping_quality, size_indel) ){
 								if(!variant_file.empty()){
 									if(reference_->PrepareVariantFile(variant_file)){
 										if(!reference_->ReadFirstVariantPositions()){
@@ -1197,8 +1247,6 @@ bool DataStats::ReadBam( const char *bam_file, const char *adapter_file, const c
 		printErr << "No reads in the file passed all criteria to be used for the statistics" << std::endl;
 		success = false;
 	}
-
-	percentage_high_enough_quality_reads_ = static_cast<double>(reads_used_)/(reads_used_+reads_with_low_quality_without_adapters_);
 
 	if(!success || SignsOfPairsWithNamesNotIdentical() || !FinishReadIn() ){
 		total_number_reads_ = 0; // Marking that the reading in was not successful

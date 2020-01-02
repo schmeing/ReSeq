@@ -83,6 +83,7 @@ namespace reseq{
 		static const uintPercent kMaxKnotShift = 20; // Maximum shift for a single knot from one fit to the next for greedy knot adjustment
 		static const uintPercent kPercentGCSitesForNormalization = 80; // Use this percent of gc values with highest number of sites for normalization to avoid effects from overfitted gc with low number of sites
 
+		static constexpr double kDistanceWeightReductionFactor = 0.5;
 		static const uintNumFits kNumFitsInsertLength = 30; // Number of insert length values with the highest number of counts fitted
 		static constexpr double kNXXRefSeqs = 80.0; // Number of reference sequences to fit (so Nxx is reached)
 
@@ -110,6 +111,8 @@ namespace reseq{
 
 		std::array<uintFragCount, 101> gc_sites_;
 		std::array<uintFragCount, 4*Surrounding::Length()> sur_sites_;
+
+		std::array<double, 101> gc_weights_;
 
 		// Results
 		std::array<uintPercent, kGCSplineDf> gc_knots_;
@@ -187,6 +190,7 @@ namespace reseq{
 		void AddCountsFromSite(const FragmentSite &site, std::array<uintFragCount, 101> &gc_count, std::array<uintFragCount, 4*Surrounding::Length()> &sur_count);
 		void GetCounts();
 		void RemoveUnnecessarySites();
+		void CalculateGCWeights();
 		void AddBaseValue(uintDupCount count);
 		void GetLogLikeBase();
 		void DeactivateZeroCounts(std::vector<double> &par, double deactive_value, uintNumFits sur_shift);
@@ -229,6 +233,7 @@ namespace reseq{
 			std::vector<uintSeqLen> num_sites_per_insert_length_;
 			std::vector<std::pair<uintSeqLen, std::pair<uintRefSeqBin, uintSeqLen>>> bias_calc_tmp_params_;
 			BiasCalculationVectors bias_calc_vects_;
+			std::vector<uintFragCount> tmp_frag_count_;
 
 			uintRefSeqBin last_bin_;
 			uintSeqLen last_added_region_;
@@ -245,14 +250,18 @@ namespace reseq{
 				correction_(start_exclusion_length){
 				bias_calc_tmp_params_.reserve( maximum_insert_length );
 				bias_calc_vects_.sites_.reserve(max_seq_bin_len);
+				tmp_frag_count_.reserve(max_seq_bin_len+maximum_insert_length+1);
 			}
 		};
 	private:
 		// Definitions
 		const uintSeqLen kOutskirtRange = 20; // 20 bases before and after each fragment are reported
-		uintPercent surrounding_range_; // Get it from Reference class
 		static const uint16_t kMaxBinsQueuedForBiasCalc = 5; // Defines length of the parameter vector which is used to feed calculation threads
 		const uintErrorCount kMaxErrorsShownPerFile = 50;
+		const double kPrecisionAimRefSeqFragLengthFit = 1.0001;
+		const uintNumFits kMaxIterationsRefSeqFragLengthFit = 200;
+		const double kMinLowQFractionForExclusion = 0.1;
+		const uintFragCount kMinHighQToSeparateLowQ = 10;
 
 		// User parameter
 		uintSeqLen max_ref_seq_bin_length_;
@@ -274,10 +283,21 @@ namespace reseq{
 		std::vector<std::vector<std::vector<uintSeqLen>>> fragment_sites_by_ref_seq_bin_by_insert_length_; // fragment_sites_by_ref_seq_bin_by_insert_length_[ReferenceSequenceBinId][FragmentLength][UniqueId] = startPositionCorrectedForExcludedRegionsRelativeToBinStart*2 + 0/1(forward/reverse)
 		std::atomic<uintRefSeqBin> num_handled_reference_sequence_bins_; // num_handled_reference_sequence_bins_ = #ofAlreadyHandledReferenceSequences = IdOfFirstUnhandledReferenceSequence
 
+		std::vector<std::vector<uintSeqLen>> lowq_site_start_by_ref_seq_bin_; // lowq_site_start_by_ref_seq_bin_[ReferenceSequenceBinId][UniqueId] = startPositionCorrectedForExcludedRegionsRelativeToBinStart
+		std::vector<utilities::VectorAtomic<uintFragCount>> lowq_site_start_by_ref_seq_bin_cur_id_; // lowq_site_start_by_ref_seq_bin_cur_id_[ReferenceSequenceBinId] = CurrentUniqueId
+		std::vector<std::vector<uintSeqLen>> lowq_site_end_by_ref_seq_bin_; // lowq_site_end_by_ref_seq_bin_[ReferenceSequenceBinId][UniqueId] = endPositionCorrectedForExcludedRegionsRelativeToBinStart
+		std::vector<utilities::VectorAtomic<uintFragCount>> lowq_site_end_by_ref_seq_bin_cur_id_; // lowq_site_end_by_ref_seq_bin_cur_id_[ReferenceSequenceBinId] = CurrentUniqueId
+		std::vector<std::vector<std::pair<uintSeqLen,uintSeqLen>>> lowq_site_start_exclusion_;
+		std::vector<std::vector<std::pair<uintSeqLen,uintSeqLen>>> lowq_site_end_exclusion_;
+
+		std::atomic<uintRefLenCalc> excluded_lowq_positions_;
+		std::atomic<uintRefLenCalc> excluded_lowq_regions_;
+		std::vector<utilities::VectorAtomic<uintFragCount>> corrected_abundance_; // corrected_abundance_[RefSeqId] = AbundaceCorrectedForMissingLowQualityReads
+
 		std::vector<bool> ref_seq_in_nxx_;
 		std::vector<uintRefSeqBin> ref_seq_start_bin_; // ref_seq_start_bin_[RefSeqId] = First RefSeqBin
 		std::vector<std::pair<uintRefSeqId,uintSeqLen>> ref_seq_bin_def_; // ref_seq_bin_def_[RefSeqBin] = {RefSeqId,StartPos}
-		std::array<std::vector<double>, 101> tmp_gc_bias_; // tmp_gc_bias_[GC][#Fit]
+		std::array<std::vector<std::pair<double,double>>, 101> tmp_gc_bias_; // tmp_gc_bias_[GC][#Fit] = {FittedBiasValue, WeightOfFit}
 		std::array<std::vector<double>, 4*Surrounding::Length()> tmp_sur_bias_; // tmp_sur_bias_[SurBase][#Fit]
 		std::array<std::vector<double>, 2> tmp_dispersion_parameters_; // tmp_dispersion_parameters_[dispPar][#Fit]
 
@@ -321,22 +341,34 @@ namespace reseq{
 			return ref_seq_bin_def_.at(ref_seq_bin).first;
 		}
 		inline void IncreaseErrorCounter(uintErrorCount &errors);
-		void PrepareBiasCalculation( const Reference &ref, uintSeqLen maximum_insert_length, uintSeqLen max_ref_seq_bin_size, const std::vector<uintFragCount> &reads_per_frag_len_bin );
+		void PrepareBiasCalculation( const Reference &ref, uintSeqLen maximum_insert_length, uintSeqLen max_ref_seq_bin_size, const std::vector<uintFragCount> &reads_per_frag_len_bin, const std::vector<uintFragCount> &lowq_reads_per_frag_len_bin );
+		inline void CheckLowQExclusion(std::vector<std::pair<uintSeqLen,uintSeqLen>> &lowq_site_exclusion, uintSeqLen excluded_pos, uintFragCount lowq_count, const std::vector<uintFragCount> &tmp_frag_count );
+		void CheckLowQExclusions(uintRefSeqBin ref_seq_bin, std::vector<uintFragCount> &tmp_frag_count, const Reference &reference);
 		void SortFragmentSites(uintRefSeqBin ref_seq_bin, std::vector<uintSeqLen> &num_sites_per_insert_length);
 		void UpdateBiasCalculationParams(uintRefSeqBin ref_seq_bin, uint32_t queue_spot, std::vector<std::pair<uintSeqLen, std::pair<uintRefSeqBin, uintSeqLen>>> &tmp_params, std::mutex &print_mutex );
 		void FillParams(std::vector<BiasCalculationParams> &params, const Reference &reference) const;
 		void FillParamsSimulation(std::vector<BiasCalculationParams> &params) const;
 
+		void CountEndExclusion(uintFragCount &lowq_sites, uintSeqLen &cur_end_exclusion, uintSeqLen last_cut, uintSeqLen new_cut, uintRefSeqBin ref_seq_bin );
 		void CountDuplicates(FragmentDuplicationStats &duplications, const BiasCalculationParamsSplitSeqs &params, const Reference &reference);
 		void AddFragmentsToSites(std::vector<FragmentSite> &sites, const std::vector<uintSeqLen> &fragment_positions);
+		uintSeqLen ExcludedLowQBases(const std::vector<std::pair<uintSeqLen,uintSeqLen>> &exlcuded_regions){
+			uintSeqLen num_excluded(0);
+			for(auto &exclusion : exlcuded_regions){
+				num_excluded += exclusion.second - exclusion.first;
+			}
+			return num_excluded;
+		}
+
+		uintSeqLen ExcludeLowQualitySites(std::vector<FragmentSite> &sites, uintRefSeqBin ref_seq_bin, uintSeqLen insert_length);
 		void CalculateBiasByBin(BiasCalculationVectors &tmp_calc, const Reference &reference, FragmentDuplicationStats &duplications, uintRefSeqBin ref_seq_bin, uintSeqLen insert_length);
 		void AcquireBiases(const BiasCalculationVectors &calc, std::mutex &print_mutex);
 		bool StoreBias();
 		void CalculateInsertLengthAndRefSeqBias(const Reference &reference, uintNumThreads num_threads, std::vector<std::vector<utilities::VectorAtomic<uintFragCount>>> &site_count_by_insert_length_gc);
-		void AddNewBiasCalculations(uintRefSeqBin still_needed_ref_bin, ThreadData &thread, std::mutex &print_mutex);
+		void AddNewBiasCalculations(uintRefSeqBin still_needed_ref_bin, ThreadData &thread, std::mutex &print_mutex, const Reference &reference);
 		void ExecuteBiasCalculations( const Reference &reference, FragmentDuplicationStats &duplications, BiasCalculationVectors &thread_values, std::mutex &print_mutex );
 		void HandleReferenceSequencesUntil(uintRefSeqBin still_needed_ref_bin, ThreadData &thread, const Reference &reference, FragmentDuplicationStats &duplications, std::mutex &print_mutex);
-		static void BiasSumThread( const FragmentDistributionStats &self, const Reference &reference, const std::vector<BiasCalculationParams> &params, std::atomic<uintNumFits> &current_param, std::vector<double> &insert_length_sum, std::vector<double> &ref_seq_sum, std::vector<std::vector<utilities::VectorAtomic<uintFragCount>>> &site_count_by_insert_length_gc, std::mutex &result_mutex );
+		static void BiasSumThread( const FragmentDistributionStats &self, const Reference &reference, const std::vector<BiasCalculationParams> &params, std::atomic<uintNumFits> &current_param, std::vector<std::vector<double>> &bias_sum, std::vector<std::vector<utilities::VectorAtomic<uintFragCount>>> &site_count_by_insert_length_gc, std::mutex &print_mutex );
 
 		static void BiasNormalizationThread( const FragmentDistributionStats &self, const Reference &reference, const std::vector<BiasCalculationParams> &params, std::atomic<uintNumFits> &current_param, double &norm, std::mutex &result_mutex, double &max_bias );
 		
@@ -393,8 +425,20 @@ namespace reseq{
 		void AddInsertLengths(uintSeqLen length){ ++tmp_insert_lengths_.at(length); }
 		void AddGCContent(uintPercent gc){ ++tmp_gc_fragment_content_.at(gc); }
 		void AddFragmentSite(uintRefSeqId ref_seq_id, uintSeqLen length, uintSeqLen position, uintTempSeq template_segment, const Reference &reference, ThreadData &thread){
-			auto bin_coords = GetRefSeqBin(ref_seq_id,position,reference, thread);
-			fragment_sites_by_ref_seq_bin_.at(bin_coords.first).at(fragment_sites_by_ref_seq_bin_cur_id_.at(bin_coords.first)++) = {(static_cast<uintRefLenCalc>(bin_coords.second)<<1)+template_segment, length};
+			auto bin_coords = GetRefSeqBin(ref_seq_id, position, reference, thread);
+			fragment_sites_by_ref_seq_bin_.at(bin_coords.first).at(fragment_sites_by_ref_seq_bin_cur_id_.at(bin_coords.first)++) = {(bin_coords.second<<1)+template_segment, length};
+		}
+		void AddLowQSiteStart(uintRefSeqId ref_seq_id, uintSeqLen position, const Reference &reference, ThreadData &thread){
+			auto bin_coords = GetRefSeqBin(ref_seq_id, position, reference, thread);
+			lowq_site_start_by_ref_seq_bin_.at(bin_coords.first).at(lowq_site_start_by_ref_seq_bin_cur_id_.at(bin_coords.first)++) = bin_coords.second;
+		}
+		void AddLowQSiteEnd(uintRefSeqId ref_seq_id, uintSeqLen position, const Reference &reference, ThreadData &thread){
+			auto bin_coords = GetRefSeqBin(ref_seq_id, position, reference, thread);
+			lowq_site_end_by_ref_seq_bin_.at(bin_coords.first).at(lowq_site_end_by_ref_seq_bin_cur_id_.at(bin_coords.first)++) = bin_coords.second;
+			if(bin_coords.second < tmp_insert_lengths_.size()-1 && bin_coords.first && ref_seq_bin_def_.at(bin_coords.first).first == ref_seq_bin_def_.at(bin_coords.first-1).first ){
+				// Add position also to the previous bin as fragments starting there potentially end on this position
+				lowq_site_end_by_ref_seq_bin_.at(bin_coords.first-1).at(lowq_site_end_by_ref_seq_bin_cur_id_.at(bin_coords.first-1)++) = bin_coords.second + RefSeqSplitLength(ref_seq_id, reference);
+			}
 		}
 
 		void AddThreadData(ThreadData &thread){
@@ -464,7 +508,15 @@ namespace reseq{
 			return max;
 		}
 
-		void Prepare( const Reference &ref, uintSeqLen maximum_insert_length, uintSeqLen max_ref_seq_bin_size, const std::vector<uintFragCount> &reads_per_frag_len_bin );
+		uintFragCount CorrectedTotalAbundance() const{
+			uintFragCount total = 0;
+			for( auto &abund : corrected_abundance_ ){
+				total += abund;
+			}
+			return total;
+		}
+
+		void Prepare( const Reference &ref, uintSeqLen maximum_insert_length, uintSeqLen max_ref_seq_bin_size, const std::vector<uintFragCount> &reads_per_frag_len_bin, const std::vector<uintFragCount> &lowq_reads_per_frag_len_bin );
 		void FillInOutskirtContent( const Reference &reference, const seqan::BamAlignmentRecord &record_start, uintSeqLen fragment_start_pos, uintSeqLen fragment_end_pos );
 
 		void HandleReferenceSequencesUntil(uintRefSeqId still_needed_reference_sequence, uintSeqLen still_needed_position, ThreadData &thread, const Reference &reference, FragmentDuplicationStats &duplications, std::mutex &print_mutex);

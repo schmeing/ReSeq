@@ -111,6 +111,7 @@ namespace reseq{
 		std::array<std::vector<utilities::VectorAtomic<uintNucCount>>, 5> tmp_homopolymer_distribution_;
 
 		std::vector<uintFragCount> reads_per_frag_len_bin_; // reads_per_frag_len_bin_[BinOfReferenceSequenceBinnedInBinsOfFragmentLength] = #Reads
+		std::vector<uintFragCount> lowq_reads_per_frag_len_bin_; // lowq_reads_per_frag_len_bin_[BinOfReferenceSequenceBinnedInBinsOfFragmentLength] = #LowQReads
 
 		// Collected variables for simulation
 		uint64_t creation_time_; // Store time when bam file was completelly read, can be used to check whether the stats file was updated
@@ -122,7 +123,7 @@ namespace reseq{
 		uintQual maximum_quality_;
 		uintReadLen minimum_read_length_on_reference_;
 		uintReadLen maximum_read_length_on_reference_;
-		double percentage_high_enough_quality_reads_;
+		double corrected_coverage_;
 
 		// Collected variables for plotting
 		Vect<uintFragCount> proper_pair_mapping_quality_; // proper_pair_mapping_quality_[mappingQuality] = #readsWithProperPairFlag
@@ -194,7 +195,7 @@ namespace reseq{
 			ar & maximum_quality_;
 			ar & minimum_read_length_on_reference_;
 			ar & maximum_read_length_on_reference_;
-			ar & percentage_high_enough_quality_reads_;
+			ar & corrected_coverage_;
 
 			ar & proper_pair_mapping_quality_;
 			ar & improper_pair_mapping_quality_;
@@ -240,7 +241,7 @@ namespace reseq{
 		const Vect<Vect<uintFragCount>> &ReadLengthsByFragmentLength(uintTempSeq template_segment) const{ return read_lengths_by_fragment_length_.at(template_segment); }
 		const Vect<Vect<uintFragCount>> &NonMappedReadLengthsByFragmentLength(uintTempSeq template_segment) const{ return non_mapped_read_lengths_by_fragment_length_.at(template_segment); }
 
-		double PercentageHighEnoughQualityReads() const{return percentage_high_enough_quality_reads_; }
+		double CorrectedCoverage() const{ return corrected_coverage_; }
 		const Vect<uintFragCount> &ProperPairMappingQuality() const{ return proper_pair_mapping_quality_; }
 		const Vect<uintFragCount> &ImproperPairMappingQuality() const{ return improper_pair_mapping_quality_; }
 		const Vect<uintFragCount> &SingleReadMappingQuality() const{ return single_read_mapping_quality_; }

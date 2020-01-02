@@ -106,8 +106,8 @@ bowtie2 -p 32 -X 2000 -x my_reference -1 <(reseq-prepare-names.py my_data_1.fq m
 | `--verbosity`     | 4       | Sets the level of verbosity (4=everything, 0=nothing) |
 | `--version`       |         | Prints version info and exits |
 | **Stats**         |
-| `--adapterFile`   | INSTALL_PATH/adapters/TruSeq_v2.fa | Fasta file with adapter sequences |
-| `--adapterMatrix` | INSTALL_PATH/adapters/TruSeq_v2.mat | 0/1 matrix with valid adapter pairing (first read in rows, second read in columns) |
+| `--adapterFile`   | (AutoDetect) | Fasta file with adapter sequences |
+| `--adapterMatrix` | (AutoDetect) | 0/1 matrix with valid adapter pairing (first read in rows, second read in columns) |
 | `-b` `--bamIn`    | None    | Position sorted bam/sam file with reads mapped to `--refIn` |
 | `--binSizeBiasFit`| 100000000 | Reference sequences large then this are split for bias fitting to limit memory consumption |
 | `--maxFragLen`    | 2000    | Maximum fragment length to include pairs into statistics |

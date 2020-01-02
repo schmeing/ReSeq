@@ -283,11 +283,21 @@ namespace reseq{
 		uintSeqLen SumExcludedBases( uintRefSeqId ref_seq_id ) const{
 			return sum_of_excluded_bases_.at(ref_seq_id);
 		}
+		uintRefLenCalc TotalExcludedBases() const{
+			uintRefLenCalc total(0);
+			for( auto excluded : sum_of_excluded_bases_ ){
+				total += excluded;
+			}
+			return total;
+		}
 		uintSeqLen NumExcludedRegions( uintRefSeqId ref_seq_id ) const{
 			return excluded_regions_.at(ref_seq_id).size();
 		}
 		uintSeqLen StartExclusion( uintRefSeqId ref_seq_id ) const{
 			return excluded_regions_.at(ref_seq_id).front().second;
+		}
+		uintSeqLen EndExclusion( uintRefSeqId ref_seq_id ) const{
+			return excluded_regions_.at(ref_seq_id).back().first;
 		}
 		uintSeqLen NextExclusionRegion(uintRefSeqId ref_seq_id, uintSeqLen position) const{
 			uintSeqLen next_exclusion_region(1);

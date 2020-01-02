@@ -19,7 +19,7 @@ namespace reseq{
 
 		void CreateTestObject(Reference *ref);
 		void DeleteTestObject();
-		void LoadStats(const std::string &stats_file, bool ignore_tiles=false, bool calculate_biases=false, const std::string adapter="TruSeq_v2", const std::string variants="");
+		void LoadStats(const std::string &stats_file, bool ignore_tiles=false, bool calculate_biases=false, const std::string adapter="TruSeq_single", const std::string variants="");
 
 		void TestSequenceContent(uintTempSeq template_segment, uintReadLen at_pos, uintNucCount cont_a, uintNucCount cont_c, uintNucCount cont_g, uintNucCount cont_t, uintNucCount cont_n, const char * context );
 		void TestSequenceContentReference(uintTempSeq template_segment, uintTempSeq strand, uintReadLen at_pos, uintNucCount cont_a, uintNucCount cont_c, uintNucCount cont_g, uintNucCount cont_t, const char * context );

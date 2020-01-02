@@ -30,7 +30,8 @@ void AdapterStatsTest::TearDown(){
 }
 
 void AdapterStatsTest::LoadAdapters(){
-	EXPECT_TRUE( test_->LoadAdapters( (string(PROJECT_SOURCE_DIR)+"/adapters/TruSeq_v2.fa").c_str(), (string(PROJECT_SOURCE_DIR)+"/adapters/TruSeq_v2.mat").c_str(), 33, 101 ) ) << "Problem loading the default adapters";
+	EXPECT_TRUE( test_->LoadAdapters( (string(PROJECT_SOURCE_DIR)+"/adapters/TruSeq_single.fa").c_str(), (string(PROJECT_SOURCE_DIR)+"/adapters/TruSeq_single.mat").c_str() ) ) << "Problem loading the default adapters";
+	test_->PrepareAdapters(33, 101);
 }
 
 void AdapterStatsTest::TestLoading(const AdapterStats &test){
@@ -63,8 +64,8 @@ void AdapterStatsTest::TestSumming(AdapterStats &test){
 		test.start_cut_.at(seg).resize(test.seqs_.at(seg).size()); // Is the size SumCounts uses to resize count_sum_
 	}
 
-	// seqtk seq ../adapters/TruSeq_v2.fa | awk '(NR%2==0 && NR>2)' | sort
-	// cat <(seqtk seq ../adapters/TruSeq_v2.fa | awk 'NR==2') <(seqtk seq -r ../adapters/TruSeq_v2.fa | awk 'NR==2') | sort
+	// seqtk seq ../adapters/TruSeq_single.fa | awk '(NR%2==0 && NR>2)' | sort
+	// cat <(seqtk seq ../adapters/TruSeq_single.fa | awk 'NR==2') <(seqtk seq -r ../adapters/TruSeq_single.fa | awk 'NR==2') | sort
 	test.counts_.at(7).at(0)[35][0] = 1; // ambiguous
 	test.counts_.at(7).at(0)[35][1] = 2; // ambiguous
 	test.counts_.at(7).at(0)[36][0] = 4; // ambiguous

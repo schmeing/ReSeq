@@ -11,6 +11,8 @@ using std::array;
 using std::ceil;
 #include <fstream>
 using std::ifstream;
+#include <iterator>
+using std::distance;
 #include <list>
 using std::list;
 //include <string>
@@ -25,6 +27,7 @@ using std::pair;
 //include <seqan/bam_io.h>
 using seqan::BamAlignmentRecord;
 using seqan::CharString;
+using seqan::Dna;
 using seqan::Dna5;
 using seqan::DnaString;
 using seqan::Exception;
@@ -187,7 +190,7 @@ AdapterStats::AdapterStats(){
 	}
 }
 
-bool AdapterStats::LoadAdapters(const char *adapter_file, const char *adapter_matrix, uintQual phred_quality_offset, uintReadLen size_read_length){
+bool AdapterStats::LoadAdapters(const char *adapter_file, const char *adapter_matrix){
 	StringSet<CharString> ids;
 	StringSet<DnaString> seqs;
 
@@ -253,13 +256,11 @@ bool AdapterStats::LoadAdapters(const char *adapter_file, const char *adapter_ma
 		adapter_list.at(seg).reserve(length(seqs));
 	}
 
-	array<uintReadLen, 2> size_adapter = {0,0};
 	for( nline = length(seqs); nline--; ){
 		for(auto nchar = length(seqs); nchar--; ){
 			if( '1' == matrix.at(nline).at(nchar) ){
 				// If one adapter pair has this adaptor as first, add it to first and continue with the next adapter
 				adapter_list.at(0).push_back({at(seqs, nline),nline});
-				SetToMax(size_adapter.at(0), length(at(seqs, nline)));
 				break;
 			}
 		}
@@ -269,7 +270,6 @@ bool AdapterStats::LoadAdapters(const char *adapter_file, const char *adapter_ma
 		for( nline = length(seqs); nline--; ){
 			if( '1' == matrix.at(nline).at(nchar) ){
 				adapter_list.at(1).push_back({at(seqs, nchar),nchar});
-				SetToMax(size_adapter.at(1), length(at(seqs, nchar)));
 				break;
 			}
 		}
@@ -312,10 +312,207 @@ bool AdapterStats::LoadAdapters(const char *adapter_file, const char *adapter_ma
 		}
 	}
 
+	return true;
+}
+
+void AdapterStats::PrepareAdapterPrediction(){
+	if(0 == combinations_.size()){
+		for(uintTempSeq template_segment=2; template_segment--; ){
+			adapter_kmers_.at(template_segment).Prepare();
+			adapter_start_kmers_.at(template_segment).resize(adapter_kmers_.at(template_segment).counts_.size(), 0);
+		}
+	}
+}
+
+void AdapterStats::ExtractAdapterPart(const seqan::BamAlignmentRecord &record){
+	if(0 == combinations_.size()){
+		if( hasFlagUnmapped(record) || hasFlagNextUnmapped(record) ){
+			auto adapter_start = adapter_kmers_.at(hasFlagLast(record)).CountSequenceForward(record.seq, 0);
+			if( adapter_start >= 0 ){
+				++adapter_start_kmers_.at(hasFlagLast(record)).at(adapter_start);
+			}
+		}
+		else if( hasFlagRC(record) ){
+			if(record.beginPos <= record.pNext && record.beginPos+length(record.seq) > record.pNext){
+				uintReadLen clipped(0);
+				if('S' == at(record.cigar, 0).operation){
+					clipped = at(record.cigar, 0).count;
+				}
+				else if('H' == at(record.cigar, 0).operation){
+					clipped = at(record.cigar, 0).count;
+					if('S' == at(record.cigar, 1).operation){
+						clipped += at(record.cigar, 1).count;
+					}
+				}
+
+				auto adapter_start = adapter_kmers_.at(hasFlagLast(record)).CountSequenceReverse(record.seq, clipped + record.pNext-record.beginPos);
+				if( adapter_start >= 0 ){
+					++adapter_start_kmers_.at(hasFlagLast(record)).at(adapter_start);
+				}
+			}
+		}
+		else{
+			if(record.beginPos >= record.pNext && record.beginPos < record.pNext+length(record.seq)){
+				uintReadLen clipped(0);
+				if('S' == at(record.cigar, length(record.cigar)-1).operation){
+					clipped = at(record.cigar, length(record.cigar)-1).count;
+				}
+				else if('H' == at(record.cigar, length(record.cigar)-1).operation){
+					clipped = at(record.cigar, length(record.cigar)-1).count;
+					if('S' == at(record.cigar, length(record.cigar)-2).operation){
+						clipped += at(record.cigar, length(record.cigar)-2).count;
+					}
+				}
+
+				auto adapter_start = adapter_kmers_.at(hasFlagLast(record)).CountSequenceForward(record.seq, length(record.seq) - max(clipped, static_cast<uintReadLen>(record.beginPos - record.pNext)));
+				if( adapter_start >= 0 ){
+					++adapter_start_kmers_.at(hasFlagLast(record)).at(adapter_start);
+				}
+			}
+		}
+	}
+}
+
+bool AdapterStats::PredictAdapters(){
+	if(0 == combinations_.size()){
+		std::vector<bool> use_kmer;
+		uintBaseCall max_extension, second_highest;
+		auto base = adapter_kmers_.at(0).counts_.size() >> 2;
+
+		for(uintTempSeq template_segment=2; template_segment--; ){
+			// Find start of adapter
+			use_kmer.clear();
+			use_kmer.resize(adapter_kmers_.at(template_segment).counts_.size(), true);
+			use_kmer.at(0) = false; // Ignore all A's as possible adapter
+			Kmer<kKmerLength>::intType excluded_kmer;
+			for(uintBaseCall nuc=3; --nuc; ){
+				excluded_kmer = nuc;
+				for(auto i=kKmerLength-1; i--; ){
+					excluded_kmer <<= 2;
+					excluded_kmer += nuc;
+				}
+				use_kmer.at(excluded_kmer) = false; // Ignore all C's/G's as possible adapter
+			}
+			use_kmer.at( adapter_kmers_.at(template_segment).counts_.size()-1 ) = false; // Ignore all T's as possible adapter
+
+			Kmer<kKmerLength>::intType max_kmer = 1;
+			for(Kmer<kKmerLength>::intType kmer = 2; kmer < adapter_start_kmers_.at(template_segment).size(); ++kmer ){
+				if( use_kmer.at(kmer) && adapter_start_kmers_.at(template_segment).at(kmer) > adapter_start_kmers_.at(template_segment).at(max_kmer) ){
+					max_kmer = kmer;
+				}
+			}
+			use_kmer.at(max_kmer) = false; // Prevent endless circle
+
+			DnaString adapter;
+			reserve(adapter, 50);
+			resize(adapter, kKmerLength);
+
+			auto kmer = max_kmer;
+			for(uintReadLen pos=kKmerLength; pos--; ){
+				at(adapter, pos) = kmer%4;
+				kmer >>= 2;
+			}
+
+			// Restore start cut
+			kmer = max_kmer;
+			while(true){
+				kmer >>= 2;
+
+				if( adapter_kmers_.at(template_segment).counts_.at(kmer+3*base) > adapter_kmers_.at(template_segment).counts_.at(kmer+2*base) ){
+					max_extension = 3;
+					second_highest = 2;
+				}
+				else{
+					max_extension = 2;
+					second_highest = 3;
+				}
+
+				for(uintBaseCall ext=2; ext--; ){
+					if( adapter_kmers_.at(template_segment).counts_.at(kmer+ext*base) > adapter_kmers_.at(template_segment).counts_.at(kmer+max_extension*base) ){
+						second_highest = max_extension;
+						max_extension = ext;
+					}
+					else if( adapter_kmers_.at(template_segment).counts_.at(kmer+ext*base) > adapter_kmers_.at(template_segment).counts_.at(kmer+second_highest*base) ){
+						second_highest = ext;
+					}
+				}
+				kmer += base*max_extension;
+
+				if( use_kmer.at(kmer) && adapter_kmers_.at(template_segment).counts_.at(kmer) > 100 && adapter_kmers_.at(template_segment).counts_.at(kmer) > 5*adapter_kmers_.at(template_segment).counts_.at(kmer-max_extension*base+second_highest*base) ){
+					insertValue(adapter, 0, static_cast<Dna>(max_extension) );
+					use_kmer.at(kmer) = false; // Prevent endless circle
+				}
+				else{
+					break;
+				}
+			}
+
+			// Extend adapter
+			kmer = max_kmer;
+			while(true){
+				kmer <<= 2;
+				kmer %= adapter_kmers_.at(template_segment).counts_.size();
+				if( adapter_kmers_.at(template_segment).counts_.at(kmer+3) > adapter_kmers_.at(template_segment).counts_.at(kmer+2) ){
+					max_extension = 3;
+					second_highest = 2;
+				}
+				else{
+					max_extension = 2;
+					second_highest = 3;
+				}
+
+				for(uintBaseCall ext=2; ext--; ){
+					if( adapter_kmers_.at(template_segment).counts_.at(kmer+ext) > adapter_kmers_.at(template_segment).counts_.at(kmer+max_extension) ){
+						second_highest = max_extension;
+						max_extension = ext;
+					}
+					else if( adapter_kmers_.at(template_segment).counts_.at(kmer+ext) > adapter_kmers_.at(template_segment).counts_.at(kmer+second_highest) ){
+						second_highest = ext;
+					}
+				}
+
+				kmer += max_extension;
+				if( use_kmer.at(kmer) && adapter_kmers_.at(template_segment).counts_.at(kmer) > 100 && adapter_kmers_.at(template_segment).counts_.at(kmer) > 5*adapter_kmers_.at(template_segment).counts_.at(kmer-max_extension+second_highest) ){
+					adapter += static_cast<Dna>(max_extension);
+					use_kmer.at(kmer) = false; // Prevent endless circle
+				}
+				else{
+					break;
+				}
+			}
+
+			// Remove A's at end
+			while(length(adapter) && 0 == back(adapter)){
+				eraseBack(adapter);
+			}
+			if( 15 < length(adapter) ){
+				printInfo << "Detected adapter " << static_cast<uintTempSeqPrint>(template_segment+1) << ": " << adapter << std::endl;
+			}
+			else{
+				printErr << "Detected non extendible sequence '" << adapter << "' as adapter for read " << static_cast<uintTempSeqPrint>(template_segment+1) << std::endl;
+				return false;
+			}
+
+			seqs_.at(template_segment).push_back(adapter);
+			names_.at(template_segment).emplace_back(toCString(CharString(adapter)));
+
+			// Free memory
+			adapter_kmers_.at(template_segment).Clear();
+			adapter_start_kmers_.at(template_segment).clear();
+			adapter_start_kmers_.at(template_segment).shrink_to_fit();
+		}
+
+		combinations_.resize( 1, vector<bool>(1, true) ); // Set the single combinations to valid
+	}
+
+	return true;
+}
+
+void AdapterStats::PrepareAdapters(uintReadLen size_read_length, uintQual phred_quality_offset){
 	// Resize adapter vectors
-	tmp_counts_.resize(adapter_list.at(0).size());
+	tmp_counts_.resize(seqs_.at(0).size());
 	for( auto &dim1 : tmp_counts_ ){
-		dim1.resize(adapter_list.at(1).size());
+		dim1.resize(seqs_.at(1).size());
 		for( auto &dim2 : dim1 ){
 			dim2.resize(size_read_length);
 			for( auto &dim3 : dim2 ){
@@ -325,9 +522,9 @@ bool AdapterStats::LoadAdapters(const char *adapter_file, const char *adapter_ma
 	}
 
 	for(uintTempSeq seg=2; seg--; ){
-		tmp_start_cut_.at(seg).resize(adapter_list.at(seg).size());
+		tmp_start_cut_.at(seg).resize(seqs_.at(seg).size());
 		for( auto &dim1 : tmp_start_cut_.at(seg) ){
-			dim1.resize(size_adapter.at(seg));
+			dim1.resize(size_read_length);
 		}
 	}
 
@@ -342,9 +539,7 @@ bool AdapterStats::LoadAdapters(const char *adapter_file, const char *adapter_ma
 	for( auto &adapter : seqs_.at(1) ){
 		skewer::cMatrix::AddAdapter(skewer::cMatrix::secondAdapters, toCString(static_cast<CharString>(adapter)), length(adapter), skewer::TRIM_TAIL);
 	}
-	skewer::cMatrix::CalculateIndices(combinations_, adapter_list.at(0).size(), adapter_list.at(1).size());
-
-	return true;
+	skewer::cMatrix::CalculateIndices(combinations_, seqs_.at(0).size(), seqs_.at(1).size());
 }
 
 bool AdapterStats::Detect(uintReadLen &adapter_position_first, uintReadLen &adapter_position_second, const BamAlignmentRecord &record_first, const BamAlignmentRecord &record_second, const Reference &reference, bool properly_mapped){

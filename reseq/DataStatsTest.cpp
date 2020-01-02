@@ -439,7 +439,7 @@ namespace reseq{
 
 		DeleteTestObject();
 		CreateTestObject(&species_reference_);
-		LoadStats("ecoli-SRR490124-4pairs.bam", false, false, "TruSeq_v2", "ecoli-SRR490124-4pairs.vcf");
+		LoadStats("ecoli-SRR490124-4pairs.bam", false, false, "TruSeq_single", "ecoli-SRR490124-4pairs.vcf");
 		TestVariants();
 	}
 

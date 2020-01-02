@@ -122,31 +122,62 @@ namespace reseq{
 
 #ifndef SWIG // This part is not needed for the python plotting
 	template <uintSurPos K> class Kmer : public SurroundingBase<1, K, 0, int64_t>{
-		friend class KmerCount;
+		template<uintSurPos T> friend class KmerCount;
 	};
 
 	template <uintSurPos K> class KmerCount{
-	private:
-		std::vector<uintNucCount> counts_;
 	public:
+		std::vector<uintNucCount> counts_;
+
 		void Prepare(){
 			counts_.clear();
 			counts_.resize(Kmer<K>::Size(), 0);
 		}
 
-		bool Repeated( const Kmer<K> &kmer ){
-			if(0 > kmer.sur_.at(0)){
-				return true; // Invalid k-mers with N are directly counted as repeated
-			}
-			else{
-				return 1 < counts_.at( kmer.sur_.at(0) );
-			}
+		void Clear(){
+			counts_.clear();
+			counts_.shrink_to_fit();
 		}
 
 		void Count( const Kmer<K> &kmer ){
 			if(0 <= kmer.sur_.at(0)){
 				++(counts_.at( kmer.sur_.at(0) ));
 			}
+		}
+
+		typename Kmer<K>::intType CountSequenceForward(const seqan::IupacString &seq, uintReadLen start_pos){
+			Kmer<K> kmer;
+			if(start_pos+kmer.Length() <= length(seq)){
+				kmer.ForwardWithN(seq, start_pos);
+				auto start_kmer = kmer.sur_.at(0);
+				Count(kmer);
+
+				for(uintSeqLen pos=start_pos+1; pos+kmer.Length() <= length(seq); ++pos){
+					kmer.UpdateForwardWithN(seq, pos);
+					Count(kmer);
+				}
+
+				return start_kmer; // Return first k-mer in sequence
+			}
+
+			return -1;
+		}
+
+		typename Kmer<K>::intType CountSequenceReverse(const seqan::IupacString &seq, uintReadLen end_pos){
+			Kmer<K> kmer;
+			if(kmer.Length() <= end_pos){
+				kmer.ReverseWithN(seq, kmer.Length()-1);
+				Count(kmer);
+
+				for(uintSeqLen pos=kmer.Length(); pos < end_pos; ++pos){
+					kmer.UpdateReverseWithN(seq, pos);
+					Count(kmer);
+				}
+
+				return kmer.sur_.at(0); // Return first k-mer in reversed sequence
+			}
+
+			return -1;
 		}
 
 		void CountSequenceCanonical(const seqan::Dna5String &seq){

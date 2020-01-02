@@ -996,7 +996,7 @@ bool CoverageStats::Finalize(const Reference &reference, QualityStats &qualities
 		lock_guard<mutex> lock(print_mutex);
 		printInfo << "Needed to create " << final_num_blocks << " coverage blocks." << std::endl;
 		auto total_size = reference.TotalSize();
-		printInfo << "Excluded " << excluded_bases_ << " of " << total_size << " bases [" << static_cast<uintPercentPrint>(Percent(excluded_bases_, total_size)) << "%] in the reference due to N's distributed over " << num_exclusion_regions_ << " regions." << std::endl;
+		printInfo << "Excluded " << excluded_bases_ << " of " << total_size << " bases [" << static_cast<uintPercentPrint>(Percent(excluded_bases_, total_size)) << "%] in the reference due to contig ends and N's over " << num_exclusion_regions_ << " regions." << std::endl;
 	}
 
 	ApplyZeroCoverageRegion();

@@ -2128,14 +2128,13 @@ bool Simulator::Simulate(
 			// Get number of read pairs to simulate
 			auto total_ref_size = ref.TotalSize();
 			double adapter_part = CoveragePropLostFromAdapters(stats);
-			double percentage_non_quality_excluded = stats.PercentageHighEnoughQualityReads();
 			if(0 != num_read_pairs){
 				total_pairs_ = num_read_pairs;
 			}
 			else{
 				if(0.0 == coverage){
 					// Keep the coverage from the original dataset
-					coverage = stats.Coverage().MeanCoverage() / percentage_non_quality_excluded;
+					coverage = stats.CorrectedCoverage();
 				}
 
 				total_pairs_ = CoverageToNumberPairs(coverage, total_ref_size, average_read_length, adapter_part);

@@ -187,12 +187,7 @@ void GetDataStats(DataStats &real_data_stats, string &stats_file, bool &loaded_s
 			string adapter_file, adapter_matrix;
 			auto it_adapter_file = opts_map.find("adapterFile");
 			auto it_adapter_matrix = opts_map.find("adapterMatrix");
-			if( opts_map.end() == it_adapter_file && opts_map.end() == it_adapter_matrix ){
-				// Adapters haven't been specified so use default
-				adapter_file = (string(PROJECT_SOURCE_DIR)+"/adapters/TruSeq_v2.fa").c_str();
-				adapter_matrix = (string(PROJECT_SOURCE_DIR)+"/adapters/TruSeq_v2.mat").c_str();
-			}
-			else{
+			if( opts_map.end() != it_adapter_file || opts_map.end() != it_adapter_matrix ){
 				if( opts_map.end() != it_adapter_file ){
 					adapter_file = it_adapter_file->second.as<string>();
 					DefaultExtensionFile(adapter_file, string(PROJECT_SOURCE_DIR)+"/adapters/", ".fa");
@@ -219,6 +214,7 @@ void GetDataStats(DataStats &real_data_stats, string &stats_file, bool &loaded_s
 							cout << usage_str;
 							cout << opt_desc << std::endl;
 							adapter_file = "";
+							adapter_matrix = "error";
 						}
 					}
 				}
@@ -238,6 +234,7 @@ void GetDataStats(DataStats &real_data_stats, string &stats_file, bool &loaded_s
 						cout << usage_str;
 						cout << opt_desc << std::endl;
 						adapter_file = "";
+						adapter_matrix = "error";
 					}
 				}
 			}
@@ -250,7 +247,7 @@ void GetDataStats(DataStats &real_data_stats, string &stats_file, bool &loaded_s
 				printInfo << "Statistics will be split into tiles if possible." << std::endl;
 			}
 
-			if( !adapter_file.empty() ){
+			if( !adapter_file.empty() || adapter_matrix.empty() ){
 				string variant_file = "";
 				auto it_variant_file = opts_map.find("vcfIn");
 				if( opts_map.end() != it_variant_file ){
@@ -529,8 +526,8 @@ int main(int argc, char *argv[]) {
 
 			options_description opt_desc("Stats");
 			opt_desc.add_options() // Returns a special object with defined operator ()
-				("adapterFile", value<string>(), "Fasta file with adapter sequences [adapters/TruSeq_v2.fa]")
-				("adapterMatrix", value<string>(), "0/1 matrix with valid adapter pairing (first read in rows, second read in columns) [adapters/TruSeq_v2.mat]")
+				("adapterFile", value<string>(), "Fasta file with adapter sequences [(AutoDetect)]")
+				("adapterMatrix", value<string>(), "0/1 matrix with valid adapter pairing (first read in rows, second read in columns) [(AutoDetect)]")
 				("bamIn,b", value<string>(), "Position sorted bam/sam file with reads mapped to refIn")
 				("binSizeBiasFit", value<uintSeqLen>(&max_ref_seq_bin_size)->default_value(100000000), "Reference sequences large then this are split for bias fitting to limit memory consumption")
 				("maxFragLen", value<uintSeqLen>(&maximum_insert_length)->default_value(2000), "Maximum fragment length to include pairs into statistics")

@@ -164,7 +164,10 @@ def setAxis(ax, log, ylimits=None):
     if ylimits:
         ax.set_ylim(ylimits)
 
-    if log:            
+    if log == "symlog":            
+        ax.set_yscale('symlog', nonposy='clip')
+        pass
+    elif log:
         ax.set_yscale('log', nonposy='clip')
         pass
     else:
@@ -191,7 +194,10 @@ def plotMinimal(ax, names, hists, min_x, max_x, x_vals, log=False, marker=None, 
     else:
         ylimits = None
 
-    setAxis(ax, log, ylimits)
+    if log and not normalize:
+        setAxis(ax, "symlog", ylimits)
+    else:
+        setAxis(ax, log, ylimits)
 
     return
 
@@ -877,6 +883,7 @@ def plotDataStats(statsFiles, oFile):
             print "Start plotting files: ", clock()
             
             plot( pdf, "Coverage", "# bases of reference", names, [st.Coverage() for st in stats], zero_padding=False, cov_plot=0.99, ignore_zero_for_y_scale=True )
+            plot( pdf, "Coverage", "# bases of reference", names, [st.Coverage() for st in stats], zero_padding=False, cov_plot=0.9999, ignore_zero_for_y_scale=True, log=True )
             #plot( pdf, "Coverage + strand", "# bases of reference", names, [st.CoverageStranded(False) for st in stats], zero_padding=False )
             #plot( pdf, "Coverage - strand", "# bases of reference", names, [st.CoverageStranded(True) for st in stats], zero_padding=False )
             plot( pdf, "Coverage + strand / total Coverage [%]", "# bases of reference", names, [st.CoverageStrandedPercent(False) for st in stats], zero_padding=False )
@@ -899,7 +906,7 @@ def plotDataStats(statsFiles, oFile):
             #plot( pdf, "GC read content mappped[%] (first)", "% reads", names, [st.GCReadContentMapped(0) for st in stats], zero_padding=False, normalize=True )
             #plot( pdf, "GC read content mapped[%] (second)", "% reads", names, [st.GCReadContentMapped(1) for st in stats], zero_padding=False, normalize=True )
             plot( pdf, "GC fragment content[%]", "% fragments", names, [st.GCFragmentContent() for st in stats], zero_padding=False, normalize=True )
-            plot( pdf, "GC fragment content[%]", "% fragments / # sites", names, [st.GCFragmentContentBias() for st in stats], zero_padding=False, normalize=True )
+            plot( pdf, "GC fragment content[%]", "Preference for GC", names, [st.GCFragmentContentBias() for st in stats], zero_padding=False, normalize=True )
             #plot( pdf, "N content (first)", "# reads", names, [st.NContent(0) for st in stats], zero_padding=False, log=True )
             #plot( pdf, "N content (second)", "# reads", names, [st.NContent(1) for st in stats], zero_padding=False, log=True )
             nucleotidePlot( pdf, "Read position (first)", "% A/C/G/T at position", names, [ [st.SequenceContent(0,n) for st in stats] for n in xrange(4)], zero_padding=False, shift_x=1, pos_normalize=True )
