@@ -214,16 +214,15 @@ template<size_t N> void FragmentDistributionStatsTest::CheckDrawnCounts(double b
 
 	// Test GetFragmentCounts
 	for(uintDupCount i = 0; i < thresholds.size(); ++i){
-		EXPECT_EQ(i, test_->GetFragmentCounts(bias_normalization, 0, 367, 43, start_sur, end_sur, thresholds.at(i)-delta, 0.0)) << "Lower gate: " << i << ' ' << thresholds.at(i) << " for bias " << bias << " dispersion pars " << test_->dispersion_parameters_.at(0) << ' ' << test_->dispersion_parameters_.at(1) << std::endl;
-		EXPECT_EQ(i+1, test_->GetFragmentCounts(bias_normalization, 0, 367, 43, start_sur, end_sur, thresholds.at(i)+delta, 0.0)) << "Upper gate: " << i << ' ' << thresholds.at(i) << " for bias " << bias << " dispersion pars " << test_->dispersion_parameters_.at(0) << ' ' << test_->dispersion_parameters_.at(1) << std::endl;
+		EXPECT_EQ(i, test_->GetFragmentCounts(bias_normalization, 0, 367, 43, start_sur, end_sur, thresholds.at(i)-delta)) << "Lower gate: " << i << ' ' << thresholds.at(i) << " for bias " << bias << " dispersion pars " << test_->dispersion_parameters_.at(0) << ' ' << test_->dispersion_parameters_.at(1) << std::endl;
+		EXPECT_EQ(i+1, test_->GetFragmentCounts(bias_normalization, 0, 367, 43, start_sur, end_sur, thresholds.at(i)+delta)) << "Upper gate: " << i << ' ' << thresholds.at(i) << " for bias " << bias << " dispersion pars " << test_->dispersion_parameters_.at(0) << ' ' << test_->dispersion_parameters_.at(1) << std::endl;
 	}
-	EXPECT_EQ(0, test_->GetFragmentCounts(1e-10, 0, 367, 43, start_sur, end_sur, thresholds.back(), 1.0)) << "Bias " << bias << " dispersion pars " << test_->dispersion_parameters_.at(0) << ' ' << test_->dispersion_parameters_.at(1) << std::endl;
 
 	// Test CalculateNonZeroThreshold
 	auto non_zero_threshold = test_->CalculateNonZeroThreshold(bias_normalization, test_->gc_fragment_content_bias_[43]/other_bias_negation/bias_normalization);
 	EXPECT_NEAR(thresholds[0], non_zero_threshold, delta) << "Bias " << bias << " dispersion pars " << test_->dispersion_parameters_.at(0) << ' ' << test_->dispersion_parameters_.at(1) << std::endl;
-	EXPECT_EQ(0, test_->GetFragmentCounts(bias_normalization-delta, 0, 367, 43, start_sur, end_sur, non_zero_threshold, 0.0)) << "Bias " << bias << " dispersion pars " << test_->dispersion_parameters_.at(0) << ' ' << test_->dispersion_parameters_.at(1) << std::endl;
-	EXPECT_EQ(0, test_->GetFragmentCounts(1e-10, 0, 367, 43, start_sur, end_sur, non_zero_threshold, 0.0)) << "Bias " << bias << " dispersion pars " << test_->dispersion_parameters_.at(0) << ' ' << test_->dispersion_parameters_.at(1) << std::endl;
+	EXPECT_EQ(0, test_->GetFragmentCounts(bias_normalization-delta, 0, 367, 43, start_sur, end_sur, non_zero_threshold)) << "Bias " << bias << " dispersion pars " << test_->dispersion_parameters_.at(0) << ' ' << test_->dispersion_parameters_.at(1) << std::endl;
+	EXPECT_EQ(0, test_->GetFragmentCounts(1e-10, 0, 367, 43, start_sur, end_sur, non_zero_threshold)) << "Bias " << bias << " dispersion pars " << test_->dispersion_parameters_.at(0) << ' ' << test_->dispersion_parameters_.at(1) << std::endl;
 }
 
 void FragmentDistributionStatsTest::TestSrr490124Equality(const FragmentDistributionStats &test, const char *context){

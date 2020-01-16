@@ -1,0 +1,5 @@
+track type=bedGraph name="BedGraph Format" description="BedGraph format" priority=20
+NW_007931112.1     0   100 0.25 0.26
+NW_007931112.1   100   101 0.3  0.31
+NW_007931112.1 34520 34521 0.4  0.41
+NW_007931119.1  5000 35000 0.1

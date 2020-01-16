@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <array>
+#include <fstream>
 #include <set>
 #include <stdint.h>
 #include <vector>
@@ -90,6 +91,15 @@ namespace reseq{
 		std::vector<std::vector<Reference::Variant>> variants_; // variants_[RefSeqId][PositionSortedVariantID] = {Position,VarSeq,[Yes/No per allele]}
 		std::vector<std::vector<uintSeqLen>> variant_positions_; // variant_positions_[RefSeqId][PositionSortedVariantID] = VariantPosition
 
+		// Methylation bisulfite conversion variables
+		std::ifstream methylation_file_;
+		std::string cur_methylation_line_;
+		std::string cur_methylation_sequence_;
+		std::vector<std::vector<std::vector<double>>> unmethylation_; // unmethylation_[RefSeqId][Allele][PositionSortedMethylationID] = 1 - Methylation
+		std::vector<std::vector<std::pair<uintSeqLen,uintSeqLen>>> unmethylated_regions_; // unmethylated_regions_[RefSeqId][PositionSortedMethylationID] = {UnMethylatedRegionStart, UnMethylatedRegionEnd}
+		std::atomic<uintRefSeqId> read_methylation_for_num_sequences_;
+		std::atomic<uintRefSeqId> cleared_methylation_for_num_sequences_;
+
 		// Exclusion regions private functions
 		inline void PushBackExclusionRegion( std::pair<uintSeqLen, uintSeqLen> region, uintRefSeqId ref_seq, uintSeqLen maximum_fragment_length);
 
@@ -123,6 +133,9 @@ namespace reseq{
 		inline bool ReadFirstVcfRecord();
 		bool ReadVariants(uintRefSeqId end_ref_seq_id, bool positions_only);
 		void CloseVcfFile();
+
+		// Methylation bisulfite conversion private functions
+		void CloseMethylationFile();
 #endif //SWIG
 
 		inline void UpdateGC( uintSeqLen &gc, uintSeqLen &n_count, const seqan::Dna5String &ref_seq, uintSeqLen old_pos, uintSeqLen new_pos ) const{
@@ -276,10 +289,17 @@ namespace reseq{
 		// Exclusion regions public functions
 		void PrepareExclusionRegions();
 		void ObtainExclusionRegions( uintRefSeqId end_ref_seq_id, uintSeqLen maximum_fragment_length );
-		inline bool ObtainedExclusionRegionsForSequence(uintRefSeqId ref_seq_id) const{ return obtained_exclusion_regions_for_num_sequences_ >= ref_seq_id; }
+		inline bool ObtainedExclusionRegionsForSequence(uintRefSeqId ref_seq_id) const{ return obtained_exclusion_regions_for_num_sequences_ > ref_seq_id; }
 		inline bool ExclusionRegionsCompletelyObtained() const{ return obtained_exclusion_regions_for_num_sequences_ >= NumberSequences(); }
 		bool FragmentExcluded( uintSeqLen &last_region_id, uintRefSeqId &last_ref_seq, uintRefSeqId ref_seq_id, uintSeqLen fragment_start, uintSeqLen fragment_end ) const;
 		bool ReferenceSequenceExcluded( uintRefSeqId ref_seq_id ) const{ return 1 == excluded_regions_.at(ref_seq_id).size(); }
+		uintRefSeqId FirstNotExcludedSequence() const{
+			uintRefSeqId first = 0;
+			while( first < NumberSequences() && ReferenceSequenceExcluded(first) ){
+				++first;
+			}
+			return first;
+		}
 		uintSeqLen SumExcludedBases( uintRefSeqId ref_seq_id ) const{
 			return sum_of_excluded_bases_.at(ref_seq_id);
 		}
@@ -338,10 +358,10 @@ namespace reseq{
 		inline uintAlleleId NumAlleles() const{ return num_alleles_; }
 		inline bool VariantsLoaded() const{ return variants_.size(); }
 		inline bool VariantPositionsLoaded() const{ return variant_positions_.size(); }
-		inline bool VariantsLoadedForSequence(uintRefSeqId ref_seq_id) const{ return read_variation_for_num_sequences_ >= ref_seq_id; }
+		inline bool VariantsLoadedForSequence(uintRefSeqId ref_seq_id) const{ return read_variation_for_num_sequences_ > ref_seq_id; }
 		inline bool VariantPositionsLoadedForSequence(uintRefSeqId ref_seq_id) const{ return read_variation_for_num_sequences_ >= ref_seq_id; }
-		inline bool VariantsCompletelyLoaded() const{ return read_variation_for_num_sequences_ >= NumberSequences(); }
-		inline bool VariantPositionsCompletelyLoaded() const{ return read_variation_for_num_sequences_ >= NumberSequences(); }
+		inline bool VariantsCompletelyLoaded() const{ return read_variation_for_num_sequences_ >= variants_.size(); }
+		inline bool VariantPositionsCompletelyLoaded() const{ return read_variation_for_num_sequences_ >= variant_positions_.size(); }
 		inline const std::vector<Reference::Variant> &Variants(uintRefSeqId ref_seq_id) const{ return variants_.at(ref_seq_id); }
 		inline const std::vector<uintRefSeqId> &VariantPositions(uintRefSeqId ref_seq_id) const{ return variant_positions_.at(ref_seq_id); }
 
@@ -354,6 +374,27 @@ namespace reseq{
 		void ClearVariantPositions(uintRefSeqId end_ref_seq_id);
 		void ClearAllVariants();
 		void ClearAllVariantPositions();
+
+		// Methylation bisulfite conversion public functions
+		inline bool MethylationLoaded() const{ return unmethylation_.size(); }
+		inline bool MethylationLoadedForSequence(uintRefSeqId ref_seq_id) const{ return read_methylation_for_num_sequences_ > ref_seq_id; }
+		inline bool MethylationCompletelyLoaded() const{ return read_methylation_for_num_sequences_ >= unmethylation_.size(); }
+		inline const std::vector<double> &Unmethylation(uintRefSeqId ref_seq_id, uintAlleleId allele) const{
+			if(1 < unmethylation_.at(ref_seq_id).size()){
+				return unmethylation_.at(ref_seq_id).at(allele);
+			}
+			else{
+				return unmethylation_.at(ref_seq_id).at(0);
+			}
+		}
+		inline const std::vector<std::pair<uintSeqLen,uintSeqLen>> &UnmethylatedRegions(uintRefSeqId ref_seq_id) const{
+			return unmethylated_regions_.at(ref_seq_id);
+		}
+
+		bool PrepareMethylationFile(const std::string &methylation_file);
+		bool ReadMethylation(uintRefSeqId end_ref_seq_id);
+		void ClearMethylation(uintRefSeqId end_ref_seq_id);
+		void ClearAllMethylation();
 #endif //SWIG
 	};
 

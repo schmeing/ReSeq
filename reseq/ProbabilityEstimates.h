@@ -524,6 +524,21 @@ namespace reseq{
 					return 0;
 				}
 			}
+
+			inline void ModifyPar0(uintMatrixIndex par0_index, double multiplier){
+				// Find which column in the matrix corresponds to the given index
+				uintMatrixIndex corrected_index = 0;
+				while(corrected_index < par0_indeces_.size() && par0_indeces_.at(corrected_index) != par0_index){
+					++corrected_index;
+				}
+
+				if(corrected_index < par0_indeces_.size() && par0_indeces_.at(corrected_index) == par0_index){
+					// par0_index exists
+					for(auto matrix_index = corrected_index; matrix_index < dim2_.at(0).size(); matrix_index += par0_indeces_.size()){
+						dim2_.at(0).at(matrix_index) *= multiplier;
+					}
+				}
+			}
 		};
 
 		template<uintMarginId G1, uintMarginId G2, uintMarginId L> double SumLogTerms(
@@ -1481,6 +1496,19 @@ namespace reseq{
 		}
 		const ProbabilityEstimatesSubClasses::LogArrayResult<4> &InDels(uintInDelType indel_type, uintBaseCall last_call) const{
 			return indels_result_.at(indel_type).at(last_call);
+		}
+
+		void ChangeErrorRate(double error_multiplier){
+			printInfo << "Multiplying error rate with " << error_multiplier << std::endl;
+			for(auto template_segment=base_call_result_.size(); template_segment--; ){
+				for(auto tile_id=base_call_result_.at(template_segment).size(); tile_id--; ){
+					for(auto ref_base=base_call_result_.at(template_segment).at(tile_id).size(); ref_base--; ){
+						for(auto dom_error=base_call_result_.at(template_segment).at(tile_id).at(ref_base).size(); dom_error--; ){
+							base_call_result_.at(template_segment).at(tile_id).at(ref_base).at(dom_error).ModifyPar0(ref_base, 1.0/error_multiplier); // Didive the probability of the correct base by error_multiplier
+						}
+					}
+				}
+			}
 		}
 
 		bool Load( const char *archive_file );

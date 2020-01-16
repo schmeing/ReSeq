@@ -519,10 +519,11 @@ int main(int argc, char *argv[]) {
 			double ipf_precision;
 			uintFragCount num_read_pairs;
 			double coverage;
+			double error_mutliplier;
 			uintSeqLen maximum_insert_length;
 			uintQualPrint minimum_mapping_quality;
 			uintSeqLen max_ref_seq_bin_size;
-			std::string record_base_identifier;
+			std::string record_base_identifier, meth_file;
 
 			options_description opt_desc("Stats");
 			opt_desc.add_options() // Returns a special object with defined operator ()
@@ -555,6 +556,8 @@ int main(int argc, char *argv[]) {
 				("firstReadsOut,1", value<string>(), "Writes the simulated first reads into this file [reseq-R1.fq]")
 				("secondReadsOut,2", value<string>(), "Writes the simulated second reads into this file [reseq-R2.fq]")
 				("coverage,c", value<double>(&coverage)->default_value(0.0), "Approximate average read depth simulated (0 = Corrected original coverage)")
+				("errorMutliplier", value<double>(&error_mutliplier)->default_value(1.0), "Divides the original probability of correct base calls(no substitution error) by this value and renormalizes")
+				("methylation", value<string>(&meth_file)->default_value(""), "Extended bed graph file specifying methylation for regions. Multiple score columns for individual alleles are possible, but must match with vcfSim. C->T conversions for 1-specified value in region.")
 				("numReads", value<uintFragCount>(&num_read_pairs)->default_value(0), "Approximate number of read pairs simulated (0 = Use <coverage>)")
 				("readSysError", value<string>(), "Read systematic errors from file in fastq format (seq=dominant error, qual=error percentage)")
 				("recordBaseIdentifier", value<string>(&record_base_identifier)->default_value("ReseqRead"), "Base Identifier for the simulated fastq records, followed by a count and other information about the read")
@@ -752,8 +755,12 @@ int main(int argc, char *argv[]) {
 														printInfo << "Simulating variance from file: '" << var_file << "'" << std::endl;
 													}
 
+													if(1.0 != error_mutliplier){
+														probabilities.ChangeErrorRate( error_mutliplier );
+													}
+
 													Simulator sim;
-													if( !sim.Simulate(sim_output_first.c_str(), sim_output_second.c_str(), species_reference, real_data_stats, probabilities, num_threads, seed, num_read_pairs, coverage, ref_bias_model, ref_bias_file, sys_error_file, record_base_identifier, var_file) ){
+													if( !sim.Simulate(sim_output_first.c_str(), sim_output_second.c_str(), species_reference, real_data_stats, probabilities, num_threads, seed, num_read_pairs, coverage, ref_bias_model, ref_bias_file, sys_error_file, record_base_identifier, var_file, meth_file) ){
 														return 1;
 													}
 												}

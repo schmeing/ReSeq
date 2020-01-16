@@ -11,6 +11,10 @@ using std::array;
 using std::log;
 using std::pow;
 using std::round;
+#include <exception>
+using std::exception;
+#include <fstream>
+using std::getline;
 #include <iostream>
 using std::cout;
 #include <iterator>
@@ -23,6 +27,8 @@ using std::uniform_int_distribution;
 //include <set>
 using std::set;
 #include <string>
+using std::stod;
+using std::stoll;
 using std::string;
 #include <utility>
 using std::pair;
@@ -412,7 +418,7 @@ bool Reference::ReadVariants(uintRefSeqId end_ref_seq_id, bool positions_only){
 
 void Reference::CloseVcfFile(){
 	if(VcfRecord::INVALID_REFID != cur_vcf_record_.rID){
-		printErr << "Variant file is not sorted by position. The following variation record and all after it have been ignored during simulation:" << std::endl;
+		printWarn << "The sequences in variant file are not sorted according to the reference. The following variation record and all after it have been ignored during simulation:" << std::endl;
 		std::cout << cur_vcf_record_.rID << '\t' << cur_vcf_record_.beginPos+1 << '\t' << cur_vcf_record_.id << '\t' << cur_vcf_record_.ref << '\t' << cur_vcf_record_.alt << '\t' << cur_vcf_record_.qual << '\t' << cur_vcf_record_.filter << '\t' << cur_vcf_record_.info << '\t' << cur_vcf_record_.format;
 		for(auto &genotype : cur_vcf_record_.genotypeInfos){
 			std::cout << '\t' << genotype;
@@ -421,6 +427,14 @@ void Reference::CloseVcfFile(){
 	}
 	clear(contigNames(context(vcf_file_)));
 	close(vcf_file_);
+}
+
+void Reference::CloseMethylationFile(){
+	if(!methylation_file_.eof()){
+		printWarn << "The sequences in methylation file are not sorted according to the reference. The following methylation line and all after it have been ignored during simulation:" << std::endl;
+		std::cout << cur_methylation_line_ << std::endl;
+	}
+	methylation_file_.close();
 }
 
 inline void Reference::AddFragmentSite(
@@ -572,10 +586,10 @@ reseq::uintRefSeqId Reference::RefSeqsInNxx(vector<bool> &ref_seqs, double nxx_r
 	uintRefSeqId needed_ref_seqs = 0;
 	ref_seqs.resize(NumberSequences(), false);
 	while(needed_ref_seqs+1 < ref_seq_nxx.size() && nxx_ref_seqs > ref_seq_nxx.at(needed_ref_seqs).first){
-		ref_seqs.at(needed_ref_seqs++) = true;
+		ref_seqs.at(ref_seq_nxx.at(needed_ref_seqs++).second) = true;
 	}
 
-	ref_seqs.at(needed_ref_seqs++) = true; // Get last one and convert index to size
+	ref_seqs.at(ref_seq_nxx.at(needed_ref_seqs++).second) = true; // Get last one and convert index to size
 
 	return needed_ref_seqs;
 }
@@ -997,18 +1011,26 @@ bool Reference::ReadFirstVariantPositions(){
 
 void Reference::ClearVariants(uintRefSeqId end_ref_seq_id){
 	if(VariantsLoaded()){
-		while( cleared_variation_for_num_sequences_ < end_ref_seq_id ){
-			variants_.at(cleared_variation_for_num_sequences_).clear();
-			variants_.at(cleared_variation_for_num_sequences_++).shrink_to_fit();
+		uintRefSeqBin ref_seq_bin = cleared_variation_for_num_sequences_;
+		while( ref_seq_bin < end_ref_seq_id ){
+			if( cleared_variation_for_num_sequences_.compare_exchange_strong(ref_seq_bin, ref_seq_bin+1) ){
+				variants_.at(ref_seq_bin).clear();
+				variants_.at(ref_seq_bin).shrink_to_fit();
+				ref_seq_bin = cleared_variation_for_num_sequences_; // Set ref_seq_bin after everything has been done to the new value (In case compare_exchange_strong fails this is done automatically)
+			}
 		}
 	}
 }
 
 void Reference::ClearVariantPositions(uintRefSeqId end_ref_seq_id){
 	if(VariantPositionsLoaded()){
-		while( cleared_variation_for_num_sequences_ < end_ref_seq_id ){
-			variant_positions_.at(cleared_variation_for_num_sequences_).clear();
-			variant_positions_.at(cleared_variation_for_num_sequences_++).shrink_to_fit();
+		uintRefSeqBin ref_seq_bin = cleared_variation_for_num_sequences_;
+		while( ref_seq_bin < end_ref_seq_id ){
+			if( cleared_variation_for_num_sequences_.compare_exchange_strong(ref_seq_bin, ref_seq_bin+1) ){
+				variant_positions_.at(ref_seq_bin).clear();
+				variant_positions_.at(ref_seq_bin).shrink_to_fit();
+				ref_seq_bin = cleared_variation_for_num_sequences_; // Set ref_seq_bin after everything has been done to the new value (In case compare_exchange_strong fails this is done automatically)
+			}
 		}
 	}
 }
@@ -1026,5 +1048,222 @@ void Reference::ClearAllVariantPositions(){
 		CloseVcfFile();
 		variant_positions_.clear();
 		variant_positions_.shrink_to_fit();
+	}
+}
+
+bool Reference::PrepareMethylationFile(const std::string &methylation_file){
+	methylation_file_.open(methylation_file);
+	if( !methylation_file_.is_open() ){
+		printErr << "Unable to open methylation file " << methylation_file << std::endl;
+		return false;
+	}
+
+	if(!getline(methylation_file_, cur_methylation_line_)){
+		if(methylation_file_.eof()){
+			printErr << "Methylation file is empty: " << methylation_file << std::endl;
+		}
+		else{
+			printErr << "Could not read from methylation file: " << methylation_file << std::endl;
+		}
+		return false;
+	}
+
+	// Ignore track lines
+	while( (cur_methylation_line_.empty() || !cur_methylation_line_.compare(0,5,"track")) && getline(methylation_file_, cur_methylation_line_));
+
+	if(methylation_file_.fail()){
+		if(methylation_file_.eof()){
+			printErr << "Methylation file only contains track lines: " << methylation_file << std::endl;
+		}
+		else{
+			printErr << "Could not read past track lines in methylation file: " << methylation_file << std::endl;
+		}
+		return false;
+	}
+
+	printInfo << "Reading methylation from file: " << methylation_file << std::endl;
+
+	cur_methylation_sequence_ = cur_methylation_line_.substr(0, cur_methylation_line_.find_first_of(" \t"));
+
+	unmethylation_.clear();
+	unmethylation_.resize(NumberSequences());
+	unmethylated_regions_.clear();
+	unmethylated_regions_.resize(NumberSequences());
+
+	read_methylation_for_num_sequences_ = 0;
+	cleared_methylation_for_num_sequences_ = 0;
+
+	return true;
+}
+
+bool Reference::ReadMethylation(uintRefSeqId end_ref_seq_id){
+	size_t first_space, second_space;
+	uintSeqLen region_start, region_end;
+	uintAlleleId allele, num_alleles;
+	long long tmp_int;
+	double tmp_double;
+	while(read_methylation_for_num_sequences_ < end_ref_seq_id && read_methylation_for_num_sequences_ < NumberSequences()){
+		if(CharString(ReferenceIdFirstPart(read_methylation_for_num_sequences_)) == cur_methylation_sequence_){
+			unmethylation_.at(read_methylation_for_num_sequences_).resize(NumAlleles());
+			num_alleles = NumAlleles();
+			while( !methylation_file_.fail() ){
+				first_space = cur_methylation_line_.find_first_not_of(" \t", cur_methylation_sequence_.size()+1); // Start of second field
+				second_space = cur_methylation_line_.find_first_of(" \t", first_space);
+				try{
+					tmp_int = stoll(cur_methylation_line_.substr(first_space, second_space));
+				}
+				catch(const exception &e){
+					printErr << "Could not convert second field to int for line:\n" << cur_methylation_line_ << std::endl << e.what() << std::endl;
+					return false;
+				}
+				if(0 == unmethylated_regions_.at(read_methylation_for_num_sequences_).size()){
+					if(tmp_int < 0){
+						printErr << "Second field is negative in line:\n" << cur_methylation_line_ << std::endl;
+						return false;
+					}
+				}
+				else{
+					if( tmp_int < unmethylated_regions_.at(read_methylation_for_num_sequences_).back().second ){
+						printErr << "Region is overlapping with previous region[" << unmethylated_regions_.at(read_methylation_for_num_sequences_).back().first << " - " << unmethylated_regions_.at(read_methylation_for_num_sequences_).back().second << "] in line:\n" << cur_methylation_line_ << std::endl;
+						return false;
+					}
+				}
+				if(tmp_int >= SequenceLength(read_methylation_for_num_sequences_)){
+					printErr << "Second field is larger than sequence length:\n" << cur_methylation_line_ << std::endl;
+					return false;
+				}
+				region_start = tmp_int;
+
+				first_space = cur_methylation_line_.find_first_not_of(" \t", second_space);
+				second_space = cur_methylation_line_.find_first_of(" \t", first_space);
+				try{
+					tmp_int = stoll(cur_methylation_line_.substr(first_space, second_space));
+				}
+				catch(const exception &e){
+					printErr << "Could not convert third field to int for line:\n" << cur_methylation_line_ << std::endl << e.what() << std::endl;
+					return false;
+				}
+				if(tmp_int <= region_start){
+					printErr << "Third field is smaller than second field in line:\n" << cur_methylation_line_ << std::endl;
+					return false;
+				}
+				if(tmp_int > SequenceLength(read_methylation_for_num_sequences_)){
+					printErr << "Third field is larger than sequence length:\n" << cur_methylation_line_ << std::endl;
+					return false;
+				}
+				region_end = tmp_int;
+
+				unmethylated_regions_.at(read_methylation_for_num_sequences_).emplace_back(region_start, region_end);
+
+				allele = 0;
+				first_space = cur_methylation_line_.find_first_not_of(" \t", second_space);
+
+				while(first_space < cur_methylation_line_.size()){
+					if(allele >= num_alleles){
+						if(allele >= NumAlleles()){
+							printErr << "More alleles specified than in variant file [" << NumAlleles() << "] in line:\n" << cur_methylation_line_ << std::endl;
+							return false;
+						}
+						else{
+							printErr << "More alleles specified than in last line [" << num_alleles << "] in line:\n" << cur_methylation_line_ << std::endl;
+							return false;
+						}
+					}
+
+					second_space = cur_methylation_line_.find_first_of(" \t", first_space);
+
+					try{
+						tmp_double = stod(cur_methylation_line_.substr(first_space, second_space));
+					}
+					catch(const exception &e){
+						printErr << "Could not convert field " << 4+allele << " to double for line:\n" << cur_methylation_line_ << std::endl << e.what() << std::endl;
+						return false;
+					}
+					if( 0.0 > tmp_double || tmp_double > 1.0){
+						printErr << "Field " << 4+allele << " is not between 0 and 1:\n" << cur_methylation_line_ << std::endl;
+						return false;
+					}
+					unmethylation_.at(read_methylation_for_num_sequences_).at(allele++).push_back(1.0-tmp_double); // Methylation is stored in file, but we want the probability of C->T conversion
+
+					first_space = cur_methylation_line_.find_first_not_of(" \t", second_space);
+				}
+
+				if( 1 == unmethylation_.at(read_methylation_for_num_sequences_).at(0).size() ){
+					// First entry for this reference sequence
+					if(1 != allele && NumAlleles() != allele ){
+						printErr << allele << " alleles specified (must be either 1 or same as in variant file[" << NumAlleles() << "])" << " in line:\n" << cur_methylation_line_ << std::endl;
+						return false;
+					}
+
+					num_alleles = allele;
+					unmethylation_.at(read_methylation_for_num_sequences_).resize(allele);
+				}
+				else{
+					if(num_alleles != allele){
+						printErr << allele << " alleles specified (must be either identical in all lines of a sequence [" << num_alleles << "])" << " in line:\n" << cur_methylation_line_ << std::endl;
+						return false;
+					}
+				}
+
+				// Load next line
+				while( getline(methylation_file_, cur_methylation_line_) && cur_methylation_line_.empty() ); // Ignore all empty lines
+				if( !methylation_file_.fail() ){
+					first_space = cur_methylation_line_.find_first_of(" \t");
+					if( cur_methylation_line_.compare(0, first_space, cur_methylation_sequence_) ){
+						// Strings are unequal: New reference sequence
+						cur_methylation_sequence_ = cur_methylation_line_.substr(0, first_space);
+						break;
+					}
+				}
+			}
+
+			if( methylation_file_.fail() ){
+				if( methylation_file_.eof() ){
+					// Read in all sequences
+					while(++read_methylation_for_num_sequences_ < NumberSequences()){
+						unmethylation_.at(read_methylation_for_num_sequences_).resize(1);
+					}
+
+					return true;
+				}
+				else{
+					printErr << "Could not read methylation file for reference sequence: " << ReferenceIdFirstPart(read_methylation_for_num_sequences_) << std::endl;
+					return false;
+				}
+			}
+		}
+		else{
+			// No entries for this sequence, so create one pseudo allele
+			unmethylation_.at(read_methylation_for_num_sequences_).resize(1);
+		}
+
+		++read_methylation_for_num_sequences_;
+	}
+
+	return true;
+}
+
+void Reference::ClearMethylation(uintRefSeqId end_ref_seq_id){
+	if(MethylationLoaded()){
+		uintRefSeqBin ref_seq_bin = cleared_methylation_for_num_sequences_;
+		while( ref_seq_bin < end_ref_seq_id ){
+			if( cleared_methylation_for_num_sequences_.compare_exchange_strong(ref_seq_bin, ref_seq_bin+1) ){
+				unmethylation_.at(ref_seq_bin).clear();
+				unmethylation_.at(ref_seq_bin).shrink_to_fit();
+				unmethylated_regions_.at(ref_seq_bin).clear();
+				unmethylated_regions_.at(ref_seq_bin).shrink_to_fit();
+				ref_seq_bin = cleared_methylation_for_num_sequences_; // Set ref_seq_bin after everything has been done to the new value (In case compare_exchange_strong fails this is done automatically)
+			}
+		}
+	}
+}
+
+void Reference::ClearAllMethylation(){
+	if(MethylationLoaded()){
+		CloseMethylationFile();
+		unmethylation_.clear();
+		unmethylation_.shrink_to_fit();
+		unmethylated_regions_.clear();
+		unmethylated_regions_.shrink_to_fit();
 	}
 }

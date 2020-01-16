@@ -1,7 +1,9 @@
 #include "SimulatorTest.h"
 using reseq::SimulatorTest;
 
-#include <array>
+#include <algorithm>
+using std::max;
+//include <array>
 using std::array;
 #include <bitset>
 using std::bitset;
@@ -12,10 +14,12 @@ using std::vector;
 
 //include <seqan/seq_io.h>
 using seqan::DnaString;
+using seqan::length;
 
 //include "utilities.hpp"
 using reseq::utilities::ReverseComplementorDna;
 using reseq::utilities::at;
+using reseq::utilities::Percent;
 
 void SimulatorTest::Register(){
 	// Guarantees that library is included
@@ -69,104 +73,70 @@ void SimulatorTest::TestVariationInInnerLoopOfSimulateFromGivenBlock(
 		uintSeqLen cur_start_position,
 		uintSeqLen frag_length_from,
 		uintSeqLen frag_length_to,
-		const vector<array<intVariantId, 2>> unhandled_variant_id,
-		const vector<array<uintSeqLen, 2>> unhandled_bases_in_variant,
-		const vector<array<intSeqShift, 2>> gc_mod,
-		const vector<array<intSeqShift, 2>> end_pos_shift,
+		uintAlleleId num_valid_alleles,
+		array<vector<intVariantId>, 2> unhandled_variant_id,
+		array<vector<uintSeqLen>, 2> unhandled_bases_in_variant,
+		array<vector<intSeqShift>, 2> gc_mod,
+		array<vector<intSeqShift>, 2> end_pos_shift,
 		array<uintSeqLen, 2> modified_start_pos,
-		array<const Reference *, 2> comp_ref){
+		array<Reference *, 2> comp_ref){
 	DataStats stats(NULL);
 	stats.read_lengths_.at(0)[100];
 	stats.read_lengths_.at(1)[100];
-	stats.fragment_distribution_.insert_lengths_[frag_length_to-1];
 	stats.errors_.PrepareSimulation();
 	Simulator::SimPair sim_reads;
 	Surrounding surrounding_end, comp_surrounding;
 
-	uintSeqLen cur_end_position = cur_start_position+frag_length_from-1;
-	species_reference_.ReverseSurrounding( surrounding_end, ref_seq_id, cur_end_position-1 ); // -1 because it is shifted first thing in the loop
+	auto num_tests = 0;
 
-	for(auto frag_length = frag_length_from; frag_length < frag_length_to; ++frag_length){
-		surrounding_end.UpdateReverse( species_reference_.ReferenceSequence(ref_seq_id), cur_end_position++ );
+	uintPercent gc_perc;
+	uintSeqLen cur_end_position;
 
-		do{ //while( bias_mod.fragment_length_extension_ )
-			test_->UpdateBiasModForCurrentFragmentLength( bias_mod, ref_seq_id, species_reference_, cur_start_position, cur_end_position, surrounding_end );
+	array<double, 2> probability_chosen;
+	probability_chosen.fill(1.0);
 
-			auto result = frag_length - frag_length_from;
-			EXPECT_EQ( unhandled_variant_id.at(result).at(0), bias_mod.unhandled_variant_id_.at(0) ) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-			EXPECT_EQ( unhandled_variant_id.at(result).at(1), bias_mod.unhandled_variant_id_.at(1) ) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-			EXPECT_EQ( unhandled_bases_in_variant.at(result).at(0), bias_mod.unhandled_bases_in_variant_.at(0) ) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-			EXPECT_EQ( unhandled_bases_in_variant.at(result).at(1), bias_mod.unhandled_bases_in_variant_.at(1) ) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-			EXPECT_EQ( gc_mod.at(result).at(0), bias_mod.gc_mod_.at(0) ) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-			EXPECT_EQ( gc_mod.at(result).at(1), bias_mod.gc_mod_.at(1) ) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-			EXPECT_EQ( end_pos_shift.at(result).at(0), bias_mod.end_pos_shift_.at(0) ) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-			EXPECT_EQ( end_pos_shift.at(result).at(1), bias_mod.end_pos_shift_.at(1) ) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
+	auto frag_len_start = frag_length_from;
 
-			comp_ref.at(0)->ReverseSurrounding( comp_surrounding, ref_seq_id, modified_start_pos.at(0)+frag_length-1 );
-			EXPECT_EQ(comp_surrounding.sur_.at(0), bias_mod.mod_surrounding_end_.at(0).sur_.at(0)) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-			EXPECT_EQ(comp_surrounding.sur_.at(1), bias_mod.mod_surrounding_end_.at(0).sur_.at(1)) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-			EXPECT_EQ(comp_surrounding.sur_.at(2), bias_mod.mod_surrounding_end_.at(0).sur_.at(2)) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-			comp_ref.at(1)->ReverseSurrounding( comp_surrounding, ref_seq_id, modified_start_pos.at(1)+frag_length-1 );
-			EXPECT_EQ(comp_surrounding.sur_.at(0), bias_mod.mod_surrounding_end_.at(1).sur_.at(0)) << bitset<20>(comp_surrounding.sur_.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_end_.at(1).sur_.at(0)) << " (Result)" << std::endl << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-			EXPECT_EQ(comp_surrounding.sur_.at(1), bias_mod.mod_surrounding_end_.at(1).sur_.at(1)) << bitset<20>(comp_surrounding.sur_.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_end_.at(1).sur_.at(1)) << " (Result)" << std::endl << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-			EXPECT_EQ(comp_surrounding.sur_.at(2), bias_mod.mod_surrounding_end_.at(1).sur_.at(2)) << bitset<20>(comp_surrounding.sur_.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_end_.at(1).sur_.at(2)) << " (Result)" << std::endl << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
+	for( auto fragment_length=frag_len_start; fragment_length < frag_length_to; ++fragment_length){
+		for(uintAlleleId allele=0; allele < species_reference_.NumAlleles(); ++allele){
+			if( !species_reference_.VariantsLoaded() || !test_->AlleleSkipped(bias_mod, allele, species_reference_.Variants(ref_seq_id), cur_start_position) ){
+				if(test_->ProbabilityAboveThreshold(probability_chosen, ref_seq_id, fragment_length)){
+					test_->PrepareBiasModForCurrentFragmentLength( bias_mod, ref_seq_id, species_reference_, cur_start_position, fragment_length, allele );
 
-			for(uintAlleleId allele=0; allele < 2; ++allele){
-				test_->GetOrgSeq(sim_reads, allele, allele, frag_length, cur_start_position, cur_end_position, ref_seq_id, species_reference_, stats, bias_mod);
+					comp_ref.at(allele)->ReverseSurrounding( comp_surrounding, ref_seq_id, modified_start_pos.at(allele)+fragment_length-1 );
+					EXPECT_EQ(comp_surrounding.sur_.at(0), bias_mod.surrounding_end_.at(allele).sur_.at(0)) << "Start position: " << cur_start_position << " Fragment length: " << fragment_length << " Allele: " << allele << std::endl;
+					EXPECT_EQ(comp_surrounding.sur_.at(1), bias_mod.surrounding_end_.at(allele).sur_.at(1)) << "Start position: " << cur_start_position << " Fragment length: " << fragment_length << " Allele: " << allele << std::endl;
+					EXPECT_EQ(comp_surrounding.sur_.at(2), bias_mod.surrounding_end_.at(allele).sur_.at(2)) << "Start position: " << cur_start_position << " Fragment length: " << fragment_length << " Allele: " << allele << std::endl;
 
-				EXPECT_TRUE( infix(comp_ref.at(allele)->ReferenceSequence(ref_seq_id), modified_start_pos.at(allele), modified_start_pos.at(allele)+frag_length) == prefix(sim_reads.org_seq_.at(allele), frag_length) ) << prefix(sim_reads.org_seq_.at(allele), frag_length) << std::endl << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-				EXPECT_TRUE( ReverseComplementorDna(infix(comp_ref.at(allele)->ReferenceSequence(ref_seq_id), modified_start_pos.at(allele), modified_start_pos.at(allele)+frag_length)) == prefix(sim_reads.org_seq_.at(!allele), frag_length) ) << prefix(sim_reads.org_seq_.at(!allele), frag_length) << std::endl << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
+					auto result = fragment_length - frag_length_from;
+					EXPECT_EQ( unhandled_variant_id.at(allele).at(result), bias_mod.unhandled_variant_id_.at(allele) ) << "Start position: " << cur_start_position << " Fragment length: " << fragment_length << " Variant position: " << bias_mod.start_variant_pos_ << " Allele: " << allele << std::endl;
+					EXPECT_EQ( unhandled_bases_in_variant.at(allele).at(result), bias_mod.unhandled_bases_in_variant_.at(allele) ) << "Start position: " << cur_start_position << " Fragment length: " << fragment_length << " Variant position: " << bias_mod.start_variant_pos_ << " Allele: " << allele << std::endl;
+					EXPECT_EQ( gc_mod.at(allele).at(result), bias_mod.gc_mod_.at(allele) ) << "Start position: " << cur_start_position << " Fragment length: " << fragment_length << " Variant position: " << bias_mod.start_variant_pos_ << " Allele: " << allele << std::endl;
+					EXPECT_EQ( end_pos_shift.at(allele).at(result), bias_mod.end_pos_shift_.at(allele) ) << "Start position: " << cur_start_position << " Fragment length: " << fragment_length << " Variant position: " << bias_mod.start_variant_pos_ << " Allele: " << allele << std::endl;
+
+					cur_end_position = cur_start_position + fragment_length + bias_mod.end_pos_shift_.at(allele);
+					if( cur_end_position < species_reference_.SequenceLength(ref_seq_id)){
+						for(bool strand : { false, true }){
+							if(test_->ProbabilityAboveThreshold(probability_chosen, strand, ref_seq_id, fragment_length)){
+								// Determine how many read pairs are generated for this strand and allele at this position with this fragment_length
+								gc_perc = test_->GetGCPercent( bias_mod, ref_seq_id, species_reference_, cur_end_position, fragment_length, allele );
+								EXPECT_EQ( Percent(comp_ref.at(allele)->GCContentAbsolut( ref_seq_id, modified_start_pos.at(allele), modified_start_pos.at(allele)+fragment_length ), fragment_length), gc_perc );
+
+								test_->GetOrgSeq(sim_reads, strand, allele, fragment_length, cur_start_position, cur_end_position, ref_seq_id, species_reference_, stats, bias_mod);
+
+								EXPECT_TRUE( infix(comp_ref.at(allele)->ReferenceSequence(ref_seq_id), modified_start_pos.at(allele), modified_start_pos.at(allele)+fragment_length) == prefix(sim_reads.org_seq_.at(strand), fragment_length) ) << prefix(sim_reads.org_seq_, fragment_length) << std::endl << "Start position: " << cur_start_position << " Fragment length: " << fragment_length << " Allele: " << allele << std::endl;
+								EXPECT_TRUE( ReverseComplementorDna(infix(comp_ref.at(allele)->ReferenceSequence(ref_seq_id), modified_start_pos.at(allele), modified_start_pos.at(allele)+fragment_length)) == prefix(sim_reads.org_seq_.at(!strand), fragment_length) ) << prefix(sim_reads.org_seq_.at(!allele), fragment_length) << std::endl << "Start position: " << cur_start_position << " Fragment length: " << fragment_length << " Allele: " << allele << std::endl;
+
+								++num_tests;
+							}
+						}
+					}
+				}
 			}
-
-			test_->CheckForFragmentLengthExtension( bias_mod, frag_length, frag_length_to, species_reference_, stats );
-			EXPECT_EQ(0, bias_mod.fragment_length_extension_);
-		} while(bias_mod.fragment_length_extension_);
+		}
 	}
-}
 
-void SimulatorTest::TestVariationInInnerLoopOfSimulateFromGivenBlock(
-		Simulator::VariantBiasVarModifiers &bias_mod,
-		uintRefSeqId ref_seq_id,
-		uintSeqLen cur_start_position,
-		uintSeqLen frag_length_from,
-		uintSeqLen frag_length_to,
-		uintAlleleId allele,
-		const vector<intVariantId> unhandled_variant_id,
-		const vector<uintSeqLen> unhandled_bases_in_variant,
-		const vector<intSeqShift> gc_mod,
-		const vector<intSeqShift> end_pos_shift,
-		uintSeqLen modified_start_pos,
-		const Reference &comp_ref){
-	DataStats stats(NULL);
-	stats.read_lengths_.at(0)[100];
-	stats.read_lengths_.at(1)[100];
-	stats.errors_.PrepareSimulation();
-	Simulator::SimPair sim_reads;
-	Surrounding surrounding_end, comp_surrounding;
-
-	uintSeqLen cur_end_position = cur_start_position+frag_length_from-1;
-	species_reference_.ReverseSurrounding( surrounding_end, ref_seq_id, cur_end_position-1 );
-
-	for(auto frag_length = frag_length_from; frag_length < frag_length_to; ++frag_length){
-		surrounding_end.UpdateReverse( species_reference_.ReferenceSequence(ref_seq_id), cur_end_position++ );
-		test_->UpdateBiasModForCurrentFragmentLength( bias_mod, ref_seq_id, species_reference_, cur_start_position, cur_end_position, surrounding_end );
-
-		auto result = frag_length - frag_length_from;
-		EXPECT_EQ( unhandled_variant_id.at(result), bias_mod.unhandled_variant_id_.at(allele) ) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << " Variant position: " << bias_mod.start_variant_pos_ << std::endl;
-		EXPECT_EQ( unhandled_bases_in_variant.at(result), bias_mod.unhandled_bases_in_variant_.at(allele) ) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << " Variant position: " << bias_mod.start_variant_pos_ << std::endl;
-		EXPECT_EQ( gc_mod.at(result), bias_mod.gc_mod_.at(allele) ) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << " Variant position: " << bias_mod.start_variant_pos_ << std::endl;
-		EXPECT_EQ( end_pos_shift.at(result), bias_mod.end_pos_shift_.at(allele) ) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << " Variant position: " << bias_mod.start_variant_pos_ << std::endl;
-
-		comp_ref.ReverseSurrounding( comp_surrounding, ref_seq_id, modified_start_pos+frag_length-1 );
-		EXPECT_EQ(comp_surrounding.sur_.at(0), bias_mod.mod_surrounding_end_.at(allele).sur_.at(0)) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-		EXPECT_EQ(comp_surrounding.sur_.at(1), bias_mod.mod_surrounding_end_.at(allele).sur_.at(1)) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-		EXPECT_EQ(comp_surrounding.sur_.at(2), bias_mod.mod_surrounding_end_.at(allele).sur_.at(2)) << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-
-		test_->GetOrgSeq(sim_reads, allele, allele, frag_length, cur_start_position, cur_end_position, ref_seq_id, species_reference_, stats, bias_mod);
-
-		EXPECT_TRUE( infix(comp_ref.ReferenceSequence(ref_seq_id), modified_start_pos, modified_start_pos+frag_length) == prefix(sim_reads.org_seq_.at(allele), frag_length) ) << prefix(sim_reads.org_seq_.at(allele), frag_length) << std::endl << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-		EXPECT_TRUE( ReverseComplementorDna(infix(comp_ref.ReferenceSequence(ref_seq_id), modified_start_pos, modified_start_pos+frag_length)) == prefix(sim_reads.org_seq_.at(!allele), frag_length) ) << prefix(sim_reads.org_seq_.at(!allele), frag_length) << std::endl << "Start position: " << cur_start_position << " Fragment length: " << frag_length << std::endl;
-	}
+	EXPECT_EQ( num_valid_alleles*2*max(unhandled_variant_id.at(0).size(),unhandled_variant_id.at(1).size()), num_tests );
 }
 
 void SimulatorTest::TestVariationInSimulateFromGivenBlock(){
@@ -200,6 +170,10 @@ void SimulatorTest::TestVariationInSimulateFromGivenBlock(){
 	at(test_ref.reference_sequences_, 0) += infix(species_reference_.ReferenceSequence(0), 1013, 2000);
 	Surrounding comp_surrounding;
 
+	test_->coverage_groups_.resize(species_reference_.NumberSequences(), 0);
+	test_->non_zero_thresholds_.resize(1);
+	test_->non_zero_thresholds_.at(0).resize(100, 0.0);
+
 	Simulator::VariantBiasVarModifiers bias_mod(1, 2);
 	uintRefSeqId ref_seq_id = 0;
 	Surrounding surrounding_start;
@@ -209,20 +183,21 @@ void SimulatorTest::TestVariationInSimulateFromGivenBlock(){
 	bias_mod.first_variant_id_ = 2; // Insertion at position 2 has already been processed
 
 	species_reference_.ForwardSurrounding( surrounding_start, ref_seq_id, cur_start_position );
-	test_->PrepareBiasModForCurrentStartPos( bias_mod, ref_seq_id, species_reference_, cur_start_position, cur_start_position, surrounding_start ); // cur_end_position = cur_start_position -> Fragment length = 1
-	EXPECT_EQ(surrounding_start.sur_.at(0), bias_mod.mod_surrounding_start_.at(0).sur_.at(0));
-	EXPECT_EQ(surrounding_start.sur_.at(1), bias_mod.mod_surrounding_start_.at(0).sur_.at(1));
-	EXPECT_EQ(surrounding_start.sur_.at(2), bias_mod.mod_surrounding_start_.at(0).sur_.at(2));
-	test_ref.ForwardSurrounding( comp_surrounding, ref_seq_id, 1004 );
-	EXPECT_EQ(comp_surrounding.sur_.at(0), bias_mod.mod_surrounding_start_.at(1).sur_.at(0)) << bitset<20>(surrounding_start.sur_.at(0)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(0)) << " (Result)";
-	EXPECT_EQ(comp_surrounding.sur_.at(1), bias_mod.mod_surrounding_start_.at(1).sur_.at(1)) << bitset<20>(surrounding_start.sur_.at(1)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(1)) << " (Result)";
-	EXPECT_EQ(comp_surrounding.sur_.at(2), bias_mod.mod_surrounding_start_.at(1).sur_.at(2)) << bitset<20>(surrounding_start.sur_.at(2)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(2)) << " (Result)";
+	test_->PrepareBiasModForCurrentStartPos( bias_mod, ref_seq_id, species_reference_, cur_start_position, 1, surrounding_start ); // cur_end_position = cur_start_position -> Fragment length = 1
+	EXPECT_EQ(surrounding_start.sur_.at(0), bias_mod.surrounding_start_.at(0).sur_.at(0));
+	EXPECT_EQ(surrounding_start.sur_.at(1), bias_mod.surrounding_start_.at(0).sur_.at(1));
+	EXPECT_EQ(surrounding_start.sur_.at(2), bias_mod.surrounding_start_.at(0).sur_.at(2));
 
-	TestVariationInInnerLoopOfSimulateFromGivenBlock( bias_mod, ref_seq_id, cur_start_position, 1, 13,
-			{{2,2},{3,2},{3,2},{3,3},{3,3},{4,3},{4,3},{4,4},{5,4},{6,5},{6,6},{6,6}},
-			{{0,0},{0,2},{0,1},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}},
-			{{0,0},{0,-1},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,1},{0,0},{0,0}},
-			{{0,0},{0,0},{0,-1},{0,-2},{0,-2},{0,-2},{0,-2},{0,-1},{0,-1},{0,-1},{0,0},{0,0}},
+	test_ref.ForwardSurrounding( comp_surrounding, ref_seq_id, 1004 );
+	EXPECT_EQ(comp_surrounding.sur_.at(0), bias_mod.surrounding_start_.at(1).sur_.at(0)) << bitset<20>(surrounding_start.sur_.at(0)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.surrounding_start_.at(1).sur_.at(0)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(1), bias_mod.surrounding_start_.at(1).sur_.at(1)) << bitset<20>(surrounding_start.sur_.at(1)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.surrounding_start_.at(1).sur_.at(1)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(2), bias_mod.surrounding_start_.at(1).sur_.at(2)) << bitset<20>(surrounding_start.sur_.at(2)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.surrounding_start_.at(1).sur_.at(2)) << " (Result)";
+
+	TestVariationInInnerLoopOfSimulateFromGivenBlock( bias_mod, ref_seq_id, cur_start_position, 1, 13, 2,
+			{{ {2,3,3,3,3,4,4,4,5,6,6,6}, {2,2,2,3,3,3,3,4,4,5,6,6} }},
+			{{ {0,0,0,0,0,0,0,0,0,0,0,0}, {0,2,1,0,0,0,0,0,0,0,0,0} }},
+			{{ {0,0,0,0,0,0,0,0,0,0,0,0}, {0,-1,0,0,0,0,0,0,0,1,0,0} }},
+			{{ {0,0,0,0,0,0,0,0,0,0,0,0}, {0,0,-1,-2,-2,-2,-2,-1,-1,-1,0,0} }},
 			{cur_start_position, 1004}, {&species_reference_, &test_ref});
 
 	test_->CheckForInsertedBasesToStartFrom( bias_mod, 0, cur_start_position, species_reference_ );
@@ -231,20 +206,21 @@ void SimulatorTest::TestVariationInSimulateFromGivenBlock(){
 
 	// Position 1004 + 0
 	species_reference_.ForwardSurrounding( surrounding_start, ref_seq_id, ++cur_start_position );
-	test_->PrepareBiasModForCurrentStartPos( bias_mod, ref_seq_id, species_reference_, cur_start_position, cur_start_position, surrounding_start ); // cur_end_position = cur_start_position -> Fragment length = 1
-	EXPECT_EQ(surrounding_start.sur_.at(0), bias_mod.mod_surrounding_start_.at(0).sur_.at(0)) << bitset<20>(surrounding_start.sur_.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(0).sur_.at(0)) << " (Result)";
-	EXPECT_EQ(surrounding_start.sur_.at(1), bias_mod.mod_surrounding_start_.at(0).sur_.at(1)) << bitset<20>(surrounding_start.sur_.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(0).sur_.at(1)) << " (Result)";
-	EXPECT_EQ(surrounding_start.sur_.at(2), bias_mod.mod_surrounding_start_.at(0).sur_.at(2)) << bitset<20>(surrounding_start.sur_.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(0).sur_.at(2)) << " (Result)";
-	test_ref.ForwardSurrounding( comp_surrounding, ref_seq_id, 1005 );
-	EXPECT_EQ(comp_surrounding.sur_.at(0), bias_mod.mod_surrounding_start_.at(1).sur_.at(0)) << bitset<20>(surrounding_start.sur_.at(0)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(0)) << " (Result)";
-	EXPECT_EQ(comp_surrounding.sur_.at(1), bias_mod.mod_surrounding_start_.at(1).sur_.at(1)) << bitset<20>(surrounding_start.sur_.at(1)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(1)) << " (Result)";
-	EXPECT_EQ(comp_surrounding.sur_.at(2), bias_mod.mod_surrounding_start_.at(1).sur_.at(2)) << bitset<20>(surrounding_start.sur_.at(2)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(2)) << " (Result)";
+	test_->PrepareBiasModForCurrentStartPos( bias_mod, ref_seq_id, species_reference_, cur_start_position, 1, surrounding_start ); // cur_end_position = cur_start_position -> Fragment length = 1
+	EXPECT_EQ(surrounding_start.sur_.at(0), bias_mod.surrounding_start_.at(0).sur_.at(0)) << bitset<20>(surrounding_start.sur_.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.surrounding_start_.at(0).sur_.at(0)) << " (Result)";
+	EXPECT_EQ(surrounding_start.sur_.at(1), bias_mod.surrounding_start_.at(0).sur_.at(1)) << bitset<20>(surrounding_start.sur_.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.surrounding_start_.at(0).sur_.at(1)) << " (Result)";
+	EXPECT_EQ(surrounding_start.sur_.at(2), bias_mod.surrounding_start_.at(0).sur_.at(2)) << bitset<20>(surrounding_start.sur_.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.surrounding_start_.at(0).sur_.at(2)) << " (Result)";
 
-	TestVariationInInnerLoopOfSimulateFromGivenBlock( bias_mod, ref_seq_id, cur_start_position, 1, 12,
-			{{3,2},{3,2},{3,3},{3,3},{4,3},{4,3},{4,4},{5,4},{6,5},{6,6},{6,6}},
-			{{0,2},{0,1},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}},
-			{{0,-1},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,1},{0,0},{0,0}},
-			{{0,0},{0,-1},{0,-2},{0,-2},{0,-2},{0,-2},{0,-1},{0,-1},{0,-1},{0,0},{0,0}},
+	test_ref.ForwardSurrounding( comp_surrounding, ref_seq_id, 1005 );
+	EXPECT_EQ(comp_surrounding.sur_.at(0), bias_mod.surrounding_start_.at(1).sur_.at(0)) << bitset<20>(surrounding_start.sur_.at(0)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.surrounding_start_.at(1).sur_.at(0)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(1), bias_mod.surrounding_start_.at(1).sur_.at(1)) << bitset<20>(surrounding_start.sur_.at(1)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.surrounding_start_.at(1).sur_.at(1)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(2), bias_mod.surrounding_start_.at(1).sur_.at(2)) << bitset<20>(surrounding_start.sur_.at(2)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.surrounding_start_.at(1).sur_.at(2)) << " (Result)";
+
+	TestVariationInInnerLoopOfSimulateFromGivenBlock( bias_mod, ref_seq_id, cur_start_position, 1, 12, 2,
+			{{ {3,3,3,3,4,4,4,5,6,6,6}, {2,2,3,3,3,3,4,4,5,6,6} }},
+			{{ {0,0,0,0,0,0,0,0,0,0,0}, {2,1,0,0,0,0,0,0,0,0,0} }},
+			{{ {0,0,0,0,0,0,0,0,0,0,0}, {-1,0,0,0,0,0,0,0,1,0,0} }},
+			{{ {0,0,0,0,0,0,0,0,0,0,0}, {0,-1,-2,-2,-2,-2,-1,-1,-1,0,0} }},
 			{cur_start_position, 1005}, {&species_reference_, &test_ref});
 
 	test_->CheckForInsertedBasesToStartFrom( bias_mod, 0, cur_start_position, species_reference_ );
@@ -252,42 +228,36 @@ void SimulatorTest::TestVariationInSimulateFromGivenBlock(){
 	EXPECT_EQ(1, bias_mod.start_variant_pos_);
 
 	// Position 1004 + 1
-	test_->PrepareBiasModForCurrentStartPos( bias_mod, ref_seq_id, species_reference_, cur_start_position, cur_start_position, surrounding_start ); // cur_end_position = cur_start_position -> Fragment length = 1
-	EXPECT_EQ(surrounding_start.sur_.at(0), bias_mod.mod_surrounding_start_.at(0).sur_.at(0));
-	EXPECT_EQ(surrounding_start.sur_.at(1), bias_mod.mod_surrounding_start_.at(0).sur_.at(1));
-	EXPECT_EQ(surrounding_start.sur_.at(2), bias_mod.mod_surrounding_start_.at(0).sur_.at(2));
+	test_->PrepareBiasModForCurrentStartPos( bias_mod, ref_seq_id, species_reference_, cur_start_position, 1, surrounding_start ); // cur_end_position = cur_start_position -> Fragment length = 1
 	test_ref.ForwardSurrounding( comp_surrounding, ref_seq_id, 1006 );
-	EXPECT_EQ(comp_surrounding.sur_.at(0), bias_mod.mod_surrounding_start_.at(1).sur_.at(0)) << bitset<20>(surrounding_start.sur_.at(0)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(0)) << " (Result)";
-	EXPECT_EQ(comp_surrounding.sur_.at(1), bias_mod.mod_surrounding_start_.at(1).sur_.at(1)) << bitset<20>(surrounding_start.sur_.at(1)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(1)) << " (Result)";
-	EXPECT_EQ(comp_surrounding.sur_.at(2), bias_mod.mod_surrounding_start_.at(1).sur_.at(2)) << bitset<20>(surrounding_start.sur_.at(2)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(2)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(0), bias_mod.surrounding_start_.at(1).sur_.at(0)) << bitset<20>(surrounding_start.sur_.at(0)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.surrounding_start_.at(1).sur_.at(0)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(1), bias_mod.surrounding_start_.at(1).sur_.at(1)) << bitset<20>(surrounding_start.sur_.at(1)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.surrounding_start_.at(1).sur_.at(1)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(2), bias_mod.surrounding_start_.at(1).sur_.at(2)) << bitset<20>(surrounding_start.sur_.at(2)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.surrounding_start_.at(1).sur_.at(2)) << " (Result)";
 
 	TestVariationInInnerLoopOfSimulateFromGivenBlock( bias_mod, ref_seq_id, cur_start_position, 1, 11, 1,
-			{3,3,3,3,3,4,4,5,6,6},
-			{0,0,0,0,0,0,0,0,0,0},
-			{0,0,0,0,0,0,0,1,0,0},
-			{0,-1,-1,-1,-1,0,0,0,1,1},
-			1006, test_ref);
+			{{ {}, {3,3,3,3,3,4,4,5,6,6} }},
+			{{ {}, {0,0,0,0,0,0,0,0,0,0} }},
+			{{ {}, {0,0,0,0,0,0,0,1,0,0} }},
+			{{ {}, {0,-1,-1,-1,-1,0,0,0,1,1} }},
+			{0, 1006}, {NULL, &test_ref});
 
 	test_->CheckForInsertedBasesToStartFrom( bias_mod, 0, cur_start_position, species_reference_ );
 	EXPECT_EQ(2, bias_mod.first_variant_id_);
 	EXPECT_EQ(2, bias_mod.start_variant_pos_);
 
 	// Position 1004 + 2
-	test_->PrepareBiasModForCurrentStartPos( bias_mod, ref_seq_id, species_reference_, cur_start_position, cur_start_position, surrounding_start ); // cur_end_position = cur_start_position -> Fragment length = 1
-	EXPECT_EQ(surrounding_start.sur_.at(0), bias_mod.mod_surrounding_start_.at(0).sur_.at(0));
-	EXPECT_EQ(surrounding_start.sur_.at(1), bias_mod.mod_surrounding_start_.at(0).sur_.at(1));
-	EXPECT_EQ(surrounding_start.sur_.at(2), bias_mod.mod_surrounding_start_.at(0).sur_.at(2));
+	test_->PrepareBiasModForCurrentStartPos( bias_mod, ref_seq_id, species_reference_, cur_start_position, 1, surrounding_start ); // cur_end_position = cur_start_position -> Fragment length = 1
 	test_ref.ForwardSurrounding( comp_surrounding, ref_seq_id, 1007 );
-	EXPECT_EQ(comp_surrounding.sur_.at(0), bias_mod.mod_surrounding_start_.at(1).sur_.at(0)) << bitset<20>(surrounding_start.sur_.at(0)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(0)) << " (Result)";
-	EXPECT_EQ(comp_surrounding.sur_.at(1), bias_mod.mod_surrounding_start_.at(1).sur_.at(1)) << bitset<20>(surrounding_start.sur_.at(1)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(1)) << " (Result)";
-	EXPECT_EQ(comp_surrounding.sur_.at(2), bias_mod.mod_surrounding_start_.at(1).sur_.at(2)) << bitset<20>(surrounding_start.sur_.at(2)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(2)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(0), bias_mod.surrounding_start_.at(1).sur_.at(0)) << bitset<20>(surrounding_start.sur_.at(0)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.surrounding_start_.at(1).sur_.at(0)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(1), bias_mod.surrounding_start_.at(1).sur_.at(1)) << bitset<20>(surrounding_start.sur_.at(1)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.surrounding_start_.at(1).sur_.at(1)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(2), bias_mod.surrounding_start_.at(1).sur_.at(2)) << bitset<20>(surrounding_start.sur_.at(2)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.surrounding_start_.at(1).sur_.at(2)) << " (Result)";
 
 	TestVariationInInnerLoopOfSimulateFromGivenBlock( bias_mod, ref_seq_id, cur_start_position, 1, 10, 1,
-			{3,3,3,3,4,4,5,6,6},
-			{0,0,0,0,0,0,0,0,0},
-			{-1,-1,-1,-1,-1,-1,0,-1,-1},
-			{0,0,0,0,1,1,1,2,2},
-			1007, test_ref);
+			{{ {}, {3,3,3,3,4,4,5,6,6} }},
+			{{ {}, {0,0,0,0,0,0,0,0,0} }},
+			{{ {}, {-1,-1,-1,-1,-1,-1,0,-1,-1} }},
+			{{ {}, {0,0,0,0,1,1,1,2,2} }},
+			{0, 1007}, {NULL, &test_ref});
 
 	test_->CheckForInsertedBasesToStartFrom( bias_mod, 0, cur_start_position, species_reference_ );
 	EXPECT_EQ(3, bias_mod.first_variant_id_);
@@ -296,17 +266,17 @@ void SimulatorTest::TestVariationInSimulateFromGivenBlock(){
 	// Position 1008
 	cur_start_position = 1008;
 	species_reference_.ForwardSurrounding( surrounding_start, ref_seq_id, cur_start_position );
-	test_->PrepareBiasModForCurrentStartPos( bias_mod, ref_seq_id, species_reference_, cur_start_position, cur_start_position, surrounding_start ); // cur_end_position = cur_start_position -> Fragment length = 1
-	EXPECT_EQ(surrounding_start.sur_.at(0), bias_mod.mod_surrounding_start_.at(0).sur_.at(0));
-	EXPECT_EQ(surrounding_start.sur_.at(1), bias_mod.mod_surrounding_start_.at(0).sur_.at(1));
-	EXPECT_EQ(surrounding_start.sur_.at(2), bias_mod.mod_surrounding_start_.at(0).sur_.at(2));
+	test_->PrepareBiasModForCurrentStartPos( bias_mod, ref_seq_id, species_reference_, cur_start_position, 1, surrounding_start ); // cur_end_position = cur_start_position -> Fragment length = 1
+	EXPECT_EQ(surrounding_start.sur_.at(0), bias_mod.surrounding_start_.at(0).sur_.at(0));
+	EXPECT_EQ(surrounding_start.sur_.at(1), bias_mod.surrounding_start_.at(0).sur_.at(1));
+	EXPECT_EQ(surrounding_start.sur_.at(2), bias_mod.surrounding_start_.at(0).sur_.at(2));
 
-	TestVariationInInnerLoopOfSimulateFromGivenBlock( bias_mod, ref_seq_id, cur_start_position, 1, 8, 0,
-			{4,4,4,5,6,6,6},
-			{0,0,0,0,0,0,0},
-			{0,0,0,0,0,0,0},
-			{0,0,0,0,0,0,0},
-			cur_start_position, species_reference_);
+	TestVariationInInnerLoopOfSimulateFromGivenBlock( bias_mod, ref_seq_id, cur_start_position, 1, 8, 1,
+			{{ {4,4,4,5,6,6,6}, {} }},
+			{{ {0,0,0,0,0,0,0}, {} }},
+			{{ {0,0,0,0,0,0,0}, {} }},
+			{{ {0,0,0,0,0,0,0}, {} }},
+			{cur_start_position, 0}, {&species_reference_, NULL});
 
 	test_->CheckForInsertedBasesToStartFrom( bias_mod, 0, cur_start_position, species_reference_ );
 	EXPECT_EQ(4, bias_mod.first_variant_id_);
@@ -315,20 +285,21 @@ void SimulatorTest::TestVariationInSimulateFromGivenBlock(){
 	// Position 1011
 	cur_start_position = 1011;
 	species_reference_.ForwardSurrounding( surrounding_start, ref_seq_id, cur_start_position );
-	test_->PrepareBiasModForCurrentStartPos( bias_mod, ref_seq_id, species_reference_, cur_start_position, cur_start_position, surrounding_start ); // cur_end_position = cur_start_position -> Fragment length = 1
-	EXPECT_EQ(surrounding_start.sur_.at(0), bias_mod.mod_surrounding_start_.at(0).sur_.at(0));
-	EXPECT_EQ(surrounding_start.sur_.at(1), bias_mod.mod_surrounding_start_.at(0).sur_.at(1));
-	EXPECT_EQ(surrounding_start.sur_.at(2), bias_mod.mod_surrounding_start_.at(0).sur_.at(2));
-	test_ref.ForwardSurrounding( comp_surrounding, ref_seq_id, 1013 );
-	EXPECT_EQ(comp_surrounding.sur_.at(0), bias_mod.mod_surrounding_start_.at(1).sur_.at(0)) << bitset<20>(surrounding_start.sur_.at(0)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(0)) << " (Result)";
-	EXPECT_EQ(comp_surrounding.sur_.at(1), bias_mod.mod_surrounding_start_.at(1).sur_.at(1)) << bitset<20>(surrounding_start.sur_.at(1)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(1)) << " (Result)";
-	EXPECT_EQ(comp_surrounding.sur_.at(2), bias_mod.mod_surrounding_start_.at(1).sur_.at(2)) << bitset<20>(surrounding_start.sur_.at(2)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.mod_surrounding_start_.at(1).sur_.at(2)) << " (Result)";
+	test_->PrepareBiasModForCurrentStartPos( bias_mod, ref_seq_id, species_reference_, cur_start_position, 1, surrounding_start ); // cur_end_position = cur_start_position -> Fragment length = 1
+	EXPECT_EQ(surrounding_start.sur_.at(0), bias_mod.surrounding_start_.at(0).sur_.at(0));
+	EXPECT_EQ(surrounding_start.sur_.at(1), bias_mod.surrounding_start_.at(0).sur_.at(1));
+	EXPECT_EQ(surrounding_start.sur_.at(2), bias_mod.surrounding_start_.at(0).sur_.at(2));
 
-	TestVariationInInnerLoopOfSimulateFromGivenBlock( bias_mod, ref_seq_id, cur_start_position, 1, 5,
-			{{5,5},{6,6},{6,6},{6,6}},
-			{{0,0},{0,0},{0,0},{0,0}},
-			{{0,1},{0,0},{0,0},{0,0}},
-			{{0,0},{0,1},{0,1},{0,1}},
+	test_ref.ForwardSurrounding( comp_surrounding, ref_seq_id, 1013 );
+	EXPECT_EQ(comp_surrounding.sur_.at(0), bias_mod.surrounding_start_.at(1).sur_.at(0)) << bitset<20>(surrounding_start.sur_.at(0)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(0)) << " (Goal)" << std::endl << bitset<20>(bias_mod.surrounding_start_.at(1).sur_.at(0)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(1), bias_mod.surrounding_start_.at(1).sur_.at(1)) << bitset<20>(surrounding_start.sur_.at(1)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(1)) << " (Goal)" << std::endl << bitset<20>(bias_mod.surrounding_start_.at(1).sur_.at(1)) << " (Result)";
+	EXPECT_EQ(comp_surrounding.sur_.at(2), bias_mod.surrounding_start_.at(1).sur_.at(2)) << bitset<20>(surrounding_start.sur_.at(2)) << " (Original)" << std::endl << bitset<20>(comp_surrounding.sur_.at(2)) << " (Goal)" << std::endl << bitset<20>(bias_mod.surrounding_start_.at(1).sur_.at(2)) << " (Result)";
+
+	TestVariationInInnerLoopOfSimulateFromGivenBlock( bias_mod, ref_seq_id, cur_start_position, 1, 5, 2,
+			{{ {5,6,6,6}, {5,6,6,6} }},
+			{{ {0,0,0,0}, {0,0,0,0} }},
+			{{ {0,0,0,0}, {1,0,0,0} }},
+			{{ {0,0,0,0}, {0,1,1,1} }},
 			{cur_start_position, 1013}, {&species_reference_, &test_ref});
 
 	test_->CheckForInsertedBasesToStartFrom( bias_mod, 0, cur_start_position, species_reference_ );

@@ -683,6 +683,11 @@ void DataStats::Shrink(){
 
 // Deactivation of bias calculation only for speeding up of tests
 bool DataStats::Calculate(uintNumThreads num_threads){
+	// Calculate the duplicates from observation of fragments at same position and reference characteristics
+	if(!fragment_distribution_.FinalizeBiasCalculation(*reference_, num_threads, duplicates_)){
+		return false;
+	}
+
 	// Calculate coverage corrected for low quality sites
 	uintFragCount num_reads(0);
 	uintNucCount num_bases(0);
@@ -692,14 +697,8 @@ bool DataStats::Calculate(uintNumThreads num_threads){
 			num_bases += read_lengths_.at(template_segment).at(len)*len;
 		}
 	}
-	double average_read_len = static_cast<double>(num_bases)/num_reads;
-	corrected_coverage_ = fragment_distribution_.CorrectedTotalAbundance() * average_read_len * 2 / (reference_->TotalSize() - reference_->TotalExcludedBases());
+	corrected_coverage_ = fragment_distribution_.CorrectedCoverage(*reference_, static_cast<double>(num_bases)/num_reads); // Must be called after FinalizeBiasCalculation, where the coverage is corrected
 	printInfo << "Estimated a corrected mean coverage of " << corrected_coverage_ << "x" << std::endl;
-
-	// Calculate the duplicates from observation of fragments at same position and reference characteristics
-	if(!fragment_distribution_.FinalizeBiasCalculation(*reference_, num_threads, duplicates_)){
-		return false;
-	}
 
 	return true;
 }
@@ -923,7 +922,13 @@ void DataStats::ReadThread( DataStats &self, BamFileIn &bam, uintSeqLen max_seq_
 	CoverageStats::CoverageBlock *cov_block;
 	uintFragCount processed_fragments(0);
 	bool not_done(true);
-	ThreadData thread_data( self.maximum_insert_length_, max_seq_bin_len, self.reference_->StartExclusion(0) );
+	auto first_ref_seq = self.reference_->FirstNotExcludedSequence();
+	if( first_ref_seq >= self.reference_->NumberSequences() ){
+		printErr << "No contig longer than " << self.maximum_insert_length_ << std::endl;
+		self.reading_success_ = false;
+		first_ref_seq = 0; // Just so that the next command does not crash, before we shut down
+	}
+	ThreadData thread_data( self.maximum_insert_length_, max_seq_bin_len, self.reference_->StartExclusion(first_ref_seq) );
 	thread_data.rec_store_.reserve(self.kBatchSize);
 	uintRefSeqId still_needed_reference_sequence(0);
 	uintSeqLen still_needed_position(0);
@@ -977,25 +982,29 @@ void DataStats::ReadThread( DataStats &self, BamFileIn &bam, uintSeqLen max_seq_
 		thread_data.rec_store_.clear();
 	}
 
-	if(0 == --self.running_threads_){
-		{
-			lock_guard<mutex> lock(self.finish_threads_mutex_);
-			self.finish_threads_ = true;
-		}
-		self.finish_threads_cv_.notify_all();
+	if(self.reading_success_){
+		if(0 == --self.running_threads_){
+			{
+				lock_guard<mutex> lock(self.finish_threads_mutex_);
+				self.finish_threads_ = true;
+			}
+			self.finish_threads_cv_.notify_all();
 
-		// This finalization might take a bit of time so do it already here
-		if( !self.coverage_.Finalize(*self.reference_, self.qualities_, self.errors_, self.phred_quality_offset_, self.print_mutex_, thread_data.coverage_) ){
-			self.reading_success_ = false;
+			// This finalization might take a bit of time so do it already here
+			if( !self.coverage_.Finalize(*self.reference_, self.qualities_, self.errors_, self.phred_quality_offset_, self.print_mutex_, thread_data.coverage_) ){
+				self.reading_success_ = false;
+			}
+		}
+		else{
+			unique_lock<mutex> lock(self.finish_threads_mutex_);
+			self.finish_threads_cv_.wait(lock, [&self]{return self.finish_threads_;});
+		}
+
+		if(self.reading_success_){
+			self.fragment_distribution_.FinishThreads(thread_data.fragment_distribution_, *self.reference_, self.duplicates_, self.print_mutex_);
+			self.fragment_distribution_.AddThreadData(thread_data.fragment_distribution_);
 		}
 	}
-	else{
-		unique_lock<mutex> lock(self.finish_threads_mutex_);
-		self.finish_threads_cv_.wait(lock, [&self]{return self.finish_threads_;});
-    }
-
-	self.fragment_distribution_.FinishThreads(thread_data.fragment_distribution_, *self.reference_, self.duplicates_, self.print_mutex_);
-	self.fragment_distribution_.AddThreadData(thread_data.fragment_distribution_);
 }
 
 DataStats::DataStats(Reference *ref, uintSeqLen maximum_insert_length, uintQual minimum_mapping_quality):
@@ -1231,6 +1240,10 @@ bool DataStats::ReadBam( const char *bam_file, const char *adapter_file, const c
 	seqan::close(bam);
 
 	reference_->ClearAllVariantPositions();
+
+	if(!success){
+		return false;
+	}
 
 	uintFragCount reads_in_wrong_place = total_number_reads_ - reads_in_unmapped_pairs_without_adapters_ - reads_in_unmapped_pairs_with_adapters_ - reads_with_low_quality_with_adapters_ - reads_with_low_quality_without_adapters_ - reads_on_too_short_fragments_ - reads_in_excluded_regions_ - reads_used_;
 	printInfo << "Of the " << total_number_reads_ << " reads in the file" << std::endl;

@@ -8,10 +8,6 @@ using std::min;
 using std::array;
 //include <atomic>
 using std::atomic;
-#include <chrono>
-using std::chrono::duration;
-using std::chrono::duration_cast;
-using std::chrono::steady_clock;
 #include <cmath>
 using std::round;
 #include <exception>
@@ -884,6 +880,28 @@ bool Simulator::CreateUnit(uintRefSeqId ref_id, uintRefSeqBin first_block_id, Re
 		var_block->first_variant_id_ = ref.Variants(unit->ref_seq_id_).size()-1;
 	}
 
+	if(ref.MethylationLoaded()){
+		if( !ref.MethylationLoadedForSequence(ref_id) ){
+			lock_guard<mutex> lock(methylation_read_mutex_);
+			if(!ref.ReadMethylation(ref_id+1)){ // End is specified, so to get the current one +1
+				return false;
+			}
+		}
+
+		// Assign last methylation region (first in reverse direction) to each reverse block
+		intVariantId first_meth = 0;
+		auto meth_block = first_reverse_block;
+		while(meth_block->partner_block_){
+			while(first_meth < ref.UnmethylatedRegions(unit->ref_seq_id_).size() && ref.UnmethylatedRegions(unit->ref_seq_id_).at(first_meth).first < meth_block->start_pos_ + kBlockSize){
+				++first_meth;
+			}
+
+			meth_block->first_methylation_id_ = first_meth-1;
+			meth_block = meth_block->partner_block_;
+		}
+		meth_block->first_methylation_id_ = ref.UnmethylatedRegions(unit->ref_seq_id_).size()-1;
+	}
+
 	// Set sytematic error for all reverse blocks of the unit
 	ConstDna5StringReverseComplement reversed_ref( ref.ReferenceSequence(ref_id) );
 	ResetSystematicErrorCounters(ref);
@@ -1054,11 +1072,10 @@ void Simulator::SetSystematicErrorVariantsForward(uintSeqLen &start_dist_error_r
 	}
 }
 
-bool Simulator::CreateBlock(Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates, Benchmark &time){
+bool Simulator::CreateBlock(Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates){
 	SimBlock *block;
 	SimUnit *unit;
 
-	steady_clock::time_point t1 = steady_clock::now();
 	// Create new block
 	if(!last_unit_){
 		// Create first unit
@@ -1115,10 +1132,18 @@ bool Simulator::CreateBlock(Reference &ref, const DataStats &stats, const Probab
 			// The new block can be created in the current unit
 			unit = last_unit_;
 
-			block = new SimBlock(last_unit_->last_block_->id_+1, last_unit_->last_block_->start_pos_ + kBlockSize, last_unit_->last_block_->partner_block_->partner_block_, block_seed_gen_());
+			block = new SimBlock(unit->last_block_->id_+1, unit->last_block_->start_pos_ + kBlockSize, unit->last_block_->partner_block_->partner_block_, block_seed_gen_());
 			if(ref.VariantsLoaded()){
 				// Find first variant that is in the new block (or one of the upcoming ones in case this block does not have variation), which is one after the last variant(reverse first) of the previous block
 				block->first_variant_id_ = unit->last_block_->partner_block_->first_variant_id_+1;
+			}
+			if(ref.MethylationLoaded()){
+				// Find first methylation region that is in the new block (or one of the upcoming ones in case this block does not have methylation)
+				block->first_methylation_id_ = unit->last_block_->partner_block_->first_methylation_id_;
+				if(0 > block->first_methylation_id_ || ref.UnmethylatedRegions(unit->ref_seq_id_).at(block->first_methylation_id_).second <= block->start_pos_ ){
+					++block->first_methylation_id_;
+				}
+
 			}
 			unit->last_block_->next_block_ = block;
 			unit->last_block_ = block;
@@ -1150,6 +1175,7 @@ bool Simulator::CreateBlock(Reference &ref, const DataStats &stats, const Probab
 			else if(first_unit_->next_unit_ && first_unit_->next_unit_->first_block_){
 				first_unit_ = first_unit_->next_unit_;
 				ref.ClearVariants(del_unit->ref_seq_id_ + 1);
+				ref.ClearMethylation(del_unit->ref_seq_id_ + 1);
 				delete del_unit;
 				del_unit = first_unit_;
 			}
@@ -1164,10 +1190,6 @@ bool Simulator::CreateBlock(Reference &ref, const DataStats &stats, const Probab
 			del_block = first_unit_->first_block_;
 		}
 
-		steady_clock::time_point t2 = steady_clock::now();
-		duration<double> time_span = duration_cast<duration<double>>(t2 - t1);
-		time.create_block_ += time_span.count();
-
 		return true;
 	}
 	else{
@@ -1175,7 +1197,7 @@ bool Simulator::CreateBlock(Reference &ref, const DataStats &stats, const Probab
 	}
 }
 
-bool Simulator::GetNextBlock( Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates, SimBlock *&block, SimUnit *&unit, Benchmark &time ){
+bool Simulator::GetNextBlock( Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates, SimBlock *&block, SimUnit *&unit ){
 	// See if we can already read in more variants, so we are always one reference sequence ahead of the simulation
 	if(!ref.VariantsCompletelyLoaded() && current_unit_ && !ref.VariantsLoadedForSequence(current_unit_->ref_seq_id_+2)){
 		if( var_read_mutex_.try_lock() ){
@@ -1188,10 +1210,21 @@ bool Simulator::GetNextBlock( Reference &ref, const DataStats &stats, const Prob
 		}
 	}
 
+	if(!ref.MethylationCompletelyLoaded() && current_unit_ && !ref.MethylationLoadedForSequence(current_unit_->ref_seq_id_+2)){
+		if( methylation_read_mutex_.try_lock() ){
+			if( !ref.ReadMethylation(current_unit_->ref_seq_id_+2) ){
+				methylation_read_mutex_.unlock();
+				return false;
+			}
+
+			methylation_read_mutex_.unlock();
+		}
+	}
+
 	lock_guard<mutex> lock(block_creation_mutex_);
 
 	// Create a new block to keep the buffer for long fragments
-	if( !CreateBlock(ref, stats, estimates, time) ){
+	if( !CreateBlock(ref, stats, estimates) ){
 		return false;
 	}
 
@@ -1231,7 +1264,7 @@ void Simulator::HandleGCModAndEndPosShiftForNewVariants(
 		uintRefSeqId ref_seq_id,
 		const Reference &ref,
 		uintSeqLen cur_end_position) const{
-	while( VariantInsideCurrentFragment(bias_mod.unhandled_variant_id_.at(allele), cur_end_position, bias_mod.end_pos_shift_.at(allele) + bias_mod.fragment_length_extension_, ref_seq_id, ref ) && 0==bias_mod.unhandled_bases_in_variant_.at(allele) ){
+	while( VariantInsideCurrentFragment(bias_mod.unhandled_variant_id_.at(allele), cur_end_position, bias_mod.end_pos_shift_.at(allele), ref_seq_id, ref ) && 0==bias_mod.unhandled_bases_in_variant_.at(allele) ){
 		auto &var( ref.Variants(ref_seq_id).at(bias_mod.unhandled_variant_id_.at(allele)) );
 
 		if(!var.InAllele(allele)){
@@ -1240,7 +1273,7 @@ void Simulator::HandleGCModAndEndPosShiftForNewVariants(
 		else{
 			// ---GC modification---
 			// Add GC from variant
-			for(uintSeqLen pos=0; pos < length(var.var_seq_) && var.position_ + pos < cur_end_position + bias_mod.end_pos_shift_.at(allele) + bias_mod.fragment_length_extension_; ++pos){
+			for(uintSeqLen pos=0; pos < length(var.var_seq_) && var.position_ + pos < cur_end_position + bias_mod.end_pos_shift_.at(allele); ++pos){
 				if( IsGC(var.var_seq_, pos) ){
 					++bias_mod.gc_mod_.at(allele);
 				}
@@ -1262,14 +1295,14 @@ void Simulator::HandleGCModAndEndPosShiftForNewVariants(
 			}
 			else{
 				// Insertion
-				if(var.position_ + length(var.var_seq_) <= cur_end_position + bias_mod.end_pos_shift_.at(allele) + bias_mod.fragment_length_extension_){
+				if(var.position_ + length(var.var_seq_) <= cur_end_position + bias_mod.end_pos_shift_.at(allele)){
 					// Completely in current fragment
 					bias_mod.end_pos_shift_.at(allele) -= length(var.var_seq_) - 1;
 					++bias_mod.unhandled_variant_id_.at(allele);
 				}
 				else{
 					// Reaches out of fragment
-					bias_mod.unhandled_bases_in_variant_.at(allele) = var.position_ + length(var.var_seq_) - (cur_end_position + bias_mod.end_pos_shift_.at(allele) + bias_mod.fragment_length_extension_);
+					bias_mod.unhandled_bases_in_variant_.at(allele) = var.position_ + length(var.var_seq_) - (cur_end_position + bias_mod.end_pos_shift_.at(allele));
 					bias_mod.end_pos_shift_.at(allele) -= length(var.var_seq_) - bias_mod.unhandled_bases_in_variant_.at(allele) - 1;
 					// Variant is not handled completely so don't increase unhandled_variant_id
 				}
@@ -1424,7 +1457,7 @@ void Simulator::VariantModStartSurrounding(
 		const Surrounding &surrounding_start) const{
 	// Variants in the roll around are ignored for variant modifications of surrounding (but to fill in deletions still use the proper roll around base)
 	// Copy reference surrounding into allele
-	bias_mod.mod_surrounding_start_.at(allele) = surrounding_start;
+	bias_mod.surrounding_start_.at(allele) = surrounding_start;
 
 	if(ref.Variants(ref_seq_id).size()){
 		// Handle variants before center (Shifting to/from the left)
@@ -1432,13 +1465,13 @@ void Simulator::VariantModStartSurrounding(
 		auto cur_var = bias_mod.first_variant_id_;
 		if(bias_mod.start_variant_pos_){
 			// Handle the base substitution (as the insertion might include it)
-			bias_mod.mod_surrounding_start_.at(allele).ChangeSurroundingBase(pos_shift, at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0) );
+			bias_mod.surrounding_start_.at(allele).ChangeSurroundingBase(pos_shift, at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0) );
 			// Partial insertion (as the rest is shifted to the right)
-			bias_mod.mod_surrounding_start_.at(allele).InsertSurroundingBasesShiftingOnLeftSide(pos_shift, infix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 1, bias_mod.start_variant_pos_+1));
+			bias_mod.surrounding_start_.at(allele).InsertSurroundingBasesShiftingOnLeftSide(pos_shift, infix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 1, bias_mod.start_variant_pos_+1));
 			pos_shift -= bias_mod.start_variant_pos_;
 		}
 
-		HandleSurroundingVariantsBeforeCenter(bias_mod.mod_surrounding_start_.at(allele), cur_start_position, pos_shift, cur_var, allele, ref_seq_id, ref, false);
+		HandleSurroundingVariantsBeforeCenter(bias_mod.surrounding_start_.at(allele), cur_start_position, pos_shift, cur_var, allele, ref_seq_id, ref, false);
 
 		// Handle variants after center (Shifting to/from the right)
 		pos_shift = Surrounding::kStartPos;
@@ -1447,7 +1480,7 @@ void Simulator::VariantModStartSurrounding(
 			if(length(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_) > bias_mod.start_variant_pos_+1){
 				// Partial insertion (as the rest is shifted to the left)
 				if(pos_shift+1 < Surrounding::Length()){
-					bias_mod.mod_surrounding_start_.at(allele).InsertSurroundingBasesShiftingOnRightSide(pos_shift+1, suffix(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_, bias_mod.start_variant_pos_+1));
+					bias_mod.surrounding_start_.at(allele).InsertSurroundingBasesShiftingOnRightSide(pos_shift+1, suffix(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_, bias_mod.start_variant_pos_+1));
 					pos_shift += length(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_) - bias_mod.start_variant_pos_ - 1;
 				}
 			}
@@ -1456,7 +1489,7 @@ void Simulator::VariantModStartSurrounding(
 			++cur_var;
 		}
 
-		HandleSurroundingVariantsAfterCenter(bias_mod.mod_surrounding_start_.at(allele), cur_start_position, pos_shift, cur_var, allele, ref_seq_id, ref, false);
+		HandleSurroundingVariantsAfterCenter(bias_mod.surrounding_start_.at(allele), cur_start_position, pos_shift, cur_var, allele, ref_seq_id, ref, false);
 	}
 }
 
@@ -1465,8 +1498,10 @@ void Simulator::PrepareBiasModForCurrentStartPos(
 		uintRefSeqId ref_seq_id,
 		const Reference &ref,
 		uintSeqLen cur_start_position,
-		uintSeqLen cur_end_position,
-		Surrounding &surrounding_start) const{
+		uintSeqLen first_fragment_length,
+		const Surrounding &surrounding_start) const{
+	auto cur_end_position = cur_start_position + first_fragment_length - 1;
+
 	if(ref.VariantsLoaded()){
 		// Store the modifications from the reference sequence to select correct biases for counts generation
 		bias_mod.unhandled_variant_id_.clear();
@@ -1481,37 +1516,42 @@ void Simulator::PrepareBiasModForCurrentStartPos(
 		if(bias_mod.start_variant_pos_){
 			// ---Handle gc changes and end pos shift due to insertion at the beginning---
 			// Add GC from variant
-			uintSeqLen tmp_gc=0;
 			for(uintSeqLen pos=bias_mod.start_variant_pos_; pos < length(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_) && ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).position_ + pos - bias_mod.start_variant_pos_ < cur_end_position; ++pos){
 				if( IsGC(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_, pos) ){
-					++tmp_gc;
+					++bias_mod.gc_mod_.at(0);
 				}
 			}
 
 			// Remove GC from reference as we are starting from the non-reference part
 			if( ref.GC(ref_seq_id, cur_start_position) ){
-				--tmp_gc;
+				--bias_mod.gc_mod_.at(0);
 			}
 
 			// End pos shift cannot be longer than insert length or variant length
-			auto tmp_shift = static_cast<intSeqShift>(1) - static_cast<intSeqShift>( min(cur_end_position-cur_start_position, static_cast<uintSeqLen>(length(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_))-bias_mod.start_variant_pos_) );
+			bias_mod.end_pos_shift_.at(0) = static_cast<intSeqShift>(1) - static_cast<intSeqShift>( min(cur_end_position-cur_start_position, static_cast<uintSeqLen>(length(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_))-bias_mod.start_variant_pos_) );
 
-			// Insert into all alleles (Alleles not having this insertion are anyways not included later)
-			for(uintAlleleId all=0; all < ref.NumAlleles(); ++all){
-				bias_mod.gc_mod_.at(all) = tmp_gc;
-				bias_mod.end_pos_shift_.at(all) = tmp_shift;
-				++bias_mod.unhandled_variant_id_.at(all); // Handled first_variant_id_
+			++bias_mod.unhandled_variant_id_.at(0); // Handled first_variant_id_
+
+			for(uintAlleleId allele=1; allele < ref.NumAlleles(); ++allele){
+				bias_mod.gc_mod_.at(allele) = bias_mod.gc_mod_.at(0);
+				bias_mod.end_pos_shift_.at(allele) = bias_mod.end_pos_shift_.at(0);
+				++bias_mod.unhandled_variant_id_.at(allele);
 			}
 		}
 
 		// Check for every allele if variants cause changes to gc or surrounding
-		for(uintAlleleId all=0; all < ref.NumAlleles(); ++all){
-			if( !AlleleSkipped(bias_mod, all, ref.Variants(ref_seq_id), cur_start_position) ){
-				VariantModStartSurrounding(bias_mod, all, ref_seq_id, ref, cur_start_position, surrounding_start); // Must be before HandleGCModAndEndPosShiftForNewVariants, so that bias_mod.unhandled_variant_id_ is untouched
-				HandleGCModAndEndPosShiftForNewVariants(bias_mod, all, ref_seq_id, ref, cur_end_position);
+		for(uintAlleleId allele=0; allele < ref.NumAlleles(); ++allele){
+			if( !AlleleSkipped(bias_mod, allele, ref.Variants(ref_seq_id), cur_start_position) ){
+				VariantModStartSurrounding(bias_mod, allele, ref_seq_id, ref, cur_start_position, surrounding_start); // Must be before HandleGCModAndEndPosShiftForNewVariants, so that bias_mod.unhandled_variant_id_ is untouched
+				HandleGCModAndEndPosShiftForNewVariants(bias_mod, allele, ref_seq_id, ref, cur_end_position);
 			}
 		}
 	}
+
+	bias_mod.last_end_position_.clear();
+	bias_mod.last_end_position_.resize(ref.NumAlleles(), cur_end_position);
+	bias_mod.last_gc_ = 0;
+	bias_mod.last_gc_end_ = cur_start_position;
 }
 
 void Simulator::VariantModEndSurrounding(
@@ -1519,75 +1559,53 @@ void Simulator::VariantModEndSurrounding(
 		uintAlleleId allele,
 		uintRefSeqId ref_seq_id,
 		const Reference &ref,
-		uintSeqLen cur_end_position,
-		const Surrounding &surrounding_end) const{
+		uintSeqLen last_position) const{
 	// Variants in the roll around are ignored for variant modifications of surrounding (but to fill in deletions still use the proper roll around base)
 	// Copy reference surrounding into allele if it doesn't need to much shifting afterwards
-	auto last_position = cur_end_position - 1 + bias_mod.end_pos_shift_.at(allele) + bias_mod.fragment_length_extension_;
-	if( last_position < ref.SequenceLength(ref_seq_id) ){
-		if( -5 < bias_mod.end_pos_shift_.at(allele) + bias_mod.fragment_length_extension_ && bias_mod.end_pos_shift_.at(allele) + bias_mod.fragment_length_extension_ < 5 ){
-			bias_mod.mod_surrounding_end_.at(allele) = surrounding_end;
-
-			if(0 < bias_mod.end_pos_shift_.at(allele) + bias_mod.fragment_length_extension_){
-				for( auto up_pos = cur_end_position; up_pos <= last_position; ++up_pos ){
-					bias_mod.mod_surrounding_end_.at(allele).UpdateReverse( ref.ReferenceSequence(ref_seq_id), up_pos );
-				}
-			}
-			else{
-				for( auto up_pos = cur_end_position-1; up_pos-- > last_position; ){
-					bias_mod.mod_surrounding_end_.at(allele).RollBackReverse( ref.ReferenceSequence(ref_seq_id), up_pos );
-				}
-			}
+	if(ref.VariantsLoaded() && ref.Variants(ref_seq_id).size()){
+		// Handle variants after center (Shifting to/from the left)
+		intSeqShift pos_shift = Surrounding::kStartPos;
+		auto cur_var = bias_mod.unhandled_variant_id_.at(allele); // At the variants where pos == last_position if exists or after it otherwise
+		if( bias_mod.unhandled_bases_in_variant_.at(allele) ){
+			// Partial insertion (as the rest is shifted to the right)
+			bias_mod.surrounding_end_.at(allele).InsertSurroundingBasesShiftingOnLeftSide(pos_shift, ReverseComplementorDna(suffix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, length(ref.Variants(ref_seq_id).at(cur_var).var_seq_)-bias_mod.unhandled_bases_in_variant_.at(allele))));
+			pos_shift -= bias_mod.unhandled_bases_in_variant_.at(allele);
+			++cur_var; // This insertion is handled, do not handle at again in HandleSurroundingVariantsAfterCenter
 		}
-		else{
-			ref.ReverseSurrounding( bias_mod.mod_surrounding_end_.at(allele), ref_seq_id, last_position );
-		}
-
-		if(ref.Variants(ref_seq_id).size()){
-			// Handle variants after center (Shifting to/from the left)
-			intSeqShift pos_shift = Surrounding::kStartPos;
-			auto cur_var = bias_mod.unhandled_variant_id_.at(allele); // At the variants where pos == last_position if exists or after it otherwise
-			if( bias_mod.unhandled_bases_in_variant_.at(allele) ){
+		else if( bias_mod.start_variant_pos_ && ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).position_ == last_position && length(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_) > bias_mod.start_variant_pos_-bias_mod.end_pos_shift_.at(allele)+1){
+			if(pos_shift){
 				// Partial insertion (as the rest is shifted to the right)
-				bias_mod.mod_surrounding_end_.at(allele).InsertSurroundingBasesShiftingOnLeftSide(pos_shift, ReverseComplementorDna(suffix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, length(ref.Variants(ref_seq_id).at(cur_var).var_seq_)-bias_mod.unhandled_bases_in_variant_.at(allele))));
-				pos_shift -= bias_mod.unhandled_bases_in_variant_.at(allele);
-				++cur_var; // This insertion is handled, do not handle at again in HandleSurroundingVariantsAfterCenter
+				bias_mod.surrounding_end_.at(allele).InsertSurroundingBasesShiftingOnLeftSide(pos_shift-1, ReverseComplementorDna(suffix(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_, bias_mod.start_variant_pos_-bias_mod.end_pos_shift_.at(allele)+1)));
+				pos_shift -= length(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_) - (bias_mod.start_variant_pos_ - bias_mod.end_pos_shift_.at(allele) + 1);
 			}
-			else if( bias_mod.start_variant_pos_ && ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).position_ == last_position && length(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_) > bias_mod.start_variant_pos_-bias_mod.end_pos_shift_.at(allele)+1){
-				if(pos_shift){
-					// Partial insertion (as the rest is shifted to the right)
-					bias_mod.mod_surrounding_end_.at(allele).InsertSurroundingBasesShiftingOnLeftSide(pos_shift-1, ReverseComplementorDna(suffix(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_, bias_mod.start_variant_pos_-bias_mod.end_pos_shift_.at(allele)+1)));
-					pos_shift -= length(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_) - (bias_mod.start_variant_pos_ - bias_mod.end_pos_shift_.at(allele) + 1);
-				}
-			}
+		}
 
-			HandleSurroundingVariantsAfterCenter(bias_mod.mod_surrounding_end_.at(allele), last_position, pos_shift, cur_var, allele, ref_seq_id, ref, true);
+		HandleSurroundingVariantsAfterCenter(bias_mod.surrounding_end_.at(allele), last_position, pos_shift, cur_var, allele, ref_seq_id, ref, true);
 
-			// Handle variants before center (Shifting to/from the right)
-			pos_shift = Surrounding::kStartPos;
-			cur_var = bias_mod.unhandled_variant_id_.at(allele); // At the variants where pos == last_position if exists or after it otherwise
-			if( bias_mod.unhandled_bases_in_variant_.at(allele) ){
-				if(pos_shift+1 < Surrounding::Length()){
-					// Handle the base substitution (as the insertion might include it)
-					bias_mod.mod_surrounding_end_.at(allele).ChangeSurroundingBase(pos_shift+1, Complement::Dna(at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0)) );
-
-					// Partial insertion (as the rest is shifted to the left)
-					bias_mod.mod_surrounding_end_.at(allele).InsertSurroundingBasesShiftingOnRightSide(pos_shift+1, ReverseComplementorDna(infix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 1, length(ref.Variants(ref_seq_id).at(cur_var).var_seq_)-bias_mod.unhandled_bases_in_variant_.at(allele))));
-					pos_shift += length(ref.Variants(ref_seq_id).at(cur_var).var_seq_)-bias_mod.unhandled_bases_in_variant_.at(allele)-1;
-				}
-			}
-			else if( bias_mod.start_variant_pos_ && ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).position_ == last_position ){
-				cur_var = bias_mod.first_variant_id_;
+		// Handle variants before center (Shifting to/from the right)
+		pos_shift = Surrounding::kStartPos;
+		cur_var = bias_mod.unhandled_variant_id_.at(allele); // At the variants where pos == last_position if exists or after it otherwise
+		if( bias_mod.unhandled_bases_in_variant_.at(allele) ){
+			if(pos_shift+1 < Surrounding::Length()){
 				// Handle the base substitution (as the insertion might include it)
-				bias_mod.mod_surrounding_end_.at(allele).ChangeSurroundingBase(pos_shift, Complement::Dna(at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0)) );
+				bias_mod.surrounding_end_.at(allele).ChangeSurroundingBase(pos_shift+1, Complement::Dna(at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0)) );
 
 				// Partial insertion (as the rest is shifted to the left)
-				bias_mod.mod_surrounding_end_.at(allele).InsertSurroundingBasesShiftingOnRightSide(pos_shift, ReverseComplementorDna(infix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 1, bias_mod.start_variant_pos_-bias_mod.end_pos_shift_.at(allele)+1)));
-				pos_shift += bias_mod.start_variant_pos_-bias_mod.end_pos_shift_.at(allele);
+				bias_mod.surrounding_end_.at(allele).InsertSurroundingBasesShiftingOnRightSide(pos_shift+1, ReverseComplementorDna(infix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 1, length(ref.Variants(ref_seq_id).at(cur_var).var_seq_)-bias_mod.unhandled_bases_in_variant_.at(allele))));
+				pos_shift += length(ref.Variants(ref_seq_id).at(cur_var).var_seq_)-bias_mod.unhandled_bases_in_variant_.at(allele)-1;
 			}
-
-			HandleSurroundingVariantsBeforeCenter(bias_mod.mod_surrounding_end_.at(allele), last_position, pos_shift, cur_var, allele, ref_seq_id, ref, true);
 		}
+		else if( bias_mod.start_variant_pos_ && ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).position_ == last_position ){
+			cur_var = bias_mod.first_variant_id_;
+			// Handle the base substitution (as the insertion might include it)
+			bias_mod.surrounding_end_.at(allele).ChangeSurroundingBase(pos_shift, Complement::Dna(at(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 0)) );
+
+			// Partial insertion (as the rest is shifted to the left)
+			bias_mod.surrounding_end_.at(allele).InsertSurroundingBasesShiftingOnRightSide(pos_shift, ReverseComplementorDna(infix(ref.Variants(ref_seq_id).at(cur_var).var_seq_, 1, bias_mod.start_variant_pos_-bias_mod.end_pos_shift_.at(allele)+1)));
+			pos_shift += bias_mod.start_variant_pos_-bias_mod.end_pos_shift_.at(allele);
+		}
+
+		HandleSurroundingVariantsBeforeCenter(bias_mod.surrounding_end_.at(allele), last_position, pos_shift, cur_var, allele, ref_seq_id, ref, true);
 	}
 }
 
@@ -1597,53 +1615,116 @@ void Simulator::UpdateBiasModForCurrentFragmentLength(
 		const Reference &ref,
 		uintSeqLen cur_start_position,
 		uintSeqLen cur_end_position,
-		Surrounding &surrounding_end) const{
-	if(ref.VariantsLoaded()){
-		if(bias_mod.start_variant_pos_ && cur_end_position+bias_mod.fragment_length_extension_-cur_start_position <= length(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_)-bias_mod.start_variant_pos_){
+		uintSeqLen last_end_position,
+		uintAlleleId allele ) const{
+	if( ref.VariantsLoaded() && cur_end_position > bias_mod.last_end_position_.at(allele) ){
+		bool need_new_variants = false;
+		if(bias_mod.start_variant_pos_ && last_end_position+1-cur_start_position <= length(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_)-bias_mod.start_variant_pos_){
 			// Still in start variant insertion
-			auto pos = bias_mod.start_variant_pos_ + cur_end_position+bias_mod.fragment_length_extension_-cur_start_position - 1;
-			if( IsGC(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_, pos) ){
-				for(uintAlleleId all=0; all < ref.NumAlleles(); ++all){
-					++bias_mod.gc_mod_.at(all);
+			auto &var( ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_) );
+
+			auto stop_pos = bias_mod.start_variant_pos_ + cur_end_position-cur_start_position;
+			if( stop_pos > length(var.var_seq_) ){
+				stop_pos = length(var.var_seq_);
+				need_new_variants = true;
+			}
+
+			auto start_pos = bias_mod.start_variant_pos_ + last_end_position+1-cur_start_position - 1;
+			bias_mod.end_pos_shift_.at(allele) -= stop_pos - start_pos;
+			for(auto pos = start_pos; pos < stop_pos; ++pos){
+				if( IsGC(var.var_seq_, pos) ){
+					++bias_mod.gc_mod_.at(allele);
+				}
+			}
+		}
+		else if(bias_mod.unhandled_bases_in_variant_.at(allele)){
+			// Unhandled bases only occur for insertions and the reference base has already been covered
+			auto &var( ref.Variants(ref_seq_id).at(bias_mod.unhandled_variant_id_.at(allele)) );
+
+			// ---GC modification---
+			// Add GC from variant
+			auto start_pos = length(var.var_seq_) - bias_mod.unhandled_bases_in_variant_.at(allele);
+			auto stop_pos = start_pos + cur_end_position-last_end_position;
+
+			if(stop_pos > length(var.var_seq_)){
+				stop_pos = length(var.var_seq_);
+				need_new_variants = true;
+			}
+
+			bias_mod.end_pos_shift_.at(allele) -= stop_pos - start_pos;
+			bias_mod.unhandled_bases_in_variant_.at(allele) -= stop_pos - start_pos;
+
+			for(auto pos = start_pos; pos < stop_pos; ++pos){
+				if( IsGC(var.var_seq_, pos) ){
+					++bias_mod.gc_mod_.at(allele);
 				}
 			}
 
-			for(uintAlleleId all=0; all < ref.NumAlleles(); ++all){
-				if( !AlleleSkipped(bias_mod, all, ref.Variants(ref_seq_id), cur_start_position) ){
-					--bias_mod.end_pos_shift_.at(all);
-					VariantModEndSurrounding(bias_mod, all, ref_seq_id, ref, cur_end_position, surrounding_end);
-				}
+			if( 0 == bias_mod.unhandled_bases_in_variant_.at(allele) ){
+				++bias_mod.unhandled_variant_id_.at(allele);
 			}
 		}
 		else{
-			for(uintAlleleId all=0; all < ref.NumAlleles(); ++all){
-				if( !AlleleSkipped(bias_mod, all, ref.Variants(ref_seq_id), cur_start_position) ){
-					VariantModEndSurrounding(bias_mod, all, ref_seq_id, ref, cur_end_position, surrounding_end); // Must be called before HandleGCModAndEndPosShiftForNewVariants, so that bias_mod.unhandled_variant_id_ and bias_mod.unhandled_bases_in_variant_ have not been updated yet
-
-					if(bias_mod.unhandled_bases_in_variant_.at(all)){
-						// Unhandled bases only occur for insertions and the reference base has already been covered
-						auto &var( ref.Variants(ref_seq_id).at(bias_mod.unhandled_variant_id_.at(all)) );
-
-						// ---GC modification---
-						// Add GC from variant
-						uintSeqLen pos = length(var.var_seq_)-bias_mod.unhandled_bases_in_variant_.at(all);
-						if( IsGC(var.var_seq_, pos) ){
-							++bias_mod.gc_mod_.at(all);
-						}
-
-						// ---End pos shift---
-						--bias_mod.end_pos_shift_.at(all);
-
-						if(0 == --bias_mod.unhandled_bases_in_variant_.at(all)){
-							++bias_mod.unhandled_variant_id_.at(all);
-						}
-					}
-					else{
-						HandleGCModAndEndPosShiftForNewVariants(bias_mod, all, ref_seq_id, ref, cur_end_position);
-					}
-				}
-			}
+			need_new_variants = true;
 		}
+
+		if(need_new_variants){
+			HandleGCModAndEndPosShiftForNewVariants(bias_mod, allele, ref_seq_id, ref, cur_end_position);
+		}
+	}
+}
+
+inline void Simulator::PrepareEndSurroundingsForCurrentFragmentLength(
+		VariantBiasVarModifiers &bias_mod,
+		uintRefSeqId ref_seq_id,
+		const Reference &ref,
+		uintSeqLen cur_end_position,
+		uintAlleleId allele ) const{
+	auto corrected_pos = cur_end_position + bias_mod.end_pos_shift_.at(allele);
+	if(corrected_pos < ref.SequenceLength(ref_seq_id)){
+		// Last surrounding is too far away: create new one
+		ref.ReverseSurrounding( bias_mod.surrounding_end_.at(allele), ref_seq_id, corrected_pos );
+		VariantModEndSurrounding( bias_mod, allele, ref_seq_id, ref, corrected_pos );
+	}
+}
+
+void Simulator::PrepareBiasModForCurrentFragmentLength(
+		VariantBiasVarModifiers &bias_mod,
+		uintRefSeqId ref_seq_id,
+		const Reference &ref,
+		uintSeqLen cur_start_position,
+		uintSeqLen fragment_length,
+		uintAlleleId allele ) const{
+	auto cur_end_position = cur_start_position + fragment_length - 1;
+
+	UpdateBiasModForCurrentFragmentLength( bias_mod, ref_seq_id, ref, cur_start_position, cur_end_position, bias_mod.last_end_position_.at(allele), allele );
+
+	if( bias_mod.start_variant_pos_ && fragment_length <= length(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_)-bias_mod.start_variant_pos_ ){
+		UpdateBiasModForCurrentFragmentLength( bias_mod, ref_seq_id, ref, cur_start_position, cur_end_position+1, cur_end_position, allele );
+		PrepareEndSurroundingsForCurrentFragmentLength( bias_mod, ref_seq_id, ref, cur_end_position, allele);
+	}
+	else{
+		PrepareEndSurroundingsForCurrentFragmentLength( bias_mod, ref_seq_id, ref, cur_end_position, allele);
+		UpdateBiasModForCurrentFragmentLength( bias_mod, ref_seq_id, ref, cur_start_position, cur_end_position+1, cur_end_position, allele );
+	}
+
+	bias_mod.last_end_position_.at(allele) = cur_end_position+1;
+}
+
+reseq::uintPercent Simulator::GetGCPercent(
+		VariantBiasVarModifiers &bias_mod,
+		uintRefSeqId ref_seq_id,
+		const Reference &ref,
+		uintSeqLen cur_end_position,
+		uintSeqLen fragment_length,
+		uintAlleleId allele ){
+	if( cur_end_position < bias_mod.last_gc_end_ ){
+		return Percent(bias_mod.last_gc_ - ref.GCContentAbsolut( ref_seq_id, cur_end_position, bias_mod.last_gc_end_ ) + bias_mod.gc_mod_.at(allele), fragment_length);
+	}
+	else{
+		bias_mod.last_gc_ += ref.GCContentAbsolut( ref_seq_id, bias_mod.last_gc_end_, cur_end_position );
+		bias_mod.last_gc_end_ = cur_end_position;
+		return Percent(bias_mod.last_gc_ + bias_mod.gc_mod_.at(allele), fragment_length);
 	}
 }
 
@@ -1670,21 +1751,6 @@ void Simulator::CheckForInsertedBasesToStartFrom( VariantBiasVarModifiers &bias_
 	}
 }
 
-void Simulator::CheckForFragmentLengthExtension( VariantBiasVarModifiers &bias_mod, uintSeqLen fragment_length, uintSeqLen fragment_length_to, const Reference &ref, const DataStats &stats ) const{
-	if(ref.VariantsLoaded() && fragment_length+1 == fragment_length_to && fragment_length+1 < stats.FragmentDistribution().InsertLengths().to()){
-		// Fragment length is limited by Reference Sequence end, so we can extend it for variants with a negative end_position_shift
-		auto max_end_shift = - *min_element(bias_mod.end_pos_shift_.begin(), bias_mod.end_pos_shift_.end());
-		SetToMax(max_end_shift, 0); // Shifts that reduce the maximum fragment_length don't need extra attention
-
-		if(bias_mod.fragment_length_extension_ < max_end_shift && fragment_length+bias_mod.fragment_length_extension_+1 < stats.FragmentDistribution().InsertLengths().to()){
-			++bias_mod.fragment_length_extension_;
-		}
-		else{
-			bias_mod.fragment_length_extension_ = 0;
-		}
-	}
-}
-
 void Simulator::GetOrgSeq(
 		SimPair &sim_reads,
 		bool strand,
@@ -1695,13 +1761,13 @@ void Simulator::GetOrgSeq(
 		uintRefSeqId ref_seq_id,
 		const Reference &ref,
 		const DataStats &stats,
-		const VariantBiasVarModifiers &bias_mod) const{
+		const VariantBiasVarModifiers &bias_mod ) const{
 	if(ref.VariantsLoaded()){
 		// Forward
-		ref.ReferenceSequence( sim_reads.org_seq_.at(strand), ref_seq_id, cur_start_position, min(fragment_length+bias_mod.fragment_length_extension_, static_cast<uintSeqLen>(stats.ReadLengths(strand).to()+stats.Errors().MaxLenDeletion())), false, ref.Variants(ref_seq_id), bias_mod.StartVariant(), allele );
+		ref.ReferenceSequence( sim_reads.org_seq_.at(strand), ref_seq_id, cur_start_position, min(fragment_length, static_cast<uintSeqLen>(stats.ReadLengths(strand).to()+stats.Errors().MaxLenDeletion())), false, ref.Variants(ref_seq_id), bias_mod.StartVariant(), allele );
 
 		// Reverse
-		ref.ReferenceSequence( sim_reads.org_seq_.at(!strand), ref_seq_id, cur_end_position+bias_mod.end_pos_shift_.at(allele)+bias_mod.fragment_length_extension_, min(fragment_length+bias_mod.fragment_length_extension_, static_cast<uintSeqLen>(stats.ReadLengths(!strand).to()+stats.Errors().MaxLenDeletion())), true, ref.Variants(ref_seq_id), bias_mod.EndVariant(ref.Variants(ref_seq_id), allele, cur_end_position), allele );
+		ref.ReferenceSequence( sim_reads.org_seq_.at(!strand), ref_seq_id, cur_end_position, min(fragment_length, static_cast<uintSeqLen>(stats.ReadLengths(!strand).to()+stats.Errors().MaxLenDeletion())), true, ref.Variants(ref_seq_id), bias_mod.EndVariant(ref.Variants(ref_seq_id), cur_end_position, allele), allele );
 	}
 	else{
 		// Forward
@@ -1712,6 +1778,330 @@ void Simulator::GetOrgSeq(
 	}
 }
 
+void Simulator::CTConversion(
+		DnaString &read,
+		const Reference &ref,
+		uintRefSeqId seq_id,
+		uintSeqLen start_pos,
+		uintAlleleId allele,
+		intVariantId cur_methylation_start,
+		GeneralRandomDistributions &rdist,
+		mt19937_64 &rgen,
+		bool reversed ) const{
+	auto cur_meth = cur_methylation_start;
+	uintReadLen read_pos = 0;
+	auto ref_pos = start_pos;
+
+	auto &conversion_rate = ref.Unmethylation(seq_id, allele);
+	auto &regions = ref.UnmethylatedRegions(seq_id);
+
+	if(reversed){
+		// Bring cur_meth to last in region
+		while( cur_meth < regions.size() && regions.at(cur_meth).first <= ref_pos ){
+			++cur_meth;
+		}
+		--cur_meth; // Go from one behind the current region to the last in it
+
+		// Jump over region without information
+		if( cur_meth && regions.at(cur_meth).second <= ref_pos ){
+			read_pos += ref_pos - (regions.at(cur_meth).second-1);
+			ref_pos = regions.at(cur_meth).second-1;
+		}
+
+		while( cur_meth && read_pos < length(read) ){
+			// Convert C->T in region
+			while( ref_pos >= regions.at(cur_meth).first && read_pos < length(read) ){
+				if( 1 == at(read, read_pos) ){
+					if( rdist.ZeroToOne(rgen) < conversion_rate.at(cur_meth) ){
+						at(read, read_pos) = 3;
+					}
+				}
+
+				--ref_pos;
+				++read_pos;
+			}
+
+			// Jump over region without information
+			if( --cur_meth && regions.at(cur_meth).second <= ref_pos ){
+				read_pos += ref_pos - (regions.at(cur_meth).second-1);
+				ref_pos = regions.at(cur_meth).second-1;
+			}
+		}
+	}
+	else{
+		// Jump over region without information
+		if( cur_meth < regions.size() && regions.at(cur_meth).first > ref_pos ){
+			read_pos += regions.at(cur_meth).first - ref_pos;
+			ref_pos = regions.at(cur_meth).first;
+		}
+
+		while( cur_meth < regions.size() && read_pos < length(read) ){
+			// Convert C->T in region
+			while( ref_pos < regions.at(cur_meth).second && read_pos < length(read) ){
+				if( 1 == at(read, read_pos) ){
+					if( rdist.ZeroToOne(rgen) < conversion_rate.at(cur_meth) ){
+						at(read, read_pos) = 3;
+					}
+				}
+
+				++ref_pos;
+				++read_pos;
+			}
+
+			// Jump over region without information
+			if( ++cur_meth < regions.size() ){
+				read_pos += regions.at(cur_meth).first - ref_pos;
+				ref_pos = regions.at(cur_meth).first;
+			}
+		}
+	}
+}
+
+void Simulator::CTConversion(
+		DnaString &read,
+		const Reference &ref,
+		uintRefSeqId seq_id,
+		uintSeqLen start_pos,
+		uintAlleleId allele,
+		intVariantId cur_methylation_start,
+		GeneralRandomDistributions &rdist,
+		mt19937_64 &rgen,
+		bool reversed,
+		const vector<Reference::Variant> &variants,
+		pair<intVariantId, uintSeqLen> first_variant // {id, posCurrentlyAt}
+		) const{
+	auto cur_meth = cur_methylation_start;
+	uintReadLen read_pos = 0;
+	auto ref_pos = start_pos;
+
+	auto &conversion_rate = ref.Unmethylation(seq_id, allele);
+	auto &regions = ref.UnmethylatedRegions(seq_id);
+
+	auto cur_var = first_variant.first;
+	uintSeqLen var_bases_left = 0;
+
+	bool deletion;
+
+	if(reversed){
+		// Set var_bases_left if we start in a variant
+		if(0 <= cur_var && variants.at(cur_var).position_ == ref_pos && 1 < length(variants.at(cur_var).var_seq_) && variants.at(cur_var).InAllele(allele)){
+			// We cannot start at a deletions and we don't care about substitutions, so only handle insertions
+			var_bases_left = length(variants.at(cur_var).var_seq_) - first_variant.second;
+		}
+
+		// Bring cur_meth to last in region
+		while( cur_meth < regions.size() && regions.at(cur_meth).first <= ref_pos ){
+			++cur_meth;
+		}
+		--cur_meth; // Go from one behind the current region to the last in it
+
+		// Jump over region without information
+		if( 0 <= cur_meth && regions.at(cur_meth).second <= ref_pos ){
+			// Handle start variant
+			if(var_bases_left){
+				read_pos += var_bases_left;
+				var_bases_left = 0;
+				--ref_pos;
+				--cur_var;
+			}
+
+			// Handle all variants before the next unmethylated region
+			while( 0 <= cur_var && regions.at(cur_meth).second <= variants.at(cur_var).position_ && read_pos < length(read) ){
+				if( variants.at(cur_var).InAllele(allele) ){
+					read_pos += ref_pos - variants.at(cur_var).position_;
+					read_pos += length(variants.at(cur_var).var_seq_);
+					ref_pos = variants.at(cur_var).position_-1; // Go one before the variant, because we handle the variant here, and it is only at exactly one ref_pos, so cannot reach into unmethylated region
+				}
+				--cur_var;
+			}
+
+			// Handle from the last variant before the region to the beginning of the region
+			read_pos += ref_pos - (regions.at(cur_meth).second-1);
+			ref_pos = regions.at(cur_meth).second-1;
+		}
+
+		while( 0 <= cur_meth && read_pos < length(read) ){
+			// Convert C->T in region
+			while( ref_pos >= regions.at(cur_meth).first && read_pos < length(read) ){
+				if( 0 == var_bases_left ){
+					while( 0 <= cur_var && variants.at(cur_var).position_ == ref_pos && !variants.at(cur_var).InAllele(allele) ){
+						--cur_var;
+					}
+
+					if( 0 <= cur_var && variants.at(cur_var).position_ == ref_pos ){
+						if( 0 == length(variants.at(cur_var).var_seq_) ){
+							deletion = true;
+							--cur_var;
+						}
+						else{
+							var_bases_left = length(variants.at(cur_var).var_seq_);
+						}
+					}
+				}
+
+				if( deletion ){
+					deletion = false;
+				}
+				else{
+					if( 1 == at(read, read_pos) ){
+						if( rdist.ZeroToOne(rgen) < conversion_rate.at(cur_meth) ){
+							at(read, read_pos) = 3;
+						}
+					}
+				}
+
+				if(var_bases_left){
+					if(0 == --var_bases_left){
+						--cur_var;
+					}
+				}
+				if(0 == var_bases_left){
+					--ref_pos;
+				}
+				++read_pos;
+			}
+
+			// Jump over region without information
+			if( 0 <= --cur_meth && regions.at(cur_meth).second <= ref_pos ){
+				// Handle all variants before the next unmethylated region
+				while( 0 <= cur_var && regions.at(cur_meth).second <= variants.at(cur_var).position_ && read_pos < length(read) ){
+					if( variants.at(cur_var).InAllele(allele) ){
+						read_pos += ref_pos - variants.at(cur_var).position_;
+						read_pos += length(variants.at(cur_var).var_seq_);
+						ref_pos = variants.at(cur_var).position_-1; // Go one before the variant, because we handle the variant here, and it is only at exactly one ref_pos, so cannot reach into unmethylated region
+					}
+					--cur_var;
+				}
+
+				// Handle from the last variant before the region to the beginning of the region
+				read_pos += ref_pos - (regions.at(cur_meth).second-1);
+				ref_pos = regions.at(cur_meth).second-1;
+			}
+		}
+	}
+	else{
+		// Set var_bases_left if we start in a variant
+		if( cur_var < variants.size() && variants.at(cur_var).position_ == ref_pos && 1 < length(variants.at(cur_var).var_seq_) && variants.at(cur_var).InAllele(allele) ){
+			// We cannot start at a deletions and we don't care about substitutions, so only handle insertions
+			var_bases_left = length(variants.at(cur_var).var_seq_) - first_variant.second;
+		}
+
+		// Jump over region without information
+		if( cur_meth < regions.size() && regions.at(cur_meth).first > ref_pos ){
+			// Handle start variant
+			if(var_bases_left){
+				read_pos += var_bases_left;
+				var_bases_left = 0;
+				++ref_pos;
+				++cur_var;
+			}
+
+			// Handle all variants before the next unmethylated region
+			while( cur_var < variants.size() && regions.at(cur_meth).first > variants.at(cur_var).position_ && read_pos < length(read) ){
+				if( variants.at(cur_var).InAllele(allele) ){
+					read_pos += variants.at(cur_var).position_ - ref_pos;
+					read_pos += length(variants.at(cur_var).var_seq_);
+					ref_pos = variants.at(cur_var).position_+1; // Go one after the variant, because we handle the variant here, and it is only at exactly one ref_pos, so cannot reach into unmethylated region
+				}
+				++cur_var;
+			}
+
+			// Handle from the last variant before the region to the beginning of the region
+			read_pos += regions.at(cur_meth).first - ref_pos;
+			ref_pos = regions.at(cur_meth).first;
+		}
+
+		while( cur_meth < regions.size() && read_pos < length(read) ){
+			// Convert C->T in region
+			while( ref_pos < regions.at(cur_meth).second && read_pos < length(read) ){
+				if(0 == var_bases_left){
+					while( cur_var < variants.size() && variants.at(cur_var).position_ == ref_pos && !variants.at(cur_var).InAllele(allele) ){
+						++cur_var;
+					}
+
+					if( cur_var < variants.size() && variants.at(cur_var).position_ == ref_pos ){
+						if( 0 == length(variants.at(cur_var).var_seq_) ){
+							deletion = true;
+							++cur_var;
+						}
+						else{
+							var_bases_left = length(variants.at(cur_var).var_seq_);
+						}
+					}
+				}
+
+				if( deletion ){
+					deletion = false;
+				}
+				else{
+					if( 1 == at(read, read_pos) ){
+						if( rdist.ZeroToOne(rgen) < conversion_rate.at(cur_meth) ){
+							at(read, read_pos) = 3;
+						}
+					}
+				}
+
+				if(var_bases_left){
+					if(0 == --var_bases_left){
+						++cur_var;
+					}
+				}
+				if(0 == var_bases_left){
+					++ref_pos;
+				}
+				++read_pos;
+			}
+
+			// Jump over region without information
+			if( ++cur_meth < regions.size() && regions.at(cur_meth).first > ref_pos ){
+				// Handle all variants before the next unmethylated region
+				while( cur_var < variants.size() && regions.at(cur_meth).first > variants.at(cur_var).position_ && read_pos < length(read) ){
+					if( variants.at(cur_var).InAllele(allele) ){
+						read_pos += variants.at(cur_var).position_ - ref_pos;
+						read_pos += length(variants.at(cur_var).var_seq_);
+						ref_pos = variants.at(cur_var).position_+1; // Go one after the variant, because we handle the variant here, and it is only at exactly one ref_pos, so cannot reach into unmethylated region
+					}
+					++cur_var;
+				}
+
+				// Handle from the last variant before the region to the beginning of the region
+				read_pos += regions.at(cur_meth).first - ref_pos;
+				ref_pos = regions.at(cur_meth).first;
+			}
+		}
+	}
+}
+
+void Simulator::CTConversion(
+		SimPair &sim_reads,
+		bool strand,
+		uintAlleleId allele,
+		uintSeqLen cur_start_position,
+		uintSeqLen cur_end_position,
+		uintRefSeqId ref_seq_id,
+		const Reference &ref,
+		const VariantBiasVarModifiers &bias_mod,
+		intVariantId cur_methylation_start,
+		GeneralRandomDistributions &rdist,
+		mt19937_64 &rgen ) const{
+	if(ref.MethylationLoaded()){
+		if(ref.VariantsLoaded()){
+			// Forward
+			CTConversion( sim_reads.org_seq_.at(strand), ref, ref_seq_id, cur_start_position, allele, cur_methylation_start, rdist, rgen, false, ref.Variants(ref_seq_id), bias_mod.StartVariant());
+
+			// Reverse
+			CTConversion( sim_reads.org_seq_.at(!strand), ref, ref_seq_id, cur_end_position, allele, cur_methylation_start, rdist, rgen, true, ref.Variants(ref_seq_id), bias_mod.EndVariant(ref.Variants(ref_seq_id), cur_end_position, allele));
+		}
+		else{
+			// Forward
+			CTConversion( sim_reads.org_seq_.at(strand), ref, ref_seq_id, cur_start_position, allele, cur_methylation_start, rdist, rgen, false);
+
+			// Reverse
+			CTConversion( sim_reads.org_seq_.at(!strand), ref, ref_seq_id, cur_end_position, allele, cur_methylation_start, rdist, rgen, true);
+		}
+	}
+}
+
 bool Simulator::SimulateFromGivenBlock(
 		const SimBlock &block, // forward block
 		const SimUnit &unit,
@@ -1719,10 +2109,7 @@ bool Simulator::SimulateFromGivenBlock(
 		const DataStats &stats,
 		const ProbabilityEstimates &estimates,
 		GeneralRandomDistributions &rdist,
-		mt19937_64 &rgen,
-		Benchmark &time){
-	steady_clock::time_point t1 = steady_clock::now();
-
+		mt19937_64 &rgen){
 	// Seed the random generator for this block
 	rgen.seed( block.seed_ );
 
@@ -1730,81 +2117,66 @@ bool Simulator::SimulateFromGivenBlock(
 
 	uintFragCount read_number(0);
 
-	VariantBiasVarModifiers bias_mod(block.first_variant_id_, (ref.VariantsLoaded() ? ref.NumAlleles() : 0));
+	VariantBiasVarModifiers bias_mod(block.first_variant_id_, ref.NumAlleles());
 
 	uintDupCount fragment_counts;
 
-	uintSeqLen gc, tmp_gc(0);
+	uintPercent gc_perc;
 
-	uintSeqLen cur_end_position, fragment_length_to;
-	Surrounding surrounding_start, surrounding_end;
+	uintSeqLen cur_end_position;
+	Surrounding surrounding_start;
+
+	intVariantId cur_methylation_start = block.first_methylation_id_;
+
+	array<double, 2> probability_chosen;
 
 	// Take the surrounding shifted by 1 as the first thing the loop does is shifting it back
 	ref.ForwardSurrounding( surrounding_start, unit.ref_seq_id_, ( 0<block.start_pos_ ? block.start_pos_-1 : ref.SequenceLength(unit.ref_seq_id_)-1 ) );
 
 	for( auto cur_start_position = block.start_pos_; cur_start_position < block.start_pos_ + kBlockSize && cur_start_position < ref.SequenceLength(unit.ref_seq_id_); ++cur_start_position ){
-		fragment_length_to = min(static_cast<uintSeqLen>(stats.FragmentDistribution().InsertLengths().to()), ref.SequenceLength(unit.ref_seq_id_)-cur_start_position+1); //+1 because it is one after the last acceptable fragment length
-
 		surrounding_start.UpdateForward( ref.ReferenceSequence(unit.ref_seq_id_), cur_start_position );
 
+		if(ref.MethylationLoaded()){
+			if(cur_methylation_start < ref.UnmethylatedRegions(unit.ref_seq_id_).size() && ref.UnmethylatedRegions(unit.ref_seq_id_).at(cur_methylation_start).second <= cur_start_position){
+				++cur_methylation_start;
+			}
+		}
+
 		do{ //while(bias_mod.start_variant_pos_)
-			cur_end_position = max(static_cast<uintSeqLen>(1),static_cast<uintSeqLen>(stats.FragmentDistribution().InsertLengths().from()))-1 + cur_start_position;
-			if( cur_end_position < ref.SequenceLength(unit.ref_seq_id_) || ref.VariantsLoaded()){ // Don't check gc if it's unnecessary (and will crash)
-				if(cur_end_position >= ref.SequenceLength(unit.ref_seq_id_) && ref.VariantsLoaded()){
-					bias_mod.fragment_length_extension_ = cur_end_position-ref.SequenceLength(unit.ref_seq_id_)+1;
-					cur_end_position = ref.SequenceLength(unit.ref_seq_id_)-1;
-					fragment_length_to -= bias_mod.fragment_length_extension_;
-				}
+			auto frag_len_start = max(static_cast<uintSeqLen>(1),static_cast<uintSeqLen>(stats.FragmentDistribution().InsertLengths().from()));
+			PrepareBiasModForCurrentStartPos( bias_mod, unit.ref_seq_id_, ref, cur_start_position, frag_len_start, surrounding_start );
 
-				gc=ref.GCContentAbsolut( unit.ref_seq_id_, cur_start_position, cur_end_position );
+			for( auto fragment_length=frag_len_start; fragment_length < stats.FragmentDistribution().InsertLengths().to(); ++fragment_length){
+				for(uintAlleleId allele=0; allele < ref.NumAlleles(); ++allele){
+					if( !ref.VariantsLoaded() || !AlleleSkipped(bias_mod, allele, ref.Variants(unit.ref_seq_id_), cur_start_position) ){
+						for( auto &prob : probability_chosen ){
+							prob = rdist.ZeroToOne(rgen);
+						}
 
-				ref.ReverseSurrounding( surrounding_end, unit.ref_seq_id_, ( 0<cur_end_position ? cur_end_position-1 : ref.SequenceLength(unit.ref_seq_id_)-1 ) ); // Take the surrounding shifted by 1 as the first thing the loop does is shifting it back
+						if(ProbabilityAboveThreshold(probability_chosen, unit.ref_seq_id_, fragment_length)){
+							PrepareBiasModForCurrentFragmentLength( bias_mod, unit.ref_seq_id_, ref, cur_start_position, fragment_length, allele );
 
-				PrepareBiasModForCurrentStartPos( bias_mod, unit.ref_seq_id_, ref, cur_start_position, cur_end_position, surrounding_start );
-
-				for( auto fragment_length=max(static_cast<uintSeqLen>(1),static_cast<uintSeqLen>(stats.FragmentDistribution().InsertLengths().from()))-bias_mod.fragment_length_extension_; fragment_length < fragment_length_to; ++fragment_length){
-					if( ref.GC(unit.ref_seq_id_, cur_end_position) ){
-						++gc;
-					}
-
-					surrounding_end.UpdateReverse( ref.ReferenceSequence(unit.ref_seq_id_), cur_end_position++ );
-
-					do{ //while( bias_mod.fragment_length_extension_ )
-						UpdateBiasModForCurrentFragmentLength( bias_mod, unit.ref_seq_id_, ref, cur_start_position, cur_end_position, surrounding_end );
-
-						if(stats.FragmentDistribution().InsertLengths().at(fragment_length+bias_mod.fragment_length_extension_)){
-							for(uintAlleleId allele=0; allele < ref.NumAlleles(); ++allele){
-								if( !ref.VariantsLoaded() || (!AlleleSkipped(bias_mod, allele, ref.Variants(unit.ref_seq_id_), cur_start_position) && cur_end_position+bias_mod.end_pos_shift_.at(allele)+bias_mod.fragment_length_extension_ <= ref.SequenceLength(unit.ref_seq_id_)) ){
-									if(ref.VariantsLoaded()){
-										// Add/subtract the gc from the additional.left out reference bases due to variant indels
-										if(bias_mod.end_pos_shift_.at(allele)+bias_mod.fragment_length_extension_ > 0){
-											tmp_gc = ref.GCContentAbsolut( unit.ref_seq_id_, cur_end_position, cur_end_position+bias_mod.end_pos_shift_.at(allele)+bias_mod.fragment_length_extension_ );
-										}
-										else{
-											tmp_gc = - static_cast<intSeqShift>(ref.GCContentAbsolut( unit.ref_seq_id_, cur_end_position+bias_mod.end_pos_shift_.at(allele)+bias_mod.fragment_length_extension_, cur_end_position ));
-										}
-									}
-
-									for(bool strand : { false, true }){
+							cur_end_position = cur_start_position + fragment_length + bias_mod.end_pos_shift_.at(allele);
+							if( cur_end_position < ref.SequenceLength(unit.ref_seq_id_)){
+								for(bool strand : { false, true }){
+									if(ProbabilityAboveThreshold(probability_chosen, strand, unit.ref_seq_id_, fragment_length)){
 										// Determine how many read pairs are generated for this strand and allele at this position with this fragment_length
-										steady_clock::time_point t1a = steady_clock::now();
+										gc_perc = GetGCPercent( bias_mod, unit.ref_seq_id_, ref, cur_end_position, fragment_length, allele );
+
 										if(ref.VariantsLoaded()){
-											fragment_counts = stats.FragmentDistribution().GetFragmentCounts(bias_normalization_, unit.ref_seq_id_, fragment_length+bias_mod.fragment_length_extension_, Percent(gc+bias_mod.gc_mod_.at(allele)+tmp_gc,fragment_length+bias_mod.fragment_length_extension_), bias_mod.mod_surrounding_start_.at(allele), bias_mod.mod_surrounding_end_.at(allele), rdist.ZeroToOne(rgen), non_zero_threshold_);
+											fragment_counts = stats.FragmentDistribution().GetFragmentCounts(bias_normalization_, unit.ref_seq_id_, fragment_length, gc_perc, bias_mod.surrounding_start_.at(allele), bias_mod.surrounding_end_.at(allele), probability_chosen.at(strand));
 										}
 										else{
-											fragment_counts = stats.FragmentDistribution().GetFragmentCounts(bias_normalization_, unit.ref_seq_id_, fragment_length, Percent(gc,fragment_length), surrounding_start, surrounding_end, rdist.ZeroToOne(rgen), non_zero_threshold_);
+											fragment_counts = stats.FragmentDistribution().GetFragmentCounts(bias_normalization_, unit.ref_seq_id_, fragment_length, gc_perc, surrounding_start, bias_mod.surrounding_end_.at(allele), probability_chosen.at(strand));
 										}
-										steady_clock::time_point t2a = steady_clock::now();
-										duration<double> time_span = duration_cast<duration<double>>(t2a - t1a);
-										time.get_counts_ += time_span.count();
 
 										if( fragment_counts ){
-											t1a = steady_clock::now();
-
 											GetOrgSeq(sim_reads, strand, allele, fragment_length, cur_start_position, cur_end_position, unit.ref_seq_id_, ref, stats, bias_mod);
 
+											CTConversion(sim_reads, strand, allele, cur_start_position, cur_end_position, unit.ref_seq_id_, ref, bias_mod, cur_methylation_start, rdist, rgen);
+
 											if(ref.VariantsLoaded()){
-												if(!CreateReads( ref, stats, estimates, rdist, sim_reads, rgen, fragment_counts, strand, allele, unit.ref_seq_id_, fragment_length+bias_mod.fragment_length_extension_, read_number, &block, cur_start_position, cur_end_position+bias_mod.end_pos_shift_.at(allele)+bias_mod.fragment_length_extension_, bias_mod.StartVariant(), bias_mod.EndVariant(ref.Variants(unit.ref_seq_id_), allele, cur_end_position) )){
+												if(!CreateReads( ref, stats, estimates, rdist, sim_reads, rgen, fragment_counts, strand, allele, unit.ref_seq_id_, fragment_length, read_number, &block, cur_start_position, cur_end_position, bias_mod.StartVariant(), bias_mod.EndVariant(ref.Variants(unit.ref_seq_id_), cur_end_position, allele) )){
 													return false;
 												}
 											}
@@ -1813,28 +2185,18 @@ bool Simulator::SimulateFromGivenBlock(
 													return false;
 												}
 											}
-
-											t2a = steady_clock::now();
-											time_span = duration_cast<duration<double>>(t2a - t1a);
-											time.create_reads_ += time_span.count();
 										}
 									}
 								}
 							}
 						}
-
-						CheckForFragmentLengthExtension( bias_mod, fragment_length, fragment_length_to, ref, stats );
-					} while(bias_mod.fragment_length_extension_);
+					}
 				}
 			}
 
 			CheckForInsertedBasesToStartFrom(bias_mod, unit.ref_seq_id_, cur_start_position, ref);
 		} while(bias_mod.start_variant_pos_);
 	}
-
-	steady_clock::time_point t2 = steady_clock::now();
-	duration<double> time_span = duration_cast<duration<double>>(t2 - t1);
-	time.handle_block_ += time_span.count();
 
 	return true;
 }
@@ -1868,15 +2230,12 @@ void Simulator::SimulationThread( Simulator &self, Reference &ref, const DataSta
 	mt19937_64 rgen;
 	SimBlock *block;
 	SimUnit *unit;
-	Benchmark time;
 	GeneralRandomDistributions rdist(stats);
 
-	steady_clock::time_point t1 = steady_clock::now();
-
-	while( !self.simulation_error_ && self.GetNextBlock(ref, stats, estimates, block, unit, time) ){
+	while( !self.simulation_error_ && self.GetNextBlock(ref, stats, estimates, block, unit) ){
 		// As long as there are new blocks to simulate from, simulate
 		rdist.Reset();
-		self.SimulateFromGivenBlock(*block, *unit, ref, stats, estimates, rdist, rgen, time);
+		self.SimulateFromGivenBlock(*block, *unit, ref, stats, estimates, rdist, rgen);
 		block->finished_ = true;
 	}
 
@@ -1884,18 +2243,6 @@ void Simulator::SimulationThread( Simulator &self, Reference &ref, const DataSta
 	if(!self.simulation_error_ && !self.adapter_only_simulated_.test_and_set()){
 		self.SimulateAdapterOnlyPairs(ref, stats, estimates, rdist, rgen);
 	}
-
-	steady_clock::time_point t2 = steady_clock::now();
-	duration<double> time_span = duration_cast<duration<double>>(t2 - t1);
-	time.total_ += time_span.count();
-
-	self.time_mutex_.lock();
-	self.time_.total_ += time.total_;
-	self.time_.create_block_ += time.create_block_;
-	self.time_.handle_block_ += time.handle_block_;
-	self.time_.get_counts_ += time.get_counts_;
-	self.time_.create_reads_ += time.create_reads_;
-	self.time_mutex_.unlock();
 }
 
 bool Simulator::WriteOutSystematicErrorProfile(const string &id, vector<pair<Dna5,uintPercent>> sys_errors, Dna5String dom_err, CharString err_perc){
@@ -2001,7 +2348,8 @@ bool Simulator::Simulate(
 		const string &ref_bias_file,
 		const string &sys_error_file,
 		const string &record_base_identifier,
-		const string &var_file
+		const string &var_file,
+		const string &meth_file
 		){
 	// create all missing directories
 	CreateDir(destination_file_first);
@@ -2092,10 +2440,19 @@ bool Simulator::Simulate(
 				}
 			}
 
+			if(!simulation_error_ && !meth_file.empty()){
+				if(ref.PrepareMethylationFile(meth_file)){
+					if(!ref.ReadMethylation(2)){
+						simulation_error_ = true;
+					}
+				}
+				else{
+					simulation_error_ = true;
+				}
+			}
+
 			if(!simulation_error_){
-				double max_bias;
-				bias_normalization_ = stats.FragmentDistribution().CalculateBiasNormalization(max_bias, ref, num_threads, total_pairs_) / ref.NumAlleles();
-				non_zero_threshold_ = stats.FragmentDistribution().CalculateNonZeroThreshold(bias_normalization_, max_bias);
+				bias_normalization_ = stats.FragmentDistribution().CalculateBiasNormalization(coverage_groups_, non_zero_thresholds_, ref, num_threads, total_pairs_);
 
 				// Chose systematic errors for adapters
 				sys_gc_range_ = Divide(sum_read_length,reads)/2; // Set gc range for systematic errors to half the average read length
@@ -2137,16 +2494,10 @@ bool Simulator::Simulate(
 			if(!simulation_error_){
 				adapter_only_simulated_.clear();
 
-				time_.total_ = 0.0;
-				time_.create_block_ = 0.0;
-				time_.handle_block_ = 0.0;
-				time_.get_counts_ = 0.0;
-				time_.create_reads_ = 0.0;
-
 				// Create a buffer of blocks, so that the blocks into which long fragments reach already exist
-				if( CreateBlock(ref, stats, estimates, time_) ){
+				if( CreateBlock(ref, stats, estimates) ){
 					for( auto n_blocks = stats.FragmentDistribution().InsertLengths().to()/kBlockSize; n_blocks--; ){
-						CreateBlock(ref, stats, estimates, time_);
+						CreateBlock(ref, stats, estimates);
 					}
 
 					printInfo << "Starting read generation" << std::endl;
@@ -2167,12 +2518,6 @@ bool Simulator::Simulate(
 			if(simulation_error_){
 				printErr << "An error occurred in the process: Terminating simulation" << std::endl;
 			}
-
-			printDebug << "Time total: " << time_.total_ << std::endl;
-			printDebug << "Time create block_: " << time_.create_block_ << std::endl;
-			printDebug << "Time handle block_: " << time_.handle_block_ << std::endl;
-			printDebug << "Time get counts_: " << time_.get_counts_ << std::endl;
-			printDebug << "Time create reads_: " << time_.create_reads_ << std::endl;
 
 			this->Flush(); // Flush out all sequences that have not been written to disc yet
 
@@ -2211,6 +2556,7 @@ bool Simulator::Simulate(
 		}
 
 		ref.ClearAllVariants();
+		ref.ClearAllMethylation();
 	}
 
 	if(simulation_error_){

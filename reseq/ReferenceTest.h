@@ -26,6 +26,7 @@ namespace reseq{
 		void TestGetFragmentSites();
 		void TestReplaceN();
 		void TestExclusionRegions();
+		void TestMethylationLoading();
 	};
 }
 

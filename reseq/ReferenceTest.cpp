@@ -648,6 +648,67 @@ void ReferenceTest::TestExclusionRegions(){
 	EXPECT_EQ(0, ref_.excluded_regions_.size());
 }
 
+void ReferenceTest::TestMethylationLoading(){
+	ASSERT_TRUE( ref_.ReadFasta( (string(PROJECT_SOURCE_DIR)+"/test/drosophila-GCF_000001215.4_cut.fna").c_str() ) );
+	ref_.num_alleles_ = 2;
+
+	EXPECT_FALSE( ref_.MethylationLoaded() );
+
+	ASSERT_TRUE( ref_.PrepareMethylationFile(string(PROJECT_SOURCE_DIR)+"/test/drosophila-methylation.bed") );
+	ASSERT_TRUE( ref_.ReadMethylation(2) ); // Not actually reading anything, because second sequence is the first with entries
+	EXPECT_TRUE( ref_.MethylationLoaded() );
+	EXPECT_TRUE( ref_.MethylationLoadedForSequence(1) );
+	EXPECT_FALSE( ref_.MethylationLoadedForSequence(2) );
+	EXPECT_FALSE( ref_.MethylationCompletelyLoaded() );
+
+	ASSERT_TRUE( ref_.ReadMethylation(ref_.NumberSequences()+2) );
+	EXPECT_TRUE( ref_.MethylationLoadedForSequence(2) );
+	EXPECT_TRUE( ref_.MethylationLoadedForSequence(ref_.NumberSequences()-1) );
+	EXPECT_TRUE( ref_.MethylationCompletelyLoaded() );
+
+	EXPECT_EQ(0, ref_.UnmethylatedRegions(1).size() );
+	EXPECT_EQ(0, ref_.Unmethylation(1, 0).size() );
+	EXPECT_EQ(0, ref_.Unmethylation(1, 1).size() );
+
+	EXPECT_EQ(3, ref_.UnmethylatedRegions(2).size() );
+	EXPECT_EQ(0, ref_.UnmethylatedRegions(2).at(0).first );
+	EXPECT_EQ(100, ref_.UnmethylatedRegions(2).at(0).second );
+	EXPECT_EQ(100, ref_.UnmethylatedRegions(2).at(1).first );
+	EXPECT_EQ(101, ref_.UnmethylatedRegions(2).at(1).second );
+	EXPECT_EQ(34520, ref_.UnmethylatedRegions(2).at(2).first );
+	EXPECT_EQ(34521, ref_.UnmethylatedRegions(2).at(2).second );
+	EXPECT_EQ(3, ref_.Unmethylation(2, 0).size() );
+	EXPECT_DOUBLE_EQ(0.75, ref_.Unmethylation(2, 0).at(0) );
+	EXPECT_DOUBLE_EQ(0.7, ref_.Unmethylation(2, 0).at(1) );
+	EXPECT_DOUBLE_EQ(0.6, ref_.Unmethylation(2, 0).at(2) );
+	EXPECT_EQ(3, ref_.Unmethylation(2, 1).size() );
+	EXPECT_DOUBLE_EQ(0.74, ref_.Unmethylation(2, 1).at(0) );
+	EXPECT_DOUBLE_EQ(0.69, ref_.Unmethylation(2, 1).at(1) );
+	EXPECT_DOUBLE_EQ(0.59, ref_.Unmethylation(2, 1).at(2) );
+
+	EXPECT_EQ(1, ref_.UnmethylatedRegions(9).size() );
+	EXPECT_EQ(5000, ref_.UnmethylatedRegions(9).at(0).first );
+	EXPECT_EQ(35000, ref_.UnmethylatedRegions(9).at(0).second );
+	EXPECT_EQ(1, ref_.Unmethylation(9, 0).size() );
+	EXPECT_DOUBLE_EQ(0.9, ref_.Unmethylation(9, 0).at(0) );
+	EXPECT_EQ(1, ref_.Unmethylation(9, 1).size() );
+	EXPECT_DOUBLE_EQ(0.9, ref_.Unmethylation(9, 1).at(0) );
+
+	EXPECT_EQ(0, ref_.UnmethylatedRegions(10).size() );
+	EXPECT_EQ(0, ref_.Unmethylation(10, 0).size() );
+	EXPECT_EQ(0, ref_.Unmethylation(10, 1).size() );
+
+	EXPECT_EQ(0, ref_.UnmethylatedRegions(20).size() );
+	EXPECT_EQ(0, ref_.Unmethylation(20, 0).size() );
+	EXPECT_EQ(0, ref_.Unmethylation(20, 1).size() );
+
+	EXPECT_TRUE( ref_.ReadMethylation(ref_.NumberSequences()+2) ); // Check whether calling the read after reading everything does not crash
+	ref_.ClearMethylation(2);
+	ref_.ClearMethylation(ref_.NumberSequences());
+	EXPECT_TRUE( ref_.ReadMethylation(ref_.NumberSequences()+2) ); // Check whether reading after clearing works
+	ref_.ClearAllMethylation();
+}
+
 namespace reseq{
 	TEST_F(ReferenceTest, Variants){
 		ASSERT_TRUE( ref_.ReadFasta( (string(PROJECT_SOURCE_DIR)+"/test/ecoli-GCF_000005845.2_ASM584v2_genomic.fa").c_str() ) );
@@ -680,5 +741,9 @@ namespace reseq{
 
 	TEST_F(ReferenceTest, ExclusionRegions){
 		TestExclusionRegions();
+	}
+
+	TEST_F(ReferenceTest, Methylation){
+		TestMethylationLoading();
 	}
 }

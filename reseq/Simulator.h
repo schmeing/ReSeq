@@ -27,42 +27,51 @@ namespace reseq{
 		// Subclasses and structures
 		class VariantBiasVarModifiers{
 		public:
+			// Keeping track of current position
+			std::vector<uintSeqLen> last_end_position_;
+			uintSeqLen last_gc_;
+			uintSeqLen last_gc_end_;
+
 			// Keeping track of which variants to process
 			intVariantId first_variant_id_;
+			uintSeqLen start_variant_pos_; // Handle indels at start of simulated fragment
 			std::vector<intVariantId> unhandled_variant_id_;
 			std::vector<uintSeqLen> unhandled_bases_in_variant_;
-
-			// Handle indels at start of simulated fragment
-			//const Reference::Variant *start_variant_;
-			//std::vector<const Reference::Variant *> start_insertions_;
-			uintSeqLen start_variant_pos_;
 
 			// GC modification
 			std::vector<intSeqShift> gc_mod_; // Change in gc for that allele compared to the reference for the given fragment
 			std::vector<intSeqShift> end_pos_shift_;
-			intSeqShift fragment_length_extension_; // Extension after the ReferenceSequence needed for Variants
 
 			// Surroundings
-			std::vector<Surrounding> mod_surrounding_start_, mod_surrounding_end_; // Contain the modified surroundings for the given allele if variation exists
+			std::vector<Surrounding> surrounding_start_;
+			std::vector<Surrounding> surrounding_end_;
 
 			VariantBiasVarModifiers(intVariantId first_variant_id, uintAlleleId num_alleles):
-					first_variant_id_(first_variant_id),
-					start_variant_pos_(0),
-					fragment_length_extension_(0){
-				if(num_alleles){
-					mod_surrounding_start_.resize(num_alleles);
-					mod_surrounding_end_.resize(num_alleles);
-				}
+				last_gc_(0),
+				last_gc_end_(0),
+				first_variant_id_(first_variant_id),
+				start_variant_pos_(0)
+				{
+				last_end_position_.resize(num_alleles, 0);
+
+				unhandled_variant_id_.resize(num_alleles, first_variant_id);
+				unhandled_bases_in_variant_.resize(num_alleles, 0);
+
+				gc_mod_.resize(num_alleles, 0);
+				end_pos_shift_.resize(num_alleles, 0);
+
+				surrounding_start_.resize(num_alleles);
+				surrounding_end_.resize(num_alleles);
 			}
 
 			std::pair<intVariantId, uintSeqLen> StartVariant() const{
 				return {first_variant_id_, start_variant_pos_};
 			}
-			std::pair<intVariantId, uintSeqLen> EndVariant(const std::vector<Reference::Variant> &variants, uintAlleleId allele, uintSeqLen cur_end_position) const{
+			std::pair<intVariantId, uintSeqLen> EndVariant(const std::vector<Reference::Variant> &variants, uintSeqLen cur_end_position, uintAlleleId allele) const{
 				if(unhandled_bases_in_variant_.at(allele)){
 					return {unhandled_variant_id_.at(allele), length(variants.at(unhandled_variant_id_.at(allele)).var_seq_)-unhandled_bases_in_variant_.at(allele)};
 				}
-				else if( start_variant_pos_ && variants.at(first_variant_id_).position_ == cur_end_position-1 ){
+				else if( start_variant_pos_ && variants.at(first_variant_id_).position_ == cur_end_position-end_pos_shift_.at(allele)-1 ){
 					return {first_variant_id_, start_variant_pos_-end_pos_shift_.at(allele)+1};
 				}
 				else{
@@ -70,7 +79,7 @@ namespace reseq{
 					if(first_rev_variant == variants.size()){
 						--first_rev_variant;
 					}
-					while(0 <= first_rev_variant && variants.at(first_rev_variant).position_ >= cur_end_position+end_pos_shift_.at(allele)+fragment_length_extension_){
+					while(0 <= first_rev_variant && variants.at(first_rev_variant).position_ >= cur_end_position){
 						--first_rev_variant;
 					}
 					return {first_rev_variant, 0};
@@ -105,6 +114,7 @@ namespace reseq{
 			std::vector<std::pair<seqan::Dna5,uintPercent>> sys_errors_; //sys_errors_[pos] = {domError, errorRate}
 			std::vector<SysErrorVariant> err_variants_;
 			intVariantId first_variant_id_;
+			intVariantId first_methylation_id_;
 
 			SimBlock(uintRefSeqBin id, uintSeqLen start_pos, SimBlock *partner_block, uintSeed seed):
 				id_(id),
@@ -113,7 +123,8 @@ namespace reseq{
 				next_block_(NULL),
 				partner_block_(partner_block),
 				seed_(seed),
-				first_variant_id_(0){
+				first_variant_id_(0),
+				first_methylation_id_(0){
 			}
 		};
 
@@ -235,25 +246,6 @@ namespace reseq{
 			std::array<utilities::CigarString, 2> cigar_;
 		};
 
-		// Benchmarking
-		struct Benchmark{
-			double total_;
-			double create_block_;
-			double handle_block_;
-			double get_counts_;
-			double create_reads_;
-
-			Benchmark():
-				total_(0),
-				create_block_(0),
-				handle_block_(0),
-				get_counts_(0),
-				create_reads_(0){
-			}
-		};
-		Benchmark time_;
-		std::mutex time_mutex_;
-
 		// Definitions
 		const uintFragCount kBatchSize = 100000; // 100,000 reads are written in each batch, balance between speed and memory usage
 		const uintSeqLen kBlockSize = 1000; // Continuous bases that are handled by a single thread; too high: work load isn't shared properly, memory allocation of big arrays slows program down; too low: overhead like random generator seeding slows program down
@@ -265,6 +257,7 @@ namespace reseq{
 
 		std::mutex block_creation_mutex_;
 		std::mutex var_read_mutex_;
+		std::mutex methylation_read_mutex_;
 
 		// private variables
 		std::array<seqan::SeqFileOut, 2> dest_;
@@ -297,7 +290,8 @@ namespace reseq{
 		std::array<std::vector<std::vector<std::pair<seqan::Dna5,uintPercent>>>, 2> adapter_sys_error_;
 
 		double bias_normalization_;
-		double non_zero_threshold_; // Threshold that random number from fragment generation has to reach or fragment count will be zero and does not have to be calculated
+		std::vector<uintRefSeqId> coverage_groups_; // coverage_groups_[RefSeqId] = CoverageGroup
+		std::vector<std::vector<double>> non_zero_thresholds_;  // non_zero_thresholds_[CoverageGroup][FragmentLength] = Threshold that random number from fragment generation has to reach or fragment count will be zero and does not have to be calculated
 		uintFragCount total_pairs_;
 		uintFragCount num_adapter_only_pairs_;
 		std::atomic_flag adapter_only_simulated_; // Int instead of bool so atomic increment works
@@ -388,8 +382,8 @@ namespace reseq{
 		void SetSystematicErrorVariantsReverse(uintSeqLen &start_dist_error_region, uintPercent &start_rate, SimBlock &block, uintRefSeqId ref_seq_id, uintSeqLen end_pos, const Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates);
 		bool CreateUnit(uintRefSeqId ref_id, uintRefSeqBin first_block_id, Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates, SimBlock *&first_reverse_block, SimUnit *&unit);
 		void SetSystematicErrorVariantsForward(uintSeqLen &start_dist_error_region, uintPercent &start_rate, SimBlock &block, uintRefSeqId ref_seq_id, uintSeqLen end_pos, const Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates);
-		bool CreateBlock( Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates, Benchmark &time );
-		bool GetNextBlock( Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates, SimBlock *&block, SimUnit *&unit, Benchmark &time );
+		bool CreateBlock( Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates );
+		bool GetNextBlock( Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates, SimBlock *&block, SimUnit *&unit );
 
 		inline bool AlleleSkipped(const VariantBiasVarModifiers &bias_mod, uintAlleleId allele, const std::vector<Reference::Variant> &variants, uintSeqLen cur_start_position) const{
 			// Exclude alleles with a deletion at start position and alleles that do not belong to the current insertion run
@@ -404,18 +398,32 @@ namespace reseq{
 
 			return false;
 		}
+		inline bool ProbabilityAboveThreshold(double probability_chosen, uintRefSeqId ref_seq, uintSeqLen fragment_length) const{
+			return probability_chosen >= non_zero_thresholds_.at(coverage_groups_.at(ref_seq)).at(fragment_length);
+		}
+		inline bool ProbabilityAboveThreshold(const std::array<double, 2> &probability_chosen, uintTempSeq strand, uintRefSeqId ref_seq, uintSeqLen fragment_length) const{
+			return ProbabilityAboveThreshold(probability_chosen.at(strand), ref_seq, fragment_length);
+		}
+		inline bool ProbabilityAboveThreshold(const std::array<double, 2> &probability_chosen, uintRefSeqId ref_seq, uintSeqLen fragment_length) const{
+			return ProbabilityAboveThreshold(probability_chosen, 0, ref_seq, fragment_length) || ProbabilityAboveThreshold(probability_chosen, 1, ref_seq, fragment_length);
+		}
 		inline bool VariantInsideCurrentFragment( intVariantId cur_var_id, uintSeqLen cur_end_position, intSeqShift end_pos_shift, uintRefSeqId ref_seq_id, const Reference &ref ) const;
 		void HandleGCModAndEndPosShiftForNewVariants( VariantBiasVarModifiers &bias_mod, uintAlleleId allele, uintRefSeqId ref_seq_id, const Reference &ref, uintSeqLen cur_end_position ) const;
 		void HandleSurroundingVariantsBeforeCenter(Surrounding &mod_surrounding, uintSeqLen center_position, intSeqShift initial_pos_shift, intVariantId center_var, uintAlleleId allele, uintRefSeqId ref_seq_id, const Reference &ref, bool reverse) const;
 		void HandleSurroundingVariantsAfterCenter(Surrounding &mod_surrounding, uintSeqLen center_position, intSeqShift initial_pos_shift, intVariantId center_var, uintAlleleId allele, uintRefSeqId ref_seq_id, const Reference &ref, bool reverse) const;
 		void VariantModStartSurrounding(VariantBiasVarModifiers &bias_mod, uintAlleleId allele, uintRefSeqId ref_seq_id, const Reference &ref, uintSeqLen cur_start_position, const Surrounding &surrounding_start) const;
-		void PrepareBiasModForCurrentStartPos( VariantBiasVarModifiers &bias_mod, uintRefSeqId ref_seq_id, const Reference &ref, uintSeqLen cur_start_position, uintSeqLen cur_end_position, Surrounding &surrounding_start ) const;
-		void VariantModEndSurrounding(VariantBiasVarModifiers &bias_mod, uintAlleleId allele, uintRefSeqId ref_seq_id, const Reference &ref, uintSeqLen cur_end_position, const Surrounding &surrounding_end) const;
-		void UpdateBiasModForCurrentFragmentLength( VariantBiasVarModifiers &bias_mod, uintRefSeqId ref_seq_id, const Reference &ref, uintSeqLen cur_start_position, uintSeqLen cur_end_position, Surrounding &surrounding_end ) const;
+		void PrepareBiasModForCurrentStartPos( VariantBiasVarModifiers &bias_mod, uintRefSeqId ref_seq_id, const Reference &ref, uintSeqLen cur_start_position, uintSeqLen first_fragment_length, const Surrounding &surrounding_start ) const;
+		void VariantModEndSurrounding(VariantBiasVarModifiers &bias_mod, uintAlleleId allele, uintRefSeqId ref_seq_id, const Reference &ref, uintSeqLen last_position) const;
+		void UpdateBiasModForCurrentFragmentLength( VariantBiasVarModifiers &bias_mod, uintRefSeqId ref_seq_id, const Reference &ref, uintSeqLen cur_start_position, uintSeqLen cur_end_position, uintSeqLen last_end_position, uintAlleleId allele ) const;
+		inline void PrepareEndSurroundingsForCurrentFragmentLength( VariantBiasVarModifiers &bias_mod, uintRefSeqId ref_seq_id, const Reference &ref, uintSeqLen cur_end_position, uintAlleleId allele ) const;
+		void PrepareBiasModForCurrentFragmentLength( VariantBiasVarModifiers &bias_mod, uintRefSeqId ref_seq_id, const Reference &ref, uintSeqLen cur_start_position, uintSeqLen fragment_length, uintAlleleId allele ) const;
+		uintPercent GetGCPercent( VariantBiasVarModifiers &bias_mod, uintRefSeqId ref_seq_id, const Reference &ref, uintSeqLen cur_end_position, uintSeqLen fragment_length, uintAlleleId allele );
 		void CheckForInsertedBasesToStartFrom( VariantBiasVarModifiers &bias_mod, uintRefSeqId ref_seq_id, uintSeqLen cur_start_position, const Reference &ref ) const;
-		void CheckForFragmentLengthExtension( VariantBiasVarModifiers &bias_mod, uintSeqLen fragment_length, uintSeqLen fragment_length_to, const Reference &ref, const DataStats &stats ) const;
-		void GetOrgSeq(SimPair &sim_reads, bool strand, uintAlleleId allele, uintSeqLen fragment_length, uintSeqLen cur_start_position, uintSeqLen cur_end_position, uintRefSeqId ref_seq_id, const Reference &ref, const DataStats &stats, const VariantBiasVarModifiers &bias_mod) const;
-		bool SimulateFromGivenBlock( const SimBlock &block, const SimUnit &unit, const Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates, GeneralRandomDistributions &rdist, std::mt19937_64 &rgen, Benchmark &time );
+		void GetOrgSeq( SimPair &sim_reads, bool strand, uintAlleleId allele, uintSeqLen fragment_length, uintSeqLen cur_start_position, uintSeqLen cur_end_position, uintRefSeqId ref_seq_id, const Reference &ref, const DataStats &stats, const VariantBiasVarModifiers &bias_mod ) const;
+		void CTConversion( seqan::DnaString &read, const Reference &ref, uintRefSeqId seq_id, uintSeqLen start_pos, uintAlleleId allele, intVariantId cur_methylation_start, GeneralRandomDistributions &rdist, std::mt19937_64 &rgen, bool reversed ) const;
+		void CTConversion( seqan::DnaString &read, const Reference &ref, uintRefSeqId seq_id, uintSeqLen start_pos, uintAlleleId allele, intVariantId cur_methylation_start, GeneralRandomDistributions &rdist, std::mt19937_64 &rgen, bool reversed, const std::vector<Reference::Variant> &variants, std::pair<intVariantId, uintSeqLen> first_variant ) const;
+		void CTConversion( SimPair &sim_reads, bool strand, uintAlleleId allele, uintSeqLen cur_start_position, uintSeqLen cur_end_position, uintRefSeqId ref_seq_id, const Reference &ref, const VariantBiasVarModifiers &bias_mod, intVariantId cur_methylation_start, GeneralRandomDistributions &rdist, std::mt19937_64 &rgen ) const;
+		bool SimulateFromGivenBlock( const SimBlock &block, const SimUnit &unit, const Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates, GeneralRandomDistributions &rdist, std::mt19937_64 &rgen );
 		bool SimulateAdapterOnlyPairs( const Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates, GeneralRandomDistributions &rdist, std::mt19937_64 &rgen );
 		static void SimulationThread( Simulator &self, Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates );
 
@@ -428,7 +436,7 @@ namespace reseq{
 		Simulator();
 
 		bool CreateSystematicErrorProfile(const char *destination_file, const Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates, uintSeed seed);
-		bool Simulate(const char *destination_file_first, const char *destination_file_second, Reference &ref, DataStats &stats, const ProbabilityEstimates &estimates, uintNumThreads num_threads, uintSeed seed, uintFragCount num_read_pairs=0, double coverage=0.0, RefSeqBiasSimulation ref_bias_model=kKeep, const std::string &ref_bias_file=std::string(), const std::string &sys_error_file=std::string(), const std::string &record_base_identifier=std::string(), const std::string &var_file=std::string());
+		bool Simulate(const char *destination_file_first, const char *destination_file_second, Reference &ref, DataStats &stats, const ProbabilityEstimates &estimates, uintNumThreads num_threads, uintSeed seed, uintFragCount num_read_pairs=0, double coverage=0.0, RefSeqBiasSimulation ref_bias_model=kKeep, const std::string &ref_bias_file=std::string(), const std::string &sys_error_file=std::string(), const std::string &record_base_identifier=std::string(), const std::string &var_file=std::string(), const std::string &meth_file=std::string());
 	};
 }
 #endif // SIMULATOR_H

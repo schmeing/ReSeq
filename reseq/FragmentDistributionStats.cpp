@@ -1226,6 +1226,8 @@ void FragmentDistributionStats::PrepareBiasCalculation( const Reference &ref, ui
 	excluded_lowq_regions_ = 0;
 
 	corrected_abundance_.resize(ref.NumberSequences());
+	filtered_sites_.resize(ref.NumberSequences());
+	fragment_lengths_used_for_correction_.resize(ref.NumberSequences());
 
 	// Prepare bias fitting
 	bias_calc_params_.resize( maximum_insert_length * kMaxBinsQueuedForBiasCalc );
@@ -1531,7 +1533,7 @@ void FragmentDistributionStats::FillParams(vector<BiasCalculationParams> &params
 	for( auto frag_length=max(static_cast<uintSeqLen>(1),static_cast<uintSeqLen>(insert_lengths_.from())); frag_length < insert_lengths_.to(); ++frag_length){
 		if(insert_lengths_.at(frag_length)){
 			for( uintRefSeqId ref_id=abundance_.size(); ref_id--; ){
-				if(abundance_.at(ref_id) && !reference.ReferenceSequenceExcluded(ref_id)){
+				if(!reference.ReferenceSequenceExcluded(ref_id)){
 					// Add parameters for later calculation
 					params.push_back({ref_id, frag_length});
 				}
@@ -1546,8 +1548,8 @@ void FragmentDistributionStats::FillParamsSimulation(vector<BiasCalculationParam
 
 	for( auto frag_length=max(static_cast<uintSeqLen>(1),static_cast<uintSeqLen>(insert_lengths_.from())); frag_length < insert_lengths_.to(); ++frag_length){
 		if(insert_lengths_.at(frag_length)){
-			for( uintRefSeqId ref_id=abundance_.size(); ref_id--; ){
-				if(abundance_.at(ref_id)){
+			for( uintRefSeqId ref_id=ref_seq_bias_.size(); ref_id--; ){
+				if(0.0 != ref_seq_bias_.at(ref_id)){
 					// Add parameters for later calculation
 					params.push_back({ref_id, frag_length});
 				}
@@ -1616,9 +1618,11 @@ void FragmentDistributionStats::CountDuplicates(FragmentDuplicationStats &duplic
 	}
 	else{
 		correction = 0;
-		current_region = reference.NextExclusionRegion(ref_seq_bin_def_.at(params.ref_seq_bin_).first, ref_seq_bin_def_.at(params.ref_seq_bin_).second);
+		current_region = reference.NextExclusionRegion(ref_seq_bin_def_.at(params.ref_seq_bin_).first, ref_seq_bin_def_.at(params.ref_seq_bin_).second) - 1; // The -1 is important as this function returns the region after the position, but CorrectPositionRemovingExcludedRegions needs the one before the position
 	}
+
 	reference.CorrectPositionRemovingExcludedRegions(correction, current_region, ref_seq_bin_def_.at(params.ref_seq_bin_).first, bin_end);
+
 	uintFragCount highq_sites = bin_end - ref_seq_bin_def_.at(params.ref_seq_bin_).second;
 	highq_sites -= correction;
 
@@ -1634,8 +1638,9 @@ void FragmentDistributionStats::CountDuplicates(FragmentDuplicationStats &duplic
 		++cur_start_exclusion;
 	}
 	if(cur_start_exclusion < lowq_site_start_exclusion_.at(params.ref_seq_bin_).size() && highq_sites > lowq_site_start_exclusion_.at(params.ref_seq_bin_).at(cur_start_exclusion).first){
-		lowq_sites += highq_sites - lowq_site_start_exclusion_.at(params.ref_seq_bin_).at(cur_start_exclusion).first;
 		CountEndExclusion(lowq_sites, cur_end_exclusion, last_cut, lowq_site_start_exclusion_.at(params.ref_seq_bin_).at(cur_start_exclusion).first + params.fragment_length_, params.ref_seq_bin_ );
+
+		lowq_sites += highq_sites - lowq_site_start_exclusion_.at(params.ref_seq_bin_).at(cur_start_exclusion).first;
 	}
 	else{
 		CountEndExclusion(lowq_sites, cur_end_exclusion, last_cut, highq_sites + params.fragment_length_, params.ref_seq_bin_ );
@@ -1643,7 +1648,14 @@ void FragmentDistributionStats::CountDuplicates(FragmentDuplicationStats &duplic
 	highq_sites -= lowq_sites;
 
 	if( highq_sites ){
-		corrected_abundance_.at(ref_seq_bin_def_.at(params.ref_seq_bin_).first) += Divide( highq_counts * (highq_sites + lowq_sites), highq_sites );
+		auto end_pos = reference.SequenceLength(ref_seq_bin_def_.at(params.ref_seq_bin_).first)-params.fragment_length_+1; // bin_end above removes the EndExclusion
+		if(params.ref_seq_bin_+1 < ref_seq_bin_def_.size() && ref_seq_bin_def_.at(params.ref_seq_bin_).first == ref_seq_bin_def_.at(params.ref_seq_bin_+1).first){
+			end_pos = ref_seq_bin_def_.at(params.ref_seq_bin_+1).second;
+		}
+
+		corrected_abundance_.at(ref_seq_bin_def_.at(params.ref_seq_bin_).first) += Divide( highq_counts * (end_pos - ref_seq_bin_def_.at(params.ref_seq_bin_).second), highq_sites );
+		filtered_sites_.at(ref_seq_bin_def_.at(params.ref_seq_bin_).first) += highq_sites;
+		++fragment_lengths_used_for_correction_.at(ref_seq_bin_def_.at(params.ref_seq_bin_).first);
 	}
 }
 
@@ -1659,26 +1671,25 @@ void FragmentDistributionStats::AddFragmentsToSites(vector<FragmentSite> &sites,
 }
 
 reseq::uintSeqLen FragmentDistributionStats::ExcludeLowQualitySites(vector<FragmentSite> &sites, uintRefSeqBin ref_seq_bin, uintSeqLen insert_length){
-	uintSeqLen excluded_sites(0);
-
 	for(auto &region : lowq_site_start_exclusion_.at(ref_seq_bin)){
 		for( auto pos = region.first; pos < region.second && pos < sites.size(); ++pos ){ // Depending on insert_length the last bases of reference sequence cannot be a start position
-			if(0.0 != sites.at(pos).bias_){
-				++excluded_sites;
-			}
 			sites.at(pos).bias_ = 0.0;
 		}
 	}
 	for(auto &region : lowq_site_end_exclusion_.at(ref_seq_bin)){
 		for( auto pos = max(insert_length, region.first); pos < region.second && pos-insert_length < sites.size(); ++pos ){
-			if(0.0 != sites.at(pos-insert_length).bias_){
-				++excluded_sites;
-			}
 			sites.at(pos-insert_length).bias_ = 0.0;
 		}
 	}
 
-	return 2*excluded_sites; // forward + reverse
+	uintSeqLen excluded_sites(0);
+	for(auto &site : sites){
+		if(0.0 == site.bias_){
+			++excluded_sites;
+		}
+	}
+
+	return excluded_sites;
 }
 
 void FragmentDistributionStats::CalculateBiasByBin(BiasCalculationVectors &tmp_calc, const Reference &reference, FragmentDuplicationStats &duplications, uintRefSeqBin ref_seq_bin, uintSeqLen insert_length){
@@ -1692,15 +1703,39 @@ void FragmentDistributionStats::CalculateBiasByBin(BiasCalculationVectors &tmp_c
 
 	tmp_calc.ref_seq_bin_ = ref_seq_bin;
 	tmp_calc.insert_length_ = insert_length;
+	tmp_calc.converged_ = false;
 
 	reference.GetFragmentSites(tmp_calc.sites_, ref_seq_id, insert_length, ref_start, ref_end);
+	if(0 == tmp_calc.sites_.size()){
+		return;
+	}
 	AddFragmentsToSites(tmp_calc.sites_, fragment_sites_by_ref_seq_bin_by_insert_length_.at(ref_seq_bin).at(insert_length) );
 	duplications.AddSites(tmp_calc.sites_, insert_length);
 	auto excluded_sites = ExcludeLowQualitySites(tmp_calc.sites_, ref_seq_bin, insert_length);
 	tmp_calc.GetCounts();
-	tmp_calc.RemoveUnnecessarySites();
+	if(0 == tmp_calc.total_counts_){
+		return;
+	}
+
 	// CountsInHighQRegion * (SitesInHighQRegion + SitesInLowQRegion)/SitesInHighQRegion ~ CountsInHighQRegion + CountsInLowQRegion
-	corrected_abundance_.at(ref_seq_bin_def_.at(ref_seq_bin).first) += Divide( tmp_calc.total_counts_ * (tmp_calc.total_sites_ + excluded_sites), tmp_calc.total_sites_ );
+	auto end_pos = reference.SequenceLength(ref_seq_bin_def_.at(ref_seq_bin).first)-insert_length+1;
+	if(ref_seq_bin+1 < ref_seq_bin_def_.size() && ref_seq_bin_def_.at(ref_seq_bin).first == ref_seq_bin_def_.at(ref_seq_bin+1).first){
+		end_pos = ref_seq_bin_def_.at(ref_seq_bin+1).second;
+	}
+
+	corrected_abundance_.at(ref_seq_bin_def_.at(ref_seq_bin).first) += Divide( tmp_calc.total_counts_ * (end_pos-ref_seq_bin_def_.at(ref_seq_bin).second), tmp_calc.sites_.size()-excluded_sites );
+	filtered_sites_.at(ref_seq_bin_def_.at(ref_seq_bin).first) += tmp_calc.sites_.size()-excluded_sites;
+	++fragment_lengths_used_for_correction_.at(ref_seq_bin_def_.at(ref_seq_bin).first);
+
+	tmp_calc.RemoveUnnecessarySites();
+	if(0 == tmp_calc.total_sites_){
+		return;
+	}
+
+
+	if(kMinSites > tmp_calc.total_sites_ || kMinCounts > tmp_calc.total_counts_ || tmp_calc.total_sites_ > kMaxSitesPerCount*tmp_calc.total_counts_){
+		return;
+	}
 
 	tmp_calc.CalculateGCWeights();
 	tmp_calc.GetLogLikeBase();
@@ -1917,6 +1952,214 @@ bool FragmentDistributionStats::StoreBias(){
 	return true;
 }
 
+double FragmentDistributionStats::MedianFragmentCoverage(const Reference &ref) const{
+	// Calculate weighted median coverage of fragments, so normal coverage divided by 2*average_read_length
+	uintFragCount total_filtered_sites(0);
+	vector<pair<double, uintFragCount>> frag_coverage;
+	frag_coverage.reserve(ref.NumberSequences());
+	for(uintRefSeqId ref_seq = 0; ref_seq < ref.NumberSequences(); ++ref_seq){
+		if(corrected_abundance_.at(ref_seq)){
+			total_filtered_sites += filtered_sites_.at(ref_seq);
+			frag_coverage.emplace_back(static_cast<double>(corrected_abundance_.at(ref_seq))/ref.SequenceLength(ref_seq) , filtered_sites_.at(ref_seq));
+		}
+	}
+	sort(frag_coverage.begin(), frag_coverage.end());
+
+	if(0 == frag_coverage.size()){
+		return 0.0;
+	}
+	else{
+		total_filtered_sites /= 2;
+		uintRefSeqId i(0);
+		uintFragCount sum_filtered_sites = frag_coverage.at(0).second;
+		while(sum_filtered_sites < total_filtered_sites){
+			sum_filtered_sites += frag_coverage.at(++i).second;
+		}
+		return frag_coverage.at(i).first;
+	}
+}
+
+void FragmentDistributionStats::CalculateInsertLengthAndRefSeqBias(const Reference &reference, uintNumThreads num_threads, vector<vector<VectorAtomic<uintFragCount>>> &site_count_by_insert_length_gc){
+	// Sum up the other biases for the insert length, reference sequences pairs
+	atomic<uintNumFits> current_param(0);
+	vector<BiasCalculationParams> params;
+	FillParams(params, reference);
+
+	std::vector<std::vector<double>> bias_sum;
+	bias_sum.resize(abundance_.size());
+	for(auto &sum : bias_sum){
+		sum.resize(insert_lengths_.to(), 0.0);
+	}
+
+	site_count_by_insert_length_gc.resize(insert_lengths_.to());
+	for(auto &site_count_by_gc : site_count_by_insert_length_gc){
+		site_count_by_gc.resize(101);
+	}
+
+	// Run the predetermined parameters in defined number of threads
+	mutex print_mutex;
+	thread threads[num_threads];
+	for(auto i = num_threads; i--; ){
+		threads[i] = thread(BiasSumThread, std::cref(*this), std::cref(reference), std::cref(params), std::ref(current_param), std::ref(bias_sum), std::ref(site_count_by_insert_length_gc), std::ref(print_mutex) );
+	}
+	for(auto i = num_threads; i--; ){
+		threads[i].join();
+	}
+
+	// Get median_frag_coverage before modifying corrected_abundance_
+	double median_frag_coverage = MedianFragmentCoverage(reference);
+
+	// Initialize biases for fit
+	uintFragCount sum_frag_len(0);
+	insert_lengths_bias_.Clear();
+	for(auto frag_len=max(static_cast<size_t>(1), insert_lengths_.from()); frag_len < insert_lengths_.to(); ++frag_len){
+		if( insert_lengths_.at(frag_len) ){
+			insert_lengths_bias_[frag_len] = 1.0;
+			sum_frag_len += insert_lengths_.at(frag_len);
+		}
+	}
+	uintFragCount sum_ref_seq(0);
+	ref_seq_bias_.clear();
+	ref_seq_bias_.resize(abundance_.size(), 0.0);
+	for(auto ref_seq=abundance_.size(); ref_seq--; ){
+		if(0 == fragment_lengths_used_for_correction_.at(ref_seq) || Divide(uintFragCount(filtered_sites_.at(ref_seq)), uintFragCount(fragment_lengths_used_for_correction_.at(ref_seq))) < kMinSites){
+			corrected_abundance_.at(ref_seq) = 0.0; // Do not fit reference sequences, where the corrected abundance is based on a low number of sites, instead later take the median ref_seq_bias
+		}
+
+		if( corrected_abundance_.at(ref_seq) ){
+			ref_seq_bias_.at(ref_seq) = 1.0;
+			sum_ref_seq += corrected_abundance_.at(ref_seq);
+		}
+	}
+
+	// Expectation maximization
+	double normalization( static_cast<double>(sum_frag_len)/sum_ref_seq ); // Due to adapter reads insert length and ref seq do have different sums, so we account for that
+	double precision(numeric_limits<double>::max()), sum;
+	uintNumFits iteration(0);
+	while(precision > kPrecisionAimRefSeqFragLengthFit && iteration < kMaxIterationsRefSeqFragLengthFit){
+		++iteration;
+		precision = 1.0;
+
+		// Adjust ref_seq_bias_
+		for(auto ref_seq=abundance_.size(); ref_seq--; ){
+			if(corrected_abundance_.at(ref_seq)){
+				sum = 0.0;
+				for(auto frag_len=insert_lengths_.to(); frag_len-- > insert_lengths_.from(); ){
+					sum += insert_lengths_bias_.at(frag_len) * bias_sum.at(ref_seq).at(frag_len);
+				}
+				sum *= ref_seq_bias_.at(ref_seq);
+
+				if(sum > corrected_abundance_.at(ref_seq)){
+					SetToMax(precision, sum/corrected_abundance_.at(ref_seq));
+				}
+				else{
+					SetToMax(precision, corrected_abundance_.at(ref_seq)/sum);
+				}
+
+				ref_seq_bias_.at(ref_seq) *= corrected_abundance_.at(ref_seq)/sum;
+			}
+		}
+
+		// Adjust insert_lengths_bias_
+		for(auto frag_len=max(static_cast<size_t>(1), insert_lengths_.from()); frag_len < insert_lengths_.to(); ++frag_len){
+			if(insert_lengths_.at(frag_len)){
+				sum = 0.0;
+				for(auto ref_seq=abundance_.size(); ref_seq--; ){
+					sum += ref_seq_bias_.at(ref_seq) * bias_sum.at(ref_seq).at(frag_len);
+				}
+				sum *= insert_lengths_bias_.at(frag_len) * normalization;
+
+				if(sum > insert_lengths_.at(frag_len)){
+					SetToMax(precision, sum/insert_lengths_.at(frag_len));
+				}
+				else{
+					SetToMax(precision, insert_lengths_.at(frag_len)/sum);
+				}
+
+				insert_lengths_bias_.at(frag_len) *= insert_lengths_.at(frag_len)/sum;
+			}
+		}
+	}
+
+	// Adjust ref_seq_bias_ for the excluded part of the sequences
+	for(uintRefSeqId ref_seq = 0; ref_seq < reference.NumberSequences(); ++ref_seq){
+		if(0.0 != ref_seq_bias_.at(ref_seq)){
+			ref_seq_bias_.at(ref_seq) /= static_cast<double>(reference.SequenceLength(ref_seq)) / (reference.SequenceLength(ref_seq) - reference.SumExcludedBases(ref_seq));
+		}
+	}
+
+	// Replace the ref_seq_bias and corrected_abundance for non-fitted reference sequences with weighted median ref_seq_bias and the corresponding corrected abundance
+	uintFragCount total_filtered_sites(0);
+	vector<pair<double, uintFragCount>> ref_bias;
+	ref_bias.reserve(reference.NumberSequences());
+	for(uintRefSeqId ref_seq = 0; ref_seq < reference.NumberSequences(); ++ref_seq){
+		if(0.0 != ref_seq_bias_.at(ref_seq)){
+			total_filtered_sites += filtered_sites_.at(ref_seq);
+			ref_bias.emplace_back(ref_seq_bias_.at(ref_seq), filtered_sites_.at(ref_seq));
+		}
+	}
+	sort(ref_bias.begin(), ref_bias.end());
+
+	total_filtered_sites /= 2;
+	uintRefSeqId i(0);
+	uintFragCount sum_filtered_sites = ref_bias.at(0).second;
+	while(sum_filtered_sites < total_filtered_sites){
+		sum_filtered_sites += ref_bias.at(++i).second;
+	}
+	double median_ref_bias = ref_bias.at(i).first;
+
+	for(uintRefSeqId ref_seq = 0; ref_seq < reference.NumberSequences(); ++ref_seq){
+		if(0 == fragment_lengths_used_for_correction_.at(ref_seq) || Divide(uintFragCount(filtered_sites_.at(ref_seq)), uintFragCount(fragment_lengths_used_for_correction_.at(ref_seq))) < kMinSites){
+			ref_seq_bias_.at(ref_seq) = median_ref_bias;
+
+			if( reference.ReferenceSequenceExcluded(ref_seq) ){
+				// We did not calculate any biases for this one, so use median coverage
+				corrected_abundance_.at(ref_seq) = reference.SequenceLength(ref_seq)*median_frag_coverage;
+			}
+			else{
+				sum = 0.0;
+				for(auto frag_len=insert_lengths_.to(); frag_len-- > insert_lengths_.from(); ){
+					sum += insert_lengths_bias_.at(frag_len) * bias_sum.at(ref_seq).at(frag_len);
+				}
+				corrected_abundance_.at(ref_seq) = sum * reference.SequenceLength(ref_seq) / (reference.SequenceLength(ref_seq) - reference.SumExcludedBases(ref_seq)) * ref_seq_bias_.at(ref_seq);
+			}
+		}
+	}
+
+	// Find maximum (to normalize it to 1.0 instead of normalizing the sum to 1.0 as it is a bias not a probability)
+	double max_len_bias(0.0);
+	for(auto frag_len = insert_lengths_bias_.to(); frag_len-- > insert_lengths_.from(); ){
+		SetToMax(max_len_bias, insert_lengths_bias_.at(frag_len));
+	}
+
+	double max_seq_bias(0.0);
+	for(auto ref_seq = ref_seq_bias_.size(); ref_seq--; ){
+		SetToMax(max_seq_bias, ref_seq_bias_.at(ref_seq));
+	}
+
+	// Normalize so that maximum bias is 1.0
+	for(auto frag_len = insert_lengths_bias_.to(); frag_len-- > insert_lengths_.from(); ){
+		insert_lengths_bias_.at(frag_len) /= max_len_bias;
+	}
+
+	for(auto ref_seq = ref_seq_bias_.size(); ref_seq--; ){
+		ref_seq_bias_.at(ref_seq) /= max_seq_bias;
+	}
+
+	printInfo << "Fitted reference sequence and insert length biases with a precision of " << precision << " needing " << iteration << " iteration" << (iteration == 1?"":"s") << std::endl;
+}
+
+void FragmentDistributionStats::ReplaceUncertainCorrectedAbundanceWithMedian(const Reference &ref){
+	double median_coverage = MedianFragmentCoverage(ref);
+
+	// Replace corrected_abundance for reference sequences where it is based on a low number of sites
+	for(uintRefSeqId ref_seq = 0; ref_seq < ref.NumberSequences(); ++ref_seq){
+		if(0 == fragment_lengths_used_for_correction_.at(ref_seq) || Divide(uintFragCount(filtered_sites_.at(ref_seq)), uintFragCount(fragment_lengths_used_for_correction_.at(ref_seq))) < kMinSites){
+			corrected_abundance_.at(ref_seq) = ref.SequenceLength(ref_seq)*median_coverage;
+		}
+	}
+}
+
 void FragmentDistributionStats::AddNewBiasCalculations(uintRefSeqBin still_needed_ref_bin, ThreadData &thread, mutex &print_mutex, const Reference &reference){
 	uintRefSeqBin ref_seq_bin = num_handled_reference_sequence_bins_;
 	while( ref_seq_bin < still_needed_ref_bin ){
@@ -2002,6 +2245,31 @@ void FragmentDistributionStats::BiasSumThread(
 	}
 }
 
+reseq::uintRefSeqId FragmentDistributionStats::SplitCoverageGroups(vector<uintRefSeqId> &coverage_groups) const{
+	vector<pair<double,uintRefSeqId>> sorted_ref_seq_bias;
+	sorted_ref_seq_bias.reserve(ref_seq_bias_.size());
+	for(auto ref_seq = ref_seq_bias_.size(); ref_seq--; ){
+		sorted_ref_seq_bias.emplace_back(ref_seq_bias_.at(ref_seq), ref_seq);
+	}
+	sort(sorted_ref_seq_bias.begin(), sorted_ref_seq_bias.end());
+
+	// Split all ref seqs in groups where the bias is at max a factor two apart
+	coverage_groups.clear();
+	coverage_groups.resize(ref_seq_bias_.size());
+	double group_start = sorted_ref_seq_bias.front().first;
+	uintRefSeqId group(0);
+	for( auto &bias : sorted_ref_seq_bias ){
+		if(bias.first > 2*group_start){
+			group_start = bias.first;
+			++group;
+		}
+
+		coverage_groups.at(bias.second) = group;
+	}
+
+	return group+1;
+}
+
 void FragmentDistributionStats::BiasNormalizationThread(
 		const FragmentDistributionStats &self,
 		const Reference &reference,
@@ -2009,21 +2277,36 @@ void FragmentDistributionStats::BiasNormalizationThread(
 		atomic<uintNumFits> &current_param,
 		double &norm,
 		mutex &result_mutex,
-		double &max_bias){
+		const vector<uintRefSeqId> &coverage_groups,
+		vector<vector<double>> &max_bias){
 	decltype(params.size()) cur_par(current_param++);
 
-	double tmp_norm(0.0), tmp_max_bias(0.0);
+	double tmp_norm(0.0);
+	vector<vector<double>> tmp_max_bias;
+	tmp_max_bias.resize(max_bias.size());
+	for( auto cov_group = max_bias.size(); cov_group--; ){
+		tmp_max_bias.at(cov_group).resize( max_bias.at(cov_group).size(), 0.0 );
+	}
 
 	for(; cur_par < params.size(); cur_par = current_param++){
-		tmp_norm += reference.SumBias(tmp_max_bias, params.at(cur_par).ref_seq_id, params.at(cur_par).fragment_length, self.ref_seq_bias_.at(params.at(cur_par).ref_seq_id)*self.insert_lengths_bias_.at(params.at(cur_par).fragment_length), self.gc_fragment_content_bias_, self.fragment_surroundings_bias_);
+		tmp_norm += reference.SumBias(tmp_max_bias.at( coverage_groups.at(params.at(cur_par).ref_seq_id) ).at(params.at(cur_par).fragment_length), params.at(cur_par).ref_seq_id, params.at(cur_par).fragment_length, self.ref_seq_bias_.at(params.at(cur_par).ref_seq_id)*self.insert_lengths_bias_.at(params.at(cur_par).fragment_length), self.gc_fragment_content_bias_, self.fragment_surroundings_bias_);
 	}
 
 	result_mutex.lock();
-	if(tmp_max_bias > max_bias){
-		max_bias = tmp_max_bias;
+	for( auto cov_group = max_bias.size(); cov_group--; ){
+		for( auto frag_len = max_bias.at(cov_group).size(); frag_len--; ){
+			SetToMax(max_bias.at(cov_group).at(frag_len), tmp_max_bias.at(cov_group).at(frag_len));
+		}
 	}
 	norm += tmp_norm;
 	result_mutex.unlock();
+}
+
+double FragmentDistributionStats::CalculateNonZeroThreshold(double bias_normalization, double max_bias) const{
+	// Threshold that random number from fragment generation has to reach or fragment count will be zero and does not have to be calculated
+	double max_dispersion( Dispersion(bias_normalization*max_bias) );
+
+	return pow(max_dispersion/(max_dispersion+bias_normalization*max_bias), max_dispersion); // Lowest possible F(0) for negative binomial
 }
 
 void FragmentDistributionStats::SetUniformBias(){
@@ -2213,124 +2496,6 @@ void FragmentDistributionStats::Finalize(){
 	}
 }
 
-void FragmentDistributionStats::CalculateInsertLengthAndRefSeqBias(const Reference &reference, uintNumThreads num_threads, vector<vector<VectorAtomic<uintFragCount>>> &site_count_by_insert_length_gc){
-	// Sum up the other biases for the insert length, reference sequences pairs
-	atomic<uintNumFits> current_param(0);
-	vector<BiasCalculationParams> params;
-	FillParams(params, reference);
-
-	std::vector<std::vector<double>> bias_sum;
-	bias_sum.resize(abundance_.size());
-	for(auto &sum : bias_sum){
-		sum.resize(insert_lengths_.to(), 0.0);
-	}
-
-	site_count_by_insert_length_gc.resize(insert_lengths_.to());
-	for(auto &site_count_by_gc : site_count_by_insert_length_gc){
-		site_count_by_gc.resize(101);
-	}
-
-	// Run the predetermined parameters in defined number of threads
-	mutex print_mutex;
-	thread threads[num_threads];
-	for(auto i = num_threads; i--; ){
-		threads[i] = thread(BiasSumThread, std::cref(*this), std::cref(reference), std::cref(params), std::ref(current_param), std::ref(bias_sum), std::ref(site_count_by_insert_length_gc), std::ref(print_mutex) );
-	}
-	for(auto i = num_threads; i--; ){
-		threads[i].join();
-	}
-
-	// Initialize biases for fit
-	uintFragCount sum_frag_len(0);
-	insert_lengths_bias_.Clear();
-	for(auto frag_len=max(static_cast<size_t>(1), insert_lengths_.from()); frag_len < insert_lengths_.to(); ++frag_len){
-		if( insert_lengths_.at(frag_len) ){
-			insert_lengths_bias_[frag_len] = 1.0;
-			sum_frag_len += insert_lengths_.at(frag_len);
-		}
-	}
-	uintFragCount sum_ref_seq(0);
-	ref_seq_bias_.clear();
-	ref_seq_bias_.resize(abundance_.size(), 0.0);
-	for(auto ref_seq=abundance_.size(); ref_seq--; ){
-		if( corrected_abundance_.at(ref_seq) ){
-			ref_seq_bias_.at(ref_seq) = 1.0;
-			sum_ref_seq += corrected_abundance_.at(ref_seq);
-		}
-	}
-
-	// Expectation maximization
-	double normalization( static_cast<double>(sum_frag_len)/sum_ref_seq ); // Due to adapter reads insert length and ref seq do have different sums, so we account for that
-	double precision(numeric_limits<double>::max()), sum;
-	uintNumFits iteration(0);
-	while(precision > kPrecisionAimRefSeqFragLengthFit && iteration < kMaxIterationsRefSeqFragLengthFit){
-		++iteration;
-		precision = 1.0;
-
-		// Adjust ref_seq_bias_
-		for(auto ref_seq=abundance_.size(); ref_seq--; ){
-			if(corrected_abundance_.at(ref_seq)){
-				sum = 0.0;
-				for(auto frag_len=insert_lengths_.to(); frag_len-- > insert_lengths_.from(); ){
-					sum += insert_lengths_bias_.at(frag_len) * bias_sum.at(ref_seq).at(frag_len);
-				}
-				sum *= ref_seq_bias_.at(ref_seq);
-
-				if(sum > corrected_abundance_.at(ref_seq)){
-					SetToMax(precision, sum/corrected_abundance_.at(ref_seq));
-				}
-				else{
-					SetToMax(precision, corrected_abundance_.at(ref_seq)/sum);
-				}
-
-				ref_seq_bias_.at(ref_seq) *= corrected_abundance_.at(ref_seq)/sum;
-			}
-		}
-
-		// Adjust insert_lengths_bias_
-		for(auto frag_len=max(static_cast<size_t>(1), insert_lengths_.from()); frag_len < insert_lengths_.to(); ++frag_len){
-			if(insert_lengths_.at(frag_len)){
-				sum = 0.0;
-				for(auto ref_seq=abundance_.size(); ref_seq--; ){
-					sum += ref_seq_bias_.at(ref_seq) * bias_sum.at(ref_seq).at(frag_len);
-				}
-				sum *= insert_lengths_bias_.at(frag_len) * normalization;
-
-				if(sum > insert_lengths_.at(frag_len)){
-					SetToMax(precision, sum/insert_lengths_.at(frag_len));
-				}
-				else{
-					SetToMax(precision, insert_lengths_.at(frag_len)/sum);
-				}
-
-				insert_lengths_bias_.at(frag_len) *= insert_lengths_.at(frag_len)/sum;
-			}
-		}
-	}
-
-	// Find maximum (to normalize it to 1.0 instead of normalizing the sum to 1.0 as it is a bias not a probability)
-	double max_len_bias(0.0);
-	for(auto frag_len = insert_lengths_bias_.to(); frag_len-- > insert_lengths_.from(); ){
-		SetToMax(max_len_bias, insert_lengths_bias_.at(frag_len));
-	}
-
-	double max_seq_bias(0.0);
-	for(auto ref_seq = ref_seq_bias_.size(); ref_seq--; ){
-		SetToMax(max_seq_bias, ref_seq_bias_.at(ref_seq));
-	}
-
-	// Normalize so that maximum bias is 1.0
-	for(auto frag_len = insert_lengths_bias_.to(); frag_len-- > insert_lengths_.from(); ){
-		insert_lengths_bias_.at(frag_len) /= max_len_bias;
-	}
-
-	for(auto ref_seq = ref_seq_bias_.size(); ref_seq--; ){
-		ref_seq_bias_.at(ref_seq) /= max_seq_bias;
-	}
-
-	printInfo << "Fitted reference sequence and insert length biases with a precision of " << precision << " needing " << iteration << " iteration" << (iteration == 1?"":"s") << std::endl;
-}
-
 bool FragmentDistributionStats::FinalizeBiasCalculation(const Reference &reference, uintNumThreads num_threads, FragmentDuplicationStats &duplications){
 	vector<vector<VectorAtomic<uintFragCount>>> site_count_by_insert_length_gc;
 	if(calculate_bias_){
@@ -2343,6 +2508,7 @@ bool FragmentDistributionStats::FinalizeBiasCalculation(const Reference &referen
 	else{
 		printInfo << "No bias calculation done. Storing uniform coverage." << std::endl;
 		SetUniformBias();
+		ReplaceUncertainCorrectedAbundanceWithMedian(reference);
 	}
 
 	// Free not needed memory at the end
@@ -2366,7 +2532,10 @@ bool FragmentDistributionStats::FinalizeBiasCalculation(const Reference &referen
 	lowq_site_end_exclusion_.clear();
 	lowq_site_end_exclusion_.shrink_to_fit();
 
-	corrected_abundance_.clear();
+	filtered_sites_.clear();
+	filtered_sites_.shrink_to_fit();
+	fragment_lengths_used_for_correction_.clear();
+	fragment_lengths_used_for_correction_.shrink_to_fit();
 
 	ref_seq_in_nxx_.clear();
 	ref_seq_in_nxx_.shrink_to_fit();
@@ -2386,6 +2555,19 @@ bool FragmentDistributionStats::FinalizeBiasCalculation(const Reference &referen
 	}
 
 	return true;
+}
+
+double FragmentDistributionStats::CorrectedCoverage(const Reference &ref, uintReadLen average_read_len){
+	// Calculate corrected coverage
+	double corrected_abundance(0.0);
+	for(uintRefSeqId ref_seq = 0; ref_seq < ref.NumberSequences(); ++ref_seq){
+		corrected_abundance += corrected_abundance_.at(ref_seq);
+	}
+
+	corrected_abundance_.clear();
+	corrected_abundance_.shrink_to_fit();
+
+	return corrected_abundance * average_read_len * 2 / ref.TotalSize();
 }
 
 bool FragmentDistributionStats::UpdateRefSeqBias(RefSeqBiasSimulation model, const std::string &bias_file, const Reference &ref, mt19937_64 &rgen){
@@ -2540,32 +2722,44 @@ bool FragmentDistributionStats::UpdateRefSeqBias(RefSeqBiasSimulation model, con
 	return true;
 }
 
-double FragmentDistributionStats::CalculateBiasNormalization(double &max_bias, const Reference &reference, uintNumThreads num_threads, uintFragCount total_reads) const{
+double FragmentDistributionStats::CalculateBiasNormalization(vector<uintRefSeqId> &coverage_groups, vector<vector<double>> &non_zero_thresholds, const Reference &reference, uintNumThreads num_threads, uintFragCount total_reads) const{
 	atomic<uintNumFits> current_param(0);
 	vector<BiasCalculationParams> params;
 	FillParamsSimulation(params);
+
+	auto num_groups = SplitCoverageGroups(coverage_groups);
+	non_zero_thresholds.clear();
+	non_zero_thresholds.resize(num_groups);
+	for( auto &thresholds : non_zero_thresholds ){
+		thresholds.resize(insert_lengths_.to(), 0.0); // First use for maximum bias: non_zero_thresholds[coverageGroup][insertLength] = maxBias;
+	}
 
 	mutex result_mutex;
 	double normalization(0.0);
 
 	// Run the predetermined parameters in defined number of threads
-	max_bias = 0.0;
 	thread threads[num_threads];
 	for(auto i = num_threads; i--; ){
-		threads[i] = thread(BiasNormalizationThread, std::cref(*this), std::cref(reference), std::cref(params), std::ref(current_param), std::ref(normalization), std::ref(result_mutex), std::ref(max_bias) );
+		threads[i] = thread(BiasNormalizationThread, std::cref(*this), std::cref(reference), std::cref(params), std::ref(current_param), std::ref(normalization), std::ref(result_mutex), std::cref(coverage_groups), std::ref(non_zero_thresholds) );
 	}
 	for(auto i = num_threads; i--; ){
 		threads[i].join();
 	}
 
-	return total_reads / (normalization * 2); // Bias is equal for both strands so it is only calculated for one, but the number of fragments at a site is calculated separately per strand: This means we have to half the calculated number of reads
-}
+	double full_normalization = total_reads / (normalization * 2)  / reference.NumAlleles(); // Bias is equal for both strands so it is only calculated for one, but the number of fragments at a site is calculated separately per strand: This means we have to half the calculated number of reads
 
-double FragmentDistributionStats::CalculateNonZeroThreshold(double bias_normalization, double max_bias) const{
-	// Threshold that random number from fragment generation has to reach or fragment count will be zero and does not have to be calculated
-	double max_dispersion( Dispersion(bias_normalization*max_bias) );
+	for( auto &thresholds : non_zero_thresholds ){
+		for( auto &thresh : thresholds){
+			if(0.0 == thresh){
+				thresh = 1.0; // If the bias is zero we cannot get fragment counts drawn for this
+			}
+			else{
+				thresh = CalculateNonZeroThreshold(full_normalization, thresh);
+			}
+		}
+	}
 
-	return pow(max_dispersion/(max_dispersion+bias_normalization*max_bias), max_dispersion); // Lowest possible F(0) for negative binomial
+	return full_normalization;
 }
 
 reseq::uintDupCount FragmentDistributionStats::NegativeBinomial(double p, double r, double probability_chosen){
@@ -2581,23 +2775,17 @@ reseq::uintDupCount FragmentDistributionStats::NegativeBinomial(double p, double
 	return count;
 }
 
-reseq::uintDupCount FragmentDistributionStats::GetFragmentCounts(double bias_normalization, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintPercent gc, const Surrounding &fragment_start, const Surrounding &fragment_end, double probability_chosen, double non_zero_threshold) const{
-	if(probability_chosen < non_zero_threshold){
-		return 0;
+reseq::uintDupCount FragmentDistributionStats::GetFragmentCounts(double bias_normalization, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintPercent gc, const Surrounding &fragment_start, const Surrounding &fragment_end, double probability_chosen) const{
+	double bias( Reference::Bias( ref_seq_bias_.at(ref_seq_id), insert_lengths_bias_[fragment_length], gc_fragment_content_bias_[gc], fragment_surroundings_bias_.Bias(fragment_start), fragment_surroundings_bias_.Bias(fragment_end) ) );
+	if(0.0 < bias){
+		double mean( bias * bias_normalization );
+		double dispersion( Dispersion(mean) );
+
+		return NegativeBinomial(mean/(mean+dispersion), dispersion, probability_chosen);
 	}
 	else{
-		double bias( Reference::Bias( ref_seq_bias_.at(ref_seq_id), insert_lengths_bias_[fragment_length], gc_fragment_content_bias_[gc], fragment_surroundings_bias_.Bias(fragment_start), fragment_surroundings_bias_.Bias(fragment_end) ) );
-		if(0.0 < bias){
-			double mean( bias * bias_normalization );
-			double dispersion( Dispersion(mean) );
-
-			return NegativeBinomial(mean/(mean+dispersion), dispersion, probability_chosen);
-		}
-		else{
-			return 0;
-		}
+		return 0;
 	}
-
 }
 
 void FragmentDistributionStats::PreparePlotting(){

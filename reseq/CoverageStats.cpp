@@ -339,7 +339,7 @@ void CoverageStats::UpdateCoverageAtSinglePosition(CoveragePosition &nuc_coverag
 		++tmp_coverage_stranded_percent_.at(1).at( Percent(coverage.at(1), cov_sum) );
 
 		if(nuc_coverage.valid_){
-			++tmp_error_coverage_.at( error_sum );
+			++tmp_error_coverage_.at( min(error_sum, kMaxCoverage) );
 			++tmp_error_coverage_percent_.at( Percent(error_sum, cov_sum) );
 			if(coverage.at(0) && coverage.at(1)){
 				++tmp_error_coverage_percent_stranded_.at( Percent(errors_forward, coverage.at(0)) ).at( Percent(errors_reverse, coverage.at(1)) );
@@ -463,8 +463,8 @@ void CoverageStats::InitBlock(CoverageBlock &block, const Reference &reference){
 }
 
 void CoverageStats::ProcessBlock(CoverageBlock *block, const Reference &reference, ThreadData &thread){
-	//auto non_systematic_error = GetMaxNonSystematicError(block, reference);
 	auto max_probability_systematic = GetPositionProbabilities(block, reference, thread);
+
 	for( uintSeqLen pos = 0; pos < block->coverage_.size(); ++pos ){
 		// Forward
 		uintCovCount errors = block->coverage_.at(pos).coverage_forward_.at(block->coverage_.at(pos).dom_error_.at(0));
@@ -490,7 +490,6 @@ void CoverageStats::ProcessBlock(CoverageBlock *block, const Reference &referenc
 			}
 		}
 
-
 		// Both strands
 		UpdateCoverageAtSinglePosition( block->coverage_.at(pos), thread.block_coverage_.at(pos), at(reference.ReferenceSequence(block->sequence_id_), block->start_pos_ + pos) );
 	}
@@ -498,6 +497,7 @@ void CoverageStats::ProcessBlock(CoverageBlock *block, const Reference &referenc
 	// Save information that is still needed in next_block_
 	if( NextBlockWithInSysErrorResetDistance(block) ){
 		auto overlap = BasesWithInSysErrorResetDistance(block);
+
 		uintSeqLen overlap_start(1);
 		if(block->start_pos_+kBlockSize == (*block->next_block_).start_pos_){
 			SetToMax(overlap, maximum_read_length_on_reference_);

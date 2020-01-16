@@ -262,6 +262,9 @@ namespace reseq{
 		const uintNumFits kMaxIterationsRefSeqFragLengthFit = 200;
 		const double kMinLowQFractionForExclusion = 0.1;
 		const uintFragCount kMinHighQToSeparateLowQ = 10;
+		const uintFragCount kMinSites = 25000;
+		const uintFragCount kMinCounts = 100;
+		const uintFragCount kMaxSitesPerCount = 10000;
 
 		// User parameter
 		uintSeqLen max_ref_seq_bin_length_;
@@ -292,7 +295,9 @@ namespace reseq{
 
 		std::atomic<uintRefLenCalc> excluded_lowq_positions_;
 		std::atomic<uintRefLenCalc> excluded_lowq_regions_;
-		std::vector<utilities::VectorAtomic<uintFragCount>> corrected_abundance_; // corrected_abundance_[RefSeqId] = AbundaceCorrectedForMissingLowQualityReads
+		std::vector<utilities::VectorAtomic<uintFragCount>> corrected_abundance_; // corrected_abundance_[RefSeqId] = AbundanceCorrectedForSitesWithLowQualityReads
+		std::vector<utilities::VectorAtomic<uintFragCount>> filtered_sites_; // filtered_sites_[RefSeqId] = SitesWithoutLowQualityReads
+		std::vector<utilities::VectorAtomic<uintSeqLen>> fragment_lengths_used_for_correction_; // fragment_lengths_used_for_correction_[RefSeqId] = FragmentLengthsThatWereUsedForLowQualityCorrection
 
 		std::vector<bool> ref_seq_in_nxx_;
 		std::vector<uintRefSeqBin> ref_seq_start_bin_; // ref_seq_start_bin_[RefSeqId] = First RefSeqBin
@@ -364,13 +369,17 @@ namespace reseq{
 		void CalculateBiasByBin(BiasCalculationVectors &tmp_calc, const Reference &reference, FragmentDuplicationStats &duplications, uintRefSeqBin ref_seq_bin, uintSeqLen insert_length);
 		void AcquireBiases(const BiasCalculationVectors &calc, std::mutex &print_mutex);
 		bool StoreBias();
+		double MedianFragmentCoverage(const Reference &ref) const;
 		void CalculateInsertLengthAndRefSeqBias(const Reference &reference, uintNumThreads num_threads, std::vector<std::vector<utilities::VectorAtomic<uintFragCount>>> &site_count_by_insert_length_gc);
+		void ReplaceUncertainCorrectedAbundanceWithMedian(const Reference &ref);
 		void AddNewBiasCalculations(uintRefSeqBin still_needed_ref_bin, ThreadData &thread, std::mutex &print_mutex, const Reference &reference);
 		void ExecuteBiasCalculations( const Reference &reference, FragmentDuplicationStats &duplications, BiasCalculationVectors &thread_values, std::mutex &print_mutex );
 		void HandleReferenceSequencesUntil(uintRefSeqBin still_needed_ref_bin, ThreadData &thread, const Reference &reference, FragmentDuplicationStats &duplications, std::mutex &print_mutex);
 		static void BiasSumThread( const FragmentDistributionStats &self, const Reference &reference, const std::vector<BiasCalculationParams> &params, std::atomic<uintNumFits> &current_param, std::vector<std::vector<double>> &bias_sum, std::vector<std::vector<utilities::VectorAtomic<uintFragCount>>> &site_count_by_insert_length_gc, std::mutex &print_mutex );
 
-		static void BiasNormalizationThread( const FragmentDistributionStats &self, const Reference &reference, const std::vector<BiasCalculationParams> &params, std::atomic<uintNumFits> &current_param, double &norm, std::mutex &result_mutex, double &max_bias );
+		uintRefSeqId SplitCoverageGroups(std::vector<uintRefSeqId> &coverage_groups) const;
+		static void BiasNormalizationThread( const FragmentDistributionStats &self, const Reference &reference, const std::vector<BiasCalculationParams> &params, std::atomic<uintNumFits> &current_param, double &norm, std::mutex &result_mutex, const std::vector<uintRefSeqId> &coverage_groups, std::vector<std::vector<double>> &max_bias );
+		double CalculateNonZeroThreshold(double bias_normalization, double max_bias) const;
 		
 		// Boost archive functions
 		friend class boost::serialization::access;
@@ -474,12 +483,14 @@ namespace reseq{
 
 		std::pair<uintRefSeqBin, uintSeqLen> GetRefSeqBin(uintRefSeqId ref_seq_id, uintSeqLen position, const Reference &reference, ThreadData &thread){
 			auto new_bin = GetRefSeqBin(ref_seq_id, position, thread.last_bin_);
+
 			if(thread.last_bin_ < new_bin){
 				if(ref_seq_bin_def_.at(new_bin).first != ref_seq_bin_def_.at(thread.last_bin_).first ){
 					thread.last_added_region_ = 0;
 					thread.correction_ = (new_bin - ref_seq_start_bin_.at(ref_seq_id)) * RefSeqSplitLength(ref_seq_id, reference) + reference.StartExclusion(ref_seq_id);
 				}
 				else{
+					// Start positions at start of this bin and not the last
 					thread.correction_ += (new_bin - thread.last_bin_) * RefSeqSplitLength(ref_seq_id, reference);
 				}
 			}
@@ -489,6 +500,7 @@ namespace reseq{
 					thread.correction_ = (new_bin - ref_seq_start_bin_.at(ref_seq_id)) * RefSeqSplitLength(ref_seq_id, reference) + reference.SumExcludedBases(ref_seq_id);
 				}
 				else{
+					// Start positions at start of this bin and not the last
 					thread.correction_ -= (thread.last_bin_ - new_bin) * RefSeqSplitLength(ref_seq_id, reference);
 				}
 			}
@@ -508,14 +520,6 @@ namespace reseq{
 			return max;
 		}
 
-		uintFragCount CorrectedTotalAbundance() const{
-			uintFragCount total = 0;
-			for( auto &abund : corrected_abundance_ ){
-				total += abund;
-			}
-			return total;
-		}
-
 		void Prepare( const Reference &ref, uintSeqLen maximum_insert_length, uintSeqLen max_ref_seq_bin_size, const std::vector<uintFragCount> &reads_per_frag_len_bin, const std::vector<uintFragCount> &lowq_reads_per_frag_len_bin );
 		void FillInOutskirtContent( const Reference &reference, const seqan::BamAlignmentRecord &record_start, uintSeqLen fragment_start_pos, uintSeqLen fragment_end_pos );
 
@@ -524,13 +528,13 @@ namespace reseq{
 
 		void Finalize();
 		bool FinalizeBiasCalculation(const Reference &reference, uintNumThreads num_threads, FragmentDuplicationStats &duplications);
+		double CorrectedCoverage(const Reference &ref, uintReadLen average_read_len);
 		bool UpdateRefSeqBias(RefSeqBiasSimulation model, const std::string &bias_file, const Reference &ref, std::mt19937_64 &rgen);
-		double CalculateBiasNormalization(double &max_bias, const Reference &reference, uintNumThreads num_threads, uintFragCount total_reads) const;
-		double CalculateNonZeroThreshold(double bias_normalization, double max_bias) const;
+		double CalculateBiasNormalization(std::vector<uintRefSeqId> &coverage_groups, std::vector<std::vector<double>> &non_zero_thresholds, const Reference &reference, uintNumThreads num_threads, uintFragCount total_reads) const;
 
 		static uintDupCount NegativeBinomial(double p, double r, double probability_chosen);
 		double Dispersion(double bias) const{ return BiasCalculationVectors::GetDispersion( bias, dispersion_parameters_.at(0), dispersion_parameters_.at(1) ); }
-		uintDupCount GetFragmentCounts(double bias_normalization, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintPercent gc, const Surrounding &fragment_start, const Surrounding &fragment_end, double probability_chosen, double non_zero_threshold=0.0) const;
+		uintDupCount GetFragmentCounts(double bias_normalization, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintPercent gc, const Surrounding &fragment_start, const Surrounding &fragment_end, double probability_chosen) const;
 
 		void PreparePlotting();
 	};
