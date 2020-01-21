@@ -1543,13 +1543,13 @@ void FragmentDistributionStats::FillParams(vector<BiasCalculationParams> &params
 	params.shrink_to_fit();
 }
 
-void FragmentDistributionStats::FillParamsSimulation(vector<BiasCalculationParams> &params) const{
+void FragmentDistributionStats::FillParamsSimulation(vector<BiasCalculationParams> &params, const Reference &reference) const{
 	params.reserve( insert_lengths_.size() * abundance_.size() );
 
 	for( auto frag_length=max(static_cast<uintSeqLen>(1),static_cast<uintSeqLen>(insert_lengths_.from())); frag_length < insert_lengths_.to(); ++frag_length){
 		if(insert_lengths_.at(frag_length)){
 			for( uintRefSeqId ref_id=ref_seq_bias_.size(); ref_id--; ){
-				if(0.0 != ref_seq_bias_.at(ref_id)){
+				if(0.0 != ref_seq_bias_.at(ref_id) && frag_length <= reference.SequenceLength(ref_id)){
 					// Add parameters for later calculation
 					params.push_back({ref_id, frag_length});
 				}
@@ -2725,7 +2725,7 @@ bool FragmentDistributionStats::UpdateRefSeqBias(RefSeqBiasSimulation model, con
 double FragmentDistributionStats::CalculateBiasNormalization(vector<uintRefSeqId> &coverage_groups, vector<vector<double>> &non_zero_thresholds, const Reference &reference, uintNumThreads num_threads, uintFragCount total_reads) const{
 	atomic<uintNumFits> current_param(0);
 	vector<BiasCalculationParams> params;
-	FillParamsSimulation(params);
+	FillParamsSimulation(params, reference);
 
 	auto num_groups = SplitCoverageGroups(coverage_groups);
 	non_zero_thresholds.clear();
