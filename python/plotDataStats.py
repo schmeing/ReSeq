@@ -911,7 +911,7 @@ def plotDataStats(statsFiles, oFile):
             #plot( pdf, "N content (second)", "# reads", names, [st.NContent(1) for st in stats], zero_padding=False, log=True )
             nucleotidePlot( pdf, "Read position (first)", "% A/C/G/T at position", names, [ [st.SequenceContent(0,n) for st in stats] for n in xrange(4)], zero_padding=False, shift_x=1, pos_normalize=True )
             nucleotidePlot( pdf, "Read position (second)", "% A/C/G/T at position", names, [ [st.SequenceContent(1,n) for st in stats] for n in xrange(4)], zero_padding=False, shift_x=1, pos_normalize=True )
-            nucleotidePlot( pdf, "Read Position", "Preference for A/C/G/T", names, [ [(0, st.FragmentSurroundingBiasByBase(n)) for st in stats] for n in xrange(4)], zero_padding=False, shift_x=-10)
+            nucleotidePlot( pdf, "Read Position", "Preference for A/C/G/T", names, [ [(0, st.FragmentSurroundingBiasByBase(n)) for st in stats] for n in xrange(4)], zero_padding=False, shift_x=-10, Nlegend=3, legend='lower right')
             #nucleotidePlot( pdf, "Read position (first forward)", "% A/C/G/T reference at pos", names, [ [st.SequenceContentReference(0,0,n) for st in stats] for n in xrange(4)], zero_padding=False, shift_x=1, pos_normalize=True )
             #nucleotidePlot( pdf, "Read position (first reverse)", "% A/C/G/T reference at pos", names, [ [st.SequenceContentReference(0,1,n) for st in stats] for n in xrange(4)], zero_padding=False, shift_x=1, pos_normalize=True )
             #nucleotidePlot( pdf, "Read position (second forward)", "% A/C/G/T reference at pos", names, [ [st.SequenceContentReference(1,0,n) for st in stats] for n in xrange(4)], zero_padding=False, shift_x=1, pos_normalize=True )
