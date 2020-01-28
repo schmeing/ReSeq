@@ -127,7 +127,10 @@ def num_subplots( num_plots ):
 def finalizePlot(xtitle, ytitle):
     plt.xlabel(xtitle, fontsize=text_size)
     plt.ylabel(ytitle, fontsize=text_size)
-    plt.tight_layout()
+    try:
+        plt.tight_layout()
+    except:
+        pass # Just ignore if the tight layout does not work
     return
 
 def finalizeMultiPlot(fig, axs, xtitle, ytitle):
