@@ -91,6 +91,13 @@ void CoverageStats::EvalRead( FullRecord *record, CoverageStats::CoverageBlock *
 							ref_base = at(reference.ReferenceSequence(record->record_.rID), ref_pos);
 						}
 
+if(coverage_pos < -160){
+	printDebug << record->record_.qName << " " << record->record_.beginPos << " | " << record->from_ref_pos_ << " - " << record->to_ref_pos_ << " | " << coverage_block->start_pos_ << " ";
+	for( const auto &cig: record->record_.cigar ){
+		std::cout << cig.count << cig.operation;
+	}
+	std::cout << std::endl;
+}
 						if( !CoveragePosValid(coverage_pos, coverage_block) ){
 							++(not_considered_ref_bases);
 						}
@@ -495,14 +502,20 @@ void CoverageStats::ProcessBlock(CoverageBlock *block, const Reference &referenc
 	}
 
 	// Save information that is still needed in next_block_
-	if( NextBlockWithInSysErrorResetDistance(block) ){
-		auto overlap = BasesWithInSysErrorResetDistance(block);
+	if( block->next_block_ && (*(block->next_block_)).sequence_id_ == block->sequence_id_ ){
+		// Next block is on the same reference sequence
+		uintSeqLen overlap(0);
+		if( reset_distance_-1 > (*(block->next_block_)).start_pos_ - (block->start_pos_ + block->coverage_.size()) ){
+			overlap = BasesWithInSysErrorResetDistance(block);
+		}
 
 		uintSeqLen overlap_start(1);
 		if(block->start_pos_+kBlockSize == (*block->next_block_).start_pos_){
-			SetToMax(overlap, maximum_read_length_on_reference_);
+			// Blocks are directly connected, so reads that are shared between both potentially exist
+			SetToMax(overlap, 2*maximum_read_length_on_reference_);
 		}
 		else{
+			// No shared reads exists as blocks are not connected, only systematic errors have to be propagated taking the gap into account
 			overlap_start += reset_distance_ - overlap;
 		}
 
