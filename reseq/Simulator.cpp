@@ -184,6 +184,7 @@ inline void Simulator::IncrementBlockPos(uintSeqLen &block_pos, const SimBlock* 
 
 void Simulator::GetSysErrorFromBlock(Dna5 &dom_error, uintPercent &error_rate, const SimBlock* &block, uintSeqLen &block_pos, intVariantId &cur_var, uintSeqLen &var_pos, uintAlleleId allele){
 	bool no_variant(true);
+
 	if(var_pos){
 		no_variant = false;
 
@@ -325,9 +326,13 @@ bool Simulator::FillReadPart(
 			if( block ){
 				par.error_rate_ = block->sys_errors_.at(block_pos).second;
 
-				if( block->sys_errors_.size() <= ++block_pos ){
+				if( var_pos && ++var_pos >= block->err_variants_.at(cur_var).var_errors_.size() ){
+					var_pos = 0;
+				}
+				if( 0 == var_pos && block->sys_errors_.size() <= ++block_pos ){
 					block = block->next_block_;
 					block_pos = 0;
+					cur_var = 0;
 				}
 			}
 			else{

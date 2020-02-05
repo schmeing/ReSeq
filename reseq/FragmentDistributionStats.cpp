@@ -2801,3 +2801,25 @@ void FragmentDistributionStats::PreparePlotting(){
 		fragment_surrounding_bias_by_base_.at(i%4).at(i/4) = separated_bias.at(i);
 	}
 }
+
+bool FragmentDistributionStats::WriteRefSeqBias(const std::string &bias_file, const Reference &reference){
+	if(reference.NumberSequences() != ref_seq_bias_.size()){
+		printErr << "Reference and reseq file do not match. The reference has " << reference.NumberSequences() << " sequences and the reseq file has biases for " << ref_seq_bias_.size() << " sequences" << std::endl;
+		return false;
+	}
+
+	ofstream fbias(bias_file);
+	if( !fbias.is_open() ){
+		printErr << "Unable to open reference bias file " << bias_file << std::endl;
+		return false;
+	}
+	else{
+		for( uintRefSeqId ref_seq = 0; ref_seq < ref_seq_bias_.size(); ++ref_seq ){
+			fbias << reference.ReferenceIdFirstPart(ref_seq) << '\t' << ref_seq_bias_.at(ref_seq) << '\n';
+		}
+
+		fbias.close();
+	}
+
+	return true;
+}

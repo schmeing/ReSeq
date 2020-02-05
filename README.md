@@ -95,6 +95,18 @@ To run a simulation with tiles the tile information needs to stay in the read na
 bowtie2 -p 32 -X 2000 -x my_reference -1 <(reseq-prepare-names.py my_data_1.fq my_data_2.fq) -2 <(reseq-prepare-names.py my_data_2.fq my_data_1.fq) | samtools sort -m 10G -@ 4 -T _tmp -o my_mappings.bam -
 ```
 ## <a name="parameter"></a>Parameter
+ reseq getRefSeqBias [options]
+| Parameter         | Default | Description |
+|-------------------|---------|-------------|
+| **General**       |
+| `-h` `--help`     |         | Prints help information and exits |
+| `-j` `--threads`  | 60      | Number of threads used |
+| `--verbosity`     | 4       | Sets the level of verbosity (4=everything, 0=nothing) |
+| `--version`       |         | Prints version info and exits |
+| **ReplaceN**      |
+| `-o` `--output    | None    | Output file for the reference sequence bias (tsv format) |
+| `-r` `--ref   `   | None    | Reference sequences in fasta format (gz and bz2 supported) |
+| `-s   --stats     | None    | Reseq statistics file to extract reference sequence bias |
 
 `reseq illuminaPE [options]`
 

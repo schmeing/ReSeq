@@ -425,6 +425,7 @@ int main(int argc, char *argv[]) {
 		"Contact: Stephan Schmeing <stephan.schmeing@uzh.ch>\n\n"+
 		"Usage:  reseq <command> [options]\n"+
 		"Commands:\n"+
+		"  getRefSeqBias\t\t"+"stores reference sequence bias from reseq statistic files in tsv format\n"+
 		"  illuminaPE\t\t"+"simulates illumina paired-end data\n"+
 		"  replaceN\t\t"+"replaces N's in reference\n"+
 		"  test\t\t\t"+"tests the program\n";
@@ -436,7 +437,89 @@ int main(int argc, char *argv[]) {
 	else{
 		printInfo << "Running ReSequenceR version " << RESEQ_VERSION_MAJOR << '.' << RESEQ_VERSION_MINOR; // Always show version
 
-		if ("replaceN" == unrecognized_opts.at(0)) {
+		if ("getRefSeqBias" == unrecognized_opts.at(0)) {
+			cout << " in getRefSeqBias mode" << std::endl;
+			unrecognized_opts.erase(unrecognized_opts.begin());
+
+			options_description opt_desc("getRefSeqBias");
+			opt_desc.add_options() // Returns a special object with defined operator ()
+				("output,o", value<string>(), "Output file for the reference sequence bias (tsv format)")
+				("ref,r", value<string>(), "Reference sequences in fasta format (gz and bz2 supported)")
+				("stats,s", value<string>(), "Reseq statistics file to extract reference sequence bias");
+			opt_desc_full.add(opt_desc);
+
+			string usage_str = "Usage:  reseq getRefSeqBias -r <ref.fa> -s <stats.reseq> -o <out.tsv>\n";
+			variables_map opts_map;
+			try{
+				store( command_line_parser(unrecognized_opts).options(opt_desc).run(), opts_map );
+				notify(opts_map);
+			}
+			catch (const exception& e) {
+				printErr << "Could not parse getRefSeqBias command line arguments: " << e.what() << std::endl;
+				cout << usage_str;
+				cout << opt_desc_full << std::endl;
+				return 1;
+			}
+
+			if ( general_opts_map.count("help") ) {
+				cout << usage_str;
+				cout << opt_desc_full << std::endl;
+			}
+			else{
+				auto it_ref = opts_map.find("ref");
+				if(opts_map.end() == it_ref){
+					printErr << "ref option is mandatory." << std::endl;
+					cout << usage_str;
+					cout << opt_desc_full << std::endl;
+					return 1;
+				}
+				else{
+					auto ref_file =  it_ref->second.as<string>();
+					printInfo << "Reading reference from " << ref_file << std::endl;
+
+					auto it_stats = opts_map.find("stats");
+					if(opts_map.end() == it_stats){
+						printErr << "stats option is mandatory." << std::endl;
+						cout << usage_str;
+						cout << opt_desc_full << std::endl;
+						return 1;
+					}
+					else{
+						auto stats_file = it_stats->second.as<string>();
+						printInfo << "Reading reference sequence biases from " << stats_file << std::endl;
+
+						auto it_out = opts_map.find("output");
+						if(opts_map.end() == it_out){
+							printErr << "output option is mandatory." << std::endl;
+							cout << usage_str;
+							cout << opt_desc_full << std::endl;
+							return 1;
+						}
+						else{
+							auto out_file = it_out->second.as<string>();
+							printInfo << "Writing reference sequence biases to " << out_file << std::endl;
+
+							Reference species_reference;
+							if( species_reference.ReadFasta( ref_file.c_str() ) ){
+								DataStats real_data_stats(&species_reference);
+								if( real_data_stats.Load( stats_file.c_str() ) ){
+									if( !real_data_stats.FragmentDistribution().WriteRefSeqBias(out_file, species_reference) ){
+										return 1;
+									}
+								}
+								else{
+									return 1;
+								}
+							}
+							else{
+								return 1;
+							}
+						}
+					}
+				}
+			}
+		}
+		else if ("replaceN" == unrecognized_opts.at(0)) {
 			cout << " in replaceN mode" << std::endl;
 			unrecognized_opts.erase(unrecognized_opts.begin());
 

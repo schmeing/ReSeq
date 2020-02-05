@@ -537,6 +537,8 @@ namespace reseq{
 		uintDupCount GetFragmentCounts(double bias_normalization, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintPercent gc, const Surrounding &fragment_start, const Surrounding &fragment_end, double probability_chosen) const;
 
 		void PreparePlotting();
+
+		bool WriteRefSeqBias(const std::string &bias_file, const Reference &reference);
 	};
 }
 
