@@ -91,13 +91,6 @@ void CoverageStats::EvalRead( FullRecord *record, CoverageStats::CoverageBlock *
 							ref_base = at(reference.ReferenceSequence(record->record_.rID), ref_pos);
 						}
 
-if(coverage_pos < -160){
-	printDebug << record->record_.qName << " " << record->record_.beginPos << " | " << record->from_ref_pos_ << " - " << record->to_ref_pos_ << " | " << coverage_block->start_pos_ << " ";
-	for( const auto &cig: record->record_.cigar ){
-		std::cout << cig.count << cig.operation;
-	}
-	std::cout << std::endl;
-}
 						if( !CoveragePosValid(coverage_pos, coverage_block) ){
 							++(not_considered_ref_bases);
 						}
