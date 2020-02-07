@@ -69,7 +69,7 @@ configure_file(
 )
 
 # Compiler flags
-SET(GCC_COVERAGE_COMPILE_FLAGS "-std=c++14 -fPIC -lrt")
+SET(GCC_COVERAGE_COMPILE_FLAGS "-std=c++14 -fPIC -lrt -fext-numeric-literals")
 SET( CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} ${GCC_COVERAGE_COMPILE_FLAGS}" )
 
 # Include directories
