@@ -2571,6 +2571,7 @@ bool Simulator::Simulate(
 		return false;
 	}
 	else{
+		printInfo << "Simulation finished succesfully" << std::endl;
 		return true;
 	}
 }
