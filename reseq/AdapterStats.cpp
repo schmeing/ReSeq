@@ -545,7 +545,7 @@ void AdapterStats::PrepareAdapters(uintReadLen size_read_length, uintQual phred_
 bool AdapterStats::Detect(uintReadLen &adapter_position_first, uintReadLen &adapter_position_second, const BamAlignmentRecord &record_first, const BamAlignmentRecord &record_second, const Reference &reference, bool properly_mapped){
 	bool search_adapters(true);
 	// Determine minimum adapter length
-	int i_min_overlap;
+	int i_min_overlap(0);
 	if( hasFlagUnmapped(record_first) || hasFlagUnmapped(record_second) ){
 		uintReadLen last_error_pos(kMinimumAdapterLengthUnmapped-1); // Case of both reads unmapped
 		if( (hasFlagUnmapped(record_first) || CountErrors(last_error_pos, record_first, reference)) && (hasFlagUnmapped(record_second) || CountErrors(last_error_pos, record_second, reference)) ){
