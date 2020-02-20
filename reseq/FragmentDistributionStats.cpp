@@ -2808,17 +2808,24 @@ bool FragmentDistributionStats::WriteRefSeqBias(const std::string &bias_file, co
 		return false;
 	}
 
-	ofstream fbias(bias_file);
-	if( !fbias.is_open() ){
-		printErr << "Unable to open reference bias file " << bias_file << std::endl;
-		return false;
+	if(bias_file.empty()){
+		for( uintRefSeqId ref_seq = 0; ref_seq < ref_seq_bias_.size(); ++ref_seq ){
+			std::cout << reference.ReferenceIdFirstPart(ref_seq) << '\t' << ref_seq_bias_.at(ref_seq) << '\n';
+		}
 	}
 	else{
-		for( uintRefSeqId ref_seq = 0; ref_seq < ref_seq_bias_.size(); ++ref_seq ){
-			fbias << reference.ReferenceIdFirstPart(ref_seq) << '\t' << ref_seq_bias_.at(ref_seq) << '\n';
+		ofstream fbias(bias_file);
+		if( !fbias.is_open() ){
+			printErr << "Unable to open reference bias file " << bias_file << std::endl;
+			return false;
 		}
+		else{
+			for( uintRefSeqId ref_seq = 0; ref_seq < ref_seq_bias_.size(); ++ref_seq ){
+				fbias << reference.ReferenceIdFirstPart(ref_seq) << '\t' << ref_seq_bias_.at(ref_seq) << '\n';
+			}
 
-		fbias.close();
+			fbias.close();
+		}
 	}
 
 	return true;

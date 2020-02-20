@@ -50,7 +50,7 @@ void QualityStatsTest::TestSrr490124Equality(const QualityStats &test, const cha
 	// echo "count seg ref tile rate qual"; cat <(samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(int($2%32/16)){print "@" substr($18,6,length($18)-5), $2; print $10; print "+";print $11}' | seqtk seq -r | awk '(1==NR%4){md=substr($1,2,length($0)-1); flag=$2}(2==NR%4){seq=$0}(0==NR%4){printf("%i ", flag);num=0;mult=1;for(i=length(md);0<i;i-=1){b=substr(md,i,1);if(b ~ /^[0-9]/){num+=b*mult;mult*=10}else{base=N;if("A"==b){base="T"}; if("C"==b){base="G"}; if("G"==b){base="C"}; if("T"==b){base="A"}; printf("%i%s", num, base); num=0; mult=1}}; print num, seq, $0}') <(samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(!int($2%32/16)){print $2, substr($18,6,length($18)-5), $10, $11}' ) | awk 'BEGIN{for(n=0;n<256;n++)ord[sprintf("%c",n)]=n}{pos=0; num=0; for(i=1;i<=length($2);i+=1){b=substr($2,i,1);if(b ~ /^[0-9]/){num=num*10+b}else{while(0 <= num){pos += 1; num -= 1; if(0>num){ref=b}else{ref=substr($3,pos,1)}; if(0>num && NR%3 != 1){rate=100}else{rate=0}; print int($1%256/128), ref, 0, rate, ord[substr($4,pos,1)]-33}; num=0}}; for(pos+=1;pos<=length($3);pos+=1){print int($1%256/128), substr($3,pos,1), 0, 0, ord[substr($4,pos,1)]-33}}' | sort -n | uniq -c
 	EXPECT_EQ(101, test.base_quality_for_error_rate_per_tile_reference_.at(0).at(2)[0].size()) << "SRR490124-4pairs base_quality_for_error_rate_per_tile_reference_[0] wrong for " << context << '\n';
 	EXPECT_EQ(1, test.base_quality_for_error_rate_per_tile_reference_.at(0).at(2)[0][100].size()) << "SRR490124-4pairs base_quality_for_error_rate_per_tile_reference_[0] wrong for " << context << '\n';
-	EXPECT_EQ(24, test.base_quality_for_error_rate_per_tile_reference_.at(0).at(2)[0][100][2]) << "SRR490124-4pairs base_quality_for_error_rate_per_tile_reference_[0] wrong for " << context << '\n';
+	EXPECT_EQ(16, test.base_quality_for_error_rate_per_tile_reference_.at(0).at(2)[0][100][2]) << "SRR490124-4pairs base_quality_for_error_rate_per_tile_reference_[0] wrong for " << context << '\n';
 	EXPECT_EQ(101, test.base_quality_for_error_rate_per_tile_reference_.at(1).at(3)[0].size()) << "SRR490124-4pairs base_quality_for_error_rate_per_tile_reference_[1] wrong for " << context << '\n';
 	EXPECT_EQ(38, test.base_quality_for_error_rate_per_tile_reference_.at(1).at(3)[0][0].size()) << "SRR490124-4pairs base_quality_for_error_rate_per_tile_reference_[1] wrong for " << context << '\n';
 	EXPECT_EQ(192, test.base_quality_for_error_rate_per_tile_reference_.at(1).at(3)[0][0][2]) << "SRR490124-4pairs base_quality_for_error_rate_per_tile_reference_[1] wrong for " << context << '\n';
@@ -58,7 +58,7 @@ void QualityStatsTest::TestSrr490124Equality(const QualityStats &test, const cha
 	// If there is no previous quality(first base of read) previous quality is set to 1
 	// echo "count seg ref tile"; cat <(samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(int($2%32/16)){print "@" substr($18,6,length($18)-5), $2; print $10; print "+";print $11}' | seqtk seq -r | awk '(1==NR%4){md=substr($1,2,length($0)-1); flag=$2}(2==NR%4){seq=$0}(0==NR%4){printf("%i ", flag);num=0;mult=1;for(i=length(md);0<i;i-=1){b=substr(md,i,1);if(b ~ /^[0-9]/){num+=b*mult;mult*=10}else{base=N;if("A"==b){base="T"}; if("C"==b){base="G"}; if("G"==b){base="C"}; if("T"==b){base="A"}; printf("%i%s", num, base); num=0; mult=1}}; print num, seq, $0}') <(samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(!int($2%32/16)){print $2, substr($18,6,length($18)-5), $10, $11}' ) | awk '{pos=0; num=0; for(i=1;i<=length($2);i+=1){b=substr($2,i,1);if(b ~ /^[0-9]/){num=num*10+b}else{while(0 <= num){pos += 1; num -= 1; if(0>num){ref=b}else{ref=substr($3,pos,1)}; print int($1%256/128), ref, 0}; num=0}}; for(pos+=1;pos<=length($3);pos+=1){print int($1%256/128), substr($3,pos,1), 0}}' | sort -n | uniq -c
 	EXPECT_EQ(219, SumVect(test.base_quality_for_preceding_quality_per_tile_reference_.at(0).at(1)[0])) << "SRR490124-4pairs base_quality_for_preceding_quality_per_tile_reference_[0] wrong for " << context << '\n';
-	EXPECT_EQ(264, SumVect(test.base_quality_for_preceding_quality_per_tile_reference_.at(1).at(1)[0])) << "SRR490124-4pairs base_quality_for_preceding_quality_per_tile_reference_[1] wrong for " << context << '\n';
+	EXPECT_EQ(256, SumVect(test.base_quality_for_preceding_quality_per_tile_reference_.at(1).at(1)[0])) << "SRR490124-4pairs base_quality_for_preceding_quality_per_tile_reference_[1] wrong for " << context << '\n';
 	// echo "count seg ref tile prev qual"; cat <(samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(int($2%32/16)){print "@" substr($18,6,length($18)-5), $2; print $10; print "+";print $11}' | seqtk seq -r | awk '(1==NR%4){md=substr($1,2,length($0)-1); flag=$2}(2==NR%4){seq=$0}(0==NR%4){printf("%i ", flag);num=0;mult=1;for(i=length(md);0<i;i-=1){b=substr(md,i,1);if(b ~ /^[0-9]/){num+=b*mult;mult*=10}else{base=N;if("A"==b){base="T"}; if("C"==b){base="G"}; if("G"==b){base="C"}; if("T"==b){base="A"}; printf("%i%s", num, base); num=0; mult=1}}; print num, seq, $0}') <(samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(!int($2%32/16)){print $2, substr($18,6,length($18)-5), $10, $11}' ) | awk 'BEGIN{for(n=0;n<256;n++)ord[sprintf("%c",n)]=n}{pos=0; num=0; for(i=1;i<=length($2);i+=1){b=substr($2,i,1);if(b ~ /^[0-9]/){num=num*10+b}else{while(0 <= num){pos += 1; num -= 1; if(0>num){ref=b}else{ref=substr($3,pos,1)}; if(1==pos){prev=1}else{prev=ord[substr($4,pos-1,1)]-33};print int($1%256/128), ref, 0, prev, ord[substr($4,pos,1)]-33}; num=0}}; for(pos+=1;pos<=length($3);pos+=1){print int($1%256/128), substr($3,pos,1), 0, ord[substr($4,pos-1,1)]-33, ord[substr($4,pos,1)]-33}}' | sort -n | uniq -c
 	EXPECT_EQ(4, test.base_quality_for_preceding_quality_per_tile_reference_.at(0).at(1)[0][37].size()) << "SRR490124-4pairs base_quality_for_preceding_quality_per_tile_reference_[0] wrong for " << context << '\n';
 	EXPECT_EQ(1, test.base_quality_for_preceding_quality_per_tile_reference_.at(0).at(1)[0][37][35]) << "SRR490124-4pairs base_quality_for_preceding_quality_per_tile_reference_[0] wrong for " << context << '\n';
@@ -94,7 +94,7 @@ void QualityStatsTest::TestSrr490124Equality(const QualityStats &test, const cha
 
 	// echo "count seg ref tile sq prev"; cat <(samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(int($2%32/16)){print "@" substr($18,6,length($18)-5), $2; print $10; print "+";print $11}' | seqtk seq -r | awk '(1==NR%4){md=substr($1,2,length($0)-1); flag=$2}(2==NR%4){seq=$0}(0==NR%4){printf("%i ", flag);num=0;mult=1;for(i=length(md);0<i;i-=1){b=substr(md,i,1);if(b ~ /^[0-9]/){num+=b*mult;mult*=10}else{base=N;if("A"==b){base="T"}; if("C"==b){base="G"}; if("G"==b){base="C"}; if("T"==b){base="A"}; printf("%i%s", num, base); num=0; mult=1}}; print num, seq, $0}') <(samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(!int($2%32/16)){print $2, substr($18,6,length($18)-5), $10, $11}' ) | awk 'BEGIN{for(n=0;n<256;n++)ord[sprintf("%c",n)]=n}{sq=0;for(pos=1;pos<=length($4);pos+=1){sq+=ord[substr($4,pos,1)]-33}; sq=int(sq/length($4)+0.5); pos=0; num=0; for(i=1;i<=length($2);i+=1){b=substr($2,i,1);if(b ~ /^[0-9]/){num=num*10+b}else{while(0 <= num){pos += 1; num -= 1; if(0>num){ref=b}else{ref=substr($3,pos,1)}; if(1==pos){prev=1}else{prev=ord[substr($4,pos-1,1)]-33};print int($1%256/128), ref, 0, sq, prev}; num=0}}; for(pos+=1;pos<=length($3);pos+=1){print int($1%256/128), substr($3,pos,1), 0, sq, ord[substr($4,pos-1,1)]-33}}' | sort -n | uniq -c
 	EXPECT_EQ(38, test.preceding_quality_for_sequence_quality_per_tile_reference_.at(0).at(1)[0][19].size()) << "SRR490124-4pairs preceding_quality_for_sequence_quality_per_tile_reference_[0] wrong for " << context << '\n';
-	EXPECT_EQ(120, test.preceding_quality_for_sequence_quality_per_tile_reference_.at(0).at(2)[0][19][2]) << "SRR490124-4pairs preceding_quality_for_sequence_quality_per_tile_reference_[0] wrong for " << context << '\n';
+	EXPECT_EQ(112, test.preceding_quality_for_sequence_quality_per_tile_reference_.at(0).at(2)[0][19][2]) << "SRR490124-4pairs preceding_quality_for_sequence_quality_per_tile_reference_[0] wrong for " << context << '\n';
 	EXPECT_EQ(56, test.preceding_quality_for_sequence_quality_per_tile_reference_.at(0).at(1)[0][19][38]) << "SRR490124-4pairs preceding_quality_for_sequence_quality_per_tile_reference_[0] wrong for " << context << '\n';
 	EXPECT_EQ(38, test.preceding_quality_for_sequence_quality_per_tile_reference_.at(1).at(1)[0][13].size()) << "SRR490124-4pairs preceding_quality_for_sequence_quality_per_tile_reference_[1] wrong for " << context << '\n';
 	EXPECT_EQ(216, test.preceding_quality_for_sequence_quality_per_tile_reference_.at(1).at(3)[0][13][2]) << "SRR490124-4pairs preceding_quality_for_sequence_quality_per_tile_reference_[1] wrong for " << context << '\n';
@@ -124,19 +124,19 @@ void QualityStatsTest::TestSrr490124Equality(const QualityStats &test, const cha
 	EXPECT_EQ(1, test.sequence_quality_mean_for_gc_per_tile_reference_.at(1)[0][52][12] ) << "SRR490124-4pairs sequence_quality_mean_for_gc_per_tile_reference_[1][0][46] wrong for " << context << '\n';
 
 	// echo "count seg tile rate sq"; samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk 'BEGIN{for(n=0;n<256;n++)ord[sprintf("%c",n)]=n}{sq=0;for(pos=1;pos<=length($11);pos+=1){sq+=ord[substr($11,pos,1)]-33}; sq=int(sq/length($11)+0.5); print int($2%256/128), 0, gsub(/[ACGT]+/,"",$18)/length($10)*100, sq}' | sort | uniq -c
-	EXPECT_EQ(13, test.sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(0)[0].size() ) << "SRR490124-4pairs sequence_quality_mean_for_mean_error_rate_per_tile_reference_[0][0].size() wrong for " << context << '\n';
+	EXPECT_EQ(12, test.sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(0)[0].size() ) << "SRR490124-4pairs sequence_quality_mean_for_mean_error_rate_per_tile_reference_[0][0].size() wrong for " << context << '\n';
 	EXPECT_EQ(1, test.sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(0)[0][0][20] ) << "SRR490124-4pairs sequence_quality_mean_for_mean_error_rate_per_tile_reference_[0][0][52] wrong for " << context << '\n';
-	EXPECT_EQ(8, test.sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(0)[0][12][19] ) << "SRR490124-4pairs sequence_quality_mean_for_mean_error_rate_per_tile_reference_[0][0][59] wrong for " << context << '\n';
-	EXPECT_EQ(12, test.sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(1)[0].size() ) << "SRR490124-4pairs sequence_quality_mean_for_mean_error_rate_per_tile_reference_[1][0].size() wrong for " << context << '\n';
-	EXPECT_EQ(8, test.sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(1)[0][11][13] ) << "SRR490124-4pairs sequence_quality_mean_for_mean_error_rate_per_tile_reference_[1][0][37] wrong for " << context << '\n';
+	EXPECT_EQ(8, test.sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(0)[0][11][19] ) << "SRR490124-4pairs sequence_quality_mean_for_mean_error_rate_per_tile_reference_[0][0][59] wrong for " << context << '\n';
+	EXPECT_EQ(11, test.sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(1)[0].size() ) << "SRR490124-4pairs sequence_quality_mean_for_mean_error_rate_per_tile_reference_[1][0].size() wrong for " << context << '\n';
+	EXPECT_EQ(8, test.sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(1)[0][10][13] ) << "SRR490124-4pairs sequence_quality_mean_for_mean_error_rate_per_tile_reference_[1][0][37] wrong for " << context << '\n';
 	EXPECT_EQ(1, test.sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(1)[0][0][12] ) << "SRR490124-4pairs sequence_quality_mean_for_mean_error_rate_per_tile_reference_[1][0][47] wrong for " << context << '\n';
 
 	// echo "count seg tile gc rate"; samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '{print int($2%256/128), gsub(/[ACGT]+/,"",$18)/length($10)*100; system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa " $3 ":" $4 "-" $4+length($10)-1 " | seqtk seq")}' | awk '(1==NR%3){seg=$1;rate=$2}(0==NR%3){print seg, 0, gsub("G","",$0)+gsub("C","",$0), rate}' | sort | uniq -c
 	EXPECT_EQ(4, test.mean_error_rate_for_gc_per_tile_reference_.at(0)[0].size() ) << "SRR490124-4pairs mean_error_rate_for_gc_per_tile_reference_[0][0].size() wrong for " << context << '\n';
 	EXPECT_EQ(1, test.mean_error_rate_for_gc_per_tile_reference_.at(0)[0][54][0] ) << "SRR490124-4pairs mean_error_rate_for_gc_per_tile_reference_[0][0][52] wrong for " << context << '\n';
-	EXPECT_EQ(8, test.mean_error_rate_for_gc_per_tile_reference_.at(0)[0][57][12] ) << "SRR490124-4pairs mean_error_rate_for_gc_per_tile_reference_[0][0][59] wrong for " << context << '\n';
+	EXPECT_EQ(8, test.mean_error_rate_for_gc_per_tile_reference_.at(0)[0][57][11] ) << "SRR490124-4pairs mean_error_rate_for_gc_per_tile_reference_[0][0][59] wrong for " << context << '\n';
 	EXPECT_EQ(7, test.mean_error_rate_for_gc_per_tile_reference_.at(1)[0].size() ) << "SRR490124-4pairs mean_error_rate_for_gc_per_tile_reference_[1][0].size() wrong for " << context << '\n';
-	EXPECT_EQ(8, test.mean_error_rate_for_gc_per_tile_reference_.at(1)[0][46][11] ) << "SRR490124-4pairs mean_error_rate_for_gc_per_tile_reference_[1][0][37] wrong for " << context << '\n';
+	EXPECT_EQ(8, test.mean_error_rate_for_gc_per_tile_reference_.at(1)[0][46][10] ) << "SRR490124-4pairs mean_error_rate_for_gc_per_tile_reference_[1][0][37] wrong for " << context << '\n';
 	EXPECT_EQ(1, test.mean_error_rate_for_gc_per_tile_reference_.at(1)[0][52][0] ) << "SRR490124-4pairs mean_error_rate_for_gc_per_tile_reference_[1][0][47] wrong for " << context << '\n';
 
 	// Manually from the 3 above + bowtie fragment length
@@ -149,9 +149,9 @@ void QualityStatsTest::TestSrr490124Equality(const QualityStats &test, const cha
 
 	EXPECT_EQ(7, test.mean_error_rate_for_fragment_length_per_tile_reference_.at(0)[0].size() ) << "SRR490124-4pairs mean_error_rate_for_fragment_length_per_tile_reference_[0][0].size() wrong for " << context << '\n';
 	EXPECT_EQ(1, test.mean_error_rate_for_fragment_length_per_tile_reference_.at(0)[0][126/10][0] ) << "SRR490124-4pairs mean_error_rate_for_fragment_length_per_tile_reference_[0][0][126] wrong for " << context << '\n';
-	EXPECT_EQ(8, test.mean_error_rate_for_fragment_length_per_tile_reference_.at(0)[0][184/10][12] ) << "SRR490124-4pairs mean_error_rate_for_fragment_length_per_tile_reference_[0][0][184] wrong for " << context << '\n';
+	EXPECT_EQ(8, test.mean_error_rate_for_fragment_length_per_tile_reference_.at(0)[0][184/10][11] ) << "SRR490124-4pairs mean_error_rate_for_fragment_length_per_tile_reference_[0][0][184] wrong for " << context << '\n';
 	EXPECT_EQ(7, test.mean_error_rate_for_fragment_length_per_tile_reference_.at(1)[0].size() ) << "SRR490124-4pairs mean_error_rate_for_fragment_length_per_tile_reference_[1][0].size() wrong for " << context << '\n';
-	EXPECT_EQ(8, test.mean_error_rate_for_fragment_length_per_tile_reference_.at(1)[0][184/10][11] ) << "SRR490124-4pairs mean_error_rate_for_fragment_length_per_tile_reference_[1][0][184] wrong for " << context << '\n';
+	EXPECT_EQ(8, test.mean_error_rate_for_fragment_length_per_tile_reference_.at(1)[0][184/10][10] ) << "SRR490124-4pairs mean_error_rate_for_fragment_length_per_tile_reference_[1][0][184] wrong for " << context << '\n';
 	EXPECT_EQ(1, test.mean_error_rate_for_fragment_length_per_tile_reference_.at(1)[0][126/10][0] ) << "SRR490124-4pairs mean_error_rate_for_fragment_length_per_tile_reference_[1][0][126] wrong for " << context << '\n';
 
 	EXPECT_EQ(7, test.gc_for_fragment_length_per_tile_reference_.at(0)[0].size() ) << "SRR490124-4pairs gc_for_fragment_length_per_tile_reference_[0][0].size() wrong for " << context << '\n';
@@ -483,13 +483,13 @@ void QualityStatsTest::TestVariants(const QualityStats &test){
 	EXPECT_EQ(184, test.base_quality_for_error_rate_per_tile_per_error_reference_.at(1).at(3).at(4)[0][0][2]);
 	EXPECT_EQ(101, test.base_quality_for_error_rate_per_tile_reference_.at(0).at(2)[0].size());
 	EXPECT_EQ(1, test.base_quality_for_error_rate_per_tile_reference_.at(0).at(2)[0][100].size());
-	EXPECT_EQ(24, test.base_quality_for_error_rate_per_tile_reference_.at(0).at(2)[0][100][2]);
+	EXPECT_EQ(16, test.base_quality_for_error_rate_per_tile_reference_.at(0).at(2)[0][100][2]);
 	EXPECT_EQ(101, test.base_quality_for_error_rate_per_tile_reference_.at(1).at(3)[0].size());
 	EXPECT_EQ(38, test.base_quality_for_error_rate_per_tile_reference_.at(1).at(3)[0][0].size());
 	EXPECT_EQ(184, test.base_quality_for_error_rate_per_tile_reference_.at(1).at(3)[0][0][2]);
 
 	EXPECT_EQ(219, SumVect(test.base_quality_for_preceding_quality_per_tile_reference_.at(0).at(1)[0]));
-	EXPECT_EQ(264, SumVect(test.base_quality_for_preceding_quality_per_tile_reference_.at(1).at(1)[0]));
+	EXPECT_EQ(256, SumVect(test.base_quality_for_preceding_quality_per_tile_reference_.at(1).at(1)[0]));
 	EXPECT_EQ(4, test.base_quality_for_preceding_quality_per_tile_reference_.at(0).at(1)[0][37].size());
 	EXPECT_EQ(1, test.base_quality_for_preceding_quality_per_tile_reference_.at(0).at(1)[0][37][35]);
 	EXPECT_EQ(1, test.base_quality_for_preceding_quality_per_tile_reference_.at(0).at(1)[0][37][36]);
@@ -520,7 +520,7 @@ void QualityStatsTest::TestVariants(const QualityStats &test){
 	EXPECT_EQ(208, test.base_quality_for_sequence_quality_per_tile_reference_.at(1).at(3)[0][13][2]);
 
 	EXPECT_EQ(38, test.preceding_quality_for_sequence_quality_per_tile_reference_.at(0).at(1)[0][19].size());
-	EXPECT_EQ(120, test.preceding_quality_for_sequence_quality_per_tile_reference_.at(0).at(2)[0][19][2]);
+	EXPECT_EQ(112, test.preceding_quality_for_sequence_quality_per_tile_reference_.at(0).at(2)[0][19][2]);
 	EXPECT_EQ(56, test.preceding_quality_for_sequence_quality_per_tile_reference_.at(0).at(1)[0][19][38]);
 	EXPECT_EQ(38, test.preceding_quality_for_sequence_quality_per_tile_reference_.at(1).at(1)[0][13].size());
 	EXPECT_EQ(208, test.preceding_quality_for_sequence_quality_per_tile_reference_.at(1).at(3)[0][13][2]);
@@ -539,25 +539,25 @@ void QualityStatsTest::TestVariants(const QualityStats &test){
 	EXPECT_EQ(0, test.sequence_quality_for_position_per_tile_reference_.at(1).at(0)[0][99][12]);
 	EXPECT_EQ(0, test.sequence_quality_for_position_per_tile_reference_.at(1).at(3)[0][99][13]);
 
-	EXPECT_EQ(4, test.sequence_quality_mean_for_gc_per_tile_reference_.at(0)[0].size() );
+	EXPECT_EQ(3, test.sequence_quality_mean_for_gc_per_tile_reference_.at(0)[0].size() );
 	EXPECT_EQ(1, test.sequence_quality_mean_for_gc_per_tile_reference_.at(0)[0][55][20] );
-	EXPECT_EQ(8, test.sequence_quality_mean_for_gc_per_tile_reference_.at(0)[0][58][19] );
+	EXPECT_EQ(8, test.sequence_quality_mean_for_gc_per_tile_reference_.at(0)[0][57][19] );
 	EXPECT_EQ(9, test.sequence_quality_mean_for_gc_per_tile_reference_.at(1)[0].size() );
 	EXPECT_EQ(8, test.sequence_quality_mean_for_gc_per_tile_reference_.at(1)[0][46][13] );
 	EXPECT_EQ(1, test.sequence_quality_mean_for_gc_per_tile_reference_.at(1)[0][54][12] );
 
-	EXPECT_EQ(13, test.sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(0)[0].size() );
+	EXPECT_EQ(12, test.sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(0)[0].size() );
 	EXPECT_EQ(1, test.sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(0)[0][0][20] );
-	EXPECT_EQ(8, test.sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(0)[0][12][19] );
-	EXPECT_EQ(12, test.sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(1)[0].size() );
-	EXPECT_EQ(8, test.sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(1)[0][11][13] );
+	EXPECT_EQ(8, test.sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(0)[0][11][19] );
+	EXPECT_EQ(11, test.sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(1)[0].size() );
+	EXPECT_EQ(8, test.sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(1)[0][10][13] );
 	EXPECT_EQ(1, test.sequence_quality_mean_for_mean_error_rate_per_tile_reference_.at(1)[0][0][12] );
 
-	EXPECT_EQ(4, test.mean_error_rate_for_gc_per_tile_reference_.at(0)[0].size() );
+	EXPECT_EQ(3, test.mean_error_rate_for_gc_per_tile_reference_.at(0)[0].size() );
 	EXPECT_EQ(1, test.mean_error_rate_for_gc_per_tile_reference_.at(0)[0][55][0] );
-	EXPECT_EQ(8, test.mean_error_rate_for_gc_per_tile_reference_.at(0)[0][58][12] );
+	EXPECT_EQ(8, test.mean_error_rate_for_gc_per_tile_reference_.at(0)[0][57][11] );
 	EXPECT_EQ(9, test.mean_error_rate_for_gc_per_tile_reference_.at(1)[0].size() );
-	EXPECT_EQ(8, test.mean_error_rate_for_gc_per_tile_reference_.at(1)[0][46][11] );
+	EXPECT_EQ(8, test.mean_error_rate_for_gc_per_tile_reference_.at(1)[0][46][10] );
 	EXPECT_EQ(1, test.mean_error_rate_for_gc_per_tile_reference_.at(1)[0][54][0] );
 
 	EXPECT_EQ(7, test.sequence_quality_mean_for_fragment_length_per_tile_reference_.at(0)[0].size() );
@@ -569,14 +569,14 @@ void QualityStatsTest::TestVariants(const QualityStats &test){
 
 	EXPECT_EQ(7, test.mean_error_rate_for_fragment_length_per_tile_reference_.at(0)[0].size() );
 	EXPECT_EQ(1, test.mean_error_rate_for_fragment_length_per_tile_reference_.at(0)[0][126/10][0] );
-	EXPECT_EQ(8, test.mean_error_rate_for_fragment_length_per_tile_reference_.at(0)[0][184/10][12] );
+	EXPECT_EQ(8, test.mean_error_rate_for_fragment_length_per_tile_reference_.at(0)[0][184/10][11] );
 	EXPECT_EQ(7, test.mean_error_rate_for_fragment_length_per_tile_reference_.at(1)[0].size() );
-	EXPECT_EQ(8, test.mean_error_rate_for_fragment_length_per_tile_reference_.at(1)[0][184/10][11] );
+	EXPECT_EQ(8, test.mean_error_rate_for_fragment_length_per_tile_reference_.at(1)[0][184/10][10] );
 	EXPECT_EQ(1, test.mean_error_rate_for_fragment_length_per_tile_reference_.at(1)[0][126/10][0] );
 
 	EXPECT_EQ(7, test.gc_for_fragment_length_per_tile_reference_.at(0)[0].size() );
 	EXPECT_EQ(1, test.gc_for_fragment_length_per_tile_reference_.at(0)[0][126/10][55] );
-	EXPECT_EQ(8, test.gc_for_fragment_length_per_tile_reference_.at(0)[0][184/10][58] );
+	EXPECT_EQ(8, test.gc_for_fragment_length_per_tile_reference_.at(0)[0][184/10][57] );
 	EXPECT_EQ(7, test.gc_for_fragment_length_per_tile_reference_.at(1)[0].size() );
 	EXPECT_EQ(8, test.gc_for_fragment_length_per_tile_reference_.at(1)[0][184/10][46] );
 	EXPECT_EQ(1, test.gc_for_fragment_length_per_tile_reference_.at(1)[0][126/10][54] );

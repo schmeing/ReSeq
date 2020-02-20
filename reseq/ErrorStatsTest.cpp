@@ -35,10 +35,10 @@ void ErrorStatsTest::TestSrr490124Equality(const ErrorStats &test, const char *c
 
 	// echo "count seg ref dom tile called nerr"; cat <(samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(int($2%32/16)){print "@" substr($18,6,length($18)-5), $2; print $10; print "+";print $11}' | seqtk seq -r | awk '(1==NR%4){md=substr($1,2,length($0)-1); flag=$2}(2==NR%4){seq=$0}(0==NR%4){printf("%i ", flag);num=0;mult=1;for(i=length(md);0<i;i-=1){b=substr(md,i,1);if(b ~ /^[0-9]/){num+=b*mult;mult*=10}else{base=N;if("A"==b){base="T"}; if("C"==b){base="G"}; if("G"==b){base="C"}; if("T"==b){base="A"}; printf("%i%s", num, base); num=0; mult=1}}; print num, seq, $0}') <(samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(!int($2%32/16)){print $2, substr($18,6,length($18)-5), $10, $11}' ) | awk 'BEGIN{for(n=0;n<256;n++)ord[sprintf("%c",n)]=n}{pos=0; num=0; nerr=0; for(i=1;i<=length($2);i+=1){b=substr($2,i,1);if(b ~ /^[0-9]/){num=num*10+b}else{while(0 <= num){pos += 1; num -= 1; if(0>num){ref=b}else{ref=substr($3,pos,1)}; if(0>num && NR%3 != 1){dom=substr($3,pos,1)}else{dom="N"}; print int($1%256/128), ref, dom, 0, substr($3,pos,1), nerr}; num=0; nerr+=1}}; for(pos+=1;pos<=length($3);pos+=1){print int($1%256/128), substr($3,pos,1), "N", 0, substr($3,pos,1), nerr}}' | sort | uniq -c | sort -k2,2n -k7,7n -k3,6
 	EXPECT_EQ(8, test.called_bases_by_error_num_per_tile_.at(0).at(0).at(1)[0][1][1]) << "SRR490124-4pairs called_bases_by_error_num_per_tile_[0] not correct for " << context << '\n';
-	EXPECT_EQ(16, test.called_bases_by_error_num_per_tile_.at(0).at(2).at(4)[0][2][12]) << "SRR490124-4pairs called_bases_by_error_num_per_tile_[0] not correct for " << context << '\n';
+	EXPECT_EQ(16, test.called_bases_by_error_num_per_tile_.at(0).at(2).at(4)[0][2][11]) << "SRR490124-4pairs called_bases_by_error_num_per_tile_[0] not correct for " << context << '\n';
 	EXPECT_EQ(116, test.called_bases_by_error_num_per_tile_.at(1).at(0).at(4)[0][0][0]) << "SRR490124-4pairs called_bases_by_error_num_per_tile_[1] not correct for " << context << '\n';
 	EXPECT_EQ(45, test.called_bases_by_error_num_per_tile_.at(1).at(3).at(4)[0][3][6]) << "SRR490124-4pairs called_bases_by_error_num_per_tile_[1] not correct for " << context << '\n';
-	EXPECT_EQ(12, test.called_bases_by_error_num_per_tile_.at(1).at(3).at(4)[0][3].size()) << "SRR490124-4pairs called_bases_by_error_num_per_tile_[1] not correctly shrunken for " << context << '\n';
+	EXPECT_EQ(11, test.called_bases_by_error_num_per_tile_.at(1).at(3).at(4)[0][3].size()) << "SRR490124-4pairs called_bases_by_error_num_per_tile_[1] not correctly shrunken for " << context << '\n';
 
 	// echo "count seg ref dom tile called rate"; cat <(samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(int($2%32/16)){print "@" substr($18,6,length($18)-5), $2; print $10; print "+";print $11}' | seqtk seq -r | awk '(1==NR%4){md=substr($1,2,length($0)-1); flag=$2}(2==NR%4){seq=$0}(0==NR%4){printf("%i ", flag);num=0;mult=1;for(i=length(md);0<i;i-=1){b=substr(md,i,1);if(b ~ /^[0-9]/){num+=b*mult;mult*=10}else{base=N;if("A"==b){base="T"}; if("C"==b){base="G"}; if("G"==b){base="C"}; if("T"==b){base="A"}; printf("%i%s", num, base); num=0; mult=1}}; print num, seq, $0}') <(samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(!int($2%32/16)){print $2, substr($18,6,length($18)-5), $10, $11}' ) | awk 'BEGIN{for(n=0;n<256;n++)ord[sprintf("%c",n)]=n}{pos=0; num=0; for(i=1;i<=length($2);i+=1){b=substr($2,i,1);if(b ~ /^[0-9]/){num=num*10+b}else{while(0 <= num){pos += 1; num -= 1; if(0>num){ref=b}else{ref=substr($3,pos,1)}; if(0>num && NR%3 != 1){dom=substr($3,pos,1);rate=100}else{dom="N";rate=0}; print int($1%256/128), ref, dom, 0, substr($3,pos,1), rate}; num=0}}; for(pos+=1;pos<=length($3);pos+=1){print int($1%256/128), substr($3,pos,1), "N", 0, substr($3,pos,1), 0}}' | sort | uniq -c
 	EXPECT_EQ(8, test.called_bases_by_error_rate_per_tile_.at(0).at(1).at(2)[0][2][100]) << "SRR490124-4pairs called_bases_by_error_rate_per_tile_[0] not correct for " << context << '\n';
@@ -49,19 +49,19 @@ void ErrorStatsTest::TestSrr490124Equality(const ErrorStats &test, const char *c
 
 	// echo "count seg ref dom tile nerr qual"; cat <(samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(int($2%32/16)){print "@" substr($18,6,length($18)-5), $2; print $10; print "+";print $11}' | seqtk seq -r | awk '(1==NR%4){md=substr($1,2,length($0)-1); flag=$2}(2==NR%4){seq=$0}(0==NR%4){printf("%i ", flag);num=0;mult=1;for(i=length(md);0<i;i-=1){b=substr(md,i,1);if(b ~ /^[0-9]/){num+=b*mult;mult*=10}else{base=N;if("A"==b){base="T"}; if("C"==b){base="G"}; if("G"==b){base="C"}; if("T"==b){base="A"}; printf("%i%s", num, base); num=0; mult=1}}; print num, seq, $0}') <(samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(!int($2%32/16)){print $2, substr($18,6,length($18)-5), $10, $11}' ) | awk 'BEGIN{for(n=0;n<256;n++)ord[sprintf("%c",n)]=n}{pos=0; num=0; nerr=0; for(i=1;i<=length($2);i+=1){b=substr($2,i,1);if(b ~ /^[0-9]/){num=num*10+b}else{while(0 <= num){pos += 1; num -= 1; if(0>num){ref=b}else{ref=substr($3,pos,1)}; if(0>num && NR%3 != 1){dom=substr($3,pos,1)}else{dom="N"}; print int($1%256/128), ref, dom, 0, nerr, ord[substr($4,pos,1)]-33}; num=0; nerr+=1}}; for(pos+=1;pos<=length($3);pos+=1){print int($1%256/128), substr($3,pos,1), "N", 0, nerr, ord[substr($4,pos,1)]-33}}' | sort | uniq -c | sort -k2,2n -k7,7n -k6,6n -k3,5
 	EXPECT_EQ(0, test.error_num_by_quality_per_tile_.at(0).at(2).at(1)[0][1][2]) << "SRR490124-4pairs error_num_by_quality_per_tile_[0] not correct for " << context << '\n';
-	EXPECT_EQ(16, test.error_num_by_quality_per_tile_.at(0).at(2).at(4)[0][12][2]) << "SRR490124-4pairs error_num_by_quality_per_tile_[0] not correct for " << context << '\n';
+	EXPECT_EQ(16, test.error_num_by_quality_per_tile_.at(0).at(2).at(4)[0][11][2]) << "SRR490124-4pairs error_num_by_quality_per_tile_[0] not correct for " << context << '\n';
 	EXPECT_EQ(8, test.error_num_by_quality_per_tile_.at(1).at(0).at(4)[0][0][32]) << "SRR490124-4pairs error_num_by_quality_per_tile_[1] not correct for " << context << '\n';
 	EXPECT_EQ(46, test.error_num_by_quality_per_tile_.at(1).at(3).at(4)[0][6][2]) << "SRR490124-4pairs error_num_by_quality_per_tile_[1] not correct for " << context << '\n';
 
 	// echo "count seg ref dom tile nerr pos"; cat <(samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(int($2%32/16)){print "@" substr($18,6,length($18)-5), $2; print $10; print "+";print $11}' | seqtk seq -r | awk '(1==NR%4){md=substr($1,2,length($0)-1); flag=$2}(2==NR%4){seq=$0}(0==NR%4){printf("%i ", flag);num=0;mult=1;for(i=length(md);0<i;i-=1){b=substr(md,i,1);if(b ~ /^[0-9]/){num+=b*mult;mult*=10}else{base=N;if("A"==b){base="T"}; if("C"==b){base="G"}; if("G"==b){base="C"}; if("T"==b){base="A"}; printf("%i%s", num, base); num=0; mult=1}}; print num, seq, $0}') <(samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(!int($2%32/16)){print $2, substr($18,6,length($18)-5), $10, $11}' ) | awk 'BEGIN{for(n=0;n<256;n++)ord[sprintf("%c",n)]=n}{pos=0; num=0; nerr=0; for(i=1;i<=length($2);i+=1){b=substr($2,i,1);if(b ~ /^[0-9]/){num=num*10+b}else{while(0 <= num){pos += 1; num -= 1; if(0>num){ref=b}else{ref=substr($3,pos,1)}; if(0>num && NR%3 != 1){dom=substr($3,pos,1)}else{dom="N"}; print int($1%256/128), ref, dom, 0, nerr, pos-1}; num=0; nerr+=1}}; for(pos+=1;pos<=length($3);pos+=1){print int($1%256/128), substr($3,pos,1), "N", 0, nerr, pos-1}}' | sort | uniq -c | sort -k2,2n -k7,7n -k6,6n -k3,5
 	EXPECT_EQ(8, test.error_num_by_position_per_tile_.at(0).at(0).at(1)[0][1][70]) << "SRR490124-4pairs error_num_by_position_per_tile_[0] not correct for " << context << '\n';
-	EXPECT_EQ(8, test.error_num_by_position_per_tile_.at(0).at(2).at(4)[0][12][96]) << "SRR490124-4pairs error_num_by_position_per_tile_[0] not correct for " << context << '\n';
+	EXPECT_EQ(8, test.error_num_by_position_per_tile_.at(0).at(2).at(4)[0][11][96]) << "SRR490124-4pairs error_num_by_position_per_tile_[0] not correct for " << context << '\n';
 	EXPECT_EQ(1, test.error_num_by_position_per_tile_.at(1).at(3).at(4)[0][0][0]) << "SRR490124-4pairs error_num_by_position_per_tile_[1] not correct for " << context << '\n';
-	EXPECT_EQ(8, test.error_num_by_position_per_tile_.at(1).at(3).at(4)[0][11][99]) << "SRR490124-4pairs error_num_by_position_per_tile_[1] not correct for " << context << '\n';
+	EXPECT_EQ(8, test.error_num_by_position_per_tile_.at(1).at(3).at(4)[0][10][99]) << "SRR490124-4pairs error_num_by_position_per_tile_[1] not correct for " << context << '\n';
 
 	// echo "count seg ref dom tile nerr rate"; cat <(samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(int($2%32/16)){print "@" substr($18,6,length($18)-5), $2; print $10; print "+";print $11}' | seqtk seq -r | awk '(1==NR%4){md=substr($1,2,length($0)-1); flag=$2}(2==NR%4){seq=$0}(0==NR%4){printf("%i ", flag);num=0;mult=1;for(i=length(md);0<i;i-=1){b=substr(md,i,1);if(b ~ /^[0-9]/){num+=b*mult;mult*=10}else{base=N;if("A"==b){base="T"}; if("C"==b){base="G"}; if("G"==b){base="C"}; if("T"==b){base="A"}; printf("%i%s", num, base); num=0; mult=1}}; print num, seq, $0}') <(samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(!int($2%32/16)){print $2, substr($18,6,length($18)-5), $10, $11}' ) | awk 'BEGIN{for(n=0;n<256;n++)ord[sprintf("%c",n)]=n}{pos=0; num=0; nerr=0; for(i=1;i<=length($2);i+=1){b=substr($2,i,1);if(b ~ /^[0-9]/){num=num*10+b}else{while(0 <= num){pos += 1; num -= 1; if(0>num){ref=b}else{ref=substr($3,pos,1)}; if(0>num && NR%3 != 1){dom=substr($3,pos,1);rate=100}else{dom="N";rate=0}; print int($1%256/128), ref, dom, 0, nerr, rate}; num=0; nerr+=1}}; for(pos+=1;pos<=length($3);pos+=1){print int($1%256/128), substr($3,pos,1), "N", 0, nerr, 0}}' | sort | uniq -c | sort -k2,2n -k7,7n -k6,6n -k3,5
 	EXPECT_EQ(0, test.error_num_by_error_rate_per_tile_.at(0).at(2).at(1)[0][1][100]) << "SRR490124-4pairs error_num_by_error_rate_per_tile_[0] not correct for " << context << '\n';
-	EXPECT_EQ(16, test.error_num_by_error_rate_per_tile_.at(0).at(2).at(4)[0][12][0]) << "SRR490124-4pairs error_num_by_error_rate_per_tile_[0] not correct for " << context << '\n';
+	EXPECT_EQ(16, test.error_num_by_error_rate_per_tile_.at(0).at(2).at(4)[0][11][0]) << "SRR490124-4pairs error_num_by_error_rate_per_tile_[0] not correct for " << context << '\n';
 	EXPECT_EQ(17, test.error_num_by_error_rate_per_tile_.at(1).at(1).at(4)[0][1][0]) << "SRR490124-4pairs error_num_by_error_rate_per_tile_[1] not correct for " << context << '\n';
 	EXPECT_EQ(1, test.error_num_by_error_rate_per_tile_.at(1).at(2).at(4)[0][6][0]) << "SRR490124-4pairs error_num_by_error_rate_per_tile_[1] not correct for " << context << '\n';
 
@@ -91,8 +91,8 @@ void ErrorStatsTest::TestSrr490124Equality(const ErrorStats &test, const char *c
 	EXPECT_EQ(8, test.gc_by_position_.at(0).at(0)[95][46]) << "SRR490124-4pairs gc_by_position_ not correct for " << context << '\n';
 
 	// NM tags
-	TestVectEquality({10,{1,0,8}}, test.errors_per_read_.at(0), context, "SRR490124-4pairs errors_per_read_[0]", " not correct for ");
-	TestVectEquality({11,{8,0,0,0,1}}, test.errors_per_read_.at(1), context, "SRR490124-4pairs errors_per_read_[1]", " not correct for ");
+	TestVectEquality({10,{1,8}}, test.errors_per_read_.at(0), context, "SRR490124-4pairs errors_per_read_[0]", " not correct for ");
+	TestVectEquality({10,{8,0,0,0,0,1}}, test.errors_per_read_.at(1), context, "SRR490124-4pairs errors_per_read_[1]", " not correct for ");
 
 	// echo "count seg ref called prev qual"; cat <(samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(int($2%32/16)){print "@" substr($18,6,length($18)-5), $2; print $10; print "+";print $11}' | seqtk seq -r | awk '(1==NR%4){md=substr($1,2,length($0)-1); flag=$2}(2==NR%4){seq=$0}(0==NR%4){printf("%i ", flag);num=0;mult=1;for(i=length(md);0<i;i-=1){b=substr(md,i,1);if(b ~ /^[0-9]/){num+=b*mult;mult*=10}else{base=N;if("A"==b){base="T"}; if("C"==b){base="G"}; if("G"==b){base="C"}; if("T"==b){base="A"}; printf("%i%s", num, base); num=0; mult=1}}; print num, seq, $0}') <(samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(!int($2%32/16)){print $2, substr($18,6,length($18)-5), $10, $11}' ) | awk 'BEGIN{for(n=0;n<256;n++)ord[sprintf("%c",n)]=n}{pos=0; num=0; for(i=1;i<=length($2);i+=1){b=substr($2,i,1);if(b ~ /^[0-9]/){num=num*10+b}else{while(0 <= num){pos += 1; num -= 1; if(0>num){ref=b}else{ref=substr($3,pos,1)}; if(1==pos){prev="N"}else{prev=substr($3,pos-1,1)}; print int($1%256/128), ref, substr($3,pos,1), prev, ord[substr($4,pos,1)]-33}; num=0}}; for(pos+=1;pos<=length($3);pos+=1){print int($1%256/128), substr($3,pos,1), substr($3,pos,1), substr($3,pos-1,1), ord[substr($4,pos,1)]-33}}' | sort -n | uniq -c
 	EXPECT_EQ(9, test.called_bases_by_base_quality_per_previous_called_base_.at(0).at(0).at(0).at(3)[2]) << "SRR490124-4pairs called_bases_by_base_quality_per_previous_called_base_[0] not correct for " << context << '\n';
@@ -116,7 +116,7 @@ void ErrorStatsTest::TestSrr490124Equality(const ErrorStats &test, const char *c
 	EXPECT_EQ( 1, test.called_bases_by_base_quality_.at(0).at(3).at(0).size() ) << "SRR490124-4pairs called_bases_by_base_quality_ wrong for " << context << '\n';
 	EXPECT_EQ( 1, test.called_bases_by_base_quality_.at(0).at(3).at(0)[2] ) << "SRR490124-4pairs called_bases_by_base_quality_ wrong for " << context << '\n';
 	EXPECT_EQ( 1, test.called_bases_by_base_quality_.at(1).at(1).at(0).size() ) << "SRR490124-4pairs called_bases_by_base_quality_ wrong for " << context << '\n';
-	EXPECT_EQ( 18, test.called_bases_by_base_quality_.at(1).at(1).at(0)[2] ) << "SRR490124-4pairs called_bases_by_base_quality_ wrong for " << context << '\n';
+	EXPECT_EQ( 10, test.called_bases_by_base_quality_.at(1).at(1).at(0)[2] ) << "SRR490124-4pairs called_bases_by_base_quality_ wrong for " << context << '\n';
 
 	// echo "count seg ref called pos"; cat <(samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(int($2%32/16)){print "@" substr($18,6,length($18)-5), $2; print $10; print "+";print $11}' | seqtk seq -r | awk '(1==NR%4){md=substr($1,2,length($0)-1); flag=$2}(2==NR%4){seq=$0}(0==NR%4){printf("%i ", flag);num=0;mult=1;for(i=length(md);0<i;i-=1){b=substr(md,i,1);if(b ~ /^[0-9]/){num+=b*mult;mult*=10}else{base=N;if("A"==b){base="T"}; if("C"==b){base="G"}; if("G"==b){base="C"}; if("T"==b){base="A"}; printf("%i%s", num, base); num=0; mult=1}}; print num, seq, $0}') <(samtools view -q 10 ecoli-SRR490124-4pairs.sam | awk '(!int($2%32/16)){print $2, substr($18,6,length($18)-5), $10, $11}' ) | awk 'BEGIN{for(n=0;n<256;n++)ord[sprintf("%c",n)]=n}{pos=0; num=0; for(i=1;i<=length($2);i+=1){b=substr($2,i,1);if(b ~ /^[0-9]/){num=num*10+b}else{while(0 <= num){pos += 1; num -= 1; if(0>num){ref=b}else{ref=substr($3,pos,1)}; print int($1%256/128), ref, substr($3,pos,1), pos-1}; num=0}}; for(pos+=1;pos<=length($3);pos+=1){print int($1%256/128), substr($3,pos,1), substr($3,pos,1), pos-1}}' | sort -n | uniq -c | sort -k2,4 -k5n
 	EXPECT_EQ( 24, test.called_bases_by_position_.at(0).at(0).at(1).size() ) << "SRR490124-4pairs called_bases_by_position_ wrong for " << context << '\n';
@@ -127,15 +127,17 @@ void ErrorStatsTest::TestSrr490124Equality(const ErrorStats &test, const char *c
 	EXPECT_EQ( 1, test.called_bases_by_position_.at(1).at(3).at(3)[3] ) << "SRR490124-4pairs called_bases_by_position_ wrong for " << context << '\n';
 	EXPECT_EQ( 8, test.called_bases_by_position_.at(1).at(3).at(3)[99] ) << "SRR490124-4pairs called_bases_by_position_ wrong for " << context << '\n';
 
-	EXPECT_EQ( SumVect(test.called_bases_by_error_num_per_tile_), SumVect(test.called_bases_by_base_quality_per_previous_called_base_) ) << "SRR490124-4pairs bases counted in DataStats and CoverageStats not identical " << context << '\n';
+	// +16 as 16 bases are removed due to variants not specified in a vcf
+	EXPECT_EQ( SumVect(test.called_bases_by_error_num_per_tile_)+16, SumVect(test.called_bases_by_base_quality_per_previous_called_base_) ) << "SRR490124-4pairs bases counted in DataStats and CoverageStats not identical " << context << '\n';
 }
 
 void ErrorStatsTest::TestDuplicates(const ErrorStats &test){
 	// samtools view -q 10 -f 3 ecoli-duplicates.bam | awk '(0 != substr($1,12,1)){print int($2%256/128), substr($17,6,length($17)-5)}' | sort -k1,1n -k2,2n | uniq -c
-	TestVectEquality({0,{6,2,0,4,1,1}}, test.errors_per_read_.at(0), "indels and pcr errors", "errors_per_read_[0]", " wrong with ");
-	TestVectEquality({0,{9,1,1,1,0,1,1}}, test.errors_per_read_.at(1), "indels and pcr errors", "errors_per_read_[1]", " wrong with ");
+	TestVectEquality({0,{7,1,3,1,2}}, test.errors_per_read_.at(0), "indels and pcr errors", "errors_per_read_[0]", " wrong with ");
+	TestVectEquality({0,{9,1,2,0,1,1}}, test.errors_per_read_.at(1), "indels and pcr errors", "errors_per_read_[1]", " wrong with ");
 
-	EXPECT_EQ( SumVect(test.called_bases_by_error_num_per_tile_), SumVect(test.called_bases_by_base_quality_per_previous_called_base_) ) << "Duplicates test bases counted in DataStats and CoverageStats not identical\n";
+	// +10 as 10 bases are removed due to variants not specified in a vcf
+	EXPECT_EQ( SumVect(test.called_bases_by_error_num_per_tile_)+10, SumVect(test.called_bases_by_base_quality_per_previous_called_base_) ) << "Duplicates test bases counted in DataStats and CoverageStats not identical\n";
 }
 
 void ErrorStatsTest::TestVariants(const ErrorStats &test){
@@ -154,10 +156,10 @@ void ErrorStatsTest::TestVariants(const ErrorStats &test){
 	EXPECT_EQ(98, test.called_bases_by_position_per_tile_.at(1).at(3).at(4)[0][3].size());
 
 	EXPECT_EQ(8, test.called_bases_by_error_num_per_tile_.at(0).at(0).at(1)[0][1][1]);
-	EXPECT_EQ(16, test.called_bases_by_error_num_per_tile_.at(0).at(2).at(4)[0][2][12]);
+	EXPECT_EQ(16, test.called_bases_by_error_num_per_tile_.at(0).at(2).at(4)[0][2][11]);
 	EXPECT_EQ(116, test.called_bases_by_error_num_per_tile_.at(1).at(0).at(4)[0][0][0]);
 	EXPECT_EQ(45, test.called_bases_by_error_num_per_tile_.at(1).at(3).at(4)[0][3][6]);
-	EXPECT_EQ(12, test.called_bases_by_error_num_per_tile_.at(1).at(3).at(4)[0][3].size());
+	EXPECT_EQ(11, test.called_bases_by_error_num_per_tile_.at(1).at(3).at(4)[0][3].size());
 
 	EXPECT_EQ(8, test.called_bases_by_error_rate_per_tile_.at(0).at(1).at(2)[0][2][100]);
 	EXPECT_EQ(1, test.called_bases_by_error_rate_per_tile_.at(0).at(1).at(2)[0][2].size());
@@ -166,17 +168,17 @@ void ErrorStatsTest::TestVariants(const ErrorStats &test){
 	EXPECT_EQ(16, test.called_bases_by_error_rate_per_tile_.at(1).at(3).at(0)[0][0][100]);
 
 	EXPECT_EQ(0, test.error_num_by_quality_per_tile_.at(0).at(2).at(1)[0][1][2]);
-	EXPECT_EQ(16, test.error_num_by_quality_per_tile_.at(0).at(2).at(4)[0][12][2]);
+	EXPECT_EQ(16, test.error_num_by_quality_per_tile_.at(0).at(2).at(4)[0][11][2]);
 	EXPECT_EQ(8, test.error_num_by_quality_per_tile_.at(1).at(0).at(4)[0][0][32]);
 	EXPECT_EQ(46, test.error_num_by_quality_per_tile_.at(1).at(3).at(4)[0][6][2]);
 
 	EXPECT_EQ(8, test.error_num_by_position_per_tile_.at(0).at(0).at(1)[0][1][70]);
-	EXPECT_EQ(8, test.error_num_by_position_per_tile_.at(0).at(2).at(4)[0][12][96]);
+	EXPECT_EQ(8, test.error_num_by_position_per_tile_.at(0).at(2).at(4)[0][11][96]);
 	EXPECT_EQ(0, test.error_num_by_position_per_tile_.at(1).at(3).at(4)[0][0][0]);
-	EXPECT_EQ(0, test.error_num_by_position_per_tile_.at(1).at(3).at(4)[0][11][99]);
+	EXPECT_EQ(0, test.error_num_by_position_per_tile_.at(1).at(3).at(4)[0][10][99]);
 
 	EXPECT_EQ(0, test.error_num_by_error_rate_per_tile_.at(0).at(2).at(1)[0][1][100]);
-	EXPECT_EQ(16, test.error_num_by_error_rate_per_tile_.at(0).at(2).at(4)[0][12][0]);
+	EXPECT_EQ(16, test.error_num_by_error_rate_per_tile_.at(0).at(2).at(4)[0][11][0]);
 	EXPECT_EQ(17, test.error_num_by_error_rate_per_tile_.at(1).at(1).at(4)[0][1][0]);
 	EXPECT_EQ(1, test.error_num_by_error_rate_per_tile_.at(1).at(2).at(4)[0][6][0]);
 
@@ -200,8 +202,8 @@ void ErrorStatsTest::TestVariants(const ErrorStats &test){
 	EXPECT_EQ(8, test.gc_by_position_.at(0).at(3)[72][46]);
 	EXPECT_EQ(8, test.gc_by_position_.at(0).at(0)[95][46]);
 
-	TestVectEquality({10,{1,0,8}}, test.errors_per_read_.at(0), "variants test", "SRR490124-4pairs errors_per_read_[0]", " not correct for ");
-	TestVectEquality({11,{8,0,0,1}}, test.errors_per_read_.at(1), "variants test", "SRR490124-4pairs errors_per_read_[1]", " not correct for ");
+	TestVectEquality({10,{1,8}}, test.errors_per_read_.at(0), "variants test", "SRR490124-4pairs errors_per_read_[0]", " not correct for ");
+	TestVectEquality({10,{8,0,0,0,1}}, test.errors_per_read_.at(1), "variants test", "SRR490124-4pairs errors_per_read_[1]", " not correct for ");
 
 	EXPECT_EQ(9, test.called_bases_by_base_quality_per_previous_called_base_.at(0).at(0).at(0).at(3)[2]);
 	EXPECT_EQ(8, test.called_bases_by_base_quality_per_previous_called_base_.at(0).at(1).at(1).at(5)[38]);
@@ -223,7 +225,7 @@ void ErrorStatsTest::TestVariants(const ErrorStats &test){
 	EXPECT_EQ( 1, test.called_bases_by_base_quality_.at(0).at(3).at(0).size() );
 	EXPECT_EQ( 1, test.called_bases_by_base_quality_.at(0).at(3).at(0)[2] );
 	EXPECT_EQ( 1, test.called_bases_by_base_quality_.at(1).at(1).at(0).size() );
-	EXPECT_EQ( 18, test.called_bases_by_base_quality_.at(1).at(1).at(0)[2] );
+	EXPECT_EQ( 10, test.called_bases_by_base_quality_.at(1).at(1).at(0)[2] );
 
 	EXPECT_EQ( 24, test.called_bases_by_position_.at(0).at(0).at(1).size() );
 	EXPECT_EQ( 8, test.called_bases_by_position_.at(0).at(0).at(1)[70] );

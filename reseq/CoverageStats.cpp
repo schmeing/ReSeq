@@ -187,6 +187,7 @@ void CoverageStats::EvalRead( FullRecord *record, CoverageStats::CoverageBlock *
 
 		if(not_considered_ref_bases < record->to_ref_pos_-record->from_ref_pos_){ // At least one base was considered
 			qualities.AddRefRead(hasFlagLast(record->record_), record->tile_id_, record->reference_gc_, record->sequence_quality_, utilities::Divide(error_rate_sum, static_cast<uintReadLenCalc>(record->to_ref_pos_-record->from_ref_pos_-not_considered_ref_bases)), record->fragment_length_);
+			errors.AddRead(hasFlagLast(record->record_), num_errors);
 		}
 	}
 
@@ -466,31 +467,28 @@ void CoverageStats::ProcessBlock(CoverageBlock *block, const Reference &referenc
 	auto max_probability_systematic = GetPositionProbabilities(block, reference, thread);
 
 	for( uintSeqLen pos = 0; pos < block->coverage_.size(); ++pos ){
-		// Forward
-		uintCovCount errors = block->coverage_.at(pos).coverage_forward_.at(block->coverage_.at(pos).dom_error_.at(0));
-		auto coverage = thread.block_coverage_.at(pos).at(0);
-		if(coverage && block->coverage_.at(pos).valid_){
-			if(1 >= errors || 0 == Percent(errors,coverage) || thread.non_sytematic_probability_.at(pos).at(0) > max_probability_systematic){
-				block->coverage_.at(pos).dom_error_.at(0) = 4;
+		// Set systematic errors and filter out variants
+		array<uintCovCount, 2> errors = {block->coverage_.at(pos).coverage_forward_.at(block->coverage_.at(pos).dom_error_.at(0)), block->coverage_.at(pos).coverage_reverse_.at(block->coverage_.at(pos).dom_error_.at(1))};
+		array<uintCovCount, 2> &coverage = thread.block_coverage_.at(pos);
+		if(block->coverage_.at(pos).valid_){
+			for(uintTempSeq strand=0; strand < 2; ++strand){
+				if(coverage.at(strand)){
+					if( NonSystematicError(coverage.at(strand), errors.at(strand), thread.non_sytematic_probability_.at(pos).at(strand), max_probability_systematic) ){
+						block->coverage_.at(pos).dom_error_.at(strand) = 4;
+					}
+					else{
+						block->coverage_.at(pos).error_rate_.at(strand) = Percent(errors.at(strand),coverage.at(strand));
+					}
+				}
 			}
-			else{
-				block->coverage_.at(pos).error_rate_.at(0) = Percent(errors,coverage);
+
+			if( 4 != block->coverage_.at(pos).dom_error_.at(0) && 4 != block->coverage_.at(pos).dom_error_.at(1) && block->coverage_.at(pos).dom_error_.at(0) == Complement::Dna5(block->coverage_.at(pos).dom_error_.at(1)) ){
+				// Variant not in the vcf file
+				block->coverage_.at(pos).valid_ = false;
 			}
 		}
 
-		// Reverse
-		errors = block->coverage_.at(pos).coverage_reverse_.at(block->coverage_.at(pos).dom_error_.at(1));
-		coverage = thread.block_coverage_.at(pos).at(1);
-		if(coverage && block->coverage_.at(pos).valid_){
-			if(1 >= errors || 0 == Percent(errors,coverage) || thread.non_sytematic_probability_.at(pos).at(1) > max_probability_systematic){
-				block->coverage_.at(pos).dom_error_.at(1) = 4;
-			}
-			else{
-				block->coverage_.at(pos).error_rate_.at(1) = Percent(errors,coverage);
-			}
-		}
-
-		// Both strands
+		// Store coverage and errors
 		UpdateCoverageAtSinglePosition( block->coverage_.at(pos), thread.block_coverage_.at(pos), at(reference.ReferenceSequence(block->sequence_id_), block->start_pos_ + pos) );
 	}
 

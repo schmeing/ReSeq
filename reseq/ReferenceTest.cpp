@@ -508,11 +508,14 @@ void ReferenceTest::TestReplaceN(){
 		at(at(ref_.reference_sequences_, 0), i) = 'N';
 		at(at(ref_.reference_sequences_, 1), i+300) = 'N';
 	}
+	for(uintSeqLen i=54; i<104; ++i){
+		at(at(ref_.reference_sequences_, 1), i) = 'N';
+	}
 	at(at(ref_.reference_sequences_, 0), 253) = 'N';
 	at(at(ref_.reference_sequences_, 0), 256) = 'N';
 	at(at(ref_.reference_sequences_, 0), 263) = 'N';
 
-	uintSeqLen n_in_reference(203);
+	uintSeqLen n_in_reference(253);
 	array< uintSeqLen, 4 > old_values = {{0,0,0,0}};
 	for( const auto &seq : ref_.reference_sequences_ ){
 		for( auto base : seq ){
@@ -523,6 +526,7 @@ void ReferenceTest::TestReplaceN(){
 	}
 
 	ref_.ReplaceN(317);
+
 	array< uintSeqLen, 4 > new_values = {{0,0,0,0}};
 	for( const auto &seq : ref_.reference_sequences_ ){
 		for( auto base : seq ){
@@ -536,6 +540,32 @@ void ReferenceTest::TestReplaceN(){
 	for(uintBaseCall i=4; i--; ){
 		EXPECT_LT(old_values.at(i), new_values.at(i)) << "No N's converted to " << i << '\n';
 	}
+
+	EXPECT_EQ(2, static_cast<uintBaseCall>(at(at(ref_.reference_sequences_, 0), 50)));
+	EXPECT_EQ(1, static_cast<uintBaseCall>(at(at(ref_.reference_sequences_, 0), 51)));
+	EXPECT_EQ(0, static_cast<uintBaseCall>(at(at(ref_.reference_sequences_, 0), 52)));
+	EXPECT_EQ(0, static_cast<uintBaseCall>(at(at(ref_.reference_sequences_, 0), 53)));
+	EXPECT_EQ(2, static_cast<uintBaseCall>(at(at(ref_.reference_sequences_, 0), 54)));
+	EXPECT_EQ(1, static_cast<uintBaseCall>(at(at(ref_.reference_sequences_, 0), 55)));
+	EXPECT_EQ(0, static_cast<uintBaseCall>(at(at(ref_.reference_sequences_, 0), 56)));
+	EXPECT_EQ(0, static_cast<uintBaseCall>(at(at(ref_.reference_sequences_, 0), 57)));
+	EXPECT_EQ(2, static_cast<uintBaseCall>(at(at(ref_.reference_sequences_, 0), 146)));
+	EXPECT_EQ(1, static_cast<uintBaseCall>(at(at(ref_.reference_sequences_, 0), 147)));
+	EXPECT_EQ(0, static_cast<uintBaseCall>(at(at(ref_.reference_sequences_, 0), 148)));
+	EXPECT_EQ(0, static_cast<uintBaseCall>(at(at(ref_.reference_sequences_, 0), 149)));
+
+	EXPECT_EQ(1, static_cast<uintBaseCall>(at(at(ref_.reference_sequences_, 1), 350)));
+	EXPECT_EQ(0, static_cast<uintBaseCall>(at(at(ref_.reference_sequences_, 1), 351)));
+	EXPECT_EQ(1, static_cast<uintBaseCall>(at(at(ref_.reference_sequences_, 1), 352)));
+	EXPECT_EQ(2, static_cast<uintBaseCall>(at(at(ref_.reference_sequences_, 1), 353)));
+	EXPECT_EQ(1, static_cast<uintBaseCall>(at(at(ref_.reference_sequences_, 1), 354)));
+	EXPECT_EQ(0, static_cast<uintBaseCall>(at(at(ref_.reference_sequences_, 1), 355)));
+	EXPECT_EQ(1, static_cast<uintBaseCall>(at(at(ref_.reference_sequences_, 1), 356)));
+	EXPECT_EQ(2, static_cast<uintBaseCall>(at(at(ref_.reference_sequences_, 1), 357)));
+	EXPECT_EQ(1, static_cast<uintBaseCall>(at(at(ref_.reference_sequences_, 1), 446)));
+	EXPECT_EQ(0, static_cast<uintBaseCall>(at(at(ref_.reference_sequences_, 1), 447)));
+	EXPECT_EQ(1, static_cast<uintBaseCall>(at(at(ref_.reference_sequences_, 1), 448)));
+	EXPECT_EQ(2, static_cast<uintBaseCall>(at(at(ref_.reference_sequences_, 1), 449)));
 }
 
 void ReferenceTest::TestExclusionRegions(){

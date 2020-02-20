@@ -75,7 +75,7 @@ void CoverageStatsTest::TestSrr490124Equality(const CoverageStats &test, const c
 	EXPECT_EQ(1, test.dominant_errors_by_gc_.at(1).at(0).at(0)[58][3]) << "SRR490124-4pairs dominant_errors_by_gc_ wrong for " << context << '\n';
 	EXPECT_EQ(SumVect(test.dominant_errors_by_gc_.at(2).at(0).at(0)), SumVect(test.dominant_errors_by_distance_.at(2).at(0).at(0))) << "SRR490124-4pairs dominant_errors_by_distance_ and dominant_errors_by_gc_ are inconsistent for " << context << '\n';
 	EXPECT_EQ(0, test.dominant_errors_by_gc_.at(2).at(0).at(0)[48][1]) << "SRR490124-4pairs dominant_errors_by_gc_ wrong for " << context << '\n';
-	EXPECT_EQ(1, test.dominant_errors_by_gc_.at(2).at(0).at(0)[56][3]) << "SRR490124-4pairs dominant_errors_by_gc_ wrong for " << context << '\n';
+	EXPECT_EQ(0, test.dominant_errors_by_gc_.at(2).at(0).at(0)[56][3]) << "SRR490124-4pairs dominant_errors_by_gc_ wrong for " << context << '\n';
 	EXPECT_EQ(1, test.dominant_errors_by_gc_.at(2).at(0).at(0)[60][1]) << "SRR490124-4pairs dominant_errors_by_gc_ wrong for " << context << '\n';
 	EXPECT_EQ(SumVect(test.dominant_errors_by_gc_.at(3).at(1).at(3)), SumVect(test.dominant_errors_by_distance_.at(3).at(1).at(3))) << "SRR490124-4pairs dominant_errors_by_distance_ and dominant_errors_by_gc_ are inconsistent for " << context << '\n';
 	EXPECT_EQ(1, test.dominant_errors_by_gc_.at(3).at(1).at(3)[40][0]) << "SRR490124-4pairs dominant_errors_by_gc_ wrong for " << context << '\n';
@@ -149,9 +149,9 @@ void CoverageStatsTest::TestSrr490124Equality(const CoverageStats &test, const c
 	EXPECT_TRUE(test.gc_by_distance_er_.at(0).at(1)[3].to() <= test.error_rates_by_gc_.at(0).at(1).to()) << "SRR490124-4pairs error_rates_by_gc_ and gc_by_distance_er_ are inconsistent for " << context << '\n' << test.gc_by_distance_er_.at(0).at(1)[3].to() << " > " << test.error_rates_by_gc_.at(0).at(1).to();
 
 	EXPECT_EQ(4, test.error_rates_by_distance_sum_[1][100]) << "SRR490124-4pairs error_rates_by_distance_sum_ wrong for " << context << '\n';
-	EXPECT_EQ(400, SumVect(test.error_rates_by_distance_sum_)) << "SRR490124-4pairs error_rates_by_distance_sum_ wrong for " << context << '\n';
+	EXPECT_EQ(398, SumVect(test.error_rates_by_distance_sum_)) << "SRR490124-4pairs error_rates_by_distance_sum_ wrong for " << context << '\n';
 	EXPECT_EQ(2, test.error_rates_by_gc_sum_[54][100]) << "SRR490124-4pairs error_rates_by_gc_sum_ wrong for " << context << '\n';
-	EXPECT_EQ(400, SumVect(test.error_rates_by_gc_sum_)) << "SRR490124-4pairs error_rates_by_gc_sum_ wrong for " << context << '\n';
+	EXPECT_EQ(398, SumVect(test.error_rates_by_gc_sum_)) << "SRR490124-4pairs error_rates_by_gc_sum_ wrong for " << context << '\n';
 
 	EXPECT_EQ( 1, test.start_rates_by_distance_er_.at(0).at(1)[0][0] );
 	EXPECT_EQ( 1, test.start_rates_by_distance_er_.at(3).at(0)[1][100] );
@@ -180,20 +180,20 @@ void CoverageStatsTest::TestSrr490124Equality(const CoverageStats &test, const c
 	//GAGCAAACAATCACAGCATGTATTAATTGCCCTGCCCCACCCGCTGCTTCCCCTGGACAGTTTAGGCTTAGTCTCTGGTATCTTTGATATTTTCACGCTT
 	//                                                                                    TACCACGCTCTCCGTTGATCTCTCGCAAGGTGGAACCCAACTCGCCCCACTGTGGTTCCCGACGTCCATCATGATGGTGGCGTTTTATCGCCATGCCGGG
 	//                                                                              8*(12)    CTTT    GC    G  T     GTT   C
-	TestVectEquality({0,{263,25,0,0,0,0,0,0,21,0,0,0,0,0,0,0,1}}, test.error_coverage_, context, "SRR490124-4pairs error_coverage_", " not correct for ");
+	TestVectEquality({0,{263,25,0,0,0,0,0,0,21}}, test.error_coverage_, context, "SRR490124-4pairs error_coverage_", " not correct for ");
 	EXPECT_EQ(101, test.error_coverage_percent_.size() ) << "SRR490124-4pairs error_coverage_percent_.size() wrong for " << context << '\n';
 	EXPECT_EQ(263, test.error_coverage_percent_[0] ) << "SRR490124-4pairs error_coverage_percent_[0] wrong for " << context << '\n';
 	EXPECT_EQ(34, test.error_coverage_percent_[50] ) << "SRR490124-4pairs error_coverage_percent_[50] wrong for " << context << '\n';
-	EXPECT_EQ(13, test.error_coverage_percent_[100] ) << "SRR490124-4pairs error_coverage_percent_[100] wrong for " << context << '\n';
-	EXPECT_EQ(101, test.error_coverage_percent_min_cov_10_.size() ) << "SRR490124-4pairs error_coverage_percent_min_cov_10_.size() wrong for " << context << '\n';
+	EXPECT_EQ(12, test.error_coverage_percent_[100] ) << "SRR490124-4pairs error_coverage_percent_[100] wrong for " << context << '\n';
+	EXPECT_EQ(51, test.error_coverage_percent_min_cov_10_.size() ) << "SRR490124-4pairs error_coverage_percent_min_cov_10_.size() wrong for " << context << '\n';
 	EXPECT_EQ(6, test.error_coverage_percent_min_cov_10_[0] ) << "SRR490124-4pairs error_coverage_percent_min_cov_10_[0] wrong for " << context << '\n';
 	EXPECT_EQ(9, test.error_coverage_percent_min_cov_10_[50] ) << "SRR490124-4pairs error_coverage_percent_min_cov_10_[50] wrong for " << context << '\n';
-	EXPECT_EQ(1, test.error_coverage_percent_min_cov_10_[100] ) << "SRR490124-4pairs error_coverage_percent_min_cov_10_[100] wrong for " << context << '\n';
+	EXPECT_EQ(0, test.error_coverage_percent_min_cov_10_[100] ) << "SRR490124-4pairs error_coverage_percent_min_cov_10_[100] wrong for " << context << '\n';
 	EXPECT_EQ(0, test.error_coverage_percent_min_cov_20_.size() ) << "SRR490124-4pairs error_coverage_percent_min_cov_20_.size() wrong for " << context << '\n';
 	EXPECT_EQ(55, test.error_coverage_percent_stranded_[0][0] ) << "SRR490124-4pairs error_coverage_percent_stranded_[0][0] wrong for " << context << '\n';
 	EXPECT_EQ(19, test.error_coverage_percent_stranded_[100][0] ) << "SRR490124-4pairs error_coverage_percent_stranded_[100][0] wrong for " << context << '\n';
 	EXPECT_EQ(15, test.error_coverage_percent_stranded_[0][100] ) << "SRR490124-4pairs error_coverage_percent_stranded_[0][100] wrong for " << context << '\n';
-	EXPECT_EQ(1, test.error_coverage_percent_stranded_[100][100] ) << "SRR490124-4pairs error_coverage_percent_stranded_[100][100] wrong for " << context << '\n';
+	EXPECT_EQ(0, test.error_coverage_percent_stranded_[100][100] ) << "SRR490124-4pairs error_coverage_percent_stranded_[100][100] wrong for " << context << '\n';
 	EXPECT_EQ(0, test.error_coverage_percent_stranded_min_strand_cov_10_.size() ) << "SRR490124-4pairs error_coverage_percent_stranded_min_strand_cov_10_.size() wrong for " << context << '\n';
 	EXPECT_EQ(0, test.error_coverage_percent_stranded_min_strand_cov_20_.size() ) << "SRR490124-4pairs error_coverage_percent_stranded_min_strand_cov_20_.size() wrong for " << context << '\n';
 
@@ -240,7 +240,7 @@ void CoverageStatsTest::TestVariants(const CoverageStats &test){
 	EXPECT_EQ(1, test.dominant_errors_by_gc_.at(1).at(0).at(0)[58][3]);
 	EXPECT_EQ(SumVect(test.dominant_errors_by_gc_.at(2).at(0).at(0)), SumVect(test.dominant_errors_by_distance_.at(2).at(0).at(0)));
 	EXPECT_EQ(0, test.dominant_errors_by_gc_.at(2).at(0).at(0)[48][1]);
-	EXPECT_EQ(1, test.dominant_errors_by_gc_.at(2).at(0).at(0)[56][3]);
+	EXPECT_EQ(0, test.dominant_errors_by_gc_.at(2).at(0).at(0)[56][3]);
 	EXPECT_EQ(1, test.dominant_errors_by_gc_.at(2).at(0).at(0)[60][1]);
 	EXPECT_EQ(SumVect(test.dominant_errors_by_gc_.at(3).at(1).at(3)), SumVect(test.dominant_errors_by_distance_.at(3).at(1).at(3)));
 	EXPECT_EQ(1, test.dominant_errors_by_gc_.at(3).at(1).at(3)[40][0]);
@@ -310,24 +310,24 @@ void CoverageStatsTest::TestVariants(const CoverageStats &test){
 	EXPECT_TRUE(test.gc_by_distance_er_.at(0).at(1)[3].to() <= test.error_rates_by_gc_.at(0).at(1).to()) << test.gc_by_distance_er_.at(0).at(1)[3].to() << " > " << test.error_rates_by_gc_.at(0).at(1).to();
 
 	EXPECT_EQ(4, test.error_rates_by_distance_sum_[1][100]);
-	EXPECT_EQ(392, SumVect(test.error_rates_by_distance_sum_));
+	EXPECT_EQ(390, SumVect(test.error_rates_by_distance_sum_));
 	EXPECT_EQ(2, test.error_rates_by_gc_sum_[54][100]);
-	EXPECT_EQ(392, SumVect(test.error_rates_by_gc_sum_));
+	EXPECT_EQ(390, SumVect(test.error_rates_by_gc_sum_));
 
-	TestVectEquality({0,{259,24,0,0,0,0,0,0,21,0,0,0,0,0,0,0,1}}, test.error_coverage_, "variant test", "SRR490124-4pairs error_coverage_", " not correct for ");
+	TestVectEquality({0,{259,24,0,0,0,0,0,0,21}}, test.error_coverage_, "variant test", "SRR490124-4pairs error_coverage_", " not correct for ");
 	EXPECT_EQ(101, test.error_coverage_percent_.size() );
 	EXPECT_EQ(259, test.error_coverage_percent_[0] );
 	EXPECT_EQ(33, test.error_coverage_percent_[50] );
-	EXPECT_EQ(13, test.error_coverage_percent_[100] );
-	EXPECT_EQ(101, test.error_coverage_percent_min_cov_10_.size() );
+	EXPECT_EQ(12, test.error_coverage_percent_[100] );
+	EXPECT_EQ(51, test.error_coverage_percent_min_cov_10_.size() );
 	EXPECT_EQ(5, test.error_coverage_percent_min_cov_10_[0] );
 	EXPECT_EQ(9, test.error_coverage_percent_min_cov_10_[50] );
-	EXPECT_EQ(1, test.error_coverage_percent_min_cov_10_[100] );
+	EXPECT_EQ(0, test.error_coverage_percent_min_cov_10_[100] );
 	EXPECT_EQ(0, test.error_coverage_percent_min_cov_20_.size() );
 	EXPECT_EQ(53, test.error_coverage_percent_stranded_[0][0] );
 	EXPECT_EQ(18, test.error_coverage_percent_stranded_[100][0] );
 	EXPECT_EQ(15, test.error_coverage_percent_stranded_[0][100] );
-	EXPECT_EQ(1, test.error_coverage_percent_stranded_[100][100] );
+	EXPECT_EQ(0, test.error_coverage_percent_stranded_[100][100] );
 	EXPECT_EQ(0, test.error_coverage_percent_stranded_min_strand_cov_10_.size() );
 	EXPECT_EQ(0, test.error_coverage_percent_stranded_min_strand_cov_20_.size() );
 }

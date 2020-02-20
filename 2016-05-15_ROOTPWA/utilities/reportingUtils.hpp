@@ -261,16 +261,16 @@ namespace rpwa {
 #ifndef __CINT__
 #define printErr   ((1>reseq::kVerbosityLevel)? reseq::kNullStream : std::cerr << rpwa::setStreamTo(rpwa::FG_RED    ) << "!!! " << __PRETTY_FUNCTION__ << " [" << __FILE__ << ":" << __LINE__ << "]: error: "   << rpwa::setStreamTo(rpwa::NORMAL) << std::flush)
 #define printWarn  ((2>reseq::kVerbosityLevel)? reseq::kNullStream : std::cerr << rpwa::setStreamTo(rpwa::FG_YELLOW ) << "??? " << __PRETTY_FUNCTION__ << " [" << __FILE__ << ":" << __LINE__ << "]: warning: " << rpwa::setStreamTo(rpwa::NORMAL) << std::flush)
-#define printSucc  ((3>reseq::kVerbosityLevel)? reseq::kNullStream : std::cout << rpwa::setStreamTo(rpwa::FG_GREEN  ) << "*** " << std::put_time(rpwa::log_time(), "%d-%m-%y %H:%M:%S") << ": success: " << rpwa::setStreamTo(rpwa::NORMAL) << std::flush)
-#define printInfo  ((4>reseq::kVerbosityLevel)? reseq::kNullStream : std::cout << rpwa::setStreamTo(rpwa::BOLD      ) << ">>> " << std::put_time(rpwa::log_time(), "%d-%m-%y %H:%M:%S") << ": info: "    << ' ' << rpwa::setStreamTo(rpwa::NORMAL) << std::flush)
-#define printDebug ((reseq::kNoDebugOutput)? reseq::kNullStream : std::cout << rpwa::setStreamTo(rpwa::FG_MAGENTA) << "+++ " << rpwa::getClassMethod__(__PRETTY_FUNCTION__) << "(): debug: "   << rpwa::setStreamTo(rpwa::NORMAL) << std::flush)
+#define printSucc  ((3>reseq::kVerbosityLevel)? reseq::kNullStream : std::cerr << rpwa::setStreamTo(rpwa::FG_GREEN  ) << "*** " << std::put_time(rpwa::log_time(), "%d-%m-%y %H:%M:%S") << ": success: " << rpwa::setStreamTo(rpwa::NORMAL) << std::flush)
+#define printInfo  ((4>reseq::kVerbosityLevel)? reseq::kNullStream : std::cerr << rpwa::setStreamTo(rpwa::BOLD      ) << ">>> " << std::put_time(rpwa::log_time(), "%d-%m-%y %H:%M:%S") << ": info: "    << ' ' << rpwa::setStreamTo(rpwa::NORMAL) << std::flush)
+#define printDebug ((reseq::kNoDebugOutput)? reseq::kNullStream : std::cerr << rpwa::setStreamTo(rpwa::FG_MAGENTA) << "+++ " << rpwa::getClassMethod__(__PRETTY_FUNCTION__) << "(): debug: "   << rpwa::setStreamTo(rpwa::NORMAL) << std::flush)
 #else
 // rootcint crashes in dictionary generation (sigh)
 #define printErr   ((1>reseq::kVerbosityLevel)? reseq::kNullStream : std::cerr << std::flush)
 #define printWarn  ((2>reseq::kVerbosityLevel)? reseq::kNullStream : std::cerr << std::flush)
-#define printSucc  ((3>reseq::kVerbosityLevel)? reseq::kNullStream : std::cout << std::flush)
-#define printInfo  ((4>reseq::kVerbosityLevel)? reseq::kNullStream : std::cout << std::flush)
-#define printDebug ((reseq::kNoDebugOutput)? reseq::kNullStream : std::cout << std::flush)
+#define printSucc  ((3>reseq::kVerbosityLevel)? reseq::kNullStream : std::cerr << std::flush)
+#define printInfo  ((4>reseq::kVerbosityLevel)? reseq::kNullStream : std::cerr << std::flush)
+#define printDebug ((reseq::kNoDebugOutput)? reseq::kNullStream : std::cerr << std::flush)
 #endif
 
 

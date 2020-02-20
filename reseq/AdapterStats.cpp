@@ -395,101 +395,117 @@ bool AdapterStats::PredictAdapters(){
 			}
 			use_kmer.at( adapter_kmers_.at(template_segment).counts_.size()-1 ) = false; // Ignore all T's as possible adapter
 
-			Kmer<kKmerLength>::intType max_kmer = 1;
-			for(Kmer<kKmerLength>::intType kmer = 2; kmer < adapter_start_kmers_.at(template_segment).size(); ++kmer ){
-				if( use_kmer.at(kmer) && adapter_start_kmers_.at(template_segment).at(kmer) > adapter_start_kmers_.at(template_segment).at(max_kmer) ){
-					max_kmer = kmer;
-				}
-			}
-			use_kmer.at(max_kmer) = false; // Prevent endless circle
-
 			DnaString adapter;
 			reserve(adapter, 50);
 			resize(adapter, kKmerLength);
 
-			auto kmer = max_kmer;
-			for(uintReadLen pos=kKmerLength; pos--; ){
-				at(adapter, pos) = kmer%4;
-				kmer >>= 2;
-			}
-
-			// Restore start cut
-			kmer = max_kmer;
-			while(true){
-				kmer >>= 2;
-
-				if( adapter_kmers_.at(template_segment).counts_.at(kmer+3*base) > adapter_kmers_.at(template_segment).counts_.at(kmer+2*base) ){
-					max_extension = 3;
-					second_highest = 2;
+			bool found_adapter = false;
+			uintNumFits tries = 100;
+			while(!found_adapter && tries--){
+				Kmer<kKmerLength>::intType max_kmer = 1;
+				while(!use_kmer.at(max_kmer)){
+					++max_kmer;
 				}
-				else{
-					max_extension = 2;
-					second_highest = 3;
-				}
-
-				for(uintBaseCall ext=2; ext--; ){
-					if( adapter_kmers_.at(template_segment).counts_.at(kmer+ext*base) > adapter_kmers_.at(template_segment).counts_.at(kmer+max_extension*base) ){
-						second_highest = max_extension;
-						max_extension = ext;
-					}
-					else if( adapter_kmers_.at(template_segment).counts_.at(kmer+ext*base) > adapter_kmers_.at(template_segment).counts_.at(kmer+second_highest*base) ){
-						second_highest = ext;
+				for(Kmer<kKmerLength>::intType kmer = max_kmer+1; kmer < adapter_start_kmers_.at(template_segment).size(); ++kmer ){
+					if( use_kmer.at(kmer) && adapter_start_kmers_.at(template_segment).at(kmer) > adapter_start_kmers_.at(template_segment).at(max_kmer) ){
+						max_kmer = kmer;
 					}
 				}
-				kmer += base*max_extension;
+				use_kmer.at(max_kmer) = false; // Prevent endless circle
 
-				if( use_kmer.at(kmer) && adapter_kmers_.at(template_segment).counts_.at(kmer) > 100 && adapter_kmers_.at(template_segment).counts_.at(kmer) > 5*adapter_kmers_.at(template_segment).counts_.at(kmer-max_extension*base+second_highest*base) ){
-					insertValue(adapter, 0, static_cast<Dna>(max_extension) );
-					use_kmer.at(kmer) = false; // Prevent endless circle
-				}
-				else{
-					break;
-				}
-			}
-
-			// Extend adapter
-			kmer = max_kmer;
-			while(true){
-				kmer <<= 2;
-				kmer %= adapter_kmers_.at(template_segment).counts_.size();
-				if( adapter_kmers_.at(template_segment).counts_.at(kmer+3) > adapter_kmers_.at(template_segment).counts_.at(kmer+2) ){
-					max_extension = 3;
-					second_highest = 2;
-				}
-				else{
-					max_extension = 2;
-					second_highest = 3;
+				auto kmer = max_kmer;
+				for(uintReadLen pos=kKmerLength; pos--; ){
+					at(adapter, pos) = kmer%4;
+					kmer >>= 2;
 				}
 
-				for(uintBaseCall ext=2; ext--; ){
-					if( adapter_kmers_.at(template_segment).counts_.at(kmer+ext) > adapter_kmers_.at(template_segment).counts_.at(kmer+max_extension) ){
-						second_highest = max_extension;
-						max_extension = ext;
+				// Restore start cut
+				kmer = max_kmer;
+				while(true){
+					kmer >>= 2;
+
+					if( adapter_kmers_.at(template_segment).counts_.at(kmer+3*base) > adapter_kmers_.at(template_segment).counts_.at(kmer+2*base) ){
+						max_extension = 3;
+						second_highest = 2;
 					}
-					else if( adapter_kmers_.at(template_segment).counts_.at(kmer+ext) > adapter_kmers_.at(template_segment).counts_.at(kmer+second_highest) ){
-						second_highest = ext;
+					else{
+						max_extension = 2;
+						second_highest = 3;
+					}
+
+					for(uintBaseCall ext=2; ext--; ){
+						if( adapter_kmers_.at(template_segment).counts_.at(kmer+ext*base) > adapter_kmers_.at(template_segment).counts_.at(kmer+max_extension*base) ){
+							second_highest = max_extension;
+							max_extension = ext;
+						}
+						else if( adapter_kmers_.at(template_segment).counts_.at(kmer+ext*base) > adapter_kmers_.at(template_segment).counts_.at(kmer+second_highest*base) ){
+							second_highest = ext;
+						}
+					}
+					kmer += base*max_extension;
+
+					if( use_kmer.at(kmer) && adapter_kmers_.at(template_segment).counts_.at(kmer) > 100 && adapter_kmers_.at(template_segment).counts_.at(kmer) > 5*adapter_kmers_.at(template_segment).counts_.at(kmer-max_extension*base+second_highest*base) ){
+						insertValue(adapter, 0, static_cast<Dna>(max_extension) );
+						use_kmer.at(kmer) = false; // Prevent endless circle
+					}
+					else{
+						break;
 					}
 				}
 
-				kmer += max_extension;
-				if( use_kmer.at(kmer) && adapter_kmers_.at(template_segment).counts_.at(kmer) > 100 && adapter_kmers_.at(template_segment).counts_.at(kmer) > 5*adapter_kmers_.at(template_segment).counts_.at(kmer-max_extension+second_highest) ){
-					adapter += static_cast<Dna>(max_extension);
-					use_kmer.at(kmer) = false; // Prevent endless circle
+				// Extend adapter
+				kmer = max_kmer;
+				while(true){
+					kmer <<= 2;
+					kmer %= adapter_kmers_.at(template_segment).counts_.size();
+					if( adapter_kmers_.at(template_segment).counts_.at(kmer+3) > adapter_kmers_.at(template_segment).counts_.at(kmer+2) ){
+						max_extension = 3;
+						second_highest = 2;
+					}
+					else{
+						max_extension = 2;
+						second_highest = 3;
+					}
+
+					for(uintBaseCall ext=2; ext--; ){
+						if( adapter_kmers_.at(template_segment).counts_.at(kmer+ext) > adapter_kmers_.at(template_segment).counts_.at(kmer+max_extension) ){
+							second_highest = max_extension;
+							max_extension = ext;
+						}
+						else if( adapter_kmers_.at(template_segment).counts_.at(kmer+ext) > adapter_kmers_.at(template_segment).counts_.at(kmer+second_highest) ){
+							second_highest = ext;
+						}
+					}
+
+					kmer += max_extension;
+					if( use_kmer.at(kmer) && adapter_kmers_.at(template_segment).counts_.at(kmer) > 100 && adapter_kmers_.at(template_segment).counts_.at(kmer) > 5*adapter_kmers_.at(template_segment).counts_.at(kmer-max_extension+second_highest) ){
+						adapter += static_cast<Dna>(max_extension);
+						use_kmer.at(kmer) = false; // Prevent endless circle
+					}
+					else{
+						break;
+					}
+				}
+
+				// Remove A's at end
+				while(length(adapter) && 0 == back(adapter)){
+					eraseBack(adapter);
+				}
+				if( 30 > length(adapter) ){
+					printInfo << "Detected non-extendible sequence '" << adapter << "' as adapter for read " << static_cast<uintTempSeqPrint>(template_segment+1) << std::endl;
+				}
+				else if( 120 < length(adapter) ){
+					printErr << "Detected very long sequence '" << adapter << "' as adapter for read " << static_cast<uintTempSeqPrint>(template_segment+1) << ", which is likely part of the genome." << std::endl;
+					return false;
 				}
 				else{
-					break;
+					printInfo << "Detected adapter " << static_cast<uintTempSeqPrint>(template_segment+1) << ": " << adapter << std::endl;
+					found_adapter = true;
 				}
 			}
 
-			// Remove A's at end
-			while(length(adapter) && 0 == back(adapter)){
-				eraseBack(adapter);
-			}
-			if( 15 < length(adapter) ){
-				printInfo << "Detected adapter " << static_cast<uintTempSeqPrint>(template_segment+1) << ": " << adapter << std::endl;
-			}
-			else{
-				printErr << "Detected non extendible sequence '" << adapter << "' as adapter for read " << static_cast<uintTempSeqPrint>(template_segment+1) << std::endl;
+			if(!found_adapter){
+				printErr << "Only non-extendible sequences were found as adapter for read " << static_cast<uintTempSeqPrint>(template_segment+1) << std::endl;
 				return false;
 			}
 

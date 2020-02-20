@@ -269,6 +269,9 @@ namespace reseq{
 		void UpdateFirstVariant(CoverageBlock &block, const Reference &reference);
 		bool IsVariantPosition( intVariantId &cur_var, uintRefSeqId ref_seq_id, uintSeqLen pos, const Reference &reference ) const;
 		void InitBlock(CoverageBlock &block, const Reference &reference);
+		bool NonSystematicError(uintCovCount coverage, uintCovCount errors, double prob, double max_prob){
+			return 1 >= errors || 0 == utilities::Percent(errors,coverage) || prob > max_prob;
+		}
 		void ProcessBlock(CoverageBlock *block, const Reference &reference, ThreadData &thread);
 		void CountBlock(CoverageBlock *block, const Reference &reference);
 		CoverageBlock *RemoveBlock(CoverageBlock *block);

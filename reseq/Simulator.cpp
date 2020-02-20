@@ -15,7 +15,6 @@ using std::exception;
 #include <iomanip>
 using std::setprecision;
 #include <iostream>
-using std::cout;
 #include <limits>
 using std::numeric_limits;
 #include <map>

@@ -258,9 +258,9 @@ void DataStatsTest::TestVariants(){
 	ErrorStatsTest::TestVariants(test_->errors_);
 	QualityStatsTest::TestVariants(test_->qualities_);
 
-	EXPECT_EQ(4, test_->gc_read_content_reference_.at(0).size());
+	EXPECT_EQ(3, test_->gc_read_content_reference_.at(0).size());
 	EXPECT_EQ(1, test_->gc_read_content_reference_.at(0)[55]);
-	EXPECT_EQ(8, test_->gc_read_content_reference_.at(0)[58]);
+	EXPECT_EQ(8, test_->gc_read_content_reference_.at(0)[57]);
 	EXPECT_EQ(9, test_->gc_read_content_reference_.at(1).size());
 	EXPECT_EQ(8, test_->gc_read_content_reference_.at(1)[46]);
 	EXPECT_EQ(1, test_->gc_read_content_reference_.at(1)[54]);
@@ -268,8 +268,8 @@ void DataStatsTest::TestVariants(){
 	EXPECT_EQ(7, test_->gc_read_content_mapped_.at(0).size());
 	EXPECT_EQ(1, test_->gc_read_content_mapped_.at(0)[54]);
 	EXPECT_EQ(8, test_->gc_read_content_mapped_.at(0)[60]);
-	EXPECT_EQ(11, test_->gc_read_content_mapped_.at(1).size());
-	EXPECT_EQ(8, test_->gc_read_content_mapped_.at(1)[47]);
+	EXPECT_EQ(10, test_->gc_read_content_mapped_.at(1).size());
+	EXPECT_EQ(8, test_->gc_read_content_mapped_.at(1)[48]);
 	EXPECT_EQ(1, test_->gc_read_content_mapped_.at(1)[57]);
 
 	TestSequenceContentReference(0, 1, 0, 0, 8, 0, 0, "variant test");
@@ -277,7 +277,7 @@ void DataStatsTest::TestVariants(){
 	TestSequenceContentReference(0, 1, 2, 0, 8, 1, 0, "variant test");
 	TestSequenceContentReference(0, 1, 3, 0, 0, 9, 0, "variant test");
 	TestSequenceContentReference(0, 1, 4, 0, 0, 8, 1, "variant test");
-	TestSequenceContentReference(0, 1, 95, 1, 0, 8, 0, "variant test");
+	TestSequenceContentReference(0, 1, 95, 1, 0, 0, 0, "variant test");
 	TestSequenceContentReference(0, 1, 96, 0, 0, 9, 0, "variant test");
 	TestSequenceContentReference(0, 1, 97, 1, 0, 8, 0, "variant test");
 	TestSequenceContentReference(0, 1, 98, 1, 0, 0, 8, "variant test");

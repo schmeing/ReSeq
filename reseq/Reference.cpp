@@ -16,7 +16,6 @@ using std::exception;
 #include <fstream>
 using std::getline;
 #include <iostream>
-using std::cout;
 #include <iterator>
 using std::distance;
 #include <limits>
@@ -211,9 +210,9 @@ bool Reference::ReadVariants(uintRefSeqId end_ref_seq_id, bool positions_only){
 								tmp_success = false;
 								printErr << "Found to many alleles in genotype definition '";
 								for( auto &genotype : cur_vcf_record_.genotypeInfos ){
-									std::cout << ' ' << genotype;
+									std::cerr << ' ' << genotype;
 								}
-								std::cout << "'" << std::endl;
+								std::cerr << "'" << std::endl;
 								if(++errors >= kMaxErrorsShownPerFile){
 									printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
 								}
@@ -262,9 +261,9 @@ bool Reference::ReadVariants(uintRefSeqId end_ref_seq_id, bool positions_only){
 							tmp_success = false;
 							printErr << "Could not find enough alleles in genotype definition '";
 							for( auto &genotype : cur_vcf_record_.genotypeInfos ){
-								std::cout << ' ' << genotype;
+								std::cerr << ' ' << genotype;
 							}
-							std::cout << "'" << std::endl;
+							std::cerr << "'" << std::endl;
 							if(++errors >= kMaxErrorsShownPerFile){
 								printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
 								break;
@@ -419,11 +418,11 @@ bool Reference::ReadVariants(uintRefSeqId end_ref_seq_id, bool positions_only){
 void Reference::CloseVcfFile(){
 	if(VcfRecord::INVALID_REFID != cur_vcf_record_.rID){
 		printWarn << "The sequences in variant file are not sorted according to the reference. The following variation record and all after it have been ignored during simulation:" << std::endl;
-		std::cout << cur_vcf_record_.rID << '\t' << cur_vcf_record_.beginPos+1 << '\t' << cur_vcf_record_.id << '\t' << cur_vcf_record_.ref << '\t' << cur_vcf_record_.alt << '\t' << cur_vcf_record_.qual << '\t' << cur_vcf_record_.filter << '\t' << cur_vcf_record_.info << '\t' << cur_vcf_record_.format;
+		std::cerr << cur_vcf_record_.rID << '\t' << cur_vcf_record_.beginPos+1 << '\t' << cur_vcf_record_.id << '\t' << cur_vcf_record_.ref << '\t' << cur_vcf_record_.alt << '\t' << cur_vcf_record_.qual << '\t' << cur_vcf_record_.filter << '\t' << cur_vcf_record_.info << '\t' << cur_vcf_record_.format;
 		for(auto &genotype : cur_vcf_record_.genotypeInfos){
-			std::cout << '\t' << genotype;
+			std::cerr << '\t' << genotype;
 		}
-		std::cout << std::endl;
+		std::cerr << std::endl;
 	}
 	clear(contigNames(context(vcf_file_)));
 	close(vcf_file_);
@@ -432,7 +431,7 @@ void Reference::CloseVcfFile(){
 void Reference::CloseMethylationFile(){
 	if(!methylation_file_.eof()){
 		printWarn << "The sequences in methylation file are not sorted according to the reference. The following methylation line and all after it have been ignored during simulation:" << std::endl;
-		std::cout << cur_methylation_line_ << std::endl;
+		std::cerr << cur_methylation_line_ << std::endl;
 	}
 	methylation_file_.close();
 }
@@ -804,9 +803,75 @@ void Reference::ReplaceN( uintSeed seed ){
 	uniform_int_distribution<> rdis(0, 3);
 
 	for( auto &seq : reference_sequences_){
-		for( auto &base : seq ){
-			if( IsN(base) ){
-				base = rdis(rgen);
+		for( uintSeqLen start=0; start < length(seq); ){
+			if( IsN( at(seq, start) ) ){
+				// Get start and end of stretch of N
+				uintSeqLen end = start;
+				while( ++end < length(seq) && IsN( at(seq, end) ) );
+
+				// Replace N's
+				if(end - start < kMinNToReplaceNWithRepeat){
+					// Short stretch of N's
+					for(auto pos=start; pos < end; ++pos){
+						at(seq, pos) = rdis(rgen);
+					}
+				}
+				else{
+					// Long stretch of N's
+					// Prepare short repeat
+					Dna5String short_repeat;
+					if( 2 > start ){
+						if( end+4 > length(seq) ){
+							// N's that are the complete sequence
+							for(uintSeqLen pos=4; pos--;){
+								short_repeat += rdis(rgen);
+							}
+						}
+						else{
+							// N's at start of sequence
+							short_repeat = infix(seq, end, end+4);
+							// Replace N's randomly in the short_repeat
+							for(uintSeqLen pos=4; --pos;){ // Position 0 cannot be a repeat
+								if( IsN( at(short_repeat, pos) ) ){
+									at(short_repeat, pos) = rdis(rgen);
+								}
+							}
+						}
+					}
+					else{
+						if( end+2 > length(seq) ){
+							if( 4 > start ){
+								// N's that are the complete sequence
+								for(uintSeqLen pos=4; pos--;){
+									short_repeat += rdis(rgen);
+								}
+							}
+							else{
+								// N's at end of sequence
+								short_repeat = infix(seq, start-4, start);
+							}
+						}
+						else{
+							// N's in the middle of sequence
+							short_repeat += infix(seq, end, end+2);
+							short_repeat += infix(seq, start-2, start);
+
+							// Replace N's randomly in the short_repeat (Only position 1 can be one)
+							if( IsN( at(short_repeat, 1) ) ){
+								at(short_repeat, 1) = rdis(rgen);
+							}
+						}
+					}
+
+					// Replace N's with short repeat
+					for(auto pos=start; pos < end; ++pos){
+						at(seq, pos) = at(short_repeat, (pos-start)%4);
+					}
+				}
+				start = end;
+			}
+			else{
+				++start;
 			}
 		}
 	}

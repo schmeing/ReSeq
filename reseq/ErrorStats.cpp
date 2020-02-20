@@ -46,7 +46,7 @@ void ErrorStats::Prepare(uintTileId num_tiles, uintQual size_qual, uintReadLen s
 	}
 }
 
-bool ErrorStats::Finalize(){
+void ErrorStats::Finalize(){
 	for( auto template_segment=2; template_segment--; ){
 		for( auto ref_base=4; ref_base--; ){
 			for( auto dom_error=5; dom_error--; ){
@@ -70,44 +70,6 @@ bool ErrorStats::Finalize(){
 		errors_per_read_.at(template_segment).Acquire( tmp_errors_per_read_.at(template_segment) );
 	}
 
-	bool error = false;
-
-	if( SumVect(called_bases_by_base_quality_per_previous_called_base_) != SumVect(called_bases_by_error_num_per_tile_) ){
-		printErr << "Counted bases in DataStats(" << SumVect(called_bases_by_base_quality_per_previous_called_base_) << ") and in CoverageStats(" << SumVect(called_bases_by_error_num_per_tile_) << ") are not the same" << std::endl;
-		error = true;
-	}
-
-	Vect<uintNucCount> data_qual_count, cov_qual_count;
-	for( auto template_segment=2; template_segment--; ){
-		for( auto ref_base=4; ref_base--; ){
-			for( auto called_base=5; called_base--; ){
-				data_qual_count.Clear();
-				cov_qual_count.Clear();
-
-				for(const auto & prev_call_vect : called_bases_by_base_quality_per_previous_called_base_.at(template_segment).at(ref_base).at(called_base)){
-					data_qual_count += prev_call_vect;
-				}
-
-				for(const auto &dom_error_vect : called_bases_by_base_quality_per_tile_.at(template_segment).at(ref_base)){
-					for(const auto &tile_id_vect : dom_error_vect){
-						cov_qual_count += tile_id_vect[called_base]; // Called base might not exist for all dominant errors in all tiles (using const to not modify object)
-					}
-				}
-
-				for(auto qual=min(data_qual_count.from(), cov_qual_count.from()); qual<max(data_qual_count.to(), cov_qual_count.to()); ++qual){
-					if( getConst(data_qual_count)[qual] != getConst(cov_qual_count)[qual] ){ // As we take the maximum range for both, the qualities might not exist in each one (const to not unnecessarily change the objects)
-						printErr << "Seg " << template_segment << " ref_base " << ref_base << " called_base " << called_base << " qual " << qual << ": DataStats(" << getConst(data_qual_count)[qual] << ") CoverageStats(" << getConst(cov_qual_count)[qual] << ")" << std::endl;
-						error = true;
-					}
-				}
-			}
-		}
-	}
-
-	if(error){
-		return false;
-	}
-
 	for( auto indel_type=2; indel_type--; ){
 		for( auto last_call=6; last_call--; ){
 			indel_by_indel_pos_.at(indel_type).at(last_call).Acquire( tmp_indel_by_indel_pos_.at(indel_type).at(last_call) );
@@ -118,8 +80,6 @@ bool ErrorStats::Finalize(){
 			gc_by_position_.at(indel_type).at(last_call).Acquire( tmp_gc_by_position_.at(indel_type).at(last_call) );
 		}
 	}
-
-	return true;
 }
 
 void ErrorStats::Shrink(){

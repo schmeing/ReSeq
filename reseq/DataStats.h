@@ -164,7 +164,7 @@ namespace reseq{
 
 		bool SignsOfPairsWithNamesNotIdentical();
 		void PrepareReadIn(uintQual size_mapping_quality, uintReadLen size_indel, uintSeqLen max_ref_seq_bin_size);
-		bool FinishReadIn();
+		void FinishReadIn();
 		void Shrink(); // Reduce all arrays to minimal size by removing unused bins at the beginning and end
 		bool Calculate(uintNumThreads num_threads);
 		void PrepareGeneral();

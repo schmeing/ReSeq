@@ -397,13 +397,13 @@ template<uintMarginId N> bool DataStorage<N>::SetUp(const array< pair< const Vec
 				print_mutex.lock();
 				printErr << "The dimension " << dim_a << " is inconsistent in margin " << n << ":" << std::endl;
 				for(auto element : dim_control_a){
-					std::cout << element << ' ';
+					std::cerr << element << ' ';
 				}
-				std::cout << std::endl;
+				std::cerr << std::endl;
 				for(auto element : dim_control.at(dim_a)){
-					std::cout << element << ' ';
+					std::cerr << element << ' ';
 				}
-				std::cout << std::endl;
+				std::cerr << std::endl;
 				print_mutex.unlock();
 				return false;
 			}
@@ -417,13 +417,13 @@ template<uintMarginId N> bool DataStorage<N>::SetUp(const array< pair< const Vec
 				print_mutex.lock();
 				printErr << "The dimension " << dim_b << " is inconsistent in margin " << n << ":" << std::endl;
 				for(auto element : dim_control_b){
-					std::cout << element << ' ';
+					std::cerr << element << ' ';
 				}
-				std::cout << std::endl;
+				std::cerr << std::endl;
 				for(auto element : dim_control.at(dim_b)){
-					std::cout << element << ' ';
+					std::cerr << element << ' ';
 				}
-				std::cout << std::endl;
+				std::cerr << std::endl;
 				print_mutex.unlock();
 				return false;
 			}

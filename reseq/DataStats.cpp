@@ -248,7 +248,7 @@ bool DataStats::EvalReferenceStatistics(
 	uintQual qual;
 
 	array<uintNucCount, 5> seq_content_mapped = {0,0,0,0,0};
-	uintReadLen num_errors(0), indel_pos(0);
+	uintReadLen indel_pos(0);
 	uintInDelType indel_type(0);
 
 	for( const auto &cigar_element : (hasFlagRC(record->record_)?rev_cigar:record->record_.cigar) ){
@@ -281,10 +281,6 @@ bool DataStats::EvalReferenceStatistics(
 						errors_.AddInDel( indel_type, last_base, ErrorStats::kNoInDel, indel_pos, read_pos, gc_percent);
 
 						++seq_content_mapped.at(base);
-
-						if(ref_base != base){
-							++num_errors;
-						}
 					}
 
 					last_base = base;
@@ -323,8 +319,6 @@ bool DataStats::EvalReferenceStatistics(
 
 					if( coverage_block->coverage_.at(coverage_pos).valid_ ){
 						errors_.AddInDel( indel_type, last_base, ErrorStats::kDeletion, indel_pos, read_pos, gc_percent);
-
-						++num_errors;
 					}
 
 					if( hasFlagRC(record->record_) ){
@@ -365,7 +359,6 @@ bool DataStats::EvalReferenceStatistics(
 						++read_pos;
 						indel_type = 0;
 					}
-					num_errors += cigar_element.count;
 				}
 				seq_content_mapped.at(4) += cigar_element.count; // Ignore inserted bases for gc_percent
 			}
@@ -375,8 +368,6 @@ bool DataStats::EvalReferenceStatistics(
 
 	++tmp_gc_read_content_reference_.at(template_segment).at(gc_percent);
 	++tmp_gc_read_content_mapped_.at(template_segment).at(SafePercent( seq_content_mapped.at(1) + seq_content_mapped.at(2), length(record->record_.seq)-seq_content_mapped.at(4) ));
-
-	errors_.AddRead(template_segment, num_errors);
 
 	return true;
 }
@@ -623,11 +614,9 @@ void DataStats::PrepareReadIn(uintQual size_mapping_quality, uintReadLen size_in
 	}
 }
 
-bool DataStats::FinishReadIn(){
+void DataStats::FinishReadIn(){
 	adapters_.Finalize(); // Collect ambigous adapters into a single one
-	if( !errors_.Finalize() ){
-		return false;
-	}
+	errors_.Finalize();
 	fragment_distribution_.Finalize();
 	qualities_.Finalize( SumVect(read_lengths_.at(0)) );
 
@@ -665,8 +654,6 @@ bool DataStats::FinishReadIn(){
 	for( auto base=5; base--; ){
 		homopolymer_distribution_.at(base).Acquire(tmp_homopolymer_distribution_.at(base));
 	}
-
-	return true;
 }
 
 void DataStats::Shrink(){
@@ -1261,10 +1248,11 @@ bool DataStats::ReadBam( const char *bam_file, const char *adapter_file, const c
 		success = false;
 	}
 
-	if(!success || SignsOfPairsWithNamesNotIdentical() || !FinishReadIn() ){
+	if( !success || SignsOfPairsWithNamesNotIdentical() ){
 		total_number_reads_ = 0; // Marking that the reading in was not successful
 		return false;
 	}
+	FinishReadIn();
 
 	Shrink();
 	if(!Calculate(num_threads)){

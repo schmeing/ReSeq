@@ -828,7 +828,7 @@ namespace reseq{
 						update_id = ind;
 						break;
 					}
-					//std::cout << ' ' << std::setw(6) << margin_precision_[ind];
+
 					if(ind != last_margin_ && margin_precision_.at(ind) > max_precision){
 						max_precision = margin_precision_.at(ind);
 						update_id = ind;

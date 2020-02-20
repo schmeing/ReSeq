@@ -4,7 +4,6 @@ using std::count;
 using std::exception;
 #include <iostream>
 using std::cerr;
-using std::cout;
 #include <stdint.h>
 #include <stdio.h>
 #include <string>
@@ -75,8 +74,8 @@ bool AutoDetectThreads(uintNumThreads &num_threads, const options_description &o
 		num_threads = std::thread::hardware_concurrency();
 		if(0 == num_threads){
 			printErr << "Automatic detection of available cores failed." << std::endl;
-			cout << usage_str;
-			cout << opt_desc << std::endl;
+			cerr << usage_str;
+			cerr << opt_desc << std::endl;
 			return false;
 		}
 		else{
@@ -126,25 +125,25 @@ void GetDataStats(DataStats &real_data_stats, string &stats_file, bool &loaded_s
 	bool tiles = opts_map.count("tiles");
 	if(no_tiles && tiles){
 		printErr << "noTiles and tiles options are exclusive." << std::endl;
-		cout << usage_str;
-		cout << opt_desc << std::endl;
+		cerr << usage_str;
+		cerr << opt_desc << std::endl;
 	}
 
 	if(opts_map.end() == it_bam_in){ // "bamIn" hasn't been found
 		if( stats_only ){
 			printErr << "With statsOnly option bamIn option is mandatory." << std::endl;
-			cout << usage_str;
-			cout << opt_desc << std::endl;
+			cerr << usage_str;
+			cerr << opt_desc << std::endl;
 		}
 		else if( no_tiles || tiles ){
 			printErr << (no_tiles ? "noTiles" : "tiles") << " option can only be specified for generation of statistics. After that it depends on the statistics loaded." << std::endl;
-			cout << usage_str;
-			cout << opt_desc << std::endl;
+			cerr << usage_str;
+			cerr << opt_desc << std::endl;
 		}
 		else if(opts_map.end() == it_stats_in){ // "statsIn" hasn't been found
 			printErr << "Either bamIn or statsIn option are mandatory." << std::endl;
-			cout << usage_str;
-			cout << opt_desc << std::endl;
+			cerr << usage_str;
+			cerr << opt_desc << std::endl;
 		}
 		else{
 			if(opts_map.end() != it_stats_out){
@@ -211,8 +210,8 @@ void GetDataStats(DataStats &real_data_stats, string &stats_file, bool &loaded_s
 						}
 						if(failed){
 							printErr << "Switching extension of adapter-sequence file did not result in valid matrix file. Please specify the matrix file." << std::endl;
-							cout << usage_str;
-							cout << opt_desc << std::endl;
+							cerr << usage_str;
+							cerr << opt_desc << std::endl;
 							adapter_file = "";
 							adapter_matrix = "error";
 						}
@@ -231,8 +230,8 @@ void GetDataStats(DataStats &real_data_stats, string &stats_file, bool &loaded_s
 					}
 					if(failed){
 						printErr << "Switching extension of adapter-matrix file did not result in valid sequence file. Please specify the sequence file." << std::endl;
-						cout << usage_str;
-						cout << opt_desc << std::endl;
+						cerr << usage_str;
+						cerr << opt_desc << std::endl;
 						adapter_file = "";
 						adapter_matrix = "error";
 					}
@@ -322,8 +321,8 @@ bool WriteSysError(string &sys_error_file, uintSeed &seed, bool stop_after_estim
 		if(stop_after_estimation){
 			if(opts_map.end() != it_read ){
 				printWarn << "readSysError option is only for simulation, so it's useless with the stopAfterEstimation option." << std::endl;
-				cout << usage_str;
-				cout << opt_desc << std::endl;
+				cerr << usage_str;
+				cerr << opt_desc << std::endl;
 				return false;
 			}
 		}
@@ -341,8 +340,8 @@ bool WriteSysError(string &sys_error_file, uintSeed &seed, bool stop_after_estim
 	else{
 		if(opts_map.end() != it_read){
 			printErr << "writeSysError and readSysError option are mutually exclusive. Specify the one or the other." << std::endl;
-			cout << usage_str;
-			cout << opt_desc << std::endl;
+			cerr << usage_str;
+			cerr << opt_desc << std::endl;
 			return false;
 		}
 		else{
@@ -410,12 +409,12 @@ int main(int argc, char *argv[]) {
 	}
 	catch(const exception& e) {
 		printErr << "Could not parse general command line arguments: " << e.what() << std::endl;
-		cout << opt_desc_full << std::endl;
+		cerr << opt_desc_full << std::endl;
 		return 1;
 	}
 
 	if(general_opts_map.count("version")) { // Check if user only wants to know version
-		cout << "ReSequenceR version " << RESEQ_VERSION_MAJOR << '.' << RESEQ_VERSION_MINOR << std::endl;
+		cerr << "ReSequenceR version " << RESEQ_VERSION_MAJOR << '.' << RESEQ_VERSION_MINOR << std::endl;
 		return 0;
 	}
 
@@ -432,13 +431,13 @@ int main(int argc, char *argv[]) {
 
 	int return_code = 0;
 	if(0 == unrecognized_opts.size()){
-		cout << general_usage << std::endl;
+		cerr << general_usage << std::endl;
 	}
 	else{
 		printInfo << "Running ReSequenceR version " << RESEQ_VERSION_MAJOR << '.' << RESEQ_VERSION_MINOR; // Always show version
 
 		if ("getRefSeqBias" == unrecognized_opts.at(0)) {
-			cout << " in getRefSeqBias mode" << std::endl;
+			cerr << " in getRefSeqBias mode" << std::endl;
 			unrecognized_opts.erase(unrecognized_opts.begin());
 
 			options_description opt_desc("getRefSeqBias");
@@ -456,21 +455,21 @@ int main(int argc, char *argv[]) {
 			}
 			catch (const exception& e) {
 				printErr << "Could not parse getRefSeqBias command line arguments: " << e.what() << std::endl;
-				cout << usage_str;
-				cout << opt_desc_full << std::endl;
+				cerr << usage_str;
+				cerr << opt_desc_full << std::endl;
 				return 1;
 			}
 
 			if ( general_opts_map.count("help") ) {
-				cout << usage_str;
-				cout << opt_desc_full << std::endl;
+				cerr << usage_str;
+				cerr << opt_desc_full << std::endl;
 			}
 			else{
 				auto it_ref = opts_map.find("ref");
 				if(opts_map.end() == it_ref){
 					printErr << "ref option is mandatory." << std::endl;
-					cout << usage_str;
-					cout << opt_desc_full << std::endl;
+					cerr << usage_str;
+					cerr << opt_desc_full << std::endl;
 					return 1;
 				}
 				else{
@@ -480,8 +479,8 @@ int main(int argc, char *argv[]) {
 					auto it_stats = opts_map.find("stats");
 					if(opts_map.end() == it_stats){
 						printErr << "stats option is mandatory." << std::endl;
-						cout << usage_str;
-						cout << opt_desc_full << std::endl;
+						cerr << usage_str;
+						cerr << opt_desc_full << std::endl;
 						return 1;
 					}
 					else{
@@ -489,25 +488,20 @@ int main(int argc, char *argv[]) {
 						printInfo << "Reading reference sequence biases from " << stats_file << std::endl;
 
 						auto it_out = opts_map.find("output");
+						string out_file = "";
 						if(opts_map.end() == it_out){
-							printErr << "output option is mandatory." << std::endl;
-							cout << usage_str;
-							cout << opt_desc_full << std::endl;
-							return 1;
+							printInfo << "Writing reference sequence biases to stdout" << std::endl;
 						}
 						else{
-							auto out_file = it_out->second.as<string>();
+							out_file = it_out->second.as<string>();
 							printInfo << "Writing reference sequence biases to " << out_file << std::endl;
+						}
 
-							Reference species_reference;
-							if( species_reference.ReadFasta( ref_file.c_str() ) ){
-								DataStats real_data_stats(&species_reference);
-								if( real_data_stats.Load( stats_file.c_str() ) ){
-									if( !real_data_stats.FragmentDistribution().WriteRefSeqBias(out_file, species_reference) ){
-										return 1;
-									}
-								}
-								else{
+						Reference species_reference;
+						if( species_reference.ReadFasta( ref_file.c_str() ) ){
+							DataStats real_data_stats(&species_reference);
+							if( real_data_stats.Load( stats_file.c_str() ) ){
+								if( !real_data_stats.FragmentDistribution().WriteRefSeqBias(out_file, species_reference) ){
 									return 1;
 								}
 							}
@@ -515,12 +509,15 @@ int main(int argc, char *argv[]) {
 								return 1;
 							}
 						}
+						else{
+							return 1;
+						}
 					}
 				}
 			}
 		}
 		else if ("replaceN" == unrecognized_opts.at(0)) {
-			cout << " in replaceN mode" << std::endl;
+			cerr << " in replaceN mode" << std::endl;
 			unrecognized_opts.erase(unrecognized_opts.begin());
 
 			options_description opt_desc("ReplaceN");
@@ -538,14 +535,14 @@ int main(int argc, char *argv[]) {
 			}
 			catch (const exception& e) {
 				printErr << "Could not parse replaceN command line arguments: " << e.what() << std::endl;
-				cout << usage_str;
-				cout << opt_desc_full << std::endl;
+				cerr << usage_str;
+				cerr << opt_desc_full << std::endl;
 				return 1;
 			}
 
 			if ( general_opts_map.count("help") ) {
-				cout << usage_str;
-				cout << opt_desc_full << std::endl;
+				cerr << usage_str;
+				cerr << opt_desc_full << std::endl;
 			}
 			else if(!AutoDetectThreads(num_threads, opt_desc_full, usage_str)){
 				return 1;
@@ -556,8 +553,8 @@ int main(int argc, char *argv[]) {
 				string ref_input, ref_output;
 				if(opts_map.end() == it_ref_in){
 					printErr << "refIn option is mandatory." << std::endl;
-					cout << usage_str;
-					cout << opt_desc_full << std::endl;
+					cerr << usage_str;
+					cerr << opt_desc_full << std::endl;
 					return 1;
 				}
 				else{
@@ -566,8 +563,8 @@ int main(int argc, char *argv[]) {
 
 					if(opts_map.end() == it_ref_out){
 						printErr << "refSim option is mandatory." << std::endl;
-						cout << usage_str;
-						cout << opt_desc_full << std::endl;
+						cerr << usage_str;
+						cerr << opt_desc_full << std::endl;
 						return 1;
 					}
 					else{
@@ -595,7 +592,7 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		else if("illuminaPE" == unrecognized_opts.at(0)) {
-			cout << " in illuminaPE mode" << std::endl;
+			cerr << " in illuminaPE mode" << std::endl;
 			unrecognized_opts.erase(unrecognized_opts.begin());
 
 			uintNumFits ipf_iterations;
@@ -661,25 +658,25 @@ int main(int argc, char *argv[]) {
 			}
 			catch(const exception& e) {
 				printErr << "Could not parse illuminaPE command line arguments: " << e.what() << std::endl;
-				cout << usage_str;
-				cout << opt_desc_full << std::endl;
+				cerr << usage_str;
+				cerr << opt_desc_full << std::endl;
 				return 1;
 			}
 
 			if( general_opts_map.count("help") ) {
-				cout << usage_str;
-				cout << opt_desc_full << std::endl;
+				cerr << usage_str;
+				cerr << opt_desc_full << std::endl;
 			}
 			else if( ipf_precision < 0.0 ){
 				printErr << "ipfPrecision must be positive." << std::endl;
-				cout << usage_str;
-				cout << opt_desc_full << std::endl;
+				cerr << usage_str;
+				cerr << opt_desc_full << std::endl;
 				return 1;
 			}
 			else if(0 != num_read_pairs && 0.0 != coverage){
 				printErr << "numReads and coverage set the same value. Use either the one or the other." << std::endl;
-				cout << usage_str;
-				cout << opt_desc_full << std::endl;
+				cerr << usage_str;
+				cerr << opt_desc_full << std::endl;
 				return 1;
 			}
 			else if(!AutoDetectThreads(num_threads, opt_desc_full, usage_str)){
@@ -691,8 +688,8 @@ int main(int argc, char *argv[]) {
 				bool stop_after_estimation = opts_map.count("stopAfterEstimation");
 				if(opts_map.end() == it_ref_in && opts_map.end() == it_ref_out && (!stop_after_estimation || !opts_map.count("statsIn") || opts_map.count("writeSysError"))){
 					printErr << "refIn or refSim option mandatory." << std::endl;
-					cout << usage_str;
-					cout << opt_desc_full << std::endl;
+					cerr << usage_str;
+					cerr << opt_desc_full << std::endl;
 					return 1;
 				}
 				else{
@@ -783,8 +780,8 @@ int main(int argc, char *argv[]) {
 												}
 												else{
 													printErr << "Unknown option for refBias: " << ref_bmodel << std::endl;
-													cout << usage_str;
-													cout << opt_desc_full << std::endl;
+													cerr << usage_str;
+													cerr << opt_desc_full << std::endl;
 													ref_bias_model = RefSeqBiasSimulation::kError;
 												}
 											}
@@ -798,8 +795,8 @@ int main(int argc, char *argv[]) {
 											if(RefSeqBiasSimulation::kFile == ref_bias_model){
 												if(opts_map.end() == it_ref_bias_file){
 													printErr << "refBiasFile option mandatory if for refBias option file was chosen" << std::endl;
-													cout << usage_str;
-													cout << opt_desc_full << std::endl;
+													cerr << usage_str;
+													cerr << opt_desc_full << std::endl;
 													ref_bias_model = RefSeqBiasSimulation::kError;
 												}
 												else{
@@ -809,8 +806,8 @@ int main(int argc, char *argv[]) {
 											else{
 												if(opts_map.end() != it_ref_bias_file){
 													printErr << "refBiasFile option only allowed if for refBias option file was chosen" << std::endl;
-													cout << usage_str;
-													cout << opt_desc_full << std::endl;
+													cerr << usage_str;
+													cerr << opt_desc_full << std::endl;
 													ref_bias_model = RefSeqBiasSimulation::kError;
 												}
 											}
@@ -824,8 +821,8 @@ int main(int argc, char *argv[]) {
 
 												if(opts_map.end() == it_var_file && opts_map.count("vcfIn") && opts_map.count("statsIn")){
 													printErr << "vcfIn specified but not used as stats were loaded. Did you mean vcfSim?" << std::endl;
-													cout << usage_str;
-													cout << opt_desc_full << std::endl;
+													cerr << usage_str;
+													cerr << opt_desc_full << std::endl;
 													return 1;
 												}
 												else{
@@ -858,13 +855,13 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		else if("test" == unrecognized_opts.at(0)) {
-			cout << " in test mode" << std::endl;
+			cerr << " in test mode" << std::endl;
 
 			string usage_str = "Usage: reseq test [options]\n";
 
 			if( general_opts_map.count("help") ) {
-				cout << usage_str;
-				cout << opt_desc_full << std::endl;
+				cerr << usage_str;
+				cerr << opt_desc_full << std::endl;
 			}
 			else if(AutoDetectThreads(num_threads, opt_desc_full, usage_str)){
 				reseq::AdapterStatsTest::Register();
@@ -911,9 +908,9 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		else{
-			cout << std::endl;
+			cerr << std::endl;
 			printErr << "Unrecognized command: '" << unrecognized_opts.at(0) << "'" << std::endl;
-			cout << general_usage << std::endl;
+			cerr << general_usage << std::endl;
 		}
 	}
 

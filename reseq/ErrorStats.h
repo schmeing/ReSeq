@@ -229,7 +229,7 @@ namespace reseq{
 	
 		// Main functions
 		void Prepare(uintTileId num_tiles, uintQual size_qual, uintReadLen size_pos, uintReadLen size_indel);
-		bool Finalize();
+		void Finalize();
 		void Shrink();
 		void PreparePlotting();
 		void PrepareSimulation();
