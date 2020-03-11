@@ -425,6 +425,8 @@ void Reference::CloseVcfFile(){
 		std::cerr << std::endl;
 	}
 	clear(contigNames(context(vcf_file_)));
+	clear(contigNamesCache(context(vcf_file_)));
+	clear(sampleNames(context(vcf_file_)));
 	close(vcf_file_);
 }
 

@@ -251,7 +251,7 @@ void GetDataStats(DataStats &real_data_stats, string &stats_file, bool &loaded_s
 				auto it_variant_file = opts_map.find("vcfIn");
 				if( opts_map.end() != it_variant_file ){
 					variant_file = it_variant_file->second.as<string>();
-					printInfo << "Ignoring all variant positions listed in '" << stats_file << "' for error statistics." << std::endl;
+					printInfo << "Ignoring all variant positions listed in '" << variant_file << "' for error statistics." << std::endl;
 				}
 
 				if( real_data_stats.ReadBam( bam_input.c_str(), adapter_file.c_str(), adapter_matrix.c_str(), variant_file, max_ref_seq_bin_size, num_threads, !no_bias_calculation ) ){
@@ -731,7 +731,7 @@ int main(int argc, char *argv[]) {
 							}
 
 							if( !stop_after_estimation || opts_map.count("writeSysError") ){
-								if(opts_map.end() != it_ref_out && !species_reference.ReadFasta( ref_output.c_str() )){
+								if((opts_map.end() != it_ref_out) && (opts_map.end() == it_ref_in || ref_input != ref_output) && !species_reference.ReadFasta( ref_output.c_str() )){
 									return 1;
 								}
 								else{
@@ -752,12 +752,12 @@ int main(int argc, char *argv[]) {
 											auto it_ref_bias = opts_map.find("refBias");
 											if(opts_map.end() == it_ref_bias){
 												if(opts_map.end() == it_ref_out){
-													printInfo << "Removing all reference sequence biases[default]." << std::endl;
-													ref_bias_model = RefSeqBiasSimulation::kNo;
-												}
-												else{
 													printInfo << "Keeping reference sequence biases from read in[default]." << std::endl;
 													ref_bias_model = RefSeqBiasSimulation::kKeep;
+												}
+												else{
+													printInfo << "Removing all reference sequence biases[default]." << std::endl;
+													ref_bias_model = RefSeqBiasSimulation::kNo;
 												}
 											}
 											else{

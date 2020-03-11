@@ -745,8 +745,8 @@ namespace reseq{
 
 		TestVariantClass();
 		TestInsertVariant();
-		TestVariationLoading();
 		TestVariationPositionLoading();
+		TestVariationLoading();
 	}
 
 	TEST_F(ReferenceTest, Functionality){

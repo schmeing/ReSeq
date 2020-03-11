@@ -320,7 +320,7 @@ namespace reseq{
 
 	public:
 		CoverageStats():
-			coverage_threshold_(10),
+			coverage_threshold_(100),
 			first_block_(NULL),
 			last_block_(NULL),
 			zero_coverage_region_(0),
