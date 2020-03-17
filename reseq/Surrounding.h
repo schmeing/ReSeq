@@ -145,6 +145,12 @@ namespace reseq{
 			}
 		}
 
+		void Revert( const Kmer<K> &kmer ){
+			if(0 <= kmer.sur_.at(0)){
+				--(counts_.at( kmer.sur_.at(0) ));
+			}
+		}
+
 		typename Kmer<K>::intType CountSequenceForward(const seqan::IupacString &seq, uintReadLen start_pos){
 			Kmer<K> kmer;
 			if(start_pos+kmer.Length() <= length(seq)){
@@ -154,6 +160,14 @@ namespace reseq{
 
 				for(uintSeqLen pos=start_pos+1; pos+kmer.Length() <= length(seq); ++pos){
 					kmer.UpdateForwardWithN(seq, pos);
+					if(kmer.sur_.at(0) == start_kmer){
+						// If we hit the start kmer again, we are probably in a segment with short repeats, so we remove counts again and stop
+						for(uintSeqLen pos2=start_pos+1; pos2 < pos; ++pos2){
+							kmer.UpdateForwardWithN(seq, pos2);
+							Revert(kmer);
+						}
+						return -1;
+					}
 					Count(kmer);
 				}
 
