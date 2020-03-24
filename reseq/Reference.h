@@ -277,7 +277,7 @@ namespace reseq{
 			return Bias(ref_seq*fragment_length, gc, start_sur, end_sur);
 		}
 		double SumBias(double &max_bias, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, double general_bias, const Vect<double> &gc_bias, const SurroundingBias &sur_bias) const;
-		double SumBias(std::vector<utilities::VectorAtomic<uintFragCount>> &gc_sites, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, double general_bias, const Vect<double> &gc_bias, const SurroundingBias &sur_bias) const;
+		double SumBias(uintRefSeqId ref_seq_id, uintSeqLen fragment_length, double general_bias, const Vect<double> &gc_bias, const SurroundingBias &sur_bias) const;
 		void GetFragmentSites(std::vector<FragmentSite> &sites, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintSeqLen start, uintSeqLen end) const;
 #endif //SWIG
 

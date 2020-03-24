@@ -645,7 +645,6 @@ double Reference::SumBias(
 }
 
 double Reference::SumBias(
-		std::vector<utilities::VectorAtomic<uintFragCount>> &gc_sites,
 		uintRefSeqId ref_seq_id,
 		uintSeqLen fragment_length,
 		double general_bias,
@@ -664,7 +663,6 @@ double Reference::SumBias(
 
 	if(start_sur.Valid() && end_sur.Valid()){
 		tot += Bias(general_bias, gc_bias[Percent(gc, fragment_length)], sur_bias.Bias(start_sur), sur_bias.Bias(end_sur));
-		++gc_sites.at(Percent(gc, fragment_length));
 	}
 
 	const Dna5String &ref_seq(ReferenceSequence(ref_seq_id));
@@ -691,7 +689,6 @@ double Reference::SumBias(
 		if(start_sur.Valid() && end_sur.Valid()){
 			// If 0==fragment_length-n_count surrounding would be invalid, so no check needed
 			tot += Bias(general_bias, gc_bias[Percent(gc, fragment_length)], sur_bias.Bias(start_sur), sur_bias.Bias(end_sur));
-			++gc_sites.at(Percent(gc, fragment_length));
 		}
 	}
 

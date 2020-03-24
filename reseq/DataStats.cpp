@@ -576,7 +576,7 @@ void DataStats::PrepareReadIn(uintQual size_mapping_quality, uintReadLen size_in
 
 	adapters_.PrepareAdapters(size_pos, phred_quality_offset_);
 	coverage_.Prepare( Divide(num_bases,reference_->TotalSize()), Divide(num_bases,num_reads), maximum_read_length_on_reference_ );
-	duplicates_.PrepareTmpDuplicationVector(maximum_insert_length_);
+	duplicates_.PrepareTmpDuplicationVector();
 	errors_.Prepare(tiles_.NumTiles(), maximum_quality_+1, size_pos, size_indel);
 	fragment_distribution_.Prepare(*reference_, maximum_insert_length_, max_ref_seq_bin_size, reads_per_frag_len_bin_, lowq_reads_per_frag_len_bin_);
 	reads_per_frag_len_bin_.clear();
@@ -1321,7 +1321,6 @@ void DataStats::PreparePlotting(){
 	PrepareGeneral();
 	coverage_.PreparePlotting();
 	fragment_distribution_.PreparePlotting();
-	duplicates_.PreparePlotting();
 	errors_.PreparePlotting();
 	qualities_.PreparePlotting();
 }
@@ -1330,7 +1329,6 @@ void DataStats::PrepareTesting(){
 	PrepareGeneral();
 
 	coverage_.PreparePlotting();
-	duplicates_.PrepareTesting();
 	errors_.PreparePlotting();
 	qualities_.PrepareTesting();
 }

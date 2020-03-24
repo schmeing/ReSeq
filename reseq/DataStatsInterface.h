@@ -57,8 +57,6 @@ namespace reseq{
 		const std::pair< std::vector<uintNucCount>::size_type, std::vector<uintNucCount> > &InDelErrorByPosition(uintInDelType indel_type) const;
 		const std::pair< std::vector<uintNucCount>::size_type, std::vector<uintNucCount> > &InDelErrorByGC(uintInDelType indel_type) const;
 
-		const std::vector<double> &DispersionList() const;
-		const std::vector<double> &MeanList() const;
 		const std::pair< std::vector<uintFragCount>::size_type, std::vector<uintFragCount> > &FragmentDuplicationNumber() const;
 
 		const std::vector<uintFragCount> &Abundance() const;

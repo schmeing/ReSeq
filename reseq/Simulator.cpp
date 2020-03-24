@@ -2458,40 +2458,45 @@ bool Simulator::Simulate(
 			if(!simulation_error_){
 				bias_normalization_ = stats.FragmentDistribution().CalculateBiasNormalization(coverage_groups_, non_zero_thresholds_, ref, num_threads, total_pairs_);
 
-				// Chose systematic errors for adapters
-				sys_gc_range_ = Divide(sum_read_length,reads)/2; // Set gc range for systematic errors to half the average read length
-
-				for(auto template_segment=2; template_segment--;){
-					adapter_sys_error_.at(template_segment).reserve( stats.Adapters().Counts(template_segment).size() );
-					adapter_sys_error_.at(template_segment).resize( stats.Adapters().Counts(template_segment).size() );
-
-					for(auto seq=stats.Adapters().Counts(template_segment).size(); seq--;){
-						if( stats.Adapters().Counts(template_segment).at(seq) ){ // If the adapter does not appear, we don't need it
-							ResetSystematicErrorCounters(ref);
-
-							adapter_sys_error_.at(template_segment).at(seq).reserve( length(stats.Adapters().Sequence(template_segment, seq)) );
-
-							SetSystematicErrors(adapter_sys_error_.at(template_segment).at(seq), stats.Adapters().Sequence(template_segment, seq), 0, length(stats.Adapters().Sequence(template_segment, seq)), stats, estimates);
-						}
-					}
-				}
-
-				// Prepare systematic error file for reading in case it is specified
-				if(!sys_error_file.empty()){
-					if( !open(sys_file_, sys_error_file.c_str()) ){
-						printErr << "Could not open '" << sys_error_file << "' for reading." << std::endl;
-						simulation_error_ = true;
-					}
-					else{
-						sys_from_file_ = true;
-
-						auto max_len = ref.MaxSequenceLength();
-						reserve(sys_dom_err_, max_len);
-						reserve(sys_err_perc_, max_len);
-					}
+				if(0.0 == bias_normalization_){
+					simulation_error_ = true;
 				}
 				else{
-					sys_from_file_ = false;
+					// Chose systematic errors for adapters
+					sys_gc_range_ = Divide(sum_read_length,reads)/2; // Set gc range for systematic errors to half the average read length
+
+					for(auto template_segment=2; template_segment--;){
+						adapter_sys_error_.at(template_segment).reserve( stats.Adapters().Counts(template_segment).size() );
+						adapter_sys_error_.at(template_segment).resize( stats.Adapters().Counts(template_segment).size() );
+
+						for(auto seq=stats.Adapters().Counts(template_segment).size(); seq--;){
+							if( stats.Adapters().Counts(template_segment).at(seq) ){ // If the adapter does not appear, we don't need it
+								ResetSystematicErrorCounters(ref);
+
+								adapter_sys_error_.at(template_segment).at(seq).reserve( length(stats.Adapters().Sequence(template_segment, seq)) );
+
+								SetSystematicErrors(adapter_sys_error_.at(template_segment).at(seq), stats.Adapters().Sequence(template_segment, seq), 0, length(stats.Adapters().Sequence(template_segment, seq)), stats, estimates);
+							}
+						}
+					}
+
+					// Prepare systematic error file for reading in case it is specified
+					if(!sys_error_file.empty()){
+						if( !open(sys_file_, sys_error_file.c_str()) ){
+							printErr << "Could not open '" << sys_error_file << "' for reading." << std::endl;
+							simulation_error_ = true;
+						}
+						else{
+							sys_from_file_ = true;
+
+							auto max_len = ref.MaxSequenceLength();
+							reserve(sys_dom_err_, max_len);
+							reserve(sys_err_perc_, max_len);
+						}
+					}
+					else{
+						sys_from_file_ = false;
+					}
 				}
 			}
 

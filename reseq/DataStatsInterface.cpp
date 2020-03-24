@@ -147,13 +147,6 @@ const pair< vector<uintNucCount>::size_type, vector<uintNucCount> > &DataStatsIn
 	return stats_.Errors().InDelErrorByGC(indel_type).std();
 }
 
-const std::vector<double> &DataStatsInterface::DispersionList() const{
-	return stats_.Duplicates().DispersionList();
-}
-const std::vector<double> &DataStatsInterface::MeanList() const{
-	return stats_.Duplicates().MeanList();
-}
-
 const pair< vector<uintFragCount>::size_type, vector<uintFragCount> > &DataStatsInterface::FragmentDuplicationNumber() const{
 	return stats_.Duplicates().DuplicationNumber().std();
 }

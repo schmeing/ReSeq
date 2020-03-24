@@ -698,7 +698,7 @@ void FragmentDistributionStatsTest::TestBiasCalculation(){
 
 	// Fit data
 	FragmentDuplicationStats duplications;
-	duplications.PrepareTmpDuplicationVector(100);
+	duplications.PrepareTmpDuplicationVector();
 	uintNumThreads num_threads = min(static_cast<uintNumThreads>(4), test_with_num_threads);
 	array<FragmentDistributionStats::ThreadData, 4> thread_data = {FragmentDistributionStats::ThreadData(100, species_reference_.SequenceLength(0), Reference::kMinDistToContigEnds), FragmentDistributionStats::ThreadData(100, species_reference_.SequenceLength(0), Reference::kMinDistToContigEnds), FragmentDistributionStats::ThreadData(100, species_reference_.SequenceLength(0), Reference::kMinDistToContigEnds), FragmentDistributionStats::ThreadData(100, species_reference_.SequenceLength(0), Reference::kMinDistToContigEnds)};
 	mutex print_mutex;
@@ -733,9 +733,10 @@ void FragmentDistributionStatsTest::TestBiasCalculation(){
 	EXPECT_NEAR(0.4, accumulate(test_->fragment_surroundings_bias_.bias_.at(1).begin()+2*pos_base, test_->fragment_surroundings_bias_.bias_.at(1).begin()+3*pos_base, 0.0)/pos_base, 0.2);
 	EXPECT_NEAR(0.4, accumulate(test_->fragment_surroundings_bias_.bias_.at(1).begin()+3*pos_base, test_->fragment_surroundings_bias_.bias_.at(1).begin()+4*pos_base, 0.0)/pos_base, 0.2);
 
-	for(uintSeqLen fragment_length=65; fragment_length <= 95; fragment_length += 5){
-		EXPECT_NEAR(1.0, test_->insert_lengths_bias_.at(fragment_length), 0.1) << "Fragment length " << fragment_length << " wrong\n";
-	}
+	// Testing the fragment length makes no sense if we only have a few fragment length, adding a separate estimation test would be good
+	//for(uintSeqLen fragment_length=65; fragment_length <= 95; fragment_length += 5){
+	//	EXPECT_NEAR(1.0, test_->insert_lengths_bias_.at(fragment_length), 0.1) << "Fragment length " << fragment_length << " wrong\n";
+	//}
 	EXPECT_DOUBLE_EQ(1.0, *max_element(test_->insert_lengths_bias_.begin(), test_->insert_lengths_bias_.end()));
 
 	EXPECT_DOUBLE_EQ(1.0, test_->ref_seq_bias_.at(0));

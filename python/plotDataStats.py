@@ -809,45 +809,6 @@ def plotCalledBases( pdf, xtitle, ytitle, names, called_bases, total_bases, incl
 
     return
 
-def plotMeanVsDispersion(pdf, xtitle, ytitle, names, mean_lists, dispersion_lists):
-    plt.close()
-        
-    (num_x_subplots, num_y_subplots) = num_subplots( len(names) )
-    fig, axs = plt.subplots(num_y_subplots, num_x_subplots, sharex='col', sharey='row')
-
-    mean95 = 0;
-    for mean in mean_lists:
-        mean95 = max(mean95, sorted(mean)[-len(mean)/20])
-    dispersion95 = 0;
-    for dispersion in dispersion_lists:
-        dispersion95 = max(dispersion95, sorted(dispersion)[-len(dispersion)/20])
-
-    subplot_x = 0
-    subplot_y = 0
-    for mean, dispersion, name in izip(mean_lists, dispersion_lists, names):
-        if 1 == len(names):
-            ax = axs
-            pass
-        elif 2 == len(names):
-            ax = axs[subplot_x]
-            pass
-        else:
-            ax = axs[subplot_y, subplot_x]
-            pass
-        ax.set_title(name)
-
-        # Plot 2d histogram
-        ax.hist2d(mean, dispersion, bins=100, range=[[0.0, mean95], [0.0, dispersion95]], cmap=plt.cm.magma, norm=LogNorm())
-    
-        subplot_x += 1
-        subplot_y += subplot_x/num_x_subplots
-        subplot_x %= num_x_subplots
-        pass
-
-    finalizeMultiPlot(fig, axs, xtitle, ytitle)
-
-    pdf.savefig()
-
 def plotDataStats(statsFiles, oFile):
     names = []
     for sf in statsFiles:
@@ -897,7 +858,6 @@ def plotDataStats(statsFiles, oFile):
             #plot( pdf, "Coverage - strand / total Coverage [%]", "# bases of reference (min cov 20)", names, [st.CoverageStrandedPercentMinCov20(True) for st in stats], zero_padding=False )
             
             plot( pdf, "Fragment duplication number", "% fragments", names, [st.FragmentDuplicationNumber() for st in stats], log=True, normalize=True )
-            plotMeanVsDispersion( pdf, "Mean", "Dispersion", names, [st.MeanList() for st in stats], [st.DispersionList() for st in stats] )
             
             plot( pdf, "Reference sequence", "# pairs", names, [(0,st.Abundance()) for st in stats] )
             plot( pdf, "Insert length", "% read pairs", names, [st.InsertLengths() for st in stats], normalize=True )

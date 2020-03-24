@@ -75,7 +75,7 @@ namespace reseq{
 		static std::mutex file_mutex_;
 	public:
 		// Definitions
-		static constexpr double kStopCriterion = 1e-6; // Minimum relative change in chi2 to finish fit
+		static constexpr double kStopCriterion = 1e-6; // Minimum relative change in loglikelihood to finish fit
 		static const uintNumFits kMaxLikelihoodCalculations = 100;
 		static const uint16_t kSplinePrecisionFactor = 10; // Spline fit is fast so we can require a higher precision
 
@@ -204,7 +204,9 @@ namespace reseq{
 		double SurBiasAtSite(const FragmentSite& site);
 
 		void DefineStartingKnots();
+		template<typename T, typename S, typename U, typename V, typename W> static void PrepareSplines(std::array<T, 3> &lin_comb_splines, S &x, W &l, U &c, U &z, V &mu, V &h, T &beta);
 		void PrepareSplines();
+		template<typename T> static void GetSplineCoefficients(double &a, double &b, double &c, double &d, uintSeqLen k, const std::vector<double> &spline_pars, const std::array<T, 3> &lin_comb_splines);
 		void GetSplineCoefficients(double &a, double &b, double &c, double &d, uintPercent k, const std::vector<double> &spline_pars);
 		void CalculateSpline(const std::vector<double> &spline_pars);
 		void CalculateSplineGrad(const std::vector<double> &spline_pars, std::vector<double> &grad, uintNumFits grad_offset);
@@ -224,6 +226,52 @@ namespace reseq{
 		static double LogLikelihoodConstDispersion(const std::vector<double> &x, std::vector<double> &grad, void* f_data);
 		void WriteOutParameterInfo(const char *context);
 		void WriteOutDispersionInfo(const char *context);
+	};
+
+	class InsertLengthSpline{
+	private:
+		const uintSeqLen kInsertLengthSamplingDistance = 20; // Every kInsertLengthSamplingDistance length the bias is calculated and then a spline interpolates between them
+		const uintSeqLen kNumKnots = 6; // We set kNumKnots for the spline to describe the samples
+		const uintSeqLen kKnotShiftLength = 10; // Knots are always shifted in multiples of kKnotShiftLength
+		const uintSeqLen kKnotMaxShift = 100; // Knots are shifted in one iteration by a maximum of kKnotMaxShift
+
+		static constexpr double kStopCriterion = 1e-6; // Minimum relative change in chi2 to finish fit
+		static const uintNumFits kMaxChi2Calculations = 1000;
+		static constexpr double kLowerBound = -1e25;
+		static constexpr double kUpperBound = 1e25;
+
+		std::array<std::vector<std::vector<double>>, 3> lin_comb_splines_;
+		std::vector<uintSeqLen> knots_;
+		std::vector<double> pars_;
+		std::vector<double> sampled_values_;
+
+		double sample_mean_;
+
+		nlopt::opt optimizer_;
+
+		template<class T> void GetSampledValues(const Vect<double> &insert_lengths_bias, const T &insert_lengths);
+		void DistributeStartingKnots();
+		void ConfigureOptimizer();
+		void PrepareInsertLengthSpline();
+		void SetStartingParameters();
+		static double Chi2(const std::vector<double> &x, std::vector<double> &grad, void* f_data);
+		double OptimizeParameters();
+		double OptimizeParameters(uintSeqLen removed_knot);
+		double OptimizeParameters(uintSeqLen shifted_knot, intSeqShift shifted_positions);
+		void ShiftOptimization();
+		void Optimize();
+		void FillInWithFittedRatios(Vect<double> &insert_lengths_bias, const Vect<uintFragCount> &insert_lengths);
+		void FillInWithFittedRatios(std::vector<double> &normalization, const Vect<double> &insert_lengths_bias);
+		template<class T> bool CheckFit(const Vect<double> &insert_lengths_bias, const T &insert_lengths);
+		void FillInWithMeanRatio(Vect<double> &insert_lengths_bias, const Vect<uintFragCount> &insert_lengths);
+		void FillInWithMeanRatio(std::vector<double> &normalization, const Vect<double> &insert_lengths_bias);
+
+	public:
+		std::vector<uintSeqLen> sample_positions_;
+
+		bool GetSamplePositions(const Vect<uintFragCount> &insert_lengths);
+		bool FitInsertLengthWithSpline(Vect<double> &insert_lengths_bias, const Vect<uintFragCount> &insert_lengths);
+		bool InterpolateNormalizationWithSpline(std::vector<double> &normalization, const Vect<double> &insert_lengths_bias);
 	};
 
 	class FragmentDistributionStats{
@@ -256,7 +304,7 @@ namespace reseq{
 	private:
 		// Definitions
 		const uintSeqLen kOutskirtRange = 20; // 20 bases before and after each fragment are reported
-		static const uint16_t kMaxBinsQueuedForBiasCalc = 5; // Defines length of the parameter vector which is used to feed calculation threads
+		static const uint16_t kMaxBinsQueuedForBiasCalc = 100; // Defines length of the parameter vector which is used to feed calculation threads
 		const uintErrorCount kMaxErrorsShownPerFile = 50;
 		const double kPrecisionAimRefSeqFragLengthFit = 1.0001;
 		const uintNumFits kMaxIterationsRefSeqFragLengthFit = 200;
@@ -265,6 +313,8 @@ namespace reseq{
 		const uintFragCount kMinSites = 25000;
 		const uintFragCount kMinCounts = 100;
 		const uintFragCount kMaxSitesPerCount = 10000;
+
+		uintNumFits num_fits_per_ref_bin_;
 
 		// User parameter
 		uintSeqLen max_ref_seq_bin_length_;
@@ -351,8 +401,8 @@ namespace reseq{
 		void CheckLowQExclusions(uintRefSeqBin ref_seq_bin, std::vector<uintFragCount> &tmp_frag_count, const Reference &reference);
 		void SortFragmentSites(uintRefSeqBin ref_seq_bin, std::vector<uintSeqLen> &num_sites_per_insert_length);
 		void UpdateBiasCalculationParams(uintRefSeqBin ref_seq_bin, uint32_t queue_spot, std::vector<std::pair<uintSeqLen, std::pair<uintRefSeqBin, uintSeqLen>>> &tmp_params, std::mutex &print_mutex );
-		void FillParams(std::vector<BiasCalculationParams> &params, const Reference &reference) const;
-		void FillParamsSimulation(std::vector<BiasCalculationParams> &params, const Reference &reference) const;
+		void FillParams(std::vector<BiasCalculationParams> &params, const Reference &reference, const std::vector<uintSeqLen> &sample_frag_length) const;
+		void FillParamsSimulation(std::vector<BiasCalculationParams> &params, const Reference &reference, const std::vector<uintSeqLen> &sample_frag_length) const;
 
 		void CountEndExclusion(uintFragCount &lowq_sites, uintSeqLen &cur_end_exclusion, uintSeqLen last_cut, uintSeqLen new_cut, uintRefSeqBin ref_seq_bin );
 		void CountDuplicates(FragmentDuplicationStats &duplications, const BiasCalculationParamsSplitSeqs &params, const Reference &reference);
@@ -370,15 +420,15 @@ namespace reseq{
 		void AcquireBiases(const BiasCalculationVectors &calc, std::mutex &print_mutex);
 		bool StoreBias();
 		double MedianFragmentCoverage(const Reference &ref) const;
-		void CalculateInsertLengthAndRefSeqBias(const Reference &reference, uintNumThreads num_threads, std::vector<std::vector<utilities::VectorAtomic<uintFragCount>>> &site_count_by_insert_length_gc);
+		bool CalculateInsertLengthAndRefSeqBias(const Reference &reference, uintNumThreads num_threads);
 		void ReplaceUncertainCorrectedAbundanceWithMedian(const Reference &ref);
 		void AddNewBiasCalculations(uintRefSeqBin still_needed_ref_bin, ThreadData &thread, std::mutex &print_mutex, const Reference &reference);
 		void ExecuteBiasCalculations( const Reference &reference, FragmentDuplicationStats &duplications, BiasCalculationVectors &thread_values, std::mutex &print_mutex );
 		void HandleReferenceSequencesUntil(uintRefSeqBin still_needed_ref_bin, ThreadData &thread, const Reference &reference, FragmentDuplicationStats &duplications, std::mutex &print_mutex);
-		static void BiasSumThread( const FragmentDistributionStats &self, const Reference &reference, const std::vector<BiasCalculationParams> &params, std::atomic<uintNumFits> &current_param, std::vector<std::vector<double>> &bias_sum, std::vector<std::vector<utilities::VectorAtomic<uintFragCount>>> &site_count_by_insert_length_gc, std::mutex &print_mutex );
+		static void BiasSumThread( const FragmentDistributionStats &self, const Reference &reference, const std::vector<BiasCalculationParams> &params, std::atomic<uintNumFits> &current_param, std::atomic<uintNumFits> &finished_params, std::vector<std::vector<double>> &bias_sum, std::mutex &print_mutex );
 
 		uintRefSeqId SplitCoverageGroups(std::vector<uintRefSeqId> &coverage_groups) const;
-		static void BiasNormalizationThread( const FragmentDistributionStats &self, const Reference &reference, const std::vector<BiasCalculationParams> &params, std::atomic<uintNumFits> &current_param, double &norm, std::mutex &result_mutex, const std::vector<uintRefSeqId> &coverage_groups, std::vector<std::vector<double>> &max_bias );
+		static void BiasNormalizationThread( const FragmentDistributionStats &self, const Reference &reference, const std::vector<BiasCalculationParams> &params, std::atomic<uintNumFits> &current_param, std::vector<double> &norm, std::mutex &result_mutex, const std::vector<uintRefSeqId> &coverage_groups, std::vector<std::vector<double>> &max_bias );
 		double CalculateNonZeroThreshold(double bias_normalization, double max_bias) const;
 		
 		// Boost archive functions
@@ -407,6 +457,7 @@ namespace reseq{
 		friend class SimulatorTest;
 	public:
 		FragmentDistributionStats():
+			num_fits_per_ref_bin_(0), // Will be set later depending on number of bins
 			max_ref_seq_bin_length_(0), // Will be set later as it is a program parameter
 			calculate_bias_(true), // Not calculated only to speed up tests
 			num_handled_reference_sequence_bins_(0),

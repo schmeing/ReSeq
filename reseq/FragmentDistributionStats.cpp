@@ -1,6 +1,7 @@
 #include "FragmentDistributionStats.h"
 using reseq::FragmentDistributionStats;
 using reseq::BiasCalculationVectors;
+using reseq::InsertLengthSpline;
 
 //include <algorithm>
 using std::max;
@@ -414,24 +415,17 @@ void BiasCalculationVectors::DefineStartingKnots(){
 	}
 }
 
-void BiasCalculationVectors::PrepareSplines(){
+template<typename T, typename S, typename U, typename V, typename W> void BiasCalculationVectors::PrepareSplines(array<T, 3> &lin_comb_splines, S &x, W &l, U &c, U &z, V &mu, V &h, T &beta){
 	// https://en.wikipedia.org/wiki/Spline_(mathematics) "Computation of Natural Cubic Splines" slightly adapted to get the linear combination of the spline parameters a
-	const uintPercent df = kGCSplineDf;
-	auto &x = gc_knots_;
-
-	array<double, df> l; // j=[0, n]
-	array<array<double, df>, df> c, z; // c[j][a_index]: j=[0, n]
-	array<double, df-1> mu, h; // i=[0, n-1]
-	auto &b = lin_comb_gc_splines_.at(0); // b[i][a_index]: i=[0, n-1]
-	auto &d = lin_comb_gc_splines_.at(2); // d[i][a_index]: i=[0, n-1]
-	array<array<double, df>, df-1> beta; //  beta[k][a_index]: k=[1, n-1]
+	auto &b = lin_comb_splines.at(0); // b[i][a_index]: i=[0, n-1]
+	auto &d = lin_comb_splines.at(2); // d[i][a_index]: i=[0, n-1]
 
 	for(uintPercent i=0; i < h.size(); ++i){
 		h.at(i) = x.at(i+1) - x.at(i);
 	}
 
 	for(uintPercent k=1; k < beta.size(); ++k){
-		beta.at(k).fill(0.0);
+		//beta.at(k).fill(0.0);
 		beta.at(k).at(k+1) = 3/h.at(k);
 		beta.at(k).at(k) = -3/h.at(k) - 3/h.at(k-1);
 		beta.at(k).at(k-1) = 3/h.at(k-1);
@@ -439,22 +433,22 @@ void BiasCalculationVectors::PrepareSplines(){
 
 	l.at(0) = 0.0;
 	mu.at(0) = 0.0;
-	z.at(0).fill(0.0);
+	//z.at(0).fill(0.0);
 
 	for(uintPercent k=1; k < beta.size(); ++k){
 		l.at(k) = 2*(x.at(k+1)-x.at(k-1)) - h.at(k-1)*mu.at(k-1);
 		mu.at(k) = h.at(k)/l.at(k);
-		for(uintPercent ai=0; ai<df; ++ai){
+		for(uintPercent ai=0; ai<x.size(); ++ai){
 			z.at(k).at(ai) = (beta.at(k).at(ai) - h.at(k-1) * z.at(k-1).at(ai))/l.at(k);
 		}
 	}
 
 	l.at(l.size()-1) = 1.0;
-	z.at(z.size()-1).fill(0.0);
-	c.at(c.size()-1).fill(0.0);
+	//z.at(z.size()-1).fill(0.0);
+	//c.at(c.size()-1).fill(0.0);
 
 	for(uintPercent i=h.size(); i--;){
-		for(uintPercent ai=0; ai<df; ++ai){
+		for(uintPercent ai=0; ai<x.size(); ++ai){
 			c.at(i).at(ai) = z.at(i).at(ai) - mu.at(i)*c.at(i+1).at(ai);
 			b.at(i).at(ai) = -h.at(i)*(c.at(i+1).at(ai) + 2*c.at(i).at(ai))/3;
 			d.at(i).at(ai) = (c.at(i+1).at(ai) - c.at(i).at(ai))/3/h.at(i);
@@ -466,23 +460,43 @@ void BiasCalculationVectors::PrepareSplines(){
 
 	// Store values from c in lin_comb_gc_splines_ (as c needs to be one larger for the calculation it is not a reference like b and d)
 	for(uintPercent i=h.size(); i--;){
-		for(uintPercent ai=0; ai<df; ++ai){
-			lin_comb_gc_splines_.at(1).at(i).at(ai) = c.at(i).at(ai);
+		for(uintPercent ai=0; ai<x.size(); ++ai){
+			lin_comb_splines.at(1).at(i).at(ai) = c.at(i).at(ai);
 		}
 	}
 }
 
-void BiasCalculationVectors::GetSplineCoefficients(double &a, double &b, double &c, double &d, uintPercent k, const vector<double> &spline_pars){
+void BiasCalculationVectors::PrepareSplines(){
+	array<double, kGCSplineDf> l; // j=[0, n]
+	array<array<double, kGCSplineDf>, kGCSplineDf> c, z; // c[j][a_index]: j=[0, n]
+	array<double, kGCSplineDf-1> mu, h; // i=[0, n-1]
+	array<array<double, kGCSplineDf>, kGCSplineDf-1> beta; // beta[k][a_index]: k=[1, n-1]
+
+	for(uintPercent k=1; k < beta.size(); ++k){
+		beta.at(k).fill(0.0);
+	}
+	z.at(0).fill(0.0);
+	z.at(z.size()-1).fill(0.0);
+	c.at(c.size()-1).fill(0.0);
+
+	PrepareSplines(lin_comb_gc_splines_, gc_knots_, l, c, z, mu, h, beta);
+}
+
+template<typename T> void BiasCalculationVectors::GetSplineCoefficients(double &a, double &b, double &c, double &d, uintSeqLen k, const vector<double> &spline_pars, const array<T, 3> &lin_comb_splines){
 	a = spline_pars.at(k+1);
 	b = 0.0;
 	c = 0.0;
 	d = 0.0;
 
-	for(uintPercent ai=1; ai < gc_spline_pars_.size(); ++ai){
-		b += spline_pars.at(ai) * lin_comb_gc_splines_.at(0).at(k).at(ai-1);
-		c += spline_pars.at(ai) * lin_comb_gc_splines_.at(1).at(k).at(ai-1);
-		d += spline_pars.at(ai) * lin_comb_gc_splines_.at(2).at(k).at(ai-1);
+	for(uintPercent ai=1; ai < spline_pars.size(); ++ai){
+		b += spline_pars.at(ai) * lin_comb_splines.at(0).at(k).at(ai-1);
+		c += spline_pars.at(ai) * lin_comb_splines.at(1).at(k).at(ai-1);
+		d += spline_pars.at(ai) * lin_comb_splines.at(2).at(k).at(ai-1);
 	}
+}
+
+void BiasCalculationVectors::GetSplineCoefficients(double &a, double &b, double &c, double &d, uintPercent k, const vector<double> &spline_pars){
+	GetSplineCoefficients(a, b, c, d, k, spline_pars, lin_comb_gc_splines_);
 }
 
 void BiasCalculationVectors::CalculateSpline(const vector<double> &spline_pars){
@@ -630,7 +644,6 @@ double BiasCalculationVectors::OptimizeSpline(){
 	}
 
 	func_calls_ = 0;
-	std::vector<double> grad;
 	double loglike;
 
 	converged_ = true;
@@ -1159,6 +1172,531 @@ void BiasCalculationVectors::WriteOutDispersionInfo(const char *context){
 	myfile.close();
 }
 
+template<class T> void InsertLengthSpline::GetSampledValues(const Vect<double> &insert_lengths_bias, const T &insert_lengths){
+	// Get insert_lengths/insert_lengths_bias_ ratios at sample_positions_
+	sampled_values_.resize(sample_positions_.size());
+	for(uintSeqLen s=0; s < sample_positions_.size(); ++s){
+		// sample_positions_ are selected in a way that count and therefore bias cannot be zero
+		sampled_values_.at(s) = insert_lengths.at( sample_positions_.at(s) ) / insert_lengths_bias.at( sample_positions_.at(s) ); // Count/Bias ratio
+	}
+
+	// Get mean in case the fit does not work (only relevant for normalization fit)
+	sample_mean_ = 0.0;
+	for(uintSeqLen s=0; s < sample_positions_.size(); ++s){
+		sample_mean_ += sampled_values_.at(s);
+	}
+}
+
+void InsertLengthSpline::DistributeStartingKnots(){
+	// At the beginning every sample gets a knot
+	knots_.resize( sample_positions_.size() );
+	for( uintSeqLen k=0; k < knots_.size(); ++k ){
+		knots_.at(k) = sample_positions_.at(k);
+	}
+}
+
+void InsertLengthSpline::ConfigureOptimizer(){
+	// We need the number of knots before we can configure the optimizer, so run after DistributeKnots
+	optimizer_ = nlopt::opt(nlopt::LD_LBFGS, knots_.size()+1);
+
+	optimizer_.set_min_objective(Chi2, reinterpret_cast<void*>(this));
+
+	optimizer_.set_ftol_rel(kStopCriterion);
+	optimizer_.set_maxeval(kMaxChi2Calculations);
+
+	// Set the bounds for the knots
+	vector<double> bounds;
+	const double upper_bound = kUpperBound;
+	bounds.resize(knots_.size()+1, upper_bound);
+	bounds.at(0) = 1.0; // Normalization parameter that we don't use here
+	optimizer_.set_upper_bounds(bounds);
+
+	bounds.clear();
+	const double lower_bound = kLowerBound;
+	bounds.resize(knots_.size()+1, lower_bound);
+	bounds.at(0) = 1.0; // Normalization parameter that we don't use here
+	optimizer_.set_lower_bounds(bounds);
+}
+
+void InsertLengthSpline::PrepareInsertLengthSpline(){
+	// Create coefficient vectors for linear combinations used for the spline
+	//b[i][a_index]: i=[0, n-1]
+	for(uint8_t dim = 3; dim--; ){
+		lin_comb_splines_.at(dim).clear();
+		lin_comb_splines_.at(dim).resize(knots_.size()-1);
+		for(auto i=lin_comb_splines_.at(dim).size(); i--; ){
+			lin_comb_splines_.at(dim).at(i).resize(knots_.size(), 0.0);
+		}
+	}
+
+	// Create variables needed for PrepareSplines
+	vector<double> l; // j=[0, n]
+	l.resize(knots_.size(), 0.0);
+
+	vector<vector<double>> c, z; // c[j][a_index]: j=[0, n]
+	c.resize(knots_.size());
+	z.resize(knots_.size());
+	for(uintPercent k=0; k < c.size(); ++k){
+		c.at(k).resize(knots_.size(), 0.0);
+		z.at(k).resize(knots_.size(), 0.0);
+	}
+
+	vector<double> mu, h; // i=[0, n-1]
+	mu.resize(knots_.size()-1, 0.0);
+	h.resize(knots_.size()-1, 0.0);
+
+	vector<vector<double>> beta; // beta[k][a_index]: k=[1, n-1]
+	beta.resize(knots_.size()-1);
+	for(uintPercent k=1; k < beta.size(); ++k){
+		beta.at(k).resize(knots_.size(), 0.0);
+	}
+
+	BiasCalculationVectors::PrepareSplines(lin_comb_splines_, knots_, l, c, z, mu, h, beta);
+}
+
+void InsertLengthSpline::SetStartingParameters(){
+	pars_.resize(knots_.size()+1);
+	pars_.at(0) = 1.0; // That is a normalization parameter that we don't need here
+	uintSeqLen s = 0;
+	for(uintSeqLen k=0; k < knots_.size(); ++k){
+		// Go to the next sampling position after the knot (or on the knot if one exists)
+		while( knots_.at(k) > sample_positions_.at(s) ){
+			++s;
+		}
+
+		if( knots_.at(k) == sample_positions_.at(s) ){
+			// Knot is on a sampling position
+			pars_.at(k+1) = sampled_values_.at(s);
+		}
+		else{
+			// Knot is in between sampling positions: Mean value
+			pars_.at(k+1) = 0.5 * (sampled_values_.at(s-1) + sampled_values_.at(s));
+		}
+
+		// We need log because we use exp later on the spline result
+		if(pars_.at(k+1) > 0.0){
+			pars_.at(k+1) = log( pars_.at(k+1) );
+		}
+		else{
+			pars_.at(k+1) = log( 1e-10 );
+		}
+	}
+}
+
+double InsertLengthSpline::Chi2(const std::vector<double> &x, std::vector<double> &grad, void* f_data){
+	InsertLengthSpline &self(*reinterpret_cast<InsertLengthSpline *>(f_data));
+
+	double chi2 = 0.0;
+	for(auto &g : grad){
+		g = 0.0;
+	}
+
+	double a, b, c, d;
+	uintSeqLen k = 0;
+	BiasCalculationVectors::GetSplineCoefficients(a, b, c, d, k, x, self.lin_comb_splines_);
+
+	for(uintSeqLen s=0; s < self.sample_positions_.size()-1; ++s){
+		if( self.sample_positions_.at(s) >= self.knots_.at(k+1) ){
+			BiasCalculationVectors::GetSplineCoefficients(a, b, c, d, ++k, x, self.lin_comb_splines_);
+		}
+
+		uintSeqLen cur_len = self.sample_positions_.at(s) - self.knots_.at(k);
+		double estimate = exp(a + b*cur_len + c*cur_len*cur_len + d*cur_len*cur_len*cur_len);
+
+		chi2 += (self.sampled_values_.at(s) - estimate) * (self.sampled_values_.at(s) - estimate);
+
+		if(grad.size()){
+			// Update gradient: Coefficient a
+			double factor = -2.0 * (self.sampled_values_.at(s) - estimate) * estimate;
+			grad.at(k+1) += factor; // k+1 because parameter 0 is the normalization parameter we ignore
+
+			// Update gradient: Coefficients b, c, d
+			factor *= cur_len;
+			for(uintPercent ai=1; ai < x.size(); ++ai){
+				grad.at(ai) += factor * self.lin_comb_splines_.at(0).at(k).at(ai-1); // b
+				grad.at(ai) += factor * cur_len * self.lin_comb_splines_.at(1).at(k).at(ai-1); // c
+				grad.at(ai) += factor * cur_len * cur_len * self.lin_comb_splines_.at(2).at(k).at(ai-1); // d
+			}
+		}
+	}
+
+	// Handle last sample, that falls on top of last knot
+	double estimate = exp( x.at(x.size()-1) );
+
+	chi2 += (self.sampled_values_.at(self.sample_positions_.size()-1) - estimate) * (self.sampled_values_.at(self.sample_positions_.size()-1) - estimate);
+
+	if(grad.size()){
+		grad.at( grad.size()-1 ) = -2.0 * (self.sampled_values_.at(self.sample_positions_.size()-1) - estimate) * estimate;
+	}
+
+	return chi2;
+}
+
+double InsertLengthSpline::OptimizeParameters(){
+	PrepareInsertLengthSpline();
+	SetStartingParameters();
+
+	double chi2;
+	try{
+		optimizer_.optimize(pars_, chi2);
+	}
+	catch(const std::exception& e){
+		// Make sure we have the chi2 that fits the pars_
+		std::vector<double> grad;
+		chi2 = Chi2(pars_, grad, reinterpret_cast<void*>(this));
+	}
+
+
+	return chi2;
+}
+
+double InsertLengthSpline::OptimizeParameters(uintSeqLen removed_knot){
+	auto tmp_pos = knots_.at(removed_knot);
+
+	knots_.erase(knots_.begin() + removed_knot);
+
+	ConfigureOptimizer();
+	double chi2 = OptimizeParameters();
+
+	knots_.insert(knots_.begin() + removed_knot, tmp_pos);
+
+	return chi2;
+}
+
+double InsertLengthSpline::OptimizeParameters(uintSeqLen shifted_knot, intSeqShift shifted_positions){
+	if( 0 > shifted_positions ){
+		if(-shifted_positions > knots_.at(shifted_knot) || knots_.at(shifted_knot-1) >= knots_.at(shifted_knot) + shifted_positions){
+			// Knot shifted over the previous knot (or below zero)
+			return numeric_limits<double>::max();
+		}
+	}
+	else{
+		if(knots_.at(shifted_knot+1) <= knots_.at(shifted_knot) + shifted_positions){
+			// Knot shifted over the next knot
+			return numeric_limits<double>::max();
+		}
+	}
+
+	knots_.at(shifted_knot) += shifted_positions;
+
+	double chi2 = OptimizeParameters();
+
+	knots_.at(shifted_knot) -= shifted_positions;
+
+	return chi2;
+}
+
+void InsertLengthSpline::ShiftOptimization(){
+	ConfigureOptimizer();
+	double min_chi2 = OptimizeParameters();
+	double new_chi2;
+
+	// Greedily shift inner knots to minimize chi^2 (optimize parameters for every tested knot combination)
+	uintSeqLen best_shifted_knot = 0;
+	intSeqShift best_shifted_positions = 0;
+	intSeqShift better_direction;
+
+	// Loop until convergence
+	do{ // while(0 != best_shifted_positions)
+		// Adjust knots based on result from last round
+		knots_.at(best_shifted_knot) += best_shifted_positions;
+		best_shifted_knot = 0;
+		best_shifted_positions = 0;
+
+		// Try to shift every inner knot and see if that improves the result
+		for(uintSeqLen shifted_knot = 1; shifted_knot < knots_.size()-1; ++shifted_knot){
+			for(intSeqShift shifted_positions = kKnotShiftLength; shifted_positions < kKnotMaxShift; shifted_positions += kKnotShiftLength){
+				// Test positive and negative shift
+				double new_chi2_positive = OptimizeParameters(shifted_knot, shifted_positions);
+				double new_chi2_negative = OptimizeParameters(shifted_knot,-shifted_positions);
+
+				// Select better of the two
+				if(new_chi2_negative < new_chi2_positive){
+					better_direction = -1;
+					new_chi2 = new_chi2_negative;
+				}
+				else{
+					better_direction = 1;
+					new_chi2 = new_chi2_positive;
+				}
+
+				// Compare to previously tested values
+				if(new_chi2 < min_chi2){
+					best_shifted_knot = shifted_knot;
+					best_shifted_positions = better_direction * shifted_positions;
+					min_chi2 = new_chi2;
+				}
+			}
+		}
+	} while(0 != best_shifted_positions);
+}
+
+void InsertLengthSpline::Optimize(){
+	// Get chi2 for starting knot distribution
+	double min_chi2;
+	uintSeqLen least_important_knot;
+
+	// Find optimal number of knots by removing the least important inner knot until we have the desired number of knots
+	uintSeqLen next_shift_optimization = knots_.size()/2;
+	while(knots_.size() > kNumKnots){
+		// Remove least important knot
+		least_important_knot = 0;
+		min_chi2 = numeric_limits<double>::max();
+
+		for(uintSeqLen removed_knot = 1; removed_knot < knots_.size()-1; ++removed_knot){
+			double cur_chi2 = OptimizeParameters(removed_knot);
+			if(cur_chi2 < min_chi2){
+				min_chi2 = cur_chi2;
+				least_important_knot = removed_knot;
+			}
+		}
+
+		knots_.erase(knots_.begin() + least_important_knot);
+
+		if( knots_.size() == next_shift_optimization ){
+			next_shift_optimization = knots_.size()/2;
+			ShiftOptimization();
+		}
+	}
+
+	// Get parameters for best knot distribution
+	ShiftOptimization();
+	OptimizeParameters();
+}
+
+void InsertLengthSpline::FillInWithFittedRatios(Vect<double> &insert_lengths_bias, const Vect<uintFragCount> &insert_lengths){
+	// Everything before the first knot is zero
+	for(uintSeqLen len=min(static_cast<size_t>(1),insert_lengths_bias.from()); len < knots_.at(0); ++len){
+		insert_lengths_bias.at(len) = 0.0;
+	}
+
+	// Interpolate with spline
+	uintSeqLen k = 0;
+	double a, b, c, d;
+	for(; k < knots_.size()-1; ++k){
+		BiasCalculationVectors::GetSplineCoefficients(a, b, c, d, k, pars_, lin_comb_splines_);
+
+		insert_lengths_bias.at( knots_.at(k) ) = insert_lengths.at( knots_.at(k) ) / exp(a);
+
+		for(uintSeqLen len = knots_.at(k)+1; len < knots_.at(k+1); ++len){
+			uintSeqLen cur_len = len-knots_.at(k);
+			insert_lengths_bias.at(len) = insert_lengths.at(len) / exp(a + b*cur_len + c*cur_len*cur_len + d*cur_len*cur_len*cur_len);
+		}
+	}
+
+	insert_lengths_bias.at( knots_.at(k) ) = insert_lengths.at( knots_.at(k) ) / exp( pars_.at(k+1) ); // Set last knot to its value defined by the parameter
+
+	// Linearly continue values for insert length after last knot
+	uintSeqLen cur_len = knots_.at(k) - knots_.at(k-1); // Take slope at the last knot
+	double slope = (b + c*cur_len); // d=0 since second derivative must be 0 (natural spline)
+	for(uintSeqLen len=knots_.at(k)+1; len < insert_lengths_bias.to(); ++len){
+		insert_lengths_bias.at(len) = insert_lengths.at(len) / exp(pars_.at(k+1) + (len-knots_.at(k))*slope);
+	}
+}
+
+void InsertLengthSpline::FillInWithFittedRatios(vector<double> &normalization, const Vect<double> &insert_lengths_bias){
+	// Everything before the first knot is zero
+	for(uintSeqLen len=1; len < knots_.at(0); ++len){
+		normalization.at(len) = 0.0;
+	}
+
+	// Interpolate with spline
+	uintSeqLen k = 0;
+	double a, b, c, d;
+	for(; k < knots_.size()-1; ++k){
+		BiasCalculationVectors::GetSplineCoefficients(a, b, c, d, k, pars_, lin_comb_splines_);
+
+		normalization.at( knots_.at(k) ) = insert_lengths_bias.at( knots_.at(k) ) * exp(a);
+
+		for(uintSeqLen len = knots_.at(k)+1; len < knots_.at(k+1); ++len){
+			uintSeqLen cur_len = len-knots_.at(k);
+			normalization.at(len) = insert_lengths_bias.at(len) * exp(a + b*cur_len + c*cur_len*cur_len + d*cur_len*cur_len*cur_len);
+		}
+	}
+
+	normalization.at( knots_.at(k) ) = insert_lengths_bias.at( knots_.at(k) ) * exp( pars_.at(k+1) ); // Set last knot to its value defined by the parameter
+
+	// Linearly continue values for insert length after last knot
+	uintSeqLen cur_len = knots_.at(k) - knots_.at(k-1); // Take slope at the last knot
+	double slope = (b + c*cur_len); // d=0 since second derivative must be 0 (natural spline)
+	for(uintSeqLen len=knots_.at(k)+1; len < normalization.size(); ++len){
+		normalization.at(len) = insert_lengths_bias.at(len) * exp(pars_.at(k+1) + (len-knots_.at(k))*slope);
+	}
+}
+
+template<class T> bool InsertLengthSpline::CheckFit(const Vect<double> &insert_lengths_bias, const T &insert_lengths){
+	// Check if a estimated ratio is way to high or low and remove the sample next to it, that likely is responsible
+	// Start at low insert length and stop after a removal of a sample, fluctuations decrease with insert length and therefore the causal samples are more likely to sit at the beginning
+	uintSeqLen s(0);
+	for(uintSeqLen len=knots_.at(0); len < knots_.at( knots_.size()-1 ) ; ++len){
+		// Update sample
+		if(len > sample_positions_.at(s) ){
+			++s;
+		}
+
+		// Check if ratio values are too high or low
+		const double outlier_factor = 1.5;
+		uintSeqLen sample_to_delete = 0;
+
+		if(sample_positions_.at(s) == len){
+			// We are on a sample so only compare to the correct value
+			if( insert_lengths.at(len)/insert_lengths_bias.at(len) < sampled_values_.at(s) / outlier_factor || // Factor too low
+				insert_lengths.at(len)/insert_lengths_bias.at(len) > sampled_values_.at(s) * outlier_factor ){ // Factor too high
+
+				if(0 == s){
+					// We must not remove first sample, so remove second
+					sample_to_delete = 1;
+				}
+				else{
+					sample_to_delete = s;
+				}
+			}
+		}
+		else{
+			// In between original sample so compare to min/max of the two neighbouring samples
+			if( insert_lengths.at(len)/insert_lengths_bias.at(len) < min(sampled_values_.at(s-1), sampled_values_.at(s)) / outlier_factor ){
+				// Factor too low
+				if(1 == s){
+					// We must not remove first sample, so remove second
+					sample_to_delete = 1;
+				}
+				else{
+					if(sampled_values_.at(s-1) < sampled_values_.at(s)){
+						sample_to_delete = s-1;
+					}
+					else{
+						sample_to_delete = s;
+					}
+				}
+			}
+			else if( insert_lengths.at(len)/insert_lengths_bias.at(len) > max(sampled_values_.at(s-1), sampled_values_.at(s)) * outlier_factor ){
+				// Factor too high
+				if(1 == s){
+					// We must not remove first sample, so remove second
+					sample_to_delete = 1;
+				}
+				else{
+					if(sampled_values_.at(s-1) > sampled_values_.at(s)){
+						sample_to_delete = s-1;
+					}
+					else{
+						sample_to_delete = s;
+					}
+				}
+			}
+		}
+
+		if(sample_to_delete){
+			// Remove sample
+			sample_positions_.erase(sample_positions_.begin()+sample_to_delete);
+			sampled_values_.erase(sampled_values_.begin()+sample_to_delete);
+
+			return false;
+		}
+	}
+
+	return true;
+}
+
+void InsertLengthSpline::FillInWithMeanRatio(Vect<double> &insert_lengths_bias, const Vect<uintFragCount> &insert_lengths){
+	// We normalize anyways afterwards, so dividing by mean ratio is the same as directly taking insert_length
+	for(uintSeqLen len=insert_lengths_bias.from(); len < insert_lengths_bias.to(); ++len){
+		insert_lengths_bias.at(len) = insert_lengths.at(len);
+	}
+}
+
+void InsertLengthSpline::FillInWithMeanRatio(std::vector<double> &normalization, const Vect<double> &insert_lengths_bias){
+	for(uintSeqLen len=1; len < normalization.size(); ++len){
+		normalization.at(len) = sample_mean_ * insert_lengths_bias.at(len);
+	}
+}
+
+bool InsertLengthSpline::GetSamplePositions(const Vect<uintFragCount> &insert_lengths){
+	// Find first sample that is not zero
+	uintSeqLen first_sample = max(static_cast<size_t>(1), insert_lengths.from());
+	while(first_sample < insert_lengths.to() && 0 == insert_lengths.at(first_sample)){
+		++first_sample;
+	}
+
+	// Distribute the samples equidistantly
+	uintSeqLen num_samples = 0;
+	uintSeqLen hit_zero = 0; // position where we hit zero (0 = nowhere)
+	for(uintSeqLen len = first_sample; len < insert_lengths.to(); len += kInsertLengthSamplingDistance){
+		if(hit_zero){
+			if(insert_lengths.at(len) >= 10){
+				// Rescue if we suddenly find higher values again
+				num_samples += (len-hit_zero)/kInsertLengthSamplingDistance + 1;
+				hit_zero = 0;
+			}
+		}
+		else{
+			if(insert_lengths.at(len) > 0){
+				++num_samples;
+			}
+			else{
+				// End knots when we find the first zero
+				hit_zero = len;
+			}
+		}
+	}
+
+	if(2 > num_samples){
+		printErr << "Sampling insert lengths did not find at least two usable lengths." << std::endl;
+		return false;
+	}
+
+	sample_positions_.resize(num_samples);
+	sample_positions_.at(0) = first_sample;
+	uintSeqLen found_zeros = 0;
+	for(uintSeqLen k=1; k<num_samples-found_zeros; ++k){
+		sample_positions_.at(k) = sample_positions_.at(k-1) + kInsertLengthSamplingDistance;
+
+		// Exclude samples at fragment lengths with no data
+		while(0 == insert_lengths.at( sample_positions_.at(k) )){ // Last sample cannot be a zero, so no further checks necessary
+			++found_zeros;
+			sample_positions_.at(k) += kInsertLengthSamplingDistance;
+		}
+	}
+	sample_positions_.resize(num_samples-found_zeros);
+
+	return true;
+}
+
+bool InsertLengthSpline::FitInsertLengthWithSpline(Vect<double> &insert_lengths_bias, const Vect<uintFragCount> &insert_lengths){
+	GetSampledValues(insert_lengths_bias, insert_lengths);
+
+	bool fit_accepted;
+	do{
+		DistributeStartingKnots();
+		Optimize();
+
+		FillInWithFittedRatios(insert_lengths_bias, insert_lengths);
+
+		fit_accepted = CheckFit(insert_lengths_bias, insert_lengths);
+		if(sample_positions_.size() < 2){
+			printWarn << "Count/Bias ratio could not be fitted for fragment length. Using mean ratio.";
+			FillInWithMeanRatio(insert_lengths_bias, insert_lengths);
+			return true;
+		}
+	} while(!fit_accepted);
+
+
+	return true;
+}
+
+bool InsertLengthSpline::InterpolateNormalizationWithSpline(vector<double> &normalization, const Vect<double> &insert_lengths_bias){
+	GetSampledValues(insert_lengths_bias, normalization);
+
+	DistributeStartingKnots();
+
+	PrepareInsertLengthSpline();
+	SetStartingParameters();
+
+	FillInWithFittedRatios(normalization, insert_lengths_bias);
+
+	return true;
+}
+
 inline void FragmentDistributionStats::IncreaseErrorCounter(uintErrorCount &errors){
 	if( errors++ == kMaxErrorsShownPerFile ){
 		printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
@@ -1236,7 +1774,39 @@ void FragmentDistributionStats::PrepareBiasCalculation( const Reference &ref, ui
 
 	// Temporary bias fit result vectors
 	params_fitted_ = 0;
-	auto max_fits = ref.NumRefSeqBinsInNxx(ref_seq_in_nxx_, max_ref_seq_bin_length_) * BiasCalculationVectors::kNumFitsInsertLength;
+	auto max_fits = ref.NumRefSeqBinsInNxx(ref_seq_in_nxx_, max_ref_seq_bin_length_);
+	if(max_fits >= 20){
+		num_fits_per_ref_bin_= 5;
+	}
+	else if(max_fits >= 17){
+		num_fits_per_ref_bin_= 6;
+	}
+	else if(max_fits >= 15){
+		num_fits_per_ref_bin_= 7;
+	}
+	else if(max_fits >= 13){
+		num_fits_per_ref_bin_= 8;
+	}
+	else if(max_fits >= 10){
+		num_fits_per_ref_bin_= 9;
+	}
+	else if(max_fits >= 6){
+		num_fits_per_ref_bin_= 10;
+	}
+	else if(max_fits >= 5){
+		num_fits_per_ref_bin_= 12;
+	}
+	else if(max_fits >= 3){
+		num_fits_per_ref_bin_= 15;
+	}
+	else if(max_fits >= 2){
+		num_fits_per_ref_bin_= 20;
+	}
+	else{
+		num_fits_per_ref_bin_= 30;
+	}
+
+	max_fits *= num_fits_per_ref_bin_;
 	for(uintPercent gc=tmp_gc_bias_.size(); gc--;){
 		tmp_gc_bias_.at(gc).resize(max_fits, {nan("0"),0});
 	}
@@ -1328,7 +1898,7 @@ inline void FragmentDistributionStats::CheckLowQExclusion(vector<pair<uintSeqLen
 				else{
 					// Extend last region at the end
 					separating_high_q = 0;
-					while(lowq_site_exclusion.back().second < tmp_frag_count.size()  && separating_high_q + tmp_frag_count.at(lowq_site_exclusion.back().second) < kMinHighQToSeparateLowQ/2 ){
+					while(lowq_site_exclusion.back().second < tmp_frag_count.size() && separating_high_q + tmp_frag_count.at(lowq_site_exclusion.back().second) < kMinHighQToSeparateLowQ/2 ){
 						separating_high_q += tmp_frag_count.at(lowq_site_exclusion.back().second++);
 					}
 
@@ -1379,7 +1949,7 @@ void FragmentDistributionStats::CheckLowQExclusions(uintRefSeqBin ref_seq_bin, v
 		else{
 			// Extend last region at the end
 			uintFragCount separating_high_q = 0;
-			while(lowq_site_start_exclusion_.at(ref_seq_bin).back().second < tmp_frag_count.size()  && separating_high_q + tmp_frag_count.at(lowq_site_start_exclusion_.at(ref_seq_bin).back().second) < kMinHighQToSeparateLowQ/2 ){
+			while(lowq_site_start_exclusion_.at(ref_seq_bin).back().second < tmp_frag_count.size() && separating_high_q + tmp_frag_count.at(lowq_site_start_exclusion_.at(ref_seq_bin).back().second) < kMinHighQToSeparateLowQ/2 ){
 				separating_high_q += tmp_frag_count.at(lowq_site_start_exclusion_.at(ref_seq_bin).back().second++);
 			}
 		}
@@ -1424,7 +1994,7 @@ void FragmentDistributionStats::CheckLowQExclusions(uintRefSeqBin ref_seq_bin, v
 		else{
 			// Extend last region at the end
 			uintFragCount separating_high_q = 0;
-			while(lowq_site_end_exclusion_.at(ref_seq_bin).back().second < tmp_frag_count.size()  && separating_high_q + tmp_frag_count.at(lowq_site_end_exclusion_.at(ref_seq_bin).back().second) < kMinHighQToSeparateLowQ/2 ){
+			while(lowq_site_end_exclusion_.at(ref_seq_bin).back().second < tmp_frag_count.size() && separating_high_q + tmp_frag_count.at(lowq_site_end_exclusion_.at(ref_seq_bin).back().second) < kMinHighQToSeparateLowQ/2 ){
 				separating_high_q += tmp_frag_count.at(lowq_site_end_exclusion_.at(ref_seq_bin).back().second++);
 			}
 		}
@@ -1473,7 +2043,7 @@ void FragmentDistributionStats::UpdateBiasCalculationParams(uintRefSeqBin ref_se
 	if(fragment_sites_by_ref_seq_bin_by_insert_length_.at(ref_seq_bin).size()){
 		// Select ref_seq, insert_length bins to use for bias calculation
 		if(ref_seq_in_nxx_.at( GetRefSeqId(ref_seq_bin) )){
-			// Sort them by counts and only take top kNumFitsInsertLength
+			// Sort them by counts and only take num_fits_per_ref_bin_ from top kNumFitsInsertLength
 			tmp_params.clear();
 			for(uintSeqLen insert_length=1; insert_length < fragment_sites_by_ref_seq_bin_by_insert_length_.at(ref_seq_bin).size(); ++insert_length){
 				if( fragment_sites_by_ref_seq_bin_by_insert_length_.at(ref_seq_bin).at(insert_length).size() ){
@@ -1487,16 +2057,16 @@ void FragmentDistributionStats::UpdateBiasCalculationParams(uintRefSeqBin ref_se
 			sort(tmp_params.begin(), tmp_params.end(), std::greater<pair<uintSeqLen, pair<uintRefSeqBin, uintSeqLen>>>());
 
 			for( uintNumFits n=0; n < tmp_params.size(); ++n ){
-				if(n < BiasCalculationVectors::kNumFitsInsertLength){
-					bias_calc_params_.at(queue_spot*qbin_size + tmp_params.at(n).second.second-1).Set(tmp_params.at(n).second.first, tmp_params.at(n).second.second, calculate_bias_);
+				bool calculate_param = false;
+				if(n < BiasCalculationVectors::kNumFitsInsertLength && (0 == n || 1 == n*num_fits_per_ref_bin_/BiasCalculationVectors::kNumFitsInsertLength - (n-1)*num_fits_per_ref_bin_/BiasCalculationVectors::kNumFitsInsertLength)){
+					calculate_param = calculate_bias_;
 				}
-				else{
-					bias_calc_params_.at(queue_spot*qbin_size + tmp_params.at(n).second.second-1).Set(tmp_params.at(n).second.first, tmp_params.at(n).second.second, false);
-				}
+
+				bias_calc_params_.at(queue_spot*qbin_size + tmp_params.at(n).second.second-1).Set(tmp_params.at(n).second.first, tmp_params.at(n).second.second, calculate_param);
 			}
 
-			if(tmp_params.size() < BiasCalculationVectors::kNumFitsInsertLength){
-				params_fitted_ += BiasCalculationVectors::kNumFitsInsertLength-tmp_params.size(); // Do not have to be fitted, so are already done
+			if(tmp_params.size() < num_fits_per_ref_bin_){
+				params_fitted_ += num_fits_per_ref_bin_-tmp_params.size(); // Do not have to be fitted, so are already done
 
 				lock_guard<mutex> lock(print_mutex);
 				printInfo << "Finished " << static_cast<uintPercentPrint>(Percent(params_fitted_, static_cast<uintNumFits>(tmp_gc_bias_.at(0).size()))) << "% of the bias fits." << std::endl;
@@ -1527,35 +2097,35 @@ void FragmentDistributionStats::UpdateBiasCalculationParams(uintRefSeqBin ref_se
 	}
 }
 
-void FragmentDistributionStats::FillParams(vector<BiasCalculationParams> &params, const Reference &reference) const{
-	params.reserve( insert_lengths_.size() * abundance_.size() );
+void FragmentDistributionStats::FillParams(vector<BiasCalculationParams> &params, const Reference &reference, const vector<uintSeqLen> &sample_frag_length) const{
+	params.reserve( sample_frag_length.size() * abundance_.size() );
 
-	for( auto frag_length=max(static_cast<uintSeqLen>(1),static_cast<uintSeqLen>(insert_lengths_.from())); frag_length < insert_lengths_.to(); ++frag_length){
-		if(insert_lengths_.at(frag_length)){
-			for( uintRefSeqId ref_id=abundance_.size(); ref_id--; ){
-				if(!reference.ReferenceSequenceExcluded(ref_id)){
-					// Add parameters for later calculation
-					params.push_back({ref_id, frag_length});
-				}
+	for( uintRefSeqId ref_id=abundance_.size(); ref_id--; ){
+		if(!reference.ReferenceSequenceExcluded(ref_id)){
+			for( auto frag_length : sample_frag_length ){
+				// Add parameters for later calculation
+				params.push_back({ref_id, frag_length});
 			}
 		}
 	}
+
 	params.shrink_to_fit();
 }
 
-void FragmentDistributionStats::FillParamsSimulation(vector<BiasCalculationParams> &params, const Reference &reference) const{
+void FragmentDistributionStats::FillParamsSimulation(vector<BiasCalculationParams> &params, const Reference &reference, const vector<uintSeqLen> &sample_frag_length) const{
 	params.reserve( insert_lengths_.size() * abundance_.size() );
 
-	for( auto frag_length=max(static_cast<uintSeqLen>(1),static_cast<uintSeqLen>(insert_lengths_.from())); frag_length < insert_lengths_.to(); ++frag_length){
-		if(insert_lengths_.at(frag_length)){
-			for( uintRefSeqId ref_id=ref_seq_bias_.size(); ref_id--; ){
-				if(0.0 != ref_seq_bias_.at(ref_id) && frag_length <= reference.SequenceLength(ref_id)){
+	for( uintRefSeqId ref_id=ref_seq_bias_.size(); ref_id--; ){
+		if(0.0 != ref_seq_bias_.at(ref_id)){
+			for( auto frag_length : sample_frag_length ){
+				if(frag_length <= reference.SequenceLength(ref_id)){
 					// Add parameters for later calculation
 					params.push_back({ref_id, frag_length});
 				}
 			}
 		}
 	}
+
 	params.shrink_to_fit();
 }
 
@@ -1584,7 +2154,7 @@ void FragmentDistributionStats::CountEndExclusion(uintFragCount &lowq_sites, uin
 }
 
 void FragmentDistributionStats::CountDuplicates(FragmentDuplicationStats &duplications, const BiasCalculationParamsSplitSeqs &params, const Reference &reference){
-	duplications.AddDuplicates( fragment_sites_by_ref_seq_bin_by_insert_length_.at(params.ref_seq_bin_).at(params.fragment_length_), GetRefSeqId(params.ref_seq_bin_), params.fragment_length_, ref_seq_bin_def_.at(params.ref_seq_bin_).second, reference  );
+	duplications.AddDuplicates( fragment_sites_by_ref_seq_bin_by_insert_length_.at(params.ref_seq_bin_).at(params.fragment_length_) );
 
 	// fragment_sites_by_ref_seq_bin_by_insert_length_ already sorted from AddDuplicates call
 	uintFragCount highq_counts( fragment_sites_by_ref_seq_bin_by_insert_length_.at(params.ref_seq_bin_).at(params.fragment_length_).size() );
@@ -1710,7 +2280,7 @@ void FragmentDistributionStats::CalculateBiasByBin(BiasCalculationVectors &tmp_c
 		return;
 	}
 	AddFragmentsToSites(tmp_calc.sites_, fragment_sites_by_ref_seq_bin_by_insert_length_.at(ref_seq_bin).at(insert_length) );
-	duplications.AddSites(tmp_calc.sites_, insert_length);
+	duplications.AddSites(tmp_calc.sites_);
 	auto excluded_sites = ExcludeLowQualitySites(tmp_calc.sites_, ref_seq_bin, insert_length);
 	tmp_calc.GetCounts();
 	if(0 == tmp_calc.total_counts_){
@@ -1979,11 +2549,18 @@ double FragmentDistributionStats::MedianFragmentCoverage(const Reference &ref) c
 	}
 }
 
-void FragmentDistributionStats::CalculateInsertLengthAndRefSeqBias(const Reference &reference, uintNumThreads num_threads, vector<vector<VectorAtomic<uintFragCount>>> &site_count_by_insert_length_gc){
+bool FragmentDistributionStats::CalculateInsertLengthAndRefSeqBias(const Reference &reference, uintNumThreads num_threads){
+	// Select the insert_length_sample_positions
+	InsertLengthSpline insert_length_spline;
+	if( !insert_length_spline.GetSamplePositions(insert_lengths_) ){
+		return false;
+	}
+
 	// Sum up the other biases for the insert length, reference sequences pairs
 	atomic<uintNumFits> current_param(0);
+	atomic<uintNumFits> finished_params(0);
 	vector<BiasCalculationParams> params;
-	FillParams(params, reference);
+	FillParams(params, reference, insert_length_spline.sample_positions_);
 
 	std::vector<std::vector<double>> bias_sum;
 	bias_sum.resize(abundance_.size());
@@ -1991,16 +2568,11 @@ void FragmentDistributionStats::CalculateInsertLengthAndRefSeqBias(const Referen
 		sum.resize(insert_lengths_.to(), 0.0);
 	}
 
-	site_count_by_insert_length_gc.resize(insert_lengths_.to());
-	for(auto &site_count_by_gc : site_count_by_insert_length_gc){
-		site_count_by_gc.resize(101);
-	}
-
 	// Run the predetermined parameters in defined number of threads
 	mutex print_mutex;
 	thread threads[num_threads];
 	for(auto i = num_threads; i--; ){
-		threads[i] = thread(BiasSumThread, std::cref(*this), std::cref(reference), std::cref(params), std::ref(current_param), std::ref(bias_sum), std::ref(site_count_by_insert_length_gc), std::ref(print_mutex) );
+		threads[i] = thread(BiasSumThread, std::cref(*this), std::cref(reference), std::cref(params), std::ref(current_param), std::ref(finished_params), std::ref(bias_sum), std::ref(print_mutex) );
 	}
 	for(auto i = num_threads; i--; ){
 		threads[i].join();
@@ -2012,12 +2584,12 @@ void FragmentDistributionStats::CalculateInsertLengthAndRefSeqBias(const Referen
 	// Initialize biases for fit
 	uintFragCount sum_frag_len(0);
 	insert_lengths_bias_.Clear();
-	for(auto frag_len=max(static_cast<size_t>(1), insert_lengths_.from()); frag_len < insert_lengths_.to(); ++frag_len){
-		if( insert_lengths_.at(frag_len) ){
-			insert_lengths_bias_[frag_len] = 1.0;
-			sum_frag_len += insert_lengths_.at(frag_len);
-		}
+	insert_lengths_bias_[insert_lengths_.to()-1]; // Resize Vect
+	for( auto frag_len : insert_length_spline.sample_positions_ ){
+		insert_lengths_bias_.at(frag_len) = 1.0;
+		sum_frag_len += insert_lengths_.at(frag_len);
 	}
+
 	uintFragCount sum_ref_seq(0);
 	ref_seq_bias_.clear();
 	ref_seq_bias_.resize(abundance_.size(), 0.0);
@@ -2044,7 +2616,7 @@ void FragmentDistributionStats::CalculateInsertLengthAndRefSeqBias(const Referen
 		for(auto ref_seq=abundance_.size(); ref_seq--; ){
 			if(corrected_abundance_.at(ref_seq)){
 				sum = 0.0;
-				for(auto frag_len=insert_lengths_.to(); frag_len-- > insert_lengths_.from(); ){
+				for( auto frag_len : insert_length_spline.sample_positions_ ){
 					sum += insert_lengths_bias_.at(frag_len) * bias_sum.at(ref_seq).at(frag_len);
 				}
 				sum *= ref_seq_bias_.at(ref_seq);
@@ -2061,23 +2633,21 @@ void FragmentDistributionStats::CalculateInsertLengthAndRefSeqBias(const Referen
 		}
 
 		// Adjust insert_lengths_bias_
-		for(auto frag_len=max(static_cast<size_t>(1), insert_lengths_.from()); frag_len < insert_lengths_.to(); ++frag_len){
-			if(insert_lengths_.at(frag_len)){
-				sum = 0.0;
-				for(auto ref_seq=abundance_.size(); ref_seq--; ){
-					sum += ref_seq_bias_.at(ref_seq) * bias_sum.at(ref_seq).at(frag_len);
-				}
-				sum *= insert_lengths_bias_.at(frag_len) * normalization;
-
-				if(sum > insert_lengths_.at(frag_len)){
-					SetToMax(precision, sum/insert_lengths_.at(frag_len));
-				}
-				else{
-					SetToMax(precision, insert_lengths_.at(frag_len)/sum);
-				}
-
-				insert_lengths_bias_.at(frag_len) *= insert_lengths_.at(frag_len)/sum;
+		for( auto frag_len : insert_length_spline.sample_positions_ ){
+			sum = 0.0;
+			for(auto ref_seq=abundance_.size(); ref_seq--; ){
+				sum += ref_seq_bias_.at(ref_seq) * bias_sum.at(ref_seq).at(frag_len);
 			}
+			sum *= insert_lengths_bias_.at(frag_len) * normalization;
+
+			if(sum > insert_lengths_.at(frag_len)){
+				SetToMax(precision, sum/insert_lengths_.at(frag_len));
+			}
+			else{
+				SetToMax(precision, insert_lengths_.at(frag_len)/sum);
+			}
+
+			insert_lengths_bias_.at(frag_len) *= insert_lengths_.at(frag_len)/sum;
 		}
 	}
 
@@ -2126,8 +2696,21 @@ void FragmentDistributionStats::CalculateInsertLengthAndRefSeqBias(const Referen
 		}
 	}
 
-	// Find maximum (to normalize it to 1.0 instead of normalizing the sum to 1.0 as it is a bias not a probability)
+	// Fill missing insert length using a natural spline
 	double max_len_bias(0.0);
+	for( auto frag_len : insert_length_spline.sample_positions_ ){
+		SetToMax(max_len_bias, insert_lengths_bias_.at(frag_len));
+	}
+	for( auto frag_len : insert_length_spline.sample_positions_ ){
+		insert_lengths_bias_.at(frag_len) /= max_len_bias;
+	}
+
+	if( !insert_length_spline.FitInsertLengthWithSpline(insert_lengths_bias_, insert_lengths_) ){
+		return false;
+	}
+
+	// Find maximum (to normalize it to 1.0 instead of normalizing the sum to 1.0 as it is a bias not a probability)
+	max_len_bias = 0.0;
 	for(auto frag_len = insert_lengths_bias_.to(); frag_len-- > insert_lengths_.from(); ){
 		SetToMax(max_len_bias, insert_lengths_bias_.at(frag_len));
 	}
@@ -2147,6 +2730,8 @@ void FragmentDistributionStats::CalculateInsertLengthAndRefSeqBias(const Referen
 	}
 
 	printInfo << "Fitted reference sequence and insert length biases with a precision of " << precision << " needing " << iteration << " iteration" << (iteration == 1?"":"s") << std::endl;
+
+	return true;
 }
 
 void FragmentDistributionStats::ReplaceUncertainCorrectedAbundanceWithMedian(const Reference &ref){
@@ -2230,17 +2815,17 @@ void FragmentDistributionStats::BiasSumThread(
 		const Reference &reference,
 		const vector<BiasCalculationParams> &params,
 		atomic<uintNumFits> &current_param,
+		atomic<uintNumFits> &finished_params,
 		vector<vector<double>> &bias_sum,
-		vector<vector<VectorAtomic<uintFragCount>>> &site_count_by_insert_length_gc,
 		std::mutex &print_mutex ){
 	decltype(params.size()) cur_par(current_param++);
 
 	for(; cur_par < params.size(); cur_par = current_param++){
-		bias_sum.at( params.at(cur_par).ref_seq_id ).at( params.at(cur_par).fragment_length ) = reference.SumBias(site_count_by_insert_length_gc.at(params.at(cur_par).fragment_length), params.at(cur_par).ref_seq_id, params.at(cur_par).fragment_length, 1.0, self.gc_fragment_content_bias_, self.fragment_surroundings_bias_);
+		bias_sum.at( params.at(cur_par).ref_seq_id ).at( params.at(cur_par).fragment_length ) = reference.SumBias(params.at(cur_par).ref_seq_id, params.at(cur_par).fragment_length, 1.0, self.gc_fragment_content_bias_, self.fragment_surroundings_bias_);
 
-		if( params.size() > 20 && !(cur_par%(params.size()/20)) ){
+		if( params.size() > 20 && !(++finished_params%(params.size()/20)) ){
 			lock_guard<mutex> lock(print_mutex);
-			printInfo << "Finished " << static_cast<uintPercentPrint>(Percent(cur_par, params.size())) << "% of the bias sums." << std::endl;
+			printInfo << "Finished " << static_cast<uintPercentPrint>(Percent(finished_params, static_cast<uintNumFits>(params.size()))) << "% of the bias sums." << std::endl;
 		}
 	}
 }
@@ -2275,13 +2860,14 @@ void FragmentDistributionStats::BiasNormalizationThread(
 		const Reference &reference,
 		const vector<BiasCalculationParams> &params,
 		atomic<uintNumFits> &current_param,
-		double &norm,
+		vector<double> &norm,
 		mutex &result_mutex,
 		const vector<uintRefSeqId> &coverage_groups,
 		vector<vector<double>> &max_bias){
 	decltype(params.size()) cur_par(current_param++);
 
-	double tmp_norm(0.0);
+	vector<double> tmp_norm;
+	tmp_norm.resize(norm.size(), 0.0);
 	vector<vector<double>> tmp_max_bias;
 	tmp_max_bias.resize(max_bias.size());
 	for( auto cov_group = max_bias.size(); cov_group--; ){
@@ -2289,7 +2875,7 @@ void FragmentDistributionStats::BiasNormalizationThread(
 	}
 
 	for(; cur_par < params.size(); cur_par = current_param++){
-		tmp_norm += reference.SumBias(tmp_max_bias.at( coverage_groups.at(params.at(cur_par).ref_seq_id) ).at(params.at(cur_par).fragment_length), params.at(cur_par).ref_seq_id, params.at(cur_par).fragment_length, self.ref_seq_bias_.at(params.at(cur_par).ref_seq_id)*self.insert_lengths_bias_.at(params.at(cur_par).fragment_length), self.gc_fragment_content_bias_, self.fragment_surroundings_bias_);
+		tmp_norm.at( params.at(cur_par).fragment_length ) += reference.SumBias(tmp_max_bias.at( coverage_groups.at(params.at(cur_par).ref_seq_id) ).at(params.at(cur_par).fragment_length), params.at(cur_par).ref_seq_id, params.at(cur_par).fragment_length, self.ref_seq_bias_.at(params.at(cur_par).ref_seq_id)*self.insert_lengths_bias_.at(params.at(cur_par).fragment_length), self.gc_fragment_content_bias_, self.fragment_surroundings_bias_);
 	}
 
 	result_mutex.lock();
@@ -2298,7 +2884,9 @@ void FragmentDistributionStats::BiasNormalizationThread(
 			SetToMax(max_bias.at(cov_group).at(frag_len), tmp_max_bias.at(cov_group).at(frag_len));
 		}
 	}
-	norm += tmp_norm;
+	for( auto frag_len = norm.size(); frag_len--; ){
+		norm.at(frag_len) += tmp_norm.at(frag_len);
+	}
 	result_mutex.unlock();
 }
 
@@ -2439,7 +3027,7 @@ void FragmentDistributionStats::FillInOutskirtContent( const Reference &referenc
 	if(reversed_fragment){
 		// Reverse strand: Fill in prefragment-content
 		outskirt_pos = kOutskirtRange;
-		for(;  outskirt_pos-- && ref_pos < reference.SequenceLength(record_start.rNextId);){
+		for(; outskirt_pos-- && ref_pos < reference.SequenceLength(record_start.rNextId);){
 			if( !IsN(ref_seq, ref_pos) ){
 				++tmp_outskirt_content_.at(true).at(Complement::Dna5(at(ref_seq, ref_pos))).at(outskirt_pos);
 			}
@@ -2497,13 +3085,14 @@ void FragmentDistributionStats::Finalize(){
 }
 
 bool FragmentDistributionStats::FinalizeBiasCalculation(const Reference &reference, uintNumThreads num_threads, FragmentDuplicationStats &duplications){
-	vector<vector<VectorAtomic<uintFragCount>>> site_count_by_insert_length_gc;
 	if(calculate_bias_){
 		if( !StoreBias() ){
 			return false;
 		}
 
-		CalculateInsertLengthAndRefSeqBias(reference, num_threads, site_count_by_insert_length_gc);
+		if( !CalculateInsertLengthAndRefSeqBias(reference, num_threads) ){
+			return false;
+		}
 	}
 	else{
 		printInfo << "No bias calculation done. Storing uniform coverage." << std::endl;
@@ -2544,7 +3133,7 @@ bool FragmentDistributionStats::FinalizeBiasCalculation(const Reference &referen
 	ref_seq_bin_def_.clear();
 	ref_seq_bin_def_.shrink_to_fit();
 
-	duplications.FinalizeDuplicationVector(site_count_by_insert_length_gc);
+	duplications.FinalizeDuplicationVector();
 
 	if(calculate_bias_){
 		auto ref_size = reference.TotalSize();
@@ -2656,7 +3245,7 @@ bool FragmentDistributionStats::UpdateRefSeqBias(RefSeqBiasSimulation model, con
 							}
 							catch(const exception &e){
 								if( errors < kMaxErrorsShownPerFile){
-									printErr <<  "Could not convert bias starting at postion " << bias_sep+1 << " in line " << nline << " in file " << bias_file << " into double\nException thrown: " << e.what() << std::endl;
+									printErr << "Could not convert bias starting at postion " << bias_sep+1 << " in line " << nline << " in file " << bias_file << " into double\nException thrown: " << e.what() << std::endl;
 								}
 								IncreaseErrorCounter(errors);
 								bias = 0.0;
@@ -2664,7 +3253,7 @@ bool FragmentDistributionStats::UpdateRefSeqBias(RefSeqBiasSimulation model, con
 
 							if(0.0 > bias){
 								if( errors < kMaxErrorsShownPerFile){
-									printErr <<  "Bias in line " << nline << " in file " << bias_file << " is negative: " << bias << std::endl;
+									printErr << "Bias in line " << nline << " in file " << bias_file << " is negative: " << bias << std::endl;
 								}
 								IncreaseErrorCounter(errors);
 							}
@@ -2695,7 +3284,7 @@ bool FragmentDistributionStats::UpdateRefSeqBias(RefSeqBiasSimulation model, con
 			for(uintRefSeqId seq=0; seq < ref.NumberSequences(); ++seq){
 				if(!bias_found.at(seq)){
 					if( errors < kMaxErrorsShownPerFile){
-						printErr <<  "Could not find bias for reference sequence " << ref.ReferenceId(seq) << " in file " << bias_file << std::endl;
+						printErr << "Could not find bias for reference sequence " << ref.ReferenceId(seq) << " in file " << bias_file << std::endl;
 					}
 					IncreaseErrorCounter(errors);
 				}
@@ -2723,9 +3312,15 @@ bool FragmentDistributionStats::UpdateRefSeqBias(RefSeqBiasSimulation model, con
 }
 
 double FragmentDistributionStats::CalculateBiasNormalization(vector<uintRefSeqId> &coverage_groups, vector<vector<double>> &non_zero_thresholds, const Reference &reference, uintNumThreads num_threads, uintFragCount total_reads) const{
+	// Select the insert_length_sample_positions
+	InsertLengthSpline insert_length_spline;
+	if( !insert_length_spline.GetSamplePositions(insert_lengths_) ){
+		return 0.0;
+	}
+
 	atomic<uintNumFits> current_param(0);
 	vector<BiasCalculationParams> params;
-	FillParamsSimulation(params, reference);
+	FillParamsSimulation(params, reference, insert_length_spline.sample_positions_);
 
 	auto num_groups = SplitCoverageGroups(coverage_groups);
 	non_zero_thresholds.clear();
@@ -2735,18 +3330,50 @@ double FragmentDistributionStats::CalculateBiasNormalization(vector<uintRefSeqId
 	}
 
 	mutex result_mutex;
-	double normalization(0.0);
+	vector<double> normalization_by_frag_len;
+	normalization_by_frag_len.resize(insert_lengths_.to(), 0.0);
 
 	// Run the predetermined parameters in defined number of threads
 	thread threads[num_threads];
 	for(auto i = num_threads; i--; ){
-		threads[i] = thread(BiasNormalizationThread, std::cref(*this), std::cref(reference), std::cref(params), std::ref(current_param), std::ref(normalization), std::ref(result_mutex), std::cref(coverage_groups), std::ref(non_zero_thresholds) );
+		threads[i] = thread(BiasNormalizationThread, std::cref(*this), std::cref(reference), std::cref(params), std::ref(current_param), std::ref(normalization_by_frag_len), std::ref(result_mutex), std::cref(coverage_groups), std::ref(non_zero_thresholds) );
 	}
 	for(auto i = num_threads; i--; ){
 		threads[i].join();
 	}
 
-	double full_normalization = total_reads / (normalization * 2)  / reference.NumAlleles(); // Bias is equal for both strands so it is only calculated for one, but the number of fragments at a site is calculated separately per strand: This means we have to half the calculated number of reads
+	// Estimate not counted fragment length using a natural spline
+	if( !insert_length_spline.InterpolateNormalizationWithSpline(normalization_by_frag_len, insert_lengths_bias_) ){
+		return 0.0;
+	}
+
+	for( auto &group : non_zero_thresholds ){
+		// Get maximum ratio
+		double max_ratio = 0.0; // max_bias/frag_bias
+		for(uintSeqLen s=0; s < insert_length_spline.sample_positions_.size(); ++s){
+			auto frag_len = insert_length_spline.sample_positions_.at(s);
+			double ratio = group.at(frag_len) / insert_lengths_bias_.at(frag_len);
+			SetToMax(max_ratio, ratio);
+		}
+
+		// Use maximum ratio to set not counted values
+		for(uintSeqLen s=1; s < insert_length_spline.sample_positions_.size(); ++s){
+			for(auto frag_len = insert_length_spline.sample_positions_.at(s-1)+1; frag_len < insert_length_spline.sample_positions_.at(s); ++frag_len){
+				group.at(frag_len) = max_ratio * insert_lengths_bias_.at(frag_len);
+			}
+		}
+
+		for(auto frag_len = insert_length_spline.sample_positions_.at( insert_length_spline.sample_positions_.size()-1 )+1; frag_len < group.size(); ++frag_len){
+			group.at(frag_len) = max_ratio * insert_lengths_bias_.at(frag_len);
+		}
+	}
+
+	// Calculate normalization and threshold
+	double normalization(0.0);
+	for(auto norm : normalization_by_frag_len){
+		normalization += norm;
+	}
+	double full_normalization = total_reads / (normalization * 2) / reference.NumAlleles(); // Bias is equal for both strands so it is only calculated for one, but the number of fragments at a site is calculated separately per strand: This means we have to half the calculated number of reads
 
 	for( auto &thresholds : non_zero_thresholds ){
 		for( auto &thresh : thresholds){
