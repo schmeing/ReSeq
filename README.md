@@ -1,4 +1,4 @@
-# ReSequenceR
+# ReSeq
 More realistic simulator for genomic DNA sequences from Illumina machines that achieves a similar k-mer spectrum as the original sequences.
 
 ## Table of Contents
@@ -15,7 +15,7 @@ More realistic simulator for genomic DNA sequences from Illumina machines that a
 ## <a name="abstract"></a>Abstract
 Even though sequencing biases and errors have been deeply researched to adequately account for them, comparison studies, e.g. for error correction, assembly or variant calling, face the problem that synthetic datasets resemble the real output of high-throughput sequencers only in very limited ways, resulting in optimistic estimated performance of programs run on simulated data compared to real data. Therefore, comparison studies are often based on real data. However, this approach has its own difficulties, since the ground truth is unknown and can only be estimated, which introduces its own biases and circularity towards easy solutions and the methods used.
 
-**ReSequenceR** shortens the gap between simulated and real data evaluations by adequately reproducing key statistics of real data, like the coverage profile, systematic errors and the k-mer spectrum. When these characteristics are translated into new synthetic computational experiments (i.e. simulated data), the performance can be more accurately estimated. Combining our simulator and real data gives two valuable perspectives on the performance of tools to minimize biases.
+**Re**al **Seq**uence Reproducer shortens the gap between simulated and real data evaluations by adequately reproducing key statistics of real data, like the coverage profile, systematic errors and the k-mer spectrum. When these characteristics are translated into new synthetic computational experiments (i.e. simulated data), the performance can be more accurately estimated. Combining our simulator and real data gives two valuable perspectives on the performance of tools to minimize biases.
 
 ## <a name="requirements"></a>Requirements
 
@@ -35,9 +35,9 @@ Even though sequencing biases and errors have been deeply researched to adequate
 ## <a name="installation"></a>Installation
 To install to the standard folder `usr/local` or to keep everything in the build folder:
 ```
-cd /where/you/want/to/build/ReSequenceR
-git clone https://github.com/schmeing/ReSequenceR.git
-cd ReSequenceR
+cd /where/you/want/to/build/ReSeq
+git clone https://github.com/schmeing/ReSeq.git
+cd ReSeq
 mkdir build
 cd build
 cmake ..
@@ -46,12 +46,12 @@ make
 
 To install to a different folder the same steps apply but the `cmake ..` line has to be exchange with:
 ```
-cmake -DCMAKE_INSTALL_PREFIX=/where/you/want/to/install/ReSequenceR/ ..
+cmake -DCMAKE_INSTALL_PREFIX=/where/you/want/to/install/ReSeq/ ..
 ```
 
-The executable file will afterwards be `/where/you/want/to/build/ReSequenceR/ReSequenceR/build/bin/reseq` and can be added to the PATH variable or copied to the desired place.
+The executable file will afterwards be `/where/you/want/to/build/ReSeq/ReSeq/build/bin/reseq` and can be added to the PATH variable or copied to the desired place.
 
-Alternatively ReSequenceR can be install to the standard folder `usr/local` or the previously defined folder by:
+Alternatively ReSeq can be install to the standard folder `usr/local` or the previously defined folder by:
 ```
 make install
 ```
@@ -61,7 +61,7 @@ To test the installation run:
 reseq test
 ```
 
-Some useful python scripts can be found in `/where/you/want/to/install/ReSequenceR/ReSequenceR/python` or after an installation in `usr/local/bin` or `/where/you/want/to/install/ReSequenceR/bin/`.
+Some useful python scripts can be found in `/where/you/want/to/install/ReSeq/ReSeq/python` or after an installation in `usr/local/bin` or `/where/you/want/to/install/ReSeq/bin/`.
 
 ## <a name="quickstart"></a>Quick start examples
 To create simulated data similar to real data you first need to map the real data to a reference. For example with `bowtie2`:
