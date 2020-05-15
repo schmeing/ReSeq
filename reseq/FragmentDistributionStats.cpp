@@ -2494,15 +2494,6 @@ void FragmentDistributionStats::AcquireBiases(const BiasCalculationVectors &calc
 }
 
 bool FragmentDistributionStats::StoreBias(){
-	if( 0 == current_bias_result_ ){
-		printWarn << "No bias fit converged. Continuing with uniform coverage." << std::endl;
-		SetUniformBias();
-		return true;
-	}
-	else{
-		printInfo << current_bias_result_ << " of " << tmp_gc_bias_.at(0).size() << " bias fits [" << static_cast<uintPercentPrint>(Percent(current_bias_result_, static_cast<uintNumFits>(tmp_gc_bias_.at(0).size()))) << "%] converged." << std::endl;
-	}
-
 	// GC bias
 	// Calculate weighted median
 	for(uintPercent gc=0; gc<tmp_gc_bias_.size(); ++gc){
@@ -3128,12 +3119,21 @@ void FragmentDistributionStats::Finalize(){
 
 bool FragmentDistributionStats::FinalizeBiasCalculation(const Reference &reference, uintNumThreads num_threads, FragmentDuplicationStats &duplications){
 	if(calculate_bias_){
-		if( !StoreBias() ){
-			return false;
+		if( 0 == current_bias_result_ ){
+			printWarn << "No bias fit converged. Continuing with uniform coverage." << std::endl;
+			SetUniformBias();
+			return true;
 		}
+		else{
+			printInfo << current_bias_result_ << " of " << tmp_gc_bias_.at(0).size() << " bias fits [" << static_cast<uintPercentPrint>(Percent(current_bias_result_, static_cast<uintNumFits>(tmp_gc_bias_.at(0).size()))) << "%] converged." << std::endl;
 
-		if( !CalculateInsertLengthAndRefSeqBias(reference, num_threads) ){
-			return false;
+			if( !StoreBias() ){
+				return false;
+			}
+
+			if( !CalculateInsertLengthAndRefSeqBias(reference, num_threads) ){
+				return false;
+			}
 		}
 	}
 	else{
