@@ -2,6 +2,8 @@
 using reseq::QualityStats;
 using reseq::SeqQualityStats;
 
+#include <fstream>
+using std::ofstream;
 #include <functional>
 
 #include "reportingUtils.hpp"
@@ -253,6 +255,11 @@ void QualityStats::Prepare(uintTileId num_tiles, uintQual size_qual, uintReadLen
 	SetDimensions( tmp_sequence_quality_mean_paired_per_tile_, num_tiles, size_qual, size_qual );
 
 	SetDimensions( tmp_homoquality_distribution_, size_qual, size_pos );
+
+	if(kWriteOut4dMatrixCsvs){
+		SetDimensions( tmp_csv_seg0_a_base_quality_preceding_quality_sequence_quality_position_, size_qual, size_qual, size_qual, size_pos );
+		SetDimensions( tmp_csv_seg1_c_base_quality_preceding_quality_error_rate_position_, size_qual, size_qual, 101, size_pos );
+	}
 }
 
 void QualityStats::Finalize(uintFragCount total_number_reads){
@@ -315,6 +322,44 @@ void QualityStats::Finalize(uintFragCount total_number_reads){
 				sequence_quality_content_.at(template_segment).at(qual)[0] += total_number_reads - SumVect(sequence_quality_content_.at(template_segment).at(qual));
 			}
 		}
+	}
+
+	if(kWriteOut4dMatrixCsvs){
+		ofstream myfile;
+		myfile.open("seg0_a_er0_base_quality_preceding_quality_sequence_quality_position.csv");
+		myfile << "base_quality, previous_quality, sequence_quality, position, count\n";
+		for( uintQualPrint qual=0; qual < tmp_csv_seg0_a_base_quality_preceding_quality_sequence_quality_position_.size(); ++qual){
+			for( uintQualPrint pq=0; pq < tmp_csv_seg0_a_base_quality_preceding_quality_sequence_quality_position_.at(qual).size(); ++pq){
+				for( uintQualPrint sq=0; sq < tmp_csv_seg0_a_base_quality_preceding_quality_sequence_quality_position_.at(qual).at(pq).size(); ++sq){
+					for( uintReadLen pos=0; pos < tmp_csv_seg0_a_base_quality_preceding_quality_sequence_quality_position_.at(qual).at(pq).at(sq).size(); ++pos){
+						if( 0 < tmp_csv_seg0_a_base_quality_preceding_quality_sequence_quality_position_.at(qual).at(pq).at(sq).at(pos) ){
+							myfile << qual << ", " << pq << ", " << sq << ", " << pos << ", " << tmp_csv_seg0_a_base_quality_preceding_quality_sequence_quality_position_.at(qual).at(pq).at(sq).at(pos) << '\n';
+						}
+					}
+				}
+			}
+		}
+		myfile.close();
+
+		myfile.open("seg1_c_sq37_base_quality_preceding_quality_error_rate_position.csv");
+		myfile << "base_quality, previous_quality, error_rate, position, count\n";
+		for( uintQualPrint qual=0; qual < tmp_csv_seg1_c_base_quality_preceding_quality_error_rate_position_.size(); ++qual){
+			for( uintQualPrint pq=0; pq < tmp_csv_seg1_c_base_quality_preceding_quality_error_rate_position_.at(qual).size(); ++pq){
+				for( uintPercentPrint er=0; er < tmp_csv_seg1_c_base_quality_preceding_quality_error_rate_position_.at(qual).at(pq).size(); ++er){
+					for( uintReadLen pos=0; pos < tmp_csv_seg1_c_base_quality_preceding_quality_error_rate_position_.at(qual).at(pq).at(er).size(); ++pos){
+						if( 0 < tmp_csv_seg1_c_base_quality_preceding_quality_error_rate_position_.at(qual).at(pq).at(er).at(pos) ){
+							myfile << qual << ", " << pq << ", " << er << ", " << pos << ", " << tmp_csv_seg1_c_base_quality_preceding_quality_error_rate_position_.at(qual).at(pq).at(er).at(pos) << '\n';
+						}
+					}
+				}
+			}
+		}
+		myfile.close();
+
+		tmp_csv_seg0_a_base_quality_preceding_quality_sequence_quality_position_.clear();
+		tmp_csv_seg0_a_base_quality_preceding_quality_sequence_quality_position_.shrink_to_fit();
+		tmp_csv_seg1_c_base_quality_preceding_quality_error_rate_position_.clear();
+		tmp_csv_seg1_c_base_quality_preceding_quality_error_rate_position_.shrink_to_fit();
 	}
 }
 

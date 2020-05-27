@@ -13,8 +13,13 @@ namespace reseq{
 	class QualityStats{
 	public:
 		static const uintSeqLen kSqFragmentLengthBinSize = 10;
+		static const bool kWriteOut4dMatrixCsvs = false;
 
 	private:
+		// kWriteOut3dMatrixCsvs variables
+		std::vector<std::vector<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>>> tmp_csv_seg0_a_base_quality_preceding_quality_sequence_quality_position_;
+		std::vector<std::vector<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>>> tmp_csv_seg1_c_base_quality_preceding_quality_error_rate_position_;
+
 		// Temporary variables
 		std::array<std::array<std::array<std::vector<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>>, 5>, 4>, 2> tmp_base_quality_stats_per_tile_per_error_reference_;
 		std::array<std::array<std::array<std::vector<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>>, 5>, 4>, 2> tmp_error_rate_for_position_per_tile_per_error_reference_;
@@ -403,6 +408,15 @@ namespace reseq{
 			++tmp_preceding_quality_for_sequence_quality_per_tile_reference_.at(template_segment).at(ref_base).at(tile_id).at(seq_qual).at(last_qual);
 			++tmp_sequence_quality_for_error_rate_per_tile_reference_.at(template_segment).at(ref_base).at(tile_id).at(error_rate).at(seq_qual);
 			++tmp_sequence_quality_for_position_per_tile_reference_.at(template_segment).at(ref_base).at(tile_id).at(read_pos).at(seq_qual);
+
+			if(kWriteOut4dMatrixCsvs){
+				if(0 == template_segment && 0 == ref_base && 0 == tile_id && 0 == error_rate){
+					++tmp_csv_seg0_a_base_quality_preceding_quality_sequence_quality_position_.at(quality).at(last_qual).at(seq_qual).at(read_pos);
+				}
+				if(1 == template_segment && 1 == ref_base && 0 == tile_id && 37 == seq_qual){
+					++tmp_csv_seg1_c_base_quality_preceding_quality_error_rate_position_.at(quality).at(last_qual).at(error_rate).at(read_pos);
+				}
+			}
 		}
 		inline void AddRefRead(uintTempSeq template_segment, uintTileId tile_id, uintPercent gc, uintQual seq_qual_mean, uintPercent mean_error_rate, uintSeqLen fragment_length){
 			++tmp_sequence_quality_mean_for_gc_per_tile_reference_.at(template_segment).at(tile_id).at(gc).at(seq_qual_mean);

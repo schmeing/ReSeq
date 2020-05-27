@@ -103,6 +103,7 @@ void CoverageStats::EvalRead( FullRecord *record, CoverageStats::CoverageBlock *
 								error_rate = coverage_block->coverage_.at(coverage_pos).error_rate_.at(hasFlagRC(record->record_));
 								dom_error = coverage_block->coverage_.at(coverage_pos).dom_error_.at(hasFlagRC(record->record_));
 							}
+
 							qualities.AddRefBase(hasFlagLast(record->record_), ref_base, dom_error, record->tile_id_, qual, error_rate, last_qual, record->sequence_quality_, read_pos);
 							errors.AddBase(hasFlagLast(record->record_), ref_base, dom_error, record->tile_id_, base, qual, read_pos, num_errors, error_rate);
 

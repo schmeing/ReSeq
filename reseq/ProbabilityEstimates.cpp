@@ -1167,5 +1167,62 @@ bool ProbabilityEstimates::Estimate(const DataStats &stats, uintNumFits max_iter
 		printInfo << "No iterations allowed. Probabilities could not be improved." << std::endl;
 	}
 
+	if(QualityStats::kWriteOut4dMatrixCsvs){
+		PrepareResult();
+
+		ofstream myfile;
+		myfile.open("estimate_seg0_a_er0_base_quality_preceding_quality_sequence_quality_position.csv");
+		myfile << "base_quality, previous_quality, sequence_quality, position, likelihood\n";
+		vector<double> probabilities;
+		double prob_sum;
+
+		for( uintQualPrint pq=stats.Qualities().BaseQualityForPrecedingQualityReference(0, 0, 0).from(); pq < stats.Qualities().BaseQualityForPrecedingQualityReference(0, 0, 0).to(); ++pq){
+			if( stats.Qualities().BaseQualityForPrecedingQualityReference(0, 0, 0).at(pq).size() ){
+				for( uintQualPrint sq=stats.Qualities().BaseQualityForSequenceQualityReference(0, 0, 0).from(); sq < stats.Qualities().BaseQualityForSequenceQualityReference(0, 0, 0).to(); ++sq){
+					if( stats.Qualities().BaseQualityForSequenceQualityReference(0, 0, 0).at(sq).size() ){
+						for( uintReadLen pos=stats.Qualities().PrecedingQualityForPositionReference(0, 0, 0).from(); pos < stats.Qualities().PrecedingQualityForPositionReference(0, 0, 0).to(); ++pos){
+							if( stats.Qualities().PrecedingQualityForPositionReference(0, 0, 0).at(pos).size() ){
+								uintPercentPrint er=0;
+								quality_result_.at(0).at(0).at(0).Draw(probabilities, prob_sum, {sq, pq, pos, er}, 0.0);
+
+								for( uintQual q=0; q < probabilities.size(); ++q ){
+									if( 1.0e-10 < probabilities.at(q) ){
+										myfile << quality_result_.at(0).at(0).at(0).PossibleValues().at(q) << ", " << pq << ", " << sq << ", " << pos << ", " << probabilities.at(q) << '\n';
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		myfile.close();
+
+		myfile.open("estimate_seg1_c_sq37_base_quality_preceding_quality_error_rate_position.csv");
+		myfile << "base_quality, previous_quality, error_rate, position, likelihood\n";
+
+		for( uintQualPrint pq=stats.Qualities().BaseQualityForPrecedingQualityReference(1, 0, 1).from(); pq < stats.Qualities().BaseQualityForPrecedingQualityReference(1, 0, 1).to(); ++pq){
+			if( stats.Qualities().BaseQualityForPrecedingQualityReference(1, 0, 1).at(pq).size() ){
+				for( uintPercentPrint er=stats.Qualities().SequenceQualityForErrorRateReference(1, 0, 1).from(); er < stats.Qualities().SequenceQualityForErrorRateReference(1, 0, 1).to(); ++er){
+					if( stats.Qualities().SequenceQualityForErrorRateReference(1, 0, 1).at(er).size() ){
+						for( uintReadLen pos=stats.Qualities().PrecedingQualityForPositionReference(1, 0, 1).from(); pos < stats.Qualities().PrecedingQualityForPositionReference(1, 0, 1).to(); ++pos){
+							if( stats.Qualities().PrecedingQualityForPositionReference(1, 0, 1).at(pos).size() ){
+								uintPercentPrint sq=37;
+								quality_result_.at(1).at(0).at(1).Draw(probabilities, prob_sum, {sq, pq, pos, er}, 0.0);
+
+								for( uintQual q=0; q < probabilities.size(); ++q ){
+									if( 1.0e-10 < probabilities.at(q) ){
+										myfile << quality_result_.at(1).at(0).at(1).PossibleValues().at(q) << ", " << pq << ", " << er << ", " << pos << ", " << probabilities.at(q) << '\n';
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		myfile.close();
+	}
+
 	return true;
 }
