@@ -832,7 +832,7 @@ def plotDataStats(statsFiles, oFile, plot_legend=True, title = ""):
 
     for i, name in enumerate(names):
         if '/' in name:
-            names[i] = name.rsplit('/',1)[1].split('.')[0][0:10]
+            names[i] = name.rsplit('/',1)[1].split('.')[0][0:15]
             pass
         pass
 
