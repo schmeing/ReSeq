@@ -112,7 +112,7 @@ void QualityStats::CalculateQualityStats(){
 			stats = &base_quality_stats_reference_.at(template_segment).at(pos);
 			stats->Calculate();
 
-			base_quality_mean_reference_.at(template_segment)[pos] = stats->mean_;
+			base_quality_mean_reference_.at(template_segment)[pos] = stats->DoubleMean();
 			base_quality_minimum_reference_.at(template_segment)[pos] = stats->minimum_;
 			base_quality_first_quartile_reference_.at(template_segment)[pos] = stats->first_quartile_;
 			base_quality_median_reference_.at(template_segment)[pos] = stats->median_;
@@ -125,7 +125,7 @@ void QualityStats::CalculateQualityStats(){
 			stats = &base_quality_stats_.at(template_segment).at(pos);
 			stats->Calculate();
 
-			base_quality_mean_.at(template_segment)[pos] = stats->mean_;
+			base_quality_mean_.at(template_segment)[pos] = stats->DoubleMean();
 			base_quality_minimum_.at(template_segment)[pos] = stats->minimum_;
 			base_quality_first_quartile_.at(template_segment)[pos] = stats->first_quartile_;
 			base_quality_median_.at(template_segment)[pos] = stats->median_;
@@ -150,9 +150,8 @@ void QualityStats::CalculateQualityStats(){
 		for( auto pos = base_quality_stats_per_strand_.at(template_segment).size(); pos--; ){
 			// base_quality_stats_per_strand_
 			stats = &base_quality_stats_per_strand_.at(template_segment).at(pos); // template_segment really is strand here
-			stats->Calculate(false);
 
-			base_quality_mean_per_strand_.at(template_segment)[pos] = stats->mean_; // template_segment really is strand here
+			base_quality_mean_per_strand_.at(template_segment)[pos] = stats->DoubleMean(); // template_segment really is strand here
 		}
 
 		// Fill mean_sequence_quality_mean_by_fragment_length_

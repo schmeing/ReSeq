@@ -176,6 +176,23 @@ namespace reseq{
 				probability_mean_ = static_cast<unsigned char>( std::round( -10.0*std::log10(sum/num_values) ) );
 			}
 		}
+
+		double DoubleMean(){
+			uint64_t num_values(0);
+			uint64_t sum(0);
+
+			for(auto qual = qualities_.from(); qual < qualities_.to(); ++qual){
+				num_values += qualities_.at(qual);
+				sum += qualities_.at(qual)*qual;
+			}
+
+			if( sum ){
+				return static_cast<double>(sum)/num_values;
+			}
+			else{
+				return 0.0;
+			}
+		}
 	};
 
 	template<typename T> bool operator==( decltype( SeqQualityStats<T>().size() ) val, const SeqQualityStats<T>& stats){ // Compares the size_t value to the quality vector

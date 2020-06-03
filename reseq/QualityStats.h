@@ -113,7 +113,7 @@ namespace reseq{
 
 		// Calculated variables for plotting from variables for estimation (based on reference)
 		std::array<Vect<SeqQualityStats<uintNucCount>>, 2> base_quality_stats_reference_; // base_quality_stats_reference_[first/second][readPosition][quality] = #bases
-		std::array<Vect<uintQual>, 2> base_quality_mean_reference_; // base_quality_mean_reference_[first/second][readPosition] = baseQualityMean
+		std::array<Vect<double>, 2> base_quality_mean_reference_; // base_quality_mean_reference_[first/second][readPosition] = baseQualityMean
 		std::array<Vect<uintQual>, 2> base_quality_minimum_reference_; // base_quality_minimum_reference_[first/second][readPosition] = baseQualityMinimum
 		std::array<Vect<uintQual>, 2> base_quality_first_quartile_reference_; // base_quality_first_quartile_reference_[first/second][readPosition] = baseQualityFirstQuartile
 		std::array<Vect<uintQual>, 2> base_quality_median_reference_; // base_quality_median_reference_[first/second][readPosition] = baseQualityMedian
@@ -124,14 +124,14 @@ namespace reseq{
 
 		// Calculated variables for plotting (based on raw reads)
 		std::array<Vect<SeqQualityStats<uintNucCount>>, 2> base_quality_stats_; // base_quality_stats_[first/second][readPosition][quality] = #bases
-		std::array<Vect<uintQual>, 2> base_quality_mean_; // base_quality_mean_[first/second][readPosition] = baseQualityMean
+		std::array<Vect<double>, 2> base_quality_mean_; // base_quality_mean_[first/second][readPosition] = baseQualityMean
 		std::array<Vect<uintQual>, 2> base_quality_minimum_; // base_quality_minimum_[first/second][readPosition] = baseQualityMinimum
 		std::array<Vect<uintQual>, 2> base_quality_first_quartile_; // base_quality_first_quartile_[first/second][readPosition] = baseQualityFirstQuartile
 		std::array<Vect<uintQual>, 2> base_quality_median_; // base_quality_median_[first/second][readPosition] = baseQualityMedian
 		std::array<Vect<uintQual>, 2> base_quality_third_quartile_; // base_quality_third_quartile_[first/second][readPosition] = baseQualityThirdQuartile
 		std::array<Vect<uintQual>, 2> base_quality_maximum_; // base_quality_maximum_[first/second][readPosition] = baseQualityMaximum
 		std::array<Vect<Vect<intQualDiff>>, 2> tile_quality_mean_difference_; //tile_quality_mean_difference_[first/second][tile][readPosition] = meanDifferenceToTotalQualityMean
-		std::array<Vect<uintQual>, 2> base_quality_mean_per_strand_; // base_quality_mean_per_strand_[+/-][readPosition] = baseQualityMean
+		std::array<Vect<double>, 2> base_quality_mean_per_strand_; // base_quality_mean_per_strand_[+/-][readPosition] = baseQualityMean
 
 		std::array<Vect<Vect<uintNucCount>>, 2> base_quality_for_sequence_; // base_quality_for_sequence_[first/second][qualityProbabilityMeanOfSequence][baseQuality] = #bases
 		std::array<Vect<Vect<uintNucCount>>, 2> base_quality_for_preceding_quality_; // base_quality_for_preceding_quality_[first/second][qualityOfPrecedingBase][baseQuality] = #bases
@@ -315,7 +315,7 @@ namespace reseq{
 		inline const Vect<SeqQualityStats<uintNucCount>> &BaseQualityStatsReference(uintTempSeq template_segment) const{
 			return base_quality_stats_reference_.at(template_segment);
 		}
-		inline const Vect<uintQual> &BaseQualityMeanReference(uintTempSeq template_segment) const{
+		inline const Vect<double> &BaseQualityMeanReference(uintTempSeq template_segment) const{
 			return base_quality_mean_reference_.at(template_segment);
 		}
 		inline const Vect<uintQual> &BaseQualityMinimumReference(uintTempSeq template_segment) const{
@@ -341,7 +341,7 @@ namespace reseq{
 		inline const Vect<SeqQualityStats<uintNucCount>> &BaseQualityStats(uintTempSeq template_segment) const{
 			return base_quality_stats_.at(template_segment);
 		}
-		inline const Vect<uintQual> &BaseQualityMean(uintTempSeq template_segment) const{
+		inline const Vect<double> &BaseQualityMean(uintTempSeq template_segment) const{
 			return base_quality_mean_.at(template_segment);
 		}
 		inline const Vect<uintQual> &BaseQualityMinimum(uintTempSeq template_segment) const{
@@ -362,7 +362,7 @@ namespace reseq{
 		inline const Vect<Vect<intQualDiff>> &TileQualityMeanDifference(uintTempSeq template_segment) const{
 			return tile_quality_mean_difference_.at(template_segment);
 		}
-		inline const Vect<uintQual> &BaseQualityMeanPerStrand(uintTempSeq strand) const{
+		inline const Vect<double> &BaseQualityMeanPerStrand(uintTempSeq strand) const{
 			return base_quality_mean_per_strand_.at(strand);
 		}
 
