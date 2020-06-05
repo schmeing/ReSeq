@@ -5,12 +5,14 @@ using reseq::AdapterStats;
 using std::max;
 using std::max_element;
 using std::min;
+using std::sort;
 #include <array>
 using std::array;
 #include <cmath>
 using std::ceil;
 #include <fstream>
 using std::ifstream;
+using std::ofstream;
 #include <iterator>
 using std::distance;
 #include <list>
@@ -379,6 +381,13 @@ bool AdapterStats::PredictAdapters(){
 		uintBaseCall max_extension, second_highest;
 		auto base = adapter_kmers_.at(0).counts_.size() >> 2;
 
+		uintReadLen adapter_ext_pos(0);
+		ofstream myfile;
+		if(kAdapterSearchInfoFile){
+			myfile.open(kAdapterSearchInfoFile);
+			myfile << "template_segment, tries_left, position, kmer, counts" << std::endl;
+		}
+
 		for(uintTempSeq template_segment=2; template_segment--; ){
 			// Find start of adapter
 			use_kmer.clear();
@@ -419,10 +428,61 @@ bool AdapterStats::PredictAdapters(){
 					kmer >>= 2;
 				}
 
+				if(kAdapterSearchInfoFile){
+					// Sort kmers to get top 100
+					std::vector<std::pair<uintNucCount, Kmer<kKmerLength>::intType>> sorted_kmers;
+					sorted_kmers.reserve(adapter_start_kmers_.size());
+					for(Kmer<kKmerLength>::intType kmer = 0; kmer < adapter_start_kmers_.at(template_segment).size(); ++kmer ){
+						sorted_kmers.emplace_back(adapter_start_kmers_.at(template_segment).at(kmer), kmer);
+					}
+					sort(sorted_kmers.begin(),sorted_kmers.end());
+
+					string kmer_nucs;
+					kmer_nucs.resize(kKmerLength);
+					for(auto sk = sorted_kmers.size(); sk-- > sorted_kmers.size()-100; ){
+						myfile << static_cast<uintTempSeqPrint>(template_segment) << ", " << tries << ", Start, ";
+						kmer = sorted_kmers.at(sk).second;
+						for(uintReadLen pos=kKmerLength; pos--; ){
+							kmer_nucs.at(pos) = static_cast<Dna>(kmer%4);
+							kmer >>= 2;
+						}
+						myfile << kmer_nucs << ", " << sorted_kmers.at(sk).first << std::endl;
+					}
+				}
+
 				// Restore start cut
 				kmer = max_kmer;
+				if(kAdapterSearchInfoFile){
+					adapter_ext_pos = 0;
+				}
 				while(true){
 					kmer >>= 2;
+
+					if(kAdapterSearchInfoFile){
+						myfile << static_cast<uintTempSeqPrint>(template_segment) << ", " << tries << ", Left" << ++adapter_ext_pos << ", A";
+						for(uintReadLen pos=0; pos < kKmerLength-1; ++pos){
+							myfile << at(adapter, pos);
+						}
+						myfile << ", " << adapter_kmers_.at(template_segment).counts_.at(kmer) << std::endl;
+
+						myfile << static_cast<uintTempSeqPrint>(template_segment) << ", " << tries << ", Left" << adapter_ext_pos << ", C";
+						for(uintReadLen pos=0; pos < kKmerLength-1; ++pos){
+							myfile << at(adapter, pos);
+						}
+						myfile << ", " << adapter_kmers_.at(template_segment).counts_.at(kmer+base) << std::endl;
+
+						myfile << static_cast<uintTempSeqPrint>(template_segment) << ", " << tries << ", Left" << adapter_ext_pos << ", G";
+						for(uintReadLen pos=0; pos < kKmerLength-1; ++pos){
+							myfile << at(adapter, pos);
+						}
+						myfile << ", " << adapter_kmers_.at(template_segment).counts_.at(kmer+2*base) << std::endl;
+
+						myfile << static_cast<uintTempSeqPrint>(template_segment) << ", " << tries << ", Left" << adapter_ext_pos << ", T";
+						for(uintReadLen pos=0; pos < kKmerLength-1; ++pos){
+							myfile << at(adapter, pos);
+						}
+						myfile << ", " << adapter_kmers_.at(template_segment).counts_.at(kmer+3*base) << std::endl;
+					}
 
 					if( adapter_kmers_.at(template_segment).counts_.at(kmer+3*base) > adapter_kmers_.at(template_segment).counts_.at(kmer+2*base) ){
 						max_extension = 3;
@@ -455,9 +515,39 @@ bool AdapterStats::PredictAdapters(){
 
 				// Extend adapter
 				kmer = max_kmer;
+				if(kAdapterSearchInfoFile){
+					adapter_ext_pos = 0;
+				}
 				while(true){
 					kmer <<= 2;
 					kmer %= adapter_kmers_.at(template_segment).counts_.size();
+
+					if(kAdapterSearchInfoFile){
+						myfile << static_cast<uintTempSeqPrint>(template_segment) << ", " << tries << ", Right" << ++adapter_ext_pos << ", ";
+						for(uintReadLen pos=length(adapter)-kKmerLength+1; pos < length(adapter); ++pos){
+							myfile << at(adapter, pos);
+						}
+						myfile << "A, " << adapter_kmers_.at(template_segment).counts_.at(kmer) << std::endl;
+
+						myfile << static_cast<uintTempSeqPrint>(template_segment) << ", " << tries << ", Right" << adapter_ext_pos << ", ";
+						for(uintReadLen pos=length(adapter)-kKmerLength+1; pos < length(adapter); ++pos){
+							myfile << at(adapter, pos);
+						}
+						myfile << "C, " << adapter_kmers_.at(template_segment).counts_.at(kmer+1) << std::endl;
+
+						myfile << static_cast<uintTempSeqPrint>(template_segment) << ", " << tries << ", Right" << adapter_ext_pos << ", ";
+						for(uintReadLen pos=length(adapter)-kKmerLength+1; pos < length(adapter); ++pos){
+							myfile << at(adapter, pos);
+						}
+						myfile << "G, " << adapter_kmers_.at(template_segment).counts_.at(kmer+2) << std::endl;
+
+						myfile << static_cast<uintTempSeqPrint>(template_segment) << ", " << tries << ", Right" << adapter_ext_pos << ", ";
+						for(uintReadLen pos=length(adapter)-kKmerLength+1; pos < length(adapter); ++pos){
+							myfile << at(adapter, pos);
+						}
+						myfile << "T, " << adapter_kmers_.at(template_segment).counts_.at(kmer+3) << std::endl;
+					}
+
 					if( adapter_kmers_.at(template_segment).counts_.at(kmer+3) > adapter_kmers_.at(template_segment).counts_.at(kmer+2) ){
 						max_extension = 3;
 						second_highest = 2;
@@ -496,6 +586,9 @@ bool AdapterStats::PredictAdapters(){
 				}
 				else if( 120 < length(adapter) ){
 					printErr << "Detected very long sequence '" << adapter << "' as adapter for read " << static_cast<uintTempSeqPrint>(template_segment+1) << ", which is likely part of the genome." << std::endl;
+					if(kAdapterSearchInfoFile){
+						myfile.close();
+					}
 					return false;
 				}
 				else{
@@ -506,6 +599,9 @@ bool AdapterStats::PredictAdapters(){
 
 			if(!found_adapter){
 				printErr << "Only non-extendible sequences were found as adapter for read " << static_cast<uintTempSeqPrint>(template_segment+1) << std::endl;
+				if(kAdapterSearchInfoFile){
+					myfile.close();
+				}
 				return false;
 			}
 
@@ -516,6 +612,10 @@ bool AdapterStats::PredictAdapters(){
 			adapter_kmers_.at(template_segment).Clear();
 			adapter_start_kmers_.at(template_segment).clear();
 			adapter_start_kmers_.at(template_segment).shrink_to_fit();
+		}
+
+		if(kAdapterSearchInfoFile){
+			myfile.close();
 		}
 
 		combinations_.resize( 1, vector<bool>(1, true) ); // Set the single combinations to valid
