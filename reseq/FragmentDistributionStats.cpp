@@ -1958,7 +1958,6 @@ void FragmentDistributionStats::CheckLowQExclusions(uintRefSeqBin ref_seq_bin, v
 	auto tmp_size = RefSeqSplitLength(ref_seq, reference) + ref_seq_start_bin_.at(ref_seq+1)-ref_seq_start_bin_.at(ref_seq);
 	tmp_frag_count.clear();
 	tmp_frag_count.resize(tmp_size, 0);
-
 	for( uintFragCount site_id=0; site_id < fragment_sites_by_ref_seq_bin_cur_id_.at(ref_seq_bin); ++site_id ){
 		++tmp_frag_count.at(fragment_sites_by_ref_seq_bin_.at(ref_seq_bin).at(site_id).first/2);
 	}
@@ -1969,7 +1968,6 @@ void FragmentDistributionStats::CheckLowQExclusions(uintRefSeqBin ref_seq_bin, v
 		sort(lowq_site_start_by_ref_seq_bin_.at(ref_seq_bin).begin(), lowq_site_start_by_ref_seq_bin_.at(ref_seq_bin).end());
 		auto excluded_pos = lowq_site_start_by_ref_seq_bin_.at(ref_seq_bin).at(0);
 		uintFragCount lowq_count(1);
-
 		for( uintFragCount site_id=1; site_id < lowq_site_start_by_ref_seq_bin_.at(ref_seq_bin).size(); ++site_id ){
 			if(lowq_site_start_by_ref_seq_bin_.at(ref_seq_bin).at(site_id) == excluded_pos){
 				++lowq_count;
@@ -1984,15 +1982,17 @@ void FragmentDistributionStats::CheckLowQExclusions(uintRefSeqBin ref_seq_bin, v
 
 		CheckLowQExclusion(lowq_site_start_exclusion_.at(ref_seq_bin), excluded_pos, lowq_count, tmp_frag_count );
 
-		if(1 == lowq_site_start_exclusion_.at(ref_seq_bin).back().second - lowq_site_start_exclusion_.at(ref_seq_bin).back().first ){
-			// Remove the single random event
-			lowq_site_start_exclusion_.at(ref_seq_bin).pop_back();
-		}
-		else{
-			// Extend last region at the end
-			uintFragCount separating_high_q = 0;
-			while(lowq_site_start_exclusion_.at(ref_seq_bin).back().second < tmp_frag_count.size() && separating_high_q + tmp_frag_count.at(lowq_site_start_exclusion_.at(ref_seq_bin).back().second) < kMinHighQToSeparateLowQ/2 ){
-				separating_high_q += tmp_frag_count.at(lowq_site_start_exclusion_.at(ref_seq_bin).back().second++);
+		if(lowq_site_start_exclusion_.at(ref_seq_bin).size()){
+			if(1 == lowq_site_start_exclusion_.at(ref_seq_bin).back().second - lowq_site_start_exclusion_.at(ref_seq_bin).back().first ){
+				// Remove the single random event
+				lowq_site_start_exclusion_.at(ref_seq_bin).pop_back();
+			}
+			else{
+				// Extend last region at the end
+				uintFragCount separating_high_q = 0;
+				while(lowq_site_start_exclusion_.at(ref_seq_bin).back().second < tmp_frag_count.size() && separating_high_q + tmp_frag_count.at(lowq_site_start_exclusion_.at(ref_seq_bin).back().second) < kMinHighQToSeparateLowQ/2 ){
+					separating_high_q += tmp_frag_count.at(lowq_site_start_exclusion_.at(ref_seq_bin).back().second++);
+				}
 			}
 		}
 
@@ -2014,7 +2014,6 @@ void FragmentDistributionStats::CheckLowQExclusions(uintRefSeqBin ref_seq_bin, v
 		sort(lowq_site_end_by_ref_seq_bin_.at(ref_seq_bin).begin(), lowq_site_end_by_ref_seq_bin_.at(ref_seq_bin).end());
 		auto excluded_pos = lowq_site_end_by_ref_seq_bin_.at(ref_seq_bin).at(0);
 		uintFragCount lowq_count(1);
-
 		for( uintFragCount site_id=1; site_id < lowq_site_end_by_ref_seq_bin_.at(ref_seq_bin).size(); ++site_id ){
 			if(lowq_site_end_by_ref_seq_bin_.at(ref_seq_bin).at(site_id) == excluded_pos){
 				++lowq_count;
@@ -2029,15 +2028,17 @@ void FragmentDistributionStats::CheckLowQExclusions(uintRefSeqBin ref_seq_bin, v
 
 		CheckLowQExclusion(lowq_site_end_exclusion_.at(ref_seq_bin), excluded_pos, lowq_count, tmp_frag_count );
 
-		if(1 == lowq_site_end_exclusion_.at(ref_seq_bin).back().second - lowq_site_end_exclusion_.at(ref_seq_bin).back().first ){
-			// Remove the single random event
-			lowq_site_end_exclusion_.at(ref_seq_bin).pop_back();
-		}
-		else{
-			// Extend last region at the end
-			uintFragCount separating_high_q = 0;
-			while(lowq_site_end_exclusion_.at(ref_seq_bin).back().second < tmp_frag_count.size() && separating_high_q + tmp_frag_count.at(lowq_site_end_exclusion_.at(ref_seq_bin).back().second) < kMinHighQToSeparateLowQ/2 ){
-				separating_high_q += tmp_frag_count.at(lowq_site_end_exclusion_.at(ref_seq_bin).back().second++);
+		if(lowq_site_end_exclusion_.at(ref_seq_bin).size()){
+			if(1 == lowq_site_end_exclusion_.at(ref_seq_bin).back().second - lowq_site_end_exclusion_.at(ref_seq_bin).back().first ){
+				// Remove the single random event
+				lowq_site_end_exclusion_.at(ref_seq_bin).pop_back();
+			}
+			else{
+				// Extend last region at the end
+				uintFragCount separating_high_q = 0;
+				while(lowq_site_end_exclusion_.at(ref_seq_bin).back().second < tmp_frag_count.size() && separating_high_q + tmp_frag_count.at(lowq_site_end_exclusion_.at(ref_seq_bin).back().second) < kMinHighQToSeparateLowQ/2 ){
+					separating_high_q += tmp_frag_count.at(lowq_site_end_exclusion_.at(ref_seq_bin).back().second++);
+				}
 			}
 		}
 
