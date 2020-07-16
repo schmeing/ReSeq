@@ -505,7 +505,13 @@ void BiasCalculationVectors::CalculateSpline(const vector<double> &spline_pars){
 	double a, b, c, d;
 	GetSplineCoefficients(a, b, c, d, 0, spline_pars);
 	double lower_const_no_logit = a - 0.5*b;
-	double lower_const = norm*InvLogit2(lower_const_no_logit) + kBaseValue;
+	double lower_const;
+	if( kGCExp ){
+		lower_const = norm*exp(lower_const_no_logit) + kBaseValue;
+	}
+	else{
+		lower_const = norm*InvLogit2(lower_const_no_logit) + kBaseValue;
+	}
 	for(uintPercent gc=0; gc < gc_knots_.at(0); ++gc){
 		gc_bias_no_logit_.at(gc) = lower_const_no_logit;
 		gc_bias_.at(gc) = lower_const;
@@ -513,31 +519,58 @@ void BiasCalculationVectors::CalculateSpline(const vector<double> &spline_pars){
 
 	// Fill observed range of gc with spline values
 	gc_bias_no_logit_.at( gc_knots_.at(0) ) = a;
-	gc_bias_.at( gc_knots_.at(0) ) = norm*InvLogit2(a) + kBaseValue;
+	if( kGCExp ){
+		gc_bias_.at( gc_knots_.at(0) ) = norm*exp(a) + kBaseValue;
+	}
+	else{
+		gc_bias_.at( gc_knots_.at(0) ) = norm*InvLogit2(a) + kBaseValue;
+	}
+
 	uintPercent k=0;
 	for(uintPercent gc=gc_knots_.at(0)+1; gc < gc_knots_.at( gc_knots_.size()-1 ); ++gc){
 		if(gc == gc_knots_.at(k+1)){
 			// Reached new spline part
 			GetSplineCoefficients(a, b, c, d, ++k, spline_pars);
 			gc_bias_no_logit_.at(gc) = a;
-			gc_bias_.at(gc) = norm*InvLogit2(a) + kBaseValue;
+			if( kGCExp ){
+				gc_bias_.at(gc) = norm*exp(a) + kBaseValue;
+			}
+			else{
+				gc_bias_.at(gc) = norm*InvLogit2(a) + kBaseValue;
+			}
 		}
 		else{
 			// Continue on current spline part
 			uintPercent cur_gc = gc-gc_knots_.at(k);
 			gc_bias_no_logit_.at(gc) = a + b*cur_gc + c*cur_gc*cur_gc + d*cur_gc*cur_gc*cur_gc;
-			gc_bias_.at(gc) = norm*InvLogit2( gc_bias_no_logit_.at(gc) ) + kBaseValue;
+			if( kGCExp ){
+				gc_bias_.at(gc) = norm*exp( gc_bias_no_logit_.at(gc) ) + kBaseValue;
+			}
+			else{
+				gc_bias_.at(gc) = norm*InvLogit2( gc_bias_no_logit_.at(gc) ) + kBaseValue;
+			}
 		}
 	}
 	++k;
 
 	gc_bias_no_logit_.at( gc_knots_.at(k) ) = spline_pars.at(k+1);
-	gc_bias_.at( gc_knots_.at(k) ) = norm*InvLogit2(spline_pars.at(k+1)) + kBaseValue;
+	if( kGCExp ){
+		gc_bias_.at( gc_knots_.at(k) ) = norm*exp(spline_pars.at(k+1)) + kBaseValue;
+	}
+	else{
+		gc_bias_.at( gc_knots_.at(k) ) = norm*InvLogit2(spline_pars.at(k+1)) + kBaseValue;
+	}
 
 	// Constant bias values for gc above any observed sites: Extrapolate the linear function at the highest measured GC by half a GC unit and use this value
 	uintPercent cur_gc = gc_knots_.at(k)-gc_knots_.at(k-1);
 	double upper_const_no_logit = spline_pars.at(k+1) + 0.5*(b + c*cur_gc); // d=0 since second derivative must be 0 (natural spline)
-	double upper_const = norm*InvLogit2( upper_const_no_logit ) + kBaseValue;
+	double upper_const;
+	if( kGCExp ){
+		upper_const = norm*exp( upper_const_no_logit ) + kBaseValue;
+	}
+	else{
+		upper_const = norm*InvLogit2( upper_const_no_logit ) + kBaseValue;
+	}
 	for(uintPercent gc=gc_knots_.at(k)+1; gc < gc_bias_.size(); ++gc){
 		gc_bias_no_logit_.at(gc) = upper_const_no_logit;
 		gc_bias_.at(gc) = upper_const;
@@ -547,7 +580,9 @@ void BiasCalculationVectors::CalculateSpline(const vector<double> &spline_pars){
 void BiasCalculationVectors::CalculateSplineGrad(const vector<double> &spline_pars, vector<double> &grad, uintNumFits grad_offset){
 	for( uintPercent gc=0; gc < gc_bias_grad_.size(); ++gc ){
 		grad.at(grad_offset) += gc_bias_grad_.at(gc) / spline_pars.at(0);
-		gc_bias_grad_.at(gc) *= InvLogit2(-gc_bias_no_logit_.at(gc))/2;
+		if( !kGCExp ){
+			gc_bias_grad_.at(gc) *= InvLogit2(-gc_bias_no_logit_.at(gc))/2;
+		}
 	}
 
 	// Constant bias values for gc below any observed sites
@@ -617,19 +652,26 @@ double BiasCalculationVectors::LogLikeGcSpline(const vector<double> &x, vector<d
 double BiasCalculationVectors::OptimizeSpline(){
 	PrepareSplines();
 
-	double max_val = 0.0;
+	double max_val = 0.0; // This will be our normalization variable
 	for( uintPercent k=gc_spline_pars_.size()-1; k--; ){
 		SetToMax(max_val, gc_count_.at( gc_knots_.at(k) )/gc_bias_sum_.at( gc_knots_.at(k) ).second);
 	}
-	max_val /= 1.6;
+	if(!kGCExp){
+		max_val /= 1.6; // The maximum normalized value should be 1.6, so that we stay in the mostly linear part of the 2*InvLogit
+	}
 	gc_spline_pars_.at(0) = max_val;
 
-	max_val *= 2;
 	for( uintPercent k=gc_spline_pars_.size()-1; k--; ){
 		if( gc_count_.at( gc_knots_.at(k) ) ){
 			double val = gc_count_.at( gc_knots_.at(k) )/gc_bias_sum_.at( gc_knots_.at(k) ).second;
 
-			gc_spline_pars_.at(k+1) = log(val/(max_val-val)); // Set gc bias to set the gradient to zero for this gc
+			// Set gc bias to set the gradient to zero for this gc
+			if(kGCExp){
+				gc_spline_pars_.at(k+1) = log(val/max_val);
+			}
+			else{
+				gc_spline_pars_.at(k+1) = log(val/(2*max_val-val));
+			}
 
 			if(kUpperBound < gc_spline_pars_.at(k+1)){
 				gc_spline_pars_.at(k+1) = kUpperBound;
@@ -881,7 +923,7 @@ void BiasCalculationVectors::LogLikelihoodNbinomSite(double &loglike, double &a,
 		loglike += (site.count_forward_ + site.count_reverse_) * log(bias/(bias+r));
 	}
 
-	double grad_term2 = 2*log(1/(bias/r+1)); // Be careful to handle r->inf without numerical instabilities, should result in r*grad_term2 -> -2*bias
+	double grad_term2 = 2*log(1/(bias/r+1)); // 2* because of forward+reverse; Be careful to handle r->inf without numerical instabilities, should result in r*grad_term2 -> -2*bias
 	loglike += r*grad_term2;
 
 	for(uintDupCount i=1; i <= site.count_forward_; ++i){
@@ -1916,7 +1958,6 @@ void FragmentDistributionStats::CheckLowQExclusions(uintRefSeqBin ref_seq_bin, v
 	auto tmp_size = RefSeqSplitLength(ref_seq, reference) + ref_seq_start_bin_.at(ref_seq+1)-ref_seq_start_bin_.at(ref_seq);
 	tmp_frag_count.clear();
 	tmp_frag_count.resize(tmp_size, 0);
-
 	for( uintFragCount site_id=0; site_id < fragment_sites_by_ref_seq_bin_cur_id_.at(ref_seq_bin); ++site_id ){
 		++tmp_frag_count.at(fragment_sites_by_ref_seq_bin_.at(ref_seq_bin).at(site_id).first/2);
 	}
@@ -1927,7 +1968,6 @@ void FragmentDistributionStats::CheckLowQExclusions(uintRefSeqBin ref_seq_bin, v
 		sort(lowq_site_start_by_ref_seq_bin_.at(ref_seq_bin).begin(), lowq_site_start_by_ref_seq_bin_.at(ref_seq_bin).end());
 		auto excluded_pos = lowq_site_start_by_ref_seq_bin_.at(ref_seq_bin).at(0);
 		uintFragCount lowq_count(1);
-
 		for( uintFragCount site_id=1; site_id < lowq_site_start_by_ref_seq_bin_.at(ref_seq_bin).size(); ++site_id ){
 			if(lowq_site_start_by_ref_seq_bin_.at(ref_seq_bin).at(site_id) == excluded_pos){
 				++lowq_count;
@@ -1942,15 +1982,17 @@ void FragmentDistributionStats::CheckLowQExclusions(uintRefSeqBin ref_seq_bin, v
 
 		CheckLowQExclusion(lowq_site_start_exclusion_.at(ref_seq_bin), excluded_pos, lowq_count, tmp_frag_count );
 
-		if(1 == lowq_site_start_exclusion_.at(ref_seq_bin).back().second - lowq_site_start_exclusion_.at(ref_seq_bin).back().first ){
-			// Remove the single random event
-			lowq_site_start_exclusion_.at(ref_seq_bin).pop_back();
-		}
-		else{
-			// Extend last region at the end
-			uintFragCount separating_high_q = 0;
-			while(lowq_site_start_exclusion_.at(ref_seq_bin).back().second < tmp_frag_count.size() && separating_high_q + tmp_frag_count.at(lowq_site_start_exclusion_.at(ref_seq_bin).back().second) < kMinHighQToSeparateLowQ/2 ){
-				separating_high_q += tmp_frag_count.at(lowq_site_start_exclusion_.at(ref_seq_bin).back().second++);
+		if(lowq_site_start_exclusion_.at(ref_seq_bin).size()){
+			if(1 == lowq_site_start_exclusion_.at(ref_seq_bin).back().second - lowq_site_start_exclusion_.at(ref_seq_bin).back().first ){
+				// Remove the single random event
+				lowq_site_start_exclusion_.at(ref_seq_bin).pop_back();
+			}
+			else{
+				// Extend last region at the end
+				uintFragCount separating_high_q = 0;
+				while(lowq_site_start_exclusion_.at(ref_seq_bin).back().second < tmp_frag_count.size() && separating_high_q + tmp_frag_count.at(lowq_site_start_exclusion_.at(ref_seq_bin).back().second) < kMinHighQToSeparateLowQ/2 ){
+					separating_high_q += tmp_frag_count.at(lowq_site_start_exclusion_.at(ref_seq_bin).back().second++);
+				}
 			}
 		}
 
@@ -1972,7 +2014,6 @@ void FragmentDistributionStats::CheckLowQExclusions(uintRefSeqBin ref_seq_bin, v
 		sort(lowq_site_end_by_ref_seq_bin_.at(ref_seq_bin).begin(), lowq_site_end_by_ref_seq_bin_.at(ref_seq_bin).end());
 		auto excluded_pos = lowq_site_end_by_ref_seq_bin_.at(ref_seq_bin).at(0);
 		uintFragCount lowq_count(1);
-
 		for( uintFragCount site_id=1; site_id < lowq_site_end_by_ref_seq_bin_.at(ref_seq_bin).size(); ++site_id ){
 			if(lowq_site_end_by_ref_seq_bin_.at(ref_seq_bin).at(site_id) == excluded_pos){
 				++lowq_count;
@@ -1987,15 +2028,17 @@ void FragmentDistributionStats::CheckLowQExclusions(uintRefSeqBin ref_seq_bin, v
 
 		CheckLowQExclusion(lowq_site_end_exclusion_.at(ref_seq_bin), excluded_pos, lowq_count, tmp_frag_count );
 
-		if(1 == lowq_site_end_exclusion_.at(ref_seq_bin).back().second - lowq_site_end_exclusion_.at(ref_seq_bin).back().first ){
-			// Remove the single random event
-			lowq_site_end_exclusion_.at(ref_seq_bin).pop_back();
-		}
-		else{
-			// Extend last region at the end
-			uintFragCount separating_high_q = 0;
-			while(lowq_site_end_exclusion_.at(ref_seq_bin).back().second < tmp_frag_count.size() && separating_high_q + tmp_frag_count.at(lowq_site_end_exclusion_.at(ref_seq_bin).back().second) < kMinHighQToSeparateLowQ/2 ){
-				separating_high_q += tmp_frag_count.at(lowq_site_end_exclusion_.at(ref_seq_bin).back().second++);
+		if(lowq_site_end_exclusion_.at(ref_seq_bin).size()){
+			if(1 == lowq_site_end_exclusion_.at(ref_seq_bin).back().second - lowq_site_end_exclusion_.at(ref_seq_bin).back().first ){
+				// Remove the single random event
+				lowq_site_end_exclusion_.at(ref_seq_bin).pop_back();
+			}
+			else{
+				// Extend last region at the end
+				uintFragCount separating_high_q = 0;
+				while(lowq_site_end_exclusion_.at(ref_seq_bin).back().second < tmp_frag_count.size() && separating_high_q + tmp_frag_count.at(lowq_site_end_exclusion_.at(ref_seq_bin).back().second) < kMinHighQToSeparateLowQ/2 ){
+					separating_high_q += tmp_frag_count.at(lowq_site_end_exclusion_.at(ref_seq_bin).back().second++);
+				}
 			}
 		}
 
@@ -2324,7 +2367,6 @@ void FragmentDistributionStats::CalculateBiasByBin(BiasCalculationVectors &tmp_c
 
 	tmp_calc.func_calls_ = 0;
 
-	tmp_calc.optimizer_spline_.set_max_objective(BiasCalculationVectors::LogLikeGcSpline, reinterpret_cast<void*>(&tmp_calc));
 	tmp_calc.optimizer_poisson_.set_max_objective(BiasCalculationVectors::LogLikelihoodPoisson, reinterpret_cast<void*>(&tmp_calc));
 
 	double lower_bound;
@@ -2368,6 +2410,7 @@ void FragmentDistributionStats::CalculateBiasByBin(BiasCalculationVectors &tmp_c
 	}
 
 	// Fit gc spline with fixed surrounding bias assuming poisson
+	tmp_calc.optimizer_spline_.set_max_objective(BiasCalculationVectors::LogLikeGcSpline, reinterpret_cast<void*>(&tmp_calc));
 	tmp_calc.GetGCSpline();
 
 	// Fit negative binomial to downsampled sites with fixed biases to estimate dispersion parameters
@@ -2452,15 +2495,6 @@ void FragmentDistributionStats::AcquireBiases(const BiasCalculationVectors &calc
 }
 
 bool FragmentDistributionStats::StoreBias(){
-	if( 0 == current_bias_result_ ){
-		printWarn << "No bias fit converged. Continuing with uniform coverage." << std::endl;
-		SetUniformBias();
-		return true;
-	}
-	else{
-		printInfo << current_bias_result_ << " of " << tmp_gc_bias_.at(0).size() << " bias fits [" << static_cast<uintPercentPrint>(Percent(current_bias_result_, static_cast<uintNumFits>(tmp_gc_bias_.at(0).size()))) << "%] converged." << std::endl;
-	}
-
 	// GC bias
 	// Calculate weighted median
 	for(uintPercent gc=0; gc<tmp_gc_bias_.size(); ++gc){
@@ -3086,12 +3120,21 @@ void FragmentDistributionStats::Finalize(){
 
 bool FragmentDistributionStats::FinalizeBiasCalculation(const Reference &reference, uintNumThreads num_threads, FragmentDuplicationStats &duplications){
 	if(calculate_bias_){
-		if( !StoreBias() ){
-			return false;
+		if( 0 == current_bias_result_ ){
+			printWarn << "No bias fit converged. Continuing with uniform coverage." << std::endl;
+			SetUniformBias();
+			return true;
 		}
+		else{
+			printInfo << current_bias_result_ << " of " << tmp_gc_bias_.at(0).size() << " bias fits [" << static_cast<uintPercentPrint>(Percent(current_bias_result_, static_cast<uintNumFits>(tmp_gc_bias_.at(0).size()))) << "%] converged." << std::endl;
 
-		if( !CalculateInsertLengthAndRefSeqBias(reference, num_threads) ){
-			return false;
+			if( !StoreBias() ){
+				return false;
+			}
+
+			if( !CalculateInsertLengthAndRefSeqBias(reference, num_threads) ){
+				return false;
+			}
 		}
 	}
 	else{

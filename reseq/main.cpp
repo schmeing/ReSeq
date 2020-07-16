@@ -414,12 +414,12 @@ int main(int argc, char *argv[]) {
 	}
 
 	if(general_opts_map.count("version")) { // Check if user only wants to know version
-		cerr << "ReSequenceR version " << RESEQ_VERSION_MAJOR << '.' << RESEQ_VERSION_MINOR << std::endl;
+		cerr << "ReSeq version " << RESEQ_VERSION_MAJOR << '.' << RESEQ_VERSION_MINOR << std::endl;
 		return 0;
 	}
 
 	string general_usage =
-		string("\nProgram: reseq (REal SEQUENCE Replicator)\n")+
+		string("\nProgram: reseq (REal SEQuence replicator)\n")+
 		"Version: "+to_string(RESEQ_VERSION_MAJOR)+'.'+to_string(RESEQ_VERSION_MINOR)+'\n'+
 		"Contact: Stephan Schmeing <stephan.schmeing@uzh.ch>\n\n"+
 		"Usage:  reseq <command> [options]\n"+
@@ -434,7 +434,7 @@ int main(int argc, char *argv[]) {
 		cerr << general_usage << std::endl;
 	}
 	else{
-		printInfo << "Running ReSequenceR version " << RESEQ_VERSION_MAJOR << '.' << RESEQ_VERSION_MINOR; // Always show version
+		printInfo << "Running ReSeq version " << RESEQ_VERSION_MAJOR << '.' << RESEQ_VERSION_MINOR; // Always show version
 
 		if ("getRefSeqBias" == unrecognized_opts.at(0)) {
 			cerr << " in getRefSeqBias mode" << std::endl;

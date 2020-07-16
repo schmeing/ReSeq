@@ -1,6 +1,8 @@
 #include "QualityStatsTest.h"
 using reseq::QualityStatsTest;
 
+//include <cmath>
+using std::round;
 #include <string>
 using std::to_string;
 
@@ -326,8 +328,8 @@ void QualityStatsTest::TestSrr490124Equality(const QualityStats &test, const cha
 	// cat <(samtools view ecoli-SRR490124-4pairs.sam | awk '(int($2%32/16)){print "@" NR, $2; print $10; print "+";print $11}' | seqtk seq -r | awk '(1==NR%4){flag=$2}(2==NR%4){seq=$0}(0==NR%4){print flag, seq, $0}') <(samtools view ecoli-SRR490124-4pairs.sam | awk '(!int($2%32/16)){print $2, $10, $11}') | awk 'BEGIN{split("1,2,99,100", poslist, ","); for(n=0;n<256;n++)ord[sprintf("%c",n)]=n}{len=length($2); seg=int($1%256/128); for(p=1;p<=length(poslist);p+=1){pos=poslist[p]; print pos-1, seg, ord[substr($3,pos,1)]-33, 6}}' | sort -k2,2 -k1,1n -k3,3n | uniq -c | awk 'BEGIN{n=-1}{if($2==n){sum+=$1;mean+=$1*$4;max=$4}else{if(0!=min){print n, seg, "Mean:", int(mean/size+0.5); print n, seg, "Minimum:", min; print n, seg, "First Quartile:", first; print n, seg, "Median:", median; print n, seg, "Third Quartile:", third; print n, seg, "Max:", max;}; n=$2; seg=$3; sum=$1; size=$5; mean=$1*$4; min=$4; first=0; median=0; third=0; max=$4};if(0==first&&$5/4<=sum){first=$4};if(0==median&&$5/2<sum){median=$4};if(0==third&&$5*3/4<sum){third=$4}}END{print n, seg, "Mean:", int(mean/size+0.5); print n, seg, "Minimum:", min; print n, seg, "First Quartile:", first; print n, seg, "Median:", median; print n, seg, "Third Quartile:", third; print n, seg, "Max:", max;}' | sort -k3,3 -k2,2 -k1,1n
 	TestSizeAtIndex_0_1_98_99(test.base_quality_stats_.at(0), 3, 3, 1, 1, context, "SRR490124-4pairs base_quality_stats_[0] not correctly shrunken for ");
 	TestSizeAtIndex_0_1_98_99(test.base_quality_stats_.at(1), 7, 10, 1, 1, context, "SRR490124-4pairs base_quality_stats_[1] not correctly shrunken for ");
-	TestValueAtIndex_0_1_98_99(test.base_quality_mean_.at(0), 38, 38, 2, 2, context, "SRR490124-4pairs base_quality_mean_[0] wrong for ");
-	TestValueAtIndex_0_1_98_99(test.base_quality_mean_.at(1), 36, 35, 2, 2, context, "SRR490124-4pairs base_quality_mean_[1] wrong for ");
+	TestRoundedValueAtIndex_0_1_98_99(test.base_quality_mean_.at(0), 38, 38, 2, 2, context, "SRR490124-4pairs base_quality_mean_[0] wrong for ");
+	TestRoundedValueAtIndex_0_1_98_99(test.base_quality_mean_.at(1), 36, 35, 2, 2, context, "SRR490124-4pairs base_quality_mean_[1] wrong for ");
 	TestValueAtIndex_0_1_98_99(test.base_quality_minimum_.at(0), 37, 37, 2, 2, context, "SRR490124-4pairs base_quality_minimum_[0] wrong for ");
 	TestValueAtIndex_0_1_98_99(test.base_quality_minimum_.at(1), 33, 30, 2, 2, context, "SRR490124-4pairs base_quality_minimum_[1] wrong for ");
 	TestValueAtIndex_0_1_98_99(test.base_quality_first_quartile_.at(0), 38, 38, 2, 2, context, "SRR490124-4pairs base_quality_first_quartile_[0] wrong for ");
@@ -344,9 +346,9 @@ void QualityStatsTest::TestSrr490124Equality(const QualityStats &test, const cha
 	EXPECT_EQ(0, test.tile_quality_mean_difference_.at(1).size()) << "SRR490124-4pairs tile_quality_mean_difference_ wrong for " << context << '\n';
 
 	// Only reverse strand in the test data
-	EXPECT_EQ(0, test.base_quality_mean_per_strand_.at(0).size()) << "SRR490124-4pairs base_quality_mean_per_strand_[0] wrong for " << context << '\n';
+	EXPECT_DOUBLE_EQ(0.0, test.base_quality_mean_per_strand_.at(0).size()) << "SRR490124-4pairs base_quality_mean_per_strand_[0] wrong for " << context << '\n';
 	// cat <(samtools view ecoli-SRR490124-4pairs.sam | awk '(int($2%32/16)){print "@" NR, $2; print $10; print "+";print $11}' | seqtk seq -r | awk '(1==NR%4){flag=$2}(2==NR%4){seq=$0}(0==NR%4){print flag, seq, $0}') <(samtools view ecoli-SRR490124-4pairs.sam | awk '(!int($2%32/16)){print $2, $10, $11}') | awk 'BEGIN{split("1,2,99,100", poslist, ","); for(n=0;n<256;n++)ord[sprintf("%c",n)]=n}{len=length($2); seg=int($1%256/128); for(p=1;p<=length(poslist);p+=1){pos=poslist[p]; print pos-1, ord[substr($3,pos,1)]-33}}' | sort -k1,1n -k2,2n | uniq -c | awk 'BEGIN{n=-1}{if($2==n){sum+=$1;mean+=$1*$3}else{if(0!=mean){print n, "Mean:", int(mean/sum+0.5);}; n=$2; sum=$1; mean=$1*$3}}END{print n, seg, "Mean:", int(mean/sum+0.5)}' | sort -k1,1n
-	TestValueAtIndex_0_1_98_99(test.base_quality_mean_per_strand_.at(1), 37, 37, 2, 2, context, "SRR490124-4pairs base_quality_mean_per_strand_[1] wrong for ");
+	TestRoundedValueAtIndex_0_1_98_99(test.base_quality_mean_per_strand_.at(1), 37, 37, 2, 2, context, "SRR490124-4pairs base_quality_mean_per_strand_[1] wrong for ");
 
 	// cat <(samtools view ecoli-SRR490124-4pairs.sam | awk '(int($2%32/16)){print "@" NR, $2; print $10; print "+";print $11}' | seqtk seq -r | awk '(1==NR%4){flag=$2}(2==NR%4){seq=$0}(0==NR%4){print flag, seq, $0}') <(samtools view ecoli-SRR490124-4pairs.sam | awk '(!int($2%32/16)){print $2, $10, $11}') | awk 'BEGIN{for(n=0;n<256;n++)ord[sprintf("%c",n)]=n}{len=length($2); seg=int($1%256/128); sq=0;for(pos=1;pos<=len;pos+=1){sq+=ord[substr($3,pos,1)]-33}; sq=int(sq/len+0.5);for(pos=1;pos<=len;pos+=1){print seg, sq, ord[substr($3,pos,1)]-33}}' | sort -k1,1n -k2,2n -k3,3n | uniq -c
 	EXPECT_EQ(8, test.base_quality_for_sequence_.at(0).size()) << "SRR490124-4pairs base_quality_for_sequence_[0] wrong for " << context << '\n';
@@ -612,17 +614,17 @@ void QualityStatsTest::TestAdapters(const QualityStats &test, const char *contex
 
 	if(bwa){
 		// cat <(samtools view ecoli-SRR490124-adapter-bwa.bam -q 10 -f 16 -F 32 | awk '($4+2000>$8){print "@" $1, $2; if(-$9 < length($10)){print substr($10,length($10)+$9+1,-$9)}else{print $10}; print "+"; if(-$9 < length($11)){print substr($11,length($11)+$9+1,-$9)}else{print $11}}' | seqtk seq -r) <(samtools view ecoli-SRR490124-adapter-bwa.bam -q 10 -f 32 -F 16 | awk '($8+2000>$4){print "@" $1, $2; if($9 < length($10)){print substr($10,1,$9)}else{print $10}; print "+"; if($9 < length($11)){print substr($11,1,$9)}else{print $11}}' | seqtk seq) | awk 'BEGIN{split("2,80,81,95",poslist,",");for(n=0;n<256;n++){ord[sprintf("%c",n)]=n}}(1==NR%4){flag=$2}(0==NR%4){seg=int(flag%256/128);for(p=1;p<=length(poslist);++p){pos=poslist[p]; if(pos<length($0)){print seg, pos, ord[substr($0,pos+1,1)]-33}}}' | sort -k1,1 -k2,2n | awk 'BEGIN{pos=-1}{if($2 == pos){sum+=$3;++count}else{if(-1!=pos){print seg, pos, int(sum/count+0.5)}; seg=$1; pos=$2; sum=$3; count=1}}END{print seg, pos, int(sum/count+0.5)}'
-		EXPECT_EQ(33, test.base_quality_mean_reference_.at(1)[2] ) << "for " << context;
+		EXPECT_EQ(33, static_cast<uint64_t>(round(test.base_quality_mean_reference_.at(1)[2])) ) << "for " << context;
 	}
 	else{
 		// cat <(samtools view ecoli-SRR490124-adapter.bam -q 10 -f 16 -F 32 | awk '($4+2000>$8){print "@" $1, $2; if($4 < $8){print substr($10,$8-$4+1,length($10)+$4-$8)}else{print $10}; print "+"; if($4 < $8){print substr($11,$8-$4+1,length($11)+$4-$8)}else{print $11}}' | seqtk seq -r) <(samtools view ecoli-SRR490124-adapter.bam -q 10 -f 32 -F 16 | awk '($8+2000>$4){print "@" $1, $2; if($8 < $4){print substr($10,1,length($10)+$8-$4)}else{print $10}; print "+"; if($8 < $4){print substr($11,1,length($11)+$8-$4)}else{print $11}}' | seqtk seq) | awk 'BEGIN{split("2,80,81,95",poslist,",");for(n=0;n<256;n++){ord[sprintf("%c",n)]=n}}(1==NR%4){flag=$2}(0==NR%4){seg=int(flag%256/128);for(p=1;p<=length(poslist);++p){pos=poslist[p]; if(pos<length($0)){print seg, pos, ord[substr($0,pos+1,1)]-33}}}' | sort -k1,1 -k2,2n | awk 'BEGIN{pos=-1}{if($2 == pos){sum+=$3;++count}else{if(-1!=pos){print seg, pos, int(sum/count+0.5)}; seg=$1; pos=$2; sum=$3; count=1}}END{print seg, pos, int(sum/count+0.5)}'
-		EXPECT_EQ(27, test.base_quality_mean_reference_.at(1)[2] ) << "for " << context;
+		EXPECT_EQ(27, static_cast<uint64_t>(round(test.base_quality_mean_reference_.at(1)[2])) ) << "for " << context;
 	}
-	EXPECT_EQ(36, test.base_quality_mean_reference_.at(0)[2] ) << "for " << context;
-	EXPECT_EQ(20, test.base_quality_mean_reference_.at(0)[80] ) << "for " << context;
-	EXPECT_EQ(33, test.base_quality_mean_reference_.at(0)[81] ) << "for " << context;
-	EXPECT_EQ(33, test.base_quality_mean_reference_.at(0)[95] ) << "for " << context;
-	EXPECT_EQ(36, test.base_quality_mean_reference_.at(1)[80] ) << "for " << context;
-	EXPECT_EQ(34, test.base_quality_mean_reference_.at(1)[81] ) << "for " << context;
-	EXPECT_EQ(29, test.base_quality_mean_reference_.at(1)[95] ) << "for " << context;
+	EXPECT_EQ(36, static_cast<uint64_t>(round(test.base_quality_mean_reference_.at(0)[2])) ) << "for " << context;
+	EXPECT_EQ(20, static_cast<uint64_t>(round(test.base_quality_mean_reference_.at(0)[80])) ) << "for " << context;
+	EXPECT_EQ(33, static_cast<uint64_t>(round(test.base_quality_mean_reference_.at(0)[81])) ) << "for " << context;
+	EXPECT_EQ(33, static_cast<uint64_t>(round(test.base_quality_mean_reference_.at(0)[95])) ) << "for " << context;
+	EXPECT_EQ(36, static_cast<uint64_t>(round(test.base_quality_mean_reference_.at(1)[80])) ) << "for " << context;
+	EXPECT_EQ(34, static_cast<uint64_t>(round(test.base_quality_mean_reference_.at(1)[81])) ) << "for " << context;
+	EXPECT_EQ(29, static_cast<uint64_t>(round(test.base_quality_mean_reference_.at(1)[95])) ) << "for " << context;
 }

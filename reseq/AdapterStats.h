@@ -22,6 +22,8 @@ namespace reseq{
 		const double kMinFractionOfMaximumForSimulation = 0.1; // Minimum fraction of the highest adapter count that an adapter needs to have to be simulated (Removes garbage from adapter reading stage)
 		static const uintReadLen kKmerLength = 10;
 
+		static constexpr const char *kAdapterSearchInfoFile = NULL; // "adapter.csv";
+
 		// Temporary variables
 		std::array<KmerCount<kKmerLength>, 2> adapter_kmers_; // adapter_kmers_[first/second] = KmerCounts
 		std::array<std::vector<uintNucCount>, 2> adapter_start_kmers_; // adapter_start_kmers_[first/second] = StartKmerCount

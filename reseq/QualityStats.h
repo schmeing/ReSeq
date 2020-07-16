@@ -13,8 +13,13 @@ namespace reseq{
 	class QualityStats{
 	public:
 		static const uintSeqLen kSqFragmentLengthBinSize = 10;
+		static const bool kWriteOut4dMatrixCsvs = false;
 
 	private:
+		// kWriteOut3dMatrixCsvs variables
+		std::vector<std::vector<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>>> tmp_csv_seg0_a_base_quality_preceding_quality_sequence_quality_position_;
+		std::vector<std::vector<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>>> tmp_csv_seg1_c_base_quality_preceding_quality_error_rate_position_;
+
 		// Temporary variables
 		std::array<std::array<std::array<std::vector<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>>, 5>, 4>, 2> tmp_base_quality_stats_per_tile_per_error_reference_;
 		std::array<std::array<std::array<std::vector<std::vector<std::vector<utilities::VectorAtomic<uintNucCount>>>>, 5>, 4>, 2> tmp_error_rate_for_position_per_tile_per_error_reference_;
@@ -108,7 +113,7 @@ namespace reseq{
 
 		// Calculated variables for plotting from variables for estimation (based on reference)
 		std::array<Vect<SeqQualityStats<uintNucCount>>, 2> base_quality_stats_reference_; // base_quality_stats_reference_[first/second][readPosition][quality] = #bases
-		std::array<Vect<uintQual>, 2> base_quality_mean_reference_; // base_quality_mean_reference_[first/second][readPosition] = baseQualityMean
+		std::array<Vect<double>, 2> base_quality_mean_reference_; // base_quality_mean_reference_[first/second][readPosition] = baseQualityMean
 		std::array<Vect<uintQual>, 2> base_quality_minimum_reference_; // base_quality_minimum_reference_[first/second][readPosition] = baseQualityMinimum
 		std::array<Vect<uintQual>, 2> base_quality_first_quartile_reference_; // base_quality_first_quartile_reference_[first/second][readPosition] = baseQualityFirstQuartile
 		std::array<Vect<uintQual>, 2> base_quality_median_reference_; // base_quality_median_reference_[first/second][readPosition] = baseQualityMedian
@@ -119,14 +124,14 @@ namespace reseq{
 
 		// Calculated variables for plotting (based on raw reads)
 		std::array<Vect<SeqQualityStats<uintNucCount>>, 2> base_quality_stats_; // base_quality_stats_[first/second][readPosition][quality] = #bases
-		std::array<Vect<uintQual>, 2> base_quality_mean_; // base_quality_mean_[first/second][readPosition] = baseQualityMean
+		std::array<Vect<double>, 2> base_quality_mean_; // base_quality_mean_[first/second][readPosition] = baseQualityMean
 		std::array<Vect<uintQual>, 2> base_quality_minimum_; // base_quality_minimum_[first/second][readPosition] = baseQualityMinimum
 		std::array<Vect<uintQual>, 2> base_quality_first_quartile_; // base_quality_first_quartile_[first/second][readPosition] = baseQualityFirstQuartile
 		std::array<Vect<uintQual>, 2> base_quality_median_; // base_quality_median_[first/second][readPosition] = baseQualityMedian
 		std::array<Vect<uintQual>, 2> base_quality_third_quartile_; // base_quality_third_quartile_[first/second][readPosition] = baseQualityThirdQuartile
 		std::array<Vect<uintQual>, 2> base_quality_maximum_; // base_quality_maximum_[first/second][readPosition] = baseQualityMaximum
 		std::array<Vect<Vect<intQualDiff>>, 2> tile_quality_mean_difference_; //tile_quality_mean_difference_[first/second][tile][readPosition] = meanDifferenceToTotalQualityMean
-		std::array<Vect<uintQual>, 2> base_quality_mean_per_strand_; // base_quality_mean_per_strand_[+/-][readPosition] = baseQualityMean
+		std::array<Vect<double>, 2> base_quality_mean_per_strand_; // base_quality_mean_per_strand_[+/-][readPosition] = baseQualityMean
 
 		std::array<Vect<Vect<uintNucCount>>, 2> base_quality_for_sequence_; // base_quality_for_sequence_[first/second][qualityProbabilityMeanOfSequence][baseQuality] = #bases
 		std::array<Vect<Vect<uintNucCount>>, 2> base_quality_for_preceding_quality_; // base_quality_for_preceding_quality_[first/second][qualityOfPrecedingBase][baseQuality] = #bases
@@ -310,7 +315,7 @@ namespace reseq{
 		inline const Vect<SeqQualityStats<uintNucCount>> &BaseQualityStatsReference(uintTempSeq template_segment) const{
 			return base_quality_stats_reference_.at(template_segment);
 		}
-		inline const Vect<uintQual> &BaseQualityMeanReference(uintTempSeq template_segment) const{
+		inline const Vect<double> &BaseQualityMeanReference(uintTempSeq template_segment) const{
 			return base_quality_mean_reference_.at(template_segment);
 		}
 		inline const Vect<uintQual> &BaseQualityMinimumReference(uintTempSeq template_segment) const{
@@ -336,7 +341,7 @@ namespace reseq{
 		inline const Vect<SeqQualityStats<uintNucCount>> &BaseQualityStats(uintTempSeq template_segment) const{
 			return base_quality_stats_.at(template_segment);
 		}
-		inline const Vect<uintQual> &BaseQualityMean(uintTempSeq template_segment) const{
+		inline const Vect<double> &BaseQualityMean(uintTempSeq template_segment) const{
 			return base_quality_mean_.at(template_segment);
 		}
 		inline const Vect<uintQual> &BaseQualityMinimum(uintTempSeq template_segment) const{
@@ -357,7 +362,7 @@ namespace reseq{
 		inline const Vect<Vect<intQualDiff>> &TileQualityMeanDifference(uintTempSeq template_segment) const{
 			return tile_quality_mean_difference_.at(template_segment);
 		}
-		inline const Vect<uintQual> &BaseQualityMeanPerStrand(uintTempSeq strand) const{
+		inline const Vect<double> &BaseQualityMeanPerStrand(uintTempSeq strand) const{
 			return base_quality_mean_per_strand_.at(strand);
 		}
 
@@ -403,6 +408,15 @@ namespace reseq{
 			++tmp_preceding_quality_for_sequence_quality_per_tile_reference_.at(template_segment).at(ref_base).at(tile_id).at(seq_qual).at(last_qual);
 			++tmp_sequence_quality_for_error_rate_per_tile_reference_.at(template_segment).at(ref_base).at(tile_id).at(error_rate).at(seq_qual);
 			++tmp_sequence_quality_for_position_per_tile_reference_.at(template_segment).at(ref_base).at(tile_id).at(read_pos).at(seq_qual);
+
+			if(kWriteOut4dMatrixCsvs){
+				if(0 == template_segment && 0 == ref_base && 0 == tile_id && 0 == error_rate){
+					++tmp_csv_seg0_a_base_quality_preceding_quality_sequence_quality_position_.at(quality).at(last_qual).at(seq_qual).at(read_pos);
+				}
+				if(1 == template_segment && 1 == ref_base && 0 == tile_id && 37 == seq_qual){
+					++tmp_csv_seg1_c_base_quality_preceding_quality_error_rate_position_.at(quality).at(last_qual).at(error_rate).at(read_pos);
+				}
+			}
 		}
 		inline void AddRefRead(uintTempSeq template_segment, uintTileId tile_id, uintPercent gc, uintQual seq_qual_mean, uintPercent mean_error_rate, uintSeqLen fragment_length){
 			++tmp_sequence_quality_mean_for_gc_per_tile_reference_.at(template_segment).at(tile_id).at(gc).at(seq_qual_mean);

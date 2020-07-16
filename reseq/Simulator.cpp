@@ -397,6 +397,7 @@ bool Simulator::FillReadPart(
 
 bool Simulator::FillRead(
 		SimPair &sim_reads,
+		uintReadLen &num_errors,
 		uintTempSeq template_segment,
 		uintTileId tile_id,
 		uintSeqLen fragment_length,
@@ -531,6 +532,8 @@ bool Simulator::FillRead(
 		}
 	}
 
+	num_errors = par.num_errors_;
+
 	return true;
 }
 
@@ -544,7 +547,8 @@ void Simulator::CreateReadId(
 		uintTile tile,
 		uintRefSeqId ref_seq_id,
 		const Reference &ref,
-		const CigarString &cigar){
+		const CigarString &cigar,
+		uintReadLen num_errors){
 	// start_pos should start at 1 (not at 0 as the array)[0 means adapter only], end_pos should be the last included position (not the first not included position like usual)
 	stringstream readid_stream;
 	readid_stream << record_base_identifier_ << block_number << '_' << read_number;
@@ -565,6 +569,8 @@ void Simulator::CreateReadId(
 	for( const auto &cigar_element : cigar ){
 		readid_stream << cigar_element.count << cigar_element.operation;
 	}
+
+	readid_stream << " E" << num_errors;
 
 	id = readid_stream.str().c_str();
 }
@@ -642,11 +648,12 @@ bool Simulator::CreateReads(
 		auto tile_id = rdist.TileId( rgen );
 
 		for(uintTempSeq template_segment=2; template_segment--; ){
-			if(!FillRead(sim_reads, template_segment, tile_id, fragment_length, block.at(template_segment), block_start_pos.at(template_segment), variant.at(template_segment), allele, stats, estimates, rdist, rgen)){
+			uintReadLen num_errors(0);
+			if(!FillRead(sim_reads, num_errors, template_segment, tile_id, fragment_length, block.at(template_segment), block_start_pos.at(template_segment), variant.at(template_segment), allele, stats, estimates, rdist, rgen)){
 				return false;
 			}
 
-			CreateReadId(sim_reads.id_.at(template_segment), block_id, read_number, print_start_position, print_end_position, allele, stats.Tiles().Tiles().at(tile_id), ref_seq_id, ref, sim_reads.cigar_.at(template_segment));
+			CreateReadId(sim_reads.id_.at(template_segment), block_id, read_number, print_start_position, print_end_position, allele, stats.Tiles().Tiles().at(tile_id), ref_seq_id, ref, sim_reads.cigar_.at(template_segment), num_errors);
 		}
 
 		this->Output( sim_reads );

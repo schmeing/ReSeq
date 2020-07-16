@@ -215,7 +215,7 @@ const std::pair< std::vector<uintNucCount>::size_type, std::vector<uintNucCount>
 	return stats_.Qualities().BaseQualityStatsReference(template_segment)[read_position].stdQualities();
 }
 
-const pair< vector<uintQual>::size_type, vector<uintQual> > &DataStatsInterface::BaseQualityMeanReference(uintTempSeq template_segment) const{
+const pair< vector<double>::size_type, vector<double> > &DataStatsInterface::BaseQualityMeanReference(uintTempSeq template_segment) const{
 	return stats_.Qualities().BaseQualityMeanReference(template_segment).std();
 }
 
@@ -247,7 +247,7 @@ const std::pair< std::vector<uintNucCount>::size_type, std::vector<uintNucCount>
 	return stats_.Qualities().BaseQualityStats(template_segment)[read_position].stdQualities();
 }
 
-const pair< vector<uintQual>::size_type, vector<uintQual> > &DataStatsInterface::BaseQualityMean(uintTempSeq template_segment) const{
+const pair< vector<double>::size_type, vector<double> > &DataStatsInterface::BaseQualityMean(uintTempSeq template_segment) const{
 	return stats_.Qualities().BaseQualityMean(template_segment).std();
 }
 
@@ -275,7 +275,7 @@ const pair< vector<intQualDiff>::size_type, vector<intQualDiff> > &DataStatsInte
 	return stats_.Qualities().TileQualityMeanDifference(template_segment)[tile_id].std();
 }
 
-const pair< vector<uintQual>::size_type, vector<uintQual> > &DataStatsInterface::BaseQualityMeanPerStrand(uintTempSeq strand) const{
+const pair< vector<double>::size_type, vector<double> > &DataStatsInterface::BaseQualityMeanPerStrand(uintTempSeq strand) const{
 	return stats_.Qualities().BaseQualityMeanPerStrand(strand).std();
 }
 

@@ -93,6 +93,7 @@ namespace reseq{
 
 		// Definitions for paper (extra output)
 		static const bool kSurMult = false; // This is only for the fit for the comparison plots, the rest of the program is using the better sum without a toggle, so do not switch this to true and use the simulator
+		static const bool kGCExp = true;
 
 		static constexpr const char *kParameterInfoFile = NULL; //"maxlike_fit.csv";
 		static constexpr const char *kDispersionInfoFile = NULL; //"dispersion_fit.csv";

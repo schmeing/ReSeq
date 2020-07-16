@@ -76,7 +76,7 @@ namespace reseq{
 		const std::pair< std::vector<uintNucCount>::size_type, std::vector<uintNucCount> > &HomoqualityDistribution(uintQual quality) const;
 		const std::pair< std::vector<uintNucCount>::size_type, std::vector<uintNucCount> > &NucleotideQuality(uintTempSeq template_segment, uintBaseCall nucleotide) const;
 		const std::pair< std::vector<uintNucCount>::size_type, std::vector<uintNucCount> > &BaseQualityStatsReference(uintTempSeq template_segment, uintReadLen read_position) const;
-		const std::pair< std::vector<uintQual>::size_type, std::vector<uintQual> > &BaseQualityMeanReference(uintTempSeq template_segment) const;
+		const std::pair< std::vector<double>::size_type, std::vector<double> > &BaseQualityMeanReference(uintTempSeq template_segment) const;
 		const std::pair< std::vector<uintQual>::size_type, std::vector<uintQual> > &BaseQualityMinimumReference(uintTempSeq template_segment) const;
 		const std::pair< std::vector<uintQual>::size_type, std::vector<uintQual> > &BaseQualityFirstQuartileReference(uintTempSeq template_segment) const;
 		const std::pair< std::vector<uintQual>::size_type, std::vector<uintQual> > &BaseQualityMedianReference(uintTempSeq template_segment) const;
@@ -84,14 +84,14 @@ namespace reseq{
 		const std::pair< std::vector<uintQual>::size_type, std::vector<uintQual> > &BaseQualityMaximumReference(uintTempSeq template_segment) const;
 		const std::pair< std::vector<uintQual>::size_type, std::vector<uintQual> > &AverageSequenceQualityForGC(uintTempSeq template_segment) const;
 		const std::pair< std::vector<uintNucCount>::size_type, std::vector<uintNucCount> > &BaseQualityStats(uintTempSeq template_segment, uintReadLen read_position) const;
-		const std::pair< std::vector<uintQual>::size_type, std::vector<uintQual> > &BaseQualityMean(uintTempSeq template_segment) const;
+		const std::pair< std::vector<double>::size_type, std::vector<double> > &BaseQualityMean(uintTempSeq template_segment) const;
 		const std::pair< std::vector<uintQual>::size_type, std::vector<uintQual> > &BaseQualityMinimum(uintTempSeq template_segment) const;
 		const std::pair< std::vector<uintQual>::size_type, std::vector<uintQual> > &BaseQualityFirstQuartile(uintTempSeq template_segment) const;
 		const std::pair< std::vector<uintQual>::size_type, std::vector<uintQual> > &BaseQualityMedian(uintTempSeq template_segment) const;
 		const std::pair< std::vector<uintQual>::size_type, std::vector<uintQual> > &BaseQualityThirdQuartile(uintTempSeq template_segment) const;
 		const std::pair< std::vector<uintQual>::size_type, std::vector<uintQual> > &BaseQualityMaximum(uintTempSeq template_segment) const;
 		const std::pair< std::vector<intQualDiff>::size_type, std::vector<intQualDiff> > &TileQualityMeanDifference(uintTempSeq template_segment, uintTileId tile_id) const;
-		const std::pair< std::vector<uintQual>::size_type, std::vector<uintQual> > &BaseQualityMeanPerStrand(uintTempSeq strand) const;
+		const std::pair< std::vector<double>::size_type, std::vector<double> > &BaseQualityMeanPerStrand(uintTempSeq strand) const;
 		uintQual BaseQualityForSequenceStart(uintTempSeq template_segment) const;
 		uintQual BaseQualityForSequenceEnd(uintTempSeq template_segment) const;
 		const std::pair< std::vector<uintNucCount>::size_type, std::vector<uintNucCount> > &BaseQualityForSequence(uintTempSeq template_segment, uintQual seq_quality) const;

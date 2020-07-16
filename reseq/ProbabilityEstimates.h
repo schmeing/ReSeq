@@ -525,6 +525,10 @@ namespace reseq{
 				}
 			}
 
+			inline const std::vector<uintMatrixIndex> &PossibleValues() const{
+				return par0_indeces_;
+			}
+
 			inline void ModifyPar0(uintMatrixIndex par0_index, double multiplier){
 				// Find which column in the matrix corresponds to the given index
 				uintMatrixIndex corrected_index = 0;
