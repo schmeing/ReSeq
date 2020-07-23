@@ -2328,6 +2328,7 @@ bool Simulator::CreateSystematicErrorProfile(
 				ConstDna5StringReverseComplement reversed_ref( ref.ReferenceSequence(ref_id) );
 				SetSystematicErrors(sys_errors, reversed_ref, 0, ref.SequenceLength(ref_id), stats, estimates);
 				if( !WriteOutSystematicErrorProfile(string(toCString(ref.ReferenceId(ref_id))) + " reverse", sys_errors, dom_err, err_perc) ){
+					close(dest_.at(0));
 					return false;
 				}
 
@@ -2336,11 +2337,14 @@ bool Simulator::CreateSystematicErrorProfile(
 				sys_errors.clear();
 				SetSystematicErrors(sys_errors, ref.ReferenceSequence(ref_id), 0, ref.SequenceLength(ref_id), stats, estimates);
 				if( !WriteOutSystematicErrorProfile(string(toCString(ref.ReferenceId(ref_id))) + " forward", sys_errors, dom_err, err_perc) ){
+					close(dest_.at(0));
 					return false;
 				}
 			}
 		}
 	}
+
+	close(dest_.at(0));
 
 	return true;
 }
