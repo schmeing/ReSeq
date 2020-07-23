@@ -94,6 +94,8 @@ To run a simulation with tiles the tile information needs to stay in the read na
 ```
 bowtie2 -p 32 -X 2000 -x my_reference -1 <(reseq-prepare-names.py my_data_1.fq my_data_2.fq) -2 <(reseq-prepare-names.py my_data_2.fq my_data_1.fq) | samtools sort -m 10G -@ 4 -T _tmp -o my_mappings.bam -
 ```
+For best results it is always advised to create your own profiles from a dataset very closely matching the desired sequencer, chemistry, fragmentation, adapters, PCR cycles, etc. Furthermore, training on the same or a closely related species, is best to be sure that the necessary profile space (e.g. range of GC content) is well populated. However, in many situations there is no specific case that should be simulated, but a wide variety of datasets is important. Under this condition finding good datasets is tedious work and recreating the same profile from a given dataset does not help to ensure the quality of the simulated data. Therefore, [this repository](https://github.com/schmeing/ReSeq-profiles) is designed to provide high-quality profiles with detailed information on the original datasets. Whenever possible, method benchmarks should be performed on the simulated and the original dataset to verify that the simulation created realistic conditions for the particular use case.
+
 ## <a name="parameter"></a>Parameter
  `reseq getRefSeqBias [options]`
 | Parameter         | Default | Description |
