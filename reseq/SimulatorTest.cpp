@@ -124,8 +124,8 @@ void SimulatorTest::TestVariationInInnerLoopOfSimulateFromGivenBlock(
 
 								test_->GetOrgSeq(sim_reads, strand, allele, fragment_length, cur_start_position, cur_end_position, ref_seq_id, species_reference_, stats, bias_mod);
 
-								EXPECT_TRUE( infix(comp_ref.at(allele)->ReferenceSequence(ref_seq_id), modified_start_pos.at(allele), modified_start_pos.at(allele)+fragment_length) == prefix(sim_reads.org_seq_.at(strand), fragment_length) ) << prefix(sim_reads.org_seq_, fragment_length) << std::endl << "Start position: " << cur_start_position << " Fragment length: " << fragment_length << " Allele: " << allele << std::endl;
-								EXPECT_TRUE( ReverseComplementorDna(infix(comp_ref.at(allele)->ReferenceSequence(ref_seq_id), modified_start_pos.at(allele), modified_start_pos.at(allele)+fragment_length)) == prefix(sim_reads.org_seq_.at(!strand), fragment_length) ) << prefix(sim_reads.org_seq_.at(!allele), fragment_length) << std::endl << "Start position: " << cur_start_position << " Fragment length: " << fragment_length << " Allele: " << allele << std::endl;
+								EXPECT_TRUE( infix(comp_ref.at(allele)->ReferenceSequence(ref_seq_id), modified_start_pos.at(allele), modified_start_pos.at(allele)+fragment_length) == prefix(sim_reads.at(strand).org_seq_, fragment_length) ) << prefix(sim_reads.at(strand).org_seq_, fragment_length) << std::endl << "Start position: " << cur_start_position << " Fragment length: " << fragment_length << " Allele: " << allele << std::endl;
+								EXPECT_TRUE( ReverseComplementorDna(infix(comp_ref.at(allele)->ReferenceSequence(ref_seq_id), modified_start_pos.at(allele), modified_start_pos.at(allele)+fragment_length)) == prefix(sim_reads.at(!strand).org_seq_, fragment_length) ) << prefix(sim_reads.at(!allele).org_seq_, fragment_length) << std::endl << "Start position: " << cur_start_position << " Fragment length: " << fragment_length << " Allele: " << allele << std::endl;
 
 								++num_tests;
 							}

@@ -104,67 +104,84 @@ double Simulator::NumberPairsToCoverage(uintFragCount total_pairs, uintRefLenCal
 	return static_cast<double>(total_pairs) / total_ref_size * average_read_length * 2 * (1-adapter_part);
 }
 
-bool Simulator::Flush(){
-	if( flush_mutex_.try_lock() ){
-		array<StringSet<CharString> *, 2> old_output_ids;
-		array<StringSet<Dna5String> *, 2> old_output_seqs;
-		array<StringSet<CharString> *, 2> old_output_quals;
+void Simulator::FlushCopyValues(
+		uintTempSeq template_segment,
+		array<StringSet<CharString> *, 2> &old_output_ids,
+		array<StringSet<Dna5String> *, 2> &old_output_seqs,
+		array<StringSet<CharString> *, 2> &old_output_quals ){
+	old_output_ids.at(template_segment) = output_ids_.at(template_segment);
+	output_ids_.at(template_segment) = new StringSet<CharString>;
+	reserve(*output_ids_.at(template_segment), kBatchSize, Exact());
 
-		output_mutex_.lock();
-		for( int i=2; i--; ){
-			old_output_ids.at(i) = output_ids_.at(i);
-			output_ids_.at(i) = new StringSet<CharString>;
-			reserve(*output_ids_.at(i), kBatchSize, Exact());
+	old_output_seqs.at(template_segment) = output_seqs_.at(template_segment);
+	output_seqs_.at(template_segment) = new StringSet<Dna5String>;
+	reserve(*output_seqs_.at(template_segment), kBatchSize, Exact());
 
-			old_output_seqs.at(i) = output_seqs_.at(i);
-			output_seqs_.at(i) = new StringSet<Dna5String>;
-			reserve(*output_seqs_.at(i), kBatchSize, Exact());
+	old_output_quals.at(template_segment) = output_quals_.at(template_segment);
+	output_quals_.at(template_segment) = new StringSet<CharString>;
+	reserve(*output_quals_.at(template_segment), kBatchSize, Exact());
+}
 
-			old_output_quals.at(i) = output_quals_.at(i);
-			output_quals_.at(i) = new StringSet<CharString>;
-			reserve(*output_quals_.at(i), kBatchSize, Exact());
-		}
-		output_mutex_.unlock();
-
-		for( int i=2; i--; ){
-			try{
-				writeRecords(dest_.at(i), *old_output_ids.at(i), *old_output_seqs.at(i), *old_output_quals.at(i));
-			}
-			catch(const Exception &e){
-				print_mutex_.lock();
-				printErr << "Could not write records " << written_records_+1 << " to " << (written_records_+length(*old_output_ids.at(i))) << ": " << e.what() << std::endl;
-				print_mutex_.unlock();
-				return false;
-			}
-		}
-
-		written_records_ += length(*old_output_ids.at(0));
+bool Simulator::FlushWriteValues(uintTempSeq template_segment,
+		array<StringSet<CharString> *, 2> &old_output_ids,
+		array<StringSet<Dna5String> *, 2> &old_output_seqs,
+		array<StringSet<CharString> *, 2> &old_output_quals ){
+	try{
+		writeRecords(dest_.at(template_segment), *old_output_ids.at(template_segment), *old_output_seqs.at(template_segment), *old_output_quals.at(template_segment));
+	}
+	catch(const Exception &e){
 		print_mutex_.lock();
-		printInfo << "Generated " << written_records_ << " read pairs." << std::endl;
+		printErr << "Could not write records " << written_records_+1 << " to " << (written_records_+length(*old_output_ids.at(template_segment))) << ": " << e.what() << std::endl;
 		print_mutex_.unlock();
-
-		for( int i=2; i--; ){
-			delete old_output_ids.at(i);
-			delete old_output_seqs.at(i);
-			delete old_output_quals.at(i);
-		}
-
-		flush_mutex_.unlock();
+		return false;
 	}
 
 	return true;
 }
 
+bool Simulator::Flush(){
+	// output_mutex_ MUST be locked before calling this function
+	array<StringSet<CharString> *, 2> old_output_ids;
+	array<StringSet<Dna5String> *, 2> old_output_seqs;
+	array<StringSet<CharString> *, 2> old_output_quals;
+
+	for(uintTempSeq template_segment=2; template_segment--; ){
+		FlushCopyValues(template_segment, old_output_ids, old_output_seqs, old_output_quals);
+	}
+	output_mutex_.unlock();
+
+	flush_mutex_.at(0).lock();
+	bool success = FlushWriteValues(0, old_output_ids, old_output_seqs, old_output_quals);
+	flush_mutex_.at(1).lock(); // Segment 1 must be locked before releasing segment 0 to guarantee that both files have the same order in writing the reads
+	flush_mutex_.at(0).unlock();
+	success = success && FlushWriteValues(1, old_output_ids, old_output_seqs, old_output_quals);
+	flush_mutex_.at(1).unlock();
+
+	if(success){
+		written_records_ += length(*old_output_ids.at(0));
+		print_mutex_.lock();
+		printInfo << "Generated " << written_records_ << " read pairs (" << static_cast<uintPercentPrint>(Percent(written_records_,total_pairs_)) << "%)." << std::endl;
+		print_mutex_.unlock();
+	}
+
+	for(uintTempSeq template_segment=2; template_segment--; ){
+		delete old_output_ids.at(template_segment);
+		delete old_output_seqs.at(template_segment);
+		delete old_output_quals.at(template_segment);
+	}
+
+	return success;
+}
+
 bool Simulator::Output(const SimPair &sim_reads){
 	output_mutex_.lock();
 	for(uintTempSeq template_segment=2; template_segment--; ){
-		appendValue(*output_ids_.at(template_segment), sim_reads.id_.at(template_segment));
-		appendValue(*output_seqs_.at(template_segment), sim_reads.seq_.at(template_segment));
-		appendValue(*output_quals_.at(template_segment), sim_reads.qual_.at(template_segment));
+		appendValue(*output_ids_.at(template_segment), sim_reads.at(template_segment).id_);
+		appendValue(*output_seqs_.at(template_segment), sim_reads.at(template_segment).seq_);
+		appendValue(*output_quals_.at(template_segment), sim_reads.at(template_segment).qual_);
 	}
 
 	if(length(*output_ids_.at(0)) >= kBatchSize){
-		output_mutex_.unlock();
 		return this->Flush();
 	}
 	else{
@@ -236,7 +253,7 @@ void Simulator::GetSysErrorFromBlock(Dna5 &dom_error, uintPercent &error_rate, c
 }
 
 bool Simulator::FillReadPart(
-		SimPair &sim_reads,
+		SimRead &sim_read,
 		uintTempSeq template_segment,
 		uintTileId tile_id,
 		const DnaString &org_sequence,
@@ -284,27 +301,27 @@ bool Simulator::FillReadPart(
 			par.qual_ = estimates.Quality(template_segment, tile_id, at(org_sequence, org_pos)).Draw(prob_quality, prob_sum, {par.seq_qual_, par.qual_, par.read_pos_, par.error_rate_}, rdist.ZeroToOne(rgen));
 			if( 0.0 == prob_sum ){
 				if(par.read_pos_){
-					par.qual_ = at(sim_reads.qual_.at(template_segment), par.read_pos_-1) - stats.PhredQualityOffset(); // Take last quality again
+					par.qual_ = at(sim_read.qual_, par.read_pos_-1) - stats.PhredQualityOffset(); // Take last quality again
 				}
 				else{
 					par.qual_ = estimates.Quality(template_segment, tile_id, at(org_sequence, org_pos)).MaxValue();
 				}
 			}
-			at(sim_reads.qual_.at(template_segment), par.read_pos_) = par.qual_ + stats.PhredQualityOffset();
+			at(sim_read.qual_, par.read_pos_) = par.qual_ + stats.PhredQualityOffset();
 
 			// Roll base call
 			par.base_call_ = estimates.BaseCall(template_segment, tile_id, at(org_sequence, org_pos), dom_error).Draw(prob_base_call, prob_sum, {par.qual_, par.read_pos_, par.num_errors_, par.error_rate_}, rdist.ZeroToOne(rgen));
 			if( 0.0 == prob_sum ){
 				par.base_call_ = at(org_sequence, org_pos);
 			}
-			at(sim_reads.seq_.at(template_segment), par.read_pos_) = par.base_call_;
+			at(sim_read.seq_, par.read_pos_) = par.base_call_;
 
 			// Update cigar
 			if(base_cigar_element == cigar_element){
 				++cigar_element_length;
 			}
 			else{
-				append( sim_reads.cigar_.at(template_segment), CigarElement<>(cigar_element, cigar_element_length ) );
+				append( sim_read.cigar_, CigarElement<>(cigar_element, cigar_element_length ) );
 				cigar_element = base_cigar_element;
 				cigar_element_length = 1;
 				par.indel_pos_ = 0;
@@ -344,7 +361,7 @@ bool Simulator::FillReadPart(
 				++par.indel_pos_;
 			}
 			else{
-				append( sim_reads.cigar_.at(template_segment), CigarElement<>(cigar_element, cigar_element_length ) );
+				append( sim_read.cigar_, CigarElement<>(cigar_element, cigar_element_length ) );
 				cigar_element = 'D';
 				cigar_element_length = 1;
 				par.indel_pos_ = 1;
@@ -360,13 +377,13 @@ bool Simulator::FillReadPart(
 		else{
 			// Insertion
 			// Roll quality
-			at(sim_reads.qual_.at(template_segment), par.read_pos_) = stats.PhredQualityOffset() + estimates.Quality(template_segment, tile_id, at(org_sequence, org_pos)).Draw(prob_quality, prob_sum, {par.seq_qual_, par.qual_, par.read_pos_, par.error_rate_}, rdist.ZeroToOne(rgen));
+			at(sim_read.qual_, par.read_pos_) = stats.PhredQualityOffset() + estimates.Quality(template_segment, tile_id, at(org_sequence, org_pos)).Draw(prob_quality, prob_sum, {par.seq_qual_, par.qual_, par.read_pos_, par.error_rate_}, rdist.ZeroToOne(rgen));
 			if( 0.0 == prob_sum ){
-				at(sim_reads.qual_.at(template_segment), par.read_pos_) = stats.PhredQualityOffset() + par.qual_; // Take last quality again
+				at(sim_read.qual_, par.read_pos_) = stats.PhredQualityOffset() + par.qual_; // Take last quality again
 			}
 			
 			// Take base call from indel
-			at(sim_reads.seq_.at(template_segment), par.read_pos_) = indel-2; // This base call is not stored in par.base_call, because the normal calls have more predictive power for indel calls
+			at(sim_read.seq_, par.read_pos_) = indel-2; // This base call is not stored in par.base_call, because the normal calls have more predictive power for indel calls
 
 			// Update cigar
 			if('I' == cigar_element){
@@ -374,7 +391,7 @@ bool Simulator::FillReadPart(
 				++par.indel_pos_;
 			}
 			else{
-				append( sim_reads.cigar_.at(template_segment), CigarElement<>(cigar_element, cigar_element_length ) );
+				append( sim_read.cigar_, CigarElement<>(cigar_element, cigar_element_length ) );
 				cigar_element = 'I';
 				cigar_element_length = 1;
 				par.indel_pos_ = 1;
@@ -389,14 +406,14 @@ bool Simulator::FillReadPart(
 
 	// Append final cigar element
 	if(cigar_element_length){
-		append( sim_reads.cigar_.at(template_segment), CigarElement<>(cigar_element, cigar_element_length ) );
+		append( sim_read.cigar_, CigarElement<>(cigar_element, cigar_element_length ) );
 	}
 
 	return true;
 }
 
 bool Simulator::FillRead(
-		SimPair &sim_reads,
+		SimRead &sim_read,
 		uintReadLen &num_errors,
 		uintTempSeq template_segment,
 		uintTileId tile_id,
@@ -413,15 +430,15 @@ bool Simulator::FillRead(
 
 	par.read_length_ = rdist.ReadLength( template_segment, fragment_length, rgen );
 
-	resize( sim_reads.seq_.at(template_segment), par.read_length_ );
-	resize( sim_reads.qual_.at(template_segment), par.read_length_ );
+	resize( sim_read.seq_, par.read_length_ );
+	resize( sim_read.qual_, par.read_length_ );
 
-	clear(sim_reads.cigar_.at(template_segment));
+	clear(sim_read.cigar_);
 
 	uintAdapterId adapter_id(0);
 
 	// Get gc content and mean error rate of read
-	uintReadLen seq_length(min(par.read_length_, static_cast<uintReadLen>(length(sim_reads.org_seq_.at(template_segment))))), read_pos( seq_length );
+	uintReadLen seq_length(min(par.read_length_, static_cast<uintReadLen>(length(sim_read.org_seq_)))), read_pos( seq_length );
 	uintReadLenCalc mean_error_rate(0);
 	if( seq_length ){
 		uintSeqLen block_pos(block_start_pos);
@@ -434,7 +451,7 @@ bool Simulator::FillRead(
 
 		for( ; read_pos--; ){
 			// gc
-			if( IsGC(sim_reads.org_seq_.at(template_segment), read_pos) ){
+			if( IsGC(sim_read.org_seq_, read_pos) ){
 				++par.gc_seq_;
 			}
 
@@ -474,7 +491,7 @@ bool Simulator::FillRead(
 	}
 	
 	// Reference part of the sequence
-	if( !FillReadPart(sim_reads, template_segment, tile_id, sim_reads.org_seq_.at(template_segment), 0, 'M', start_block, block_start_pos, 0, par, first_variant, allele, stats, estimates, rdist, rgen) ){
+	if( !FillReadPart(sim_read, template_segment, tile_id, sim_read.org_seq_, 0, 'M', start_block, block_start_pos, 0, par, first_variant, allele, stats, estimates, rdist, rgen) ){
 		return false;
 	}
 
@@ -492,14 +509,14 @@ bool Simulator::FillRead(
 		}
 
 		// Adapter part of the sequence
-		if( !FillReadPart(sim_reads, template_segment, tile_id, stats.Adapters().Sequence(template_segment, adapter_id), adapter_pos, 'S', NULL, 0, adapter_id, par, {0,0}, 0, stats, estimates, rdist, rgen) ){
+		if( !FillReadPart(sim_read, template_segment, tile_id, stats.Adapters().Sequence(template_segment, adapter_id), adapter_pos, 'S', NULL, 0, adapter_id, par, {0,0}, 0, stats, estimates, rdist, rgen) ){
 			return false;
 		}
 
 		// Rubbish part of the sequence
 		if(par.read_pos_ < par.read_length_){
 			// The sequence is longer than the adapter
-			append( sim_reads.cigar_.at(template_segment), CigarElement<>('H', par.read_length_-par.read_pos_) );
+			append( sim_read.cigar_, CigarElement<>('H', par.read_length_-par.read_pos_) );
 
 			// Adapter does not go until end of read: Add poly-A tail
 			double prob_sum;
@@ -509,12 +526,12 @@ bool Simulator::FillRead(
 				// There is no clear way to set the qualities here, so just do something
 				par.qual_ = estimates.Quality(template_segment, tile_id, 0).Draw(prob_quality, prob_sum, {par.seq_qual_, par.qual_, par.read_pos_, par.error_rate_}, rdist.ZeroToOne(rgen));
 				if( 0.0 == prob_sum ){
-					par.qual_ = at(sim_reads.qual_.at(template_segment), par.read_pos_-1) - stats.PhredQualityOffset(); // Take last quality again
+					par.qual_ = at(sim_read.qual_, par.read_pos_-1) - stats.PhredQualityOffset(); // Take last quality again
 				}
-				at(sim_reads.qual_.at(template_segment), par.read_pos_) = par.qual_ + stats.PhredQualityOffset();
+				at(sim_read.qual_, par.read_pos_) = par.qual_ + stats.PhredQualityOffset();
 
 				// Set called base to A
-				at(sim_reads.seq_.at(template_segment), par.read_pos_++) = 0;
+				at(sim_read.seq_, par.read_pos_++) = 0;
 			}
 
 			// After the tail add random bases
@@ -522,12 +539,12 @@ bool Simulator::FillRead(
 				// There is no clear way to set the qualities here, so just do something
 				par.qual_ = estimates.Quality(template_segment, tile_id, 0).Draw(prob_quality, prob_sum, {par.seq_qual_, par.qual_, par.read_pos_, par.error_rate_}, rdist.ZeroToOne(rgen));
 				if( 0.0 == prob_sum ){
-					par.qual_ = at(sim_reads.qual_.at(template_segment), par.read_pos_-1) - stats.PhredQualityOffset(); // Take last quality again
+					par.qual_ = at(sim_read.qual_, par.read_pos_-1) - stats.PhredQualityOffset(); // Take last quality again
 				}
-				at(sim_reads.qual_.at(template_segment), par.read_pos_) = par.qual_ + stats.PhredQualityOffset();
+				at(sim_read.qual_, par.read_pos_) = par.qual_ + stats.PhredQualityOffset();
 
 				// Set random called base to A
-				at(sim_reads.seq_.at(template_segment), par.read_pos_++) = rdist.OverrunBases(rgen);
+				at(sim_read.seq_, par.read_pos_++) = rdist.OverrunBases(rgen);
 			}
 		}
 	}
@@ -649,11 +666,11 @@ bool Simulator::CreateReads(
 
 		for(uintTempSeq template_segment=2; template_segment--; ){
 			uintReadLen num_errors(0);
-			if(!FillRead(sim_reads, num_errors, template_segment, tile_id, fragment_length, block.at(template_segment), block_start_pos.at(template_segment), variant.at(template_segment), allele, stats, estimates, rdist, rgen)){
+			if(!FillRead(sim_reads.at(template_segment), num_errors, template_segment, tile_id, fragment_length, block.at(template_segment), block_start_pos.at(template_segment), variant.at(template_segment), allele, stats, estimates, rdist, rgen)){
 				return false;
 			}
 
-			CreateReadId(sim_reads.id_.at(template_segment), block_id, read_number, print_start_position, print_end_position, allele, stats.Tiles().Tiles().at(tile_id), ref_seq_id, ref, sim_reads.cigar_.at(template_segment), num_errors);
+			CreateReadId(sim_reads.at(template_segment).id_, block_id, read_number, print_start_position, print_end_position, allele, stats.Tiles().Tiles().at(tile_id), ref_seq_id, ref, sim_reads.at(template_segment).cigar_, num_errors);
 		}
 
 		this->Output( sim_reads );
@@ -1775,17 +1792,17 @@ void Simulator::GetOrgSeq(
 		const VariantBiasVarModifiers &bias_mod ) const{
 	if(ref.VariantsLoaded()){
 		// Forward
-		ref.ReferenceSequence( sim_reads.org_seq_.at(strand), ref_seq_id, cur_start_position, min(fragment_length, static_cast<uintSeqLen>(stats.ReadLengths(strand).to()+stats.Errors().MaxLenDeletion())), false, ref.Variants(ref_seq_id), bias_mod.StartVariant(), allele );
+		ref.ReferenceSequence( sim_reads.at(strand).org_seq_, ref_seq_id, cur_start_position, min(fragment_length, static_cast<uintSeqLen>(stats.ReadLengths(strand).to()+stats.Errors().MaxLenDeletion())), false, ref.Variants(ref_seq_id), bias_mod.StartVariant(), allele );
 
 		// Reverse
-		ref.ReferenceSequence( sim_reads.org_seq_.at(!strand), ref_seq_id, cur_end_position, min(fragment_length, static_cast<uintSeqLen>(stats.ReadLengths(!strand).to()+stats.Errors().MaxLenDeletion())), true, ref.Variants(ref_seq_id), bias_mod.EndVariant(ref.Variants(ref_seq_id), cur_end_position, allele), allele );
+		ref.ReferenceSequence( sim_reads.at(!strand).org_seq_, ref_seq_id, cur_end_position, min(fragment_length, static_cast<uintSeqLen>(stats.ReadLengths(!strand).to()+stats.Errors().MaxLenDeletion())), true, ref.Variants(ref_seq_id), bias_mod.EndVariant(ref.Variants(ref_seq_id), cur_end_position, allele), allele );
 	}
 	else{
 		// Forward
-		ref.ReferenceSequence( sim_reads.org_seq_.at(strand), ref_seq_id, cur_start_position, min(fragment_length, static_cast<uintSeqLen>(stats.ReadLengths(strand).to()+stats.Errors().MaxLenDeletion())), false );
+		ref.ReferenceSequence( sim_reads.at(strand).org_seq_, ref_seq_id, cur_start_position, min(fragment_length, static_cast<uintSeqLen>(stats.ReadLengths(strand).to()+stats.Errors().MaxLenDeletion())), false );
 
 		// Reverse
-		ref.ReferenceSequence( sim_reads.org_seq_.at(!strand), ref_seq_id, cur_end_position, min(fragment_length, static_cast<uintSeqLen>(stats.ReadLengths(!strand).to()+stats.Errors().MaxLenDeletion())), true );
+		ref.ReferenceSequence( sim_reads.at(!strand).org_seq_, ref_seq_id, cur_end_position, min(fragment_length, static_cast<uintSeqLen>(stats.ReadLengths(!strand).to()+stats.Errors().MaxLenDeletion())), true );
 	}
 }
 
@@ -2098,17 +2115,17 @@ void Simulator::CTConversion(
 	if(ref.MethylationLoaded()){
 		if(ref.VariantsLoaded()){
 			// Forward
-			CTConversion( sim_reads.org_seq_.at(strand), ref, ref_seq_id, cur_start_position, allele, cur_methylation_start, rdist, rgen, false, ref.Variants(ref_seq_id), bias_mod.StartVariant());
+			CTConversion( sim_reads.at(strand).org_seq_, ref, ref_seq_id, cur_start_position, allele, cur_methylation_start, rdist, rgen, false, ref.Variants(ref_seq_id), bias_mod.StartVariant());
 
 			// Reverse
-			CTConversion( sim_reads.org_seq_.at(!strand), ref, ref_seq_id, cur_end_position, allele, cur_methylation_start, rdist, rgen, true, ref.Variants(ref_seq_id), bias_mod.EndVariant(ref.Variants(ref_seq_id), cur_end_position, allele));
+			CTConversion( sim_reads.at(!strand).org_seq_, ref, ref_seq_id, cur_end_position, allele, cur_methylation_start, rdist, rgen, true, ref.Variants(ref_seq_id), bias_mod.EndVariant(ref.Variants(ref_seq_id), cur_end_position, allele));
 		}
 		else{
 			// Forward
-			CTConversion( sim_reads.org_seq_.at(strand), ref, ref_seq_id, cur_start_position, allele, cur_methylation_start, rdist, rgen, false);
+			CTConversion( sim_reads.at(strand).org_seq_, ref, ref_seq_id, cur_start_position, allele, cur_methylation_start, rdist, rgen, false);
 
 			// Reverse
-			CTConversion( sim_reads.org_seq_.at(!strand), ref, ref_seq_id, cur_end_position, allele, cur_methylation_start, rdist, rgen, true);
+			CTConversion( sim_reads.at(!strand).org_seq_, ref, ref_seq_id, cur_end_position, allele, cur_methylation_start, rdist, rgen, true);
 		}
 	}
 }
@@ -2223,7 +2240,7 @@ bool Simulator::SimulateAdapterOnlyPairs(
 
 		SimPair sim_reads;
 		for(uintTempSeq template_segment=2; template_segment--; ){
-			sim_reads.org_seq_.at(template_segment) = "";
+			sim_reads.at(template_segment).org_seq_ = "";
 		}
 
 		rgen.seed( block_seed_gen_() );
@@ -2539,6 +2556,7 @@ bool Simulator::Simulate(
 				printErr << "An error occurred in the process: Terminating simulation" << std::endl;
 			}
 
+			output_mutex_.lock();
 			this->Flush(); // Flush out all sequences that have not been written to disc yet
 
 			// Clean up left over blocks and units

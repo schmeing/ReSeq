@@ -238,13 +238,15 @@ namespace reseq{
 			}
 		};
 
-		struct SimPair{
-			std::array<seqan::CharString, 2> id_;
-			std::array<seqan::DnaString, 2> org_seq_;
-			std::array<seqan::Dna5String, 2> seq_;
-			std::array<seqan::CharString, 2> qual_;
-			std::array<utilities::CigarString, 2> cigar_;
+		struct SimRead{
+			seqan::CharString id_;
+			seqan::DnaString org_seq_;
+			seqan::Dna5String seq_;
+			seqan::CharString qual_;
+			utilities::CigarString cigar_;
 		};
+
+		typedef std::array<SimRead, 2> SimPair;
 
 		// Definitions
 		const uintFragCount kBatchSize = 100000; // 100,000 reads are written in each batch, balance between speed and memory usage
@@ -253,7 +255,7 @@ namespace reseq{
 		// Mutex
 		std::mutex print_mutex_;
 		std::mutex output_mutex_;
-		std::mutex flush_mutex_;
+		std::array<std::mutex, 2> flush_mutex_;
 
 		std::mutex block_creation_mutex_;
 		std::mutex var_read_mutex_;
@@ -261,7 +263,7 @@ namespace reseq{
 
 		// private variables
 		std::array<seqan::SeqFileOut, 2> dest_;
-		uintFragCount written_records_;
+		std::atomic<uintFragCount> written_records_;
 		std::string record_base_identifier_;
 
 		SimUnit *first_unit_;
@@ -308,6 +310,8 @@ namespace reseq{
 		static uintFragCount CoverageToNumberPairs(double coverage, uintRefLenCalc total_ref_size, double average_read_length, double adapter_part);
 		static double NumberPairsToCoverage(uintFragCount total_pairs, uintRefLenCalc total_ref_size, double average_read_length, double adapter_part);
 
+		void FlushCopyValues( uintTempSeq template_segment, std::array<seqan::StringSet<seqan::CharString> *, 2> &old_output_ids, std::array<seqan::StringSet<seqan::Dna5String> *, 2> &old_output_seqs, std::array<seqan::StringSet<seqan::CharString> *, 2> &old_output_quals );
+		bool FlushWriteValues( uintTempSeq template_segment, std::array<seqan::StringSet<seqan::CharString> *, 2> &old_output_ids, std::array<seqan::StringSet<seqan::Dna5String> *, 2> &old_output_seqs, std::array<seqan::StringSet<seqan::CharString> *, 2> &old_output_quals );
 		bool Flush();
 		bool Output(const SimPair &sim_reads);
 
@@ -371,8 +375,8 @@ namespace reseq{
 
 		inline void IncrementBlockPos(uintSeqLen &block_pos, const SimBlock* &block, intVariantId &cur_var);
 		void GetSysErrorFromBlock(seqan::Dna5 &dom_error, uintPercent &error_rate, const SimBlock* &block, uintSeqLen &block_pos, intVariantId &cur_var, uintSeqLen &var_pos, uintAlleleId allele);
-		bool FillReadPart( SimPair &sim_reads, uintTempSeq template_segment, uintTileId tile_id, const seqan::DnaString &org_sequence, uintReadLen org_pos, char base_cigar_element, const SimBlock* block, uintSeqLen block_pos, uintAdapterId adapter_id, ReadFillParameter &par, std::pair<intVariantId, uintSeqLen> first_variant, uintAlleleId allele, const DataStats &stats, const ProbabilityEstimates &estimates, GeneralRandomDistributions &rdist, std::mt19937_64 &rgen);
-		bool FillRead( SimPair &sim_reads, uintReadLen &num_errors, uintTempSeq template_segment, uintTileId tile_id, uintSeqLen fragment_length, const SimBlock* start_block, uintSeqLen block_start_pos, std::pair<intVariantId, uintSeqLen> first_variant, uintAlleleId allele, const DataStats &stats, const ProbabilityEstimates &estimates, GeneralRandomDistributions &rdist, std::mt19937_64 &rgen);
+		bool FillReadPart( SimRead &sim_read, uintTempSeq template_segment, uintTileId tile_id, const seqan::DnaString &org_sequence, uintReadLen org_pos, char base_cigar_element, const SimBlock* block, uintSeqLen block_pos, uintAdapterId adapter_id, ReadFillParameter &par, std::pair<intVariantId, uintSeqLen> first_variant, uintAlleleId allele, const DataStats &stats, const ProbabilityEstimates &estimates, GeneralRandomDistributions &rdist, std::mt19937_64 &rgen);
+		bool FillRead( SimRead &sim_read, uintReadLen &num_errors, uintTempSeq template_segment, uintTileId tile_id, uintSeqLen fragment_length, const SimBlock* start_block, uintSeqLen block_start_pos, std::pair<intVariantId, uintSeqLen> first_variant, uintAlleleId allele, const DataStats &stats, const ProbabilityEstimates &estimates, GeneralRandomDistributions &rdist, std::mt19937_64 &rgen);
 
 		void CreateReadId( seqan::CharString &id, uintRefSeqBin block_number, uintFragCount read_number, uintSeqLen start_pos, uintSeqLen end_pos, uintAlleleId allele, uintTile tile, uintRefSeqId ref_seq_id, const Reference &ref, const utilities::CigarString &cigar, uintReadLen num_errors);
 		bool CreateReads( const Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates, GeneralRandomDistributions &rdist, SimPair &sim_reads, std::mt19937_64 &rgen, uintFragCount counts, bool strand, uintAlleleId allele, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintFragCount &read_number, const SimBlock *start_block, uintSeqLen start_position_forward, uintSeqLen end_position_forward, std::pair<intVariantId, uintSeqLen> start_variant={0,0}, std::pair<intVariantId, uintSeqLen> end_variant={0,0} );
