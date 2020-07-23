@@ -261,6 +261,7 @@ namespace reseq{
 		// Setter functions
 		void IgnoreTiles(){ tiles_.IgnoreTiles(); }
 		void ClearReference(){ reference_ = NULL; }
+		void SetReference(Reference *ref){ reference_ = ref; }
 		void SetUniformBias(){
 			fragment_distribution_.SetUniformBias();
 		}
@@ -286,6 +287,8 @@ namespace reseq{
 		void PrepareProcessing();
 		void PreparePlotting();
 		void PrepareTesting();
+
+		void CalculateMaxLenDeletion(){ errors_.PrepareSimulation(); }
 	};
 
 }

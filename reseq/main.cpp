@@ -1,8 +1,10 @@
 #include <algorithm>
 using std::count;
+using std::max;
 #include <exception>
 using std::exception;
 #include <iostream>
+using std::cout;
 using std::cerr;
 #include <stdint.h>
 #include <stdio.h>
@@ -424,8 +426,8 @@ int main(int argc, char *argv[]) {
 		"Contact: Stephan Schmeing <stephan.schmeing@uzh.ch>\n\n"+
 		"Usage:  reseq <command> [options]\n"+
 		"Commands:\n"+
-		"  getRefSeqBias\t\t"+"stores reference sequence bias from reseq statistic files in tsv format\n"+
 		"  illuminaPE\t\t"+"simulates illumina paired-end data\n"+
+		"  queryProfile\t\t"+"queries reseq statistic files for information\n"+
 		"  replaceN\t\t"+"replaces N's in reference\n"+
 		"  test\t\t\t"+"tests the program\n";
 
@@ -436,25 +438,27 @@ int main(int argc, char *argv[]) {
 	else{
 		printInfo << "Running ReSeq version " << RESEQ_VERSION_MAJOR << '.' << RESEQ_VERSION_MINOR; // Always show version
 
-		if ("getRefSeqBias" == unrecognized_opts.at(0)) {
-			cerr << " in getRefSeqBias mode" << std::endl;
+		if ("queryProfile" == unrecognized_opts.at(0)) {
+			cerr << " in queryProfile mode" << std::endl;
 			unrecognized_opts.erase(unrecognized_opts.begin());
 
-			options_description opt_desc("getRefSeqBias");
+			options_description opt_desc("queryProfile");
 			opt_desc.add_options() // Returns a special object with defined operator ()
-				("output,o", value<string>(), "Output file for the reference sequence bias (tsv format)")
+				("maxLenDeletion", "Output lengths of longest detected deletion to stdout")
+				("maxReadLength", "Output lengths of longest detected read to stdout")
 				("ref,r", value<string>(), "Reference sequences in fasta format (gz and bz2 supported)")
+				("refSeqBias", value<string>(), "Output reference sequence bias (tsv format; - for stdout)")
 				("stats,s", value<string>(), "Reseq statistics file to extract reference sequence bias");
 			opt_desc_full.add(opt_desc);
 
-			string usage_str = "Usage:  reseq getRefSeqBias -r <ref.fa> -s <stats.reseq> -o <out.tsv>\n";
+			string usage_str = "Usage:  reseq queryProfile -r <ref.fa> -s <stats.reseq>\n";
 			variables_map opts_map;
 			try{
 				store( command_line_parser(unrecognized_opts).options(opt_desc).run(), opts_map );
 				notify(opts_map);
 			}
 			catch (const exception& e) {
-				printErr << "Could not parse getRefSeqBias command line arguments: " << e.what() << std::endl;
+				printErr << "Could not parse queryProfile command line arguments: " << e.what() << std::endl;
 				cerr << usage_str;
 				cerr << opt_desc_full << std::endl;
 				return 1;
@@ -466,52 +470,90 @@ int main(int argc, char *argv[]) {
 			}
 			else{
 				auto it_ref = opts_map.find("ref");
+				auto it_refseq_bias = opts_map.find("refSeqBias");
+				string ref_file = "";
 				if(opts_map.end() == it_ref){
-					printErr << "ref option is mandatory." << std::endl;
+					if (opts_map.end() != it_refseq_bias){
+						printErr << "ref option is required for refSeqBias output." << std::endl;
+						cerr << usage_str;
+						cerr << opt_desc_full << std::endl;
+						return 1;
+					}
+				}
+				else{
+					ref_file = it_ref->second.as<string>();
+					printInfo << "Reading reference from " << ref_file << std::endl;
+				}
+
+				auto it_stats = opts_map.find("stats");
+				if(opts_map.end() == it_stats){
+					printErr << "stats option is mandatory." << std::endl;
 					cerr << usage_str;
 					cerr << opt_desc_full << std::endl;
 					return 1;
 				}
 				else{
-					auto ref_file =  it_ref->second.as<string>();
-					printInfo << "Reading reference from " << ref_file << std::endl;
+					auto stats_file = it_stats->second.as<string>();
+					printInfo << "Reading reference sequence biases from " << stats_file << std::endl;
 
-					auto it_stats = opts_map.find("stats");
-					if(opts_map.end() == it_stats){
-						printErr << "stats option is mandatory." << std::endl;
-						cerr << usage_str;
-						cerr << opt_desc_full << std::endl;
-						return 1;
-					}
-					else{
-						auto stats_file = it_stats->second.as<string>();
-						printInfo << "Reading reference sequence biases from " << stats_file << std::endl;
-
-						auto it_out = opts_map.find("output");
-						string out_file = "";
-						if(opts_map.end() == it_out){
+					string refseq_bias_file = "";
+					if(opts_map.end() != it_refseq_bias){
+						refseq_bias_file = it_refseq_bias->second.as<string>();
+						if("-" == refseq_bias_file){
+							refseq_bias_file = "";
 							printInfo << "Writing reference sequence biases to stdout" << std::endl;
 						}
 						else{
-							out_file = it_out->second.as<string>();
-							printInfo << "Writing reference sequence biases to " << out_file << std::endl;
+							printInfo << "Writing reference sequence biases to " << refseq_bias_file << std::endl;
 						}
+					}
 
-						Reference species_reference;
+					DataStats real_data_stats(NULL);
+					Reference species_reference;
+					if(opts_map.end() != it_ref){
 						if( species_reference.ReadFasta( ref_file.c_str() ) ){
-							DataStats real_data_stats(&species_reference);
-							if( real_data_stats.Load( stats_file.c_str() ) ){
-								if( !real_data_stats.FragmentDistribution().WriteRefSeqBias(out_file, species_reference) ){
-									return 1;
-								}
-							}
-							else{
-								return 1;
-							}
+							real_data_stats.SetReference(&species_reference);
 						}
 						else{
 							return 1;
 						}
+					}
+
+					if( real_data_stats.Load( stats_file.c_str() ) ){
+						bool error = false;
+						bool no_output = true;
+
+						if( opts_map.count("maxLenDeletion") ){
+							real_data_stats.CalculateMaxLenDeletion();
+							cout << "maxLenDeletion: " << real_data_stats.Errors().MaxLenDeletion() << std::endl;
+							no_output = false;
+						}
+
+						if( opts_map.count("maxReadLength") ){
+							cout << "maxReadLength: " << max(real_data_stats.ReadLengths(0).to(), real_data_stats.ReadLengths(1).to())-1 << std::endl;
+							no_output = false;
+						}
+
+						if( opts_map.end() != it_refseq_bias ){
+							if( !real_data_stats.FragmentDistribution().WriteRefSeqBias(refseq_bias_file, species_reference) ){
+								error = true;
+							}
+							no_output = false;
+						}
+
+						if(no_output){
+							printErr << "No output option was selected." << std::endl;
+							cerr << usage_str;
+							cerr << opt_desc_full << std::endl;
+							return 1;
+						}
+
+						if(error){
+							return 1;
+						}
+					}
+					else{
+						return 1;
 					}
 				}
 			}
