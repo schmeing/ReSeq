@@ -2,6 +2,7 @@
 #define SIMULATOR_H
 
 #include <atomic>
+#include <condition_variable>
 #include <mutex>
 #include <random>
 #include <set>
@@ -251,6 +252,7 @@ namespace reseq{
 		// Definitions
 		const uintFragCount kBatchSize = 100000; // 100,000 reads are written in each batch, balance between speed and memory usage
 		const uintSeqLen kBlockSize = 1000; // Continuous bases that are handled by a single thread; too high: work load isn't shared properly, memory allocation of big arrays slows program down; too low: overhead like random generator seeding slows program down
+		const uintFragCount kBatchSizeErrorModelOnly = 10000; // 10,000 reads are processed at the same time per thread
 
 		// Mutex
 		std::mutex print_mutex_;
@@ -305,14 +307,20 @@ namespace reseq{
 		std::vector<double> tmp_probabilities_;
 		std::uniform_real_distribution<double> rdist_zero_to_one_;
 
+		// private variables (only necessary when applying only the error model to fasta reads)
+		uintFragCount read_blocks_ = 0;
+		uintFragCount written_blocks_ = 0;
+		std::condition_variable output_cv_;
+
 		// private functions
 		static double CoveragePropLostFromAdapters(const DataStats &stats);
 		static uintFragCount CoverageToNumberPairs(double coverage, uintRefLenCalc total_ref_size, double average_read_length, double adapter_part);
 		static double NumberPairsToCoverage(uintFragCount total_pairs, uintRefLenCalc total_ref_size, double average_read_length, double adapter_part);
 
-		void FlushCopyValues( uintTempSeq template_segment, std::array<seqan::StringSet<seqan::CharString> *, 2> &old_output_ids, std::array<seqan::StringSet<seqan::Dna5String> *, 2> &old_output_seqs, std::array<seqan::StringSet<seqan::CharString> *, 2> &old_output_quals );
-		bool FlushWriteValues( uintTempSeq template_segment, std::array<seqan::StringSet<seqan::CharString> *, 2> &old_output_ids, std::array<seqan::StringSet<seqan::Dna5String> *, 2> &old_output_seqs, std::array<seqan::StringSet<seqan::CharString> *, 2> &old_output_quals );
+		void FlushCopyValues( uintTempSeq template_segment, seqan::StringSet<seqan::CharString> *&old_output_ids, seqan::StringSet<seqan::Dna5String> *&old_output_seqs, seqan::StringSet<seqan::CharString> *&old_output_quals );
+		bool FlushWriteValues( uintTempSeq template_segment, seqan::StringSet<seqan::CharString> *old_output_ids, seqan::StringSet<seqan::Dna5String> *old_output_seqs, seqan::StringSet<seqan::CharString> *old_output_quals );
 		bool Flush();
+		bool WriteSingleReads(uintFragCount cur_block, seqan::StringSet<seqan::CharString> &old_output_ids, seqan::StringSet<seqan::Dna5String> &old_output_seqs, seqan::StringSet<seqan::CharString> &old_output_quals);
 		bool Output(const SimPair &sim_reads);
 
 		void ReadSystematicErrors(std::vector<std::pair<seqan::Dna5,uintPercent>> &sys_errors, uintSeqLen start_pos, uintSeqLen end_pos){
@@ -381,6 +389,7 @@ namespace reseq{
 		void CreateReadId( seqan::CharString &id, uintRefSeqBin block_number, uintFragCount read_number, uintSeqLen start_pos, uintSeqLen end_pos, uintAlleleId allele, uintTile tile, uintRefSeqId ref_seq_id, const Reference &ref, const utilities::CigarString &cigar, uintReadLen num_errors);
 		bool CreateReads( const Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates, GeneralRandomDistributions &rdist, SimPair &sim_reads, std::mt19937_64 &rgen, uintFragCount counts, bool strand, uintAlleleId allele, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintFragCount &read_number, const SimBlock *start_block, uintSeqLen start_position_forward, uintSeqLen end_position_forward, std::pair<intVariantId, uintSeqLen> start_variant={0,0}, std::pair<intVariantId, uintSeqLen> end_variant={0,0} );
 
+		void ResetSystematicErrorCounters();
 		void ResetSystematicErrorCounters(const Reference &ref);
 		bool LoadSysErrorRecord(uintRefSeqId ref_id, const Reference &ref);
 		void SetSystematicErrorVariantsReverse(uintSeqLen &start_dist_error_region, uintPercent &start_rate, SimBlock &block, uintRefSeqId ref_seq_id, uintSeqLen end_pos, const Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates);
@@ -431,6 +440,9 @@ namespace reseq{
 		bool SimulateAdapterOnlyPairs( const Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates, GeneralRandomDistributions &rdist, std::mt19937_64 &rgen );
 		static void SimulationThread( Simulator &self, Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates );
 
+		bool ApplyErrorsAndQualityToFastaInput( seqan::StringSet<seqan::CharString> &input_ids, seqan::StringSet<seqan::DnaString> &input_seqs, seqan::StringSet<seqan::CharString> &output_ids, seqan::StringSet<seqan::Dna5String> &output_seqs, seqan::StringSet<seqan::CharString> &output_quals, GeneralRandomDistributions &rdist, std::mt19937_64 &rgen, const DataStats &stats, const ProbabilityEstimates &estimates );
+		static void ErrorModelOnlyThread( Simulator &self, seqan::SeqFileIn &org_seq_reader, const DataStats &stats, const ProbabilityEstimates &estimates );
+
 		bool WriteOutSystematicErrorProfile(const std::string &id, std::vector<std::pair<seqan::Dna5,uintPercent>> sys_errors, seqan::Dna5String dom_err, seqan::CharString err_perc);
 
 		// Google test
@@ -441,6 +453,7 @@ namespace reseq{
 
 		bool CreateSystematicErrorProfile(const char *destination_file, const Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates, uintSeed seed);
 		bool Simulate(const char *destination_file_first, const char *destination_file_second, Reference &ref, DataStats &stats, const ProbabilityEstimates &estimates, uintNumThreads num_threads, uintSeed seed, uintFragCount num_read_pairs=0, double coverage=0.0, RefSeqBiasSimulation ref_bias_model=kKeep, const std::string &ref_bias_file=std::string(), const std::string &sys_error_file=std::string(), const std::string &record_base_identifier=std::string(), const std::string &var_file=std::string(), const std::string &meth_file=std::string());
+		bool SimulateErrorModelOnly(const std::string &destination_file, const std::string &org_seq_file, DataStats &stats, const ProbabilityEstimates &estimates, uintNumThreads num_threads, uintSeed seed );
 	};
 }
 #endif // SIMULATOR_H

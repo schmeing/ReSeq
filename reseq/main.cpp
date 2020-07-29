@@ -429,6 +429,7 @@ int main(int argc, char *argv[]) {
 		"  illuminaPE\t\t"+"simulates illumina paired-end data\n"+
 		"  queryProfile\t\t"+"queries reseq statistic files for information\n"+
 		"  replaceN\t\t"+"replaces N's in reference\n"+
+		"  seqToIllumina\t\t"+"applies illumina quality and error model to input sequences\n"+
 		"  test\t\t\t"+"tests the program\n";
 
 	int return_code = 0;
@@ -891,6 +892,119 @@ int main(int argc, char *argv[]) {
 									}
 								}
 							}
+						}
+					}
+				}
+			}
+		}
+		else if("seqToIllumina" == unrecognized_opts.at(0)){
+			cerr << " in seqToIllumina mode" << std::endl;
+			unrecognized_opts.erase(unrecognized_opts.begin());
+
+			double error_mutliplier;
+			uintNumFits ipf_iterations;
+			double ipf_precision;
+
+			options_description opt_desc("seqToIllumina");
+			opt_desc.add_options() // Returns a special object with defined operator ()
+				("errorMutliplier", value<double>(&error_mutliplier)->default_value(1.0), "Divides the original probability of correct base calls(no substitution error) by this value and renormalizes")
+				("input,i", value<string>(), "Input file [(stdin)]")
+				("ipfIterations", value<uintNumFits>(&ipf_iterations)->default_value(200), "Maximum number of iterations for iterative proportional fitting")
+				("ipfPrecision", value<double>(&ipf_precision)->default_value(5), "Iterative proportional fitting procedure stops after reaching this precision (%)")
+				("output,o", value<string>(), "Output file [(stdout)]")
+				("probabilitiesIn,p", value<string>(), "Loads last estimated probabilities and continues from there if precision is not met [<statsIn>.ipf]")
+				("probabilitiesOut,P", value<string>(), "Stores the probabilities estimated by iterative proportional fitting [<probabilitiesIn>]")
+				("seed", value<uintSeed>(), "Seed used for simulation, if none is given random seed will be used")
+				("statsIn,s", value<string>(), "Profile file that contains the statistics used for simulation");
+			opt_desc_full.add(opt_desc);
+
+			string usage_str = "Usage:  reseq seqToIllumina -i <input.fa> -o <output.fq> -s <stats.reseq> [options]\n";
+			variables_map opts_map;
+			try{
+				store( command_line_parser(unrecognized_opts).options(opt_desc).run(), opts_map );
+				notify(opts_map);
+			}
+			catch(const exception& e) {
+				printErr << "Could not parse seqToIllumina command line arguments: " << e.what() << std::endl;
+				cerr << usage_str;
+				cerr << opt_desc_full << std::endl;
+				return 1;
+			}
+
+			if( general_opts_map.count("help") ) {
+				cerr << usage_str;
+				cerr << opt_desc_full << std::endl;
+			}
+			else if( ipf_precision < 0.0 ){
+				printErr << "ipfPrecision must be positive." << std::endl;
+				cerr << usage_str;
+				cerr << opt_desc_full << std::endl;
+				return 1;
+			}
+			else if(!AutoDetectThreads(num_threads, opt_desc_full, usage_str)){
+				return 1;
+			}
+			else{
+				DataStats real_data_stats(NULL);
+				string probs_in, probs_out;
+
+				auto it_stats_in = opts_map.find("statsIn");
+				if(opts_map.end() == it_stats_in){ // "statsIn" hasn't been found
+					printErr << "statsIn option is mandatory." << std::endl;
+					cerr << usage_str;
+					cerr << opt_desc << std::endl;
+				}
+				else{
+					auto stats_file = it_stats_in->second.as<string>();
+					printInfo << "Reading real data statistics from " << stats_file << std::endl;
+
+					if( real_data_stats.Load( stats_file.c_str() ) ){
+						real_data_stats.PrepareProcessing();
+
+						PrepareProbabilityEstimation( probs_in, probs_out, stats_file+".ipf", true, opts_map );
+					}
+				}
+
+				if( 0 == real_data_stats.TotalNumberReads() ){
+					return 1;
+				}
+				else{
+					ProbabilityEstimates probabilities;
+					if( !probabilities.Estimate(real_data_stats, ipf_iterations, ipf_precision, num_threads, probs_out.c_str(), probs_in.c_str()) ){
+						return 1;
+					}
+					else{
+						probabilities.PrepareResult();
+
+						string org_seq_file;
+						auto it = opts_map.find("input");
+						if(opts_map.end() == it){
+							printInfo << "Reading original sequences from stdin" << std::endl;
+						}
+						else{
+							org_seq_file = it->second.as<string>();
+							printInfo << "Reading original sequences from " << org_seq_file << std::endl;
+						}
+
+						string destination_file;
+						it = opts_map.find("output");
+						if(opts_map.end() == it){
+							printInfo << "Writing simulated data to stdout" << std::endl;
+						}
+						else{
+							destination_file = it->second.as<string>();
+							printInfo << "Writing simulated data to " << destination_file << std::endl;
+						}
+
+						auto seed = GetSeed(opts_map);
+
+						if(1.0 != error_mutliplier){
+							probabilities.ChangeErrorRate( error_mutliplier );
+						}
+
+						Simulator sim;
+						if( !sim.SimulateErrorModelOnly( destination_file, org_seq_file, real_data_stats, probabilities, num_threads, seed) ){
+							return 1;
 						}
 					}
 				}

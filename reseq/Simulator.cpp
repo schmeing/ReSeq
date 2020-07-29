@@ -22,6 +22,7 @@ using std::map;
 //include <mutex>
 using std::mutex;
 using std::lock_guard;
+using std::unique_lock;
 //include <random>
 using std::discrete_distribution;
 using std::mt19937_64;
@@ -32,6 +33,7 @@ using std::stringstream;
 #include <stdexcept>
 using std::runtime_error;
 //include <string>
+using std::stoi;
 using std::string;
 #include <thread>
 using std::thread;
@@ -45,13 +47,18 @@ using std::vector;
 //include <seqan/seq_io.h>
 using seqan::appendValue;
 using seqan::CharString;
+using seqan::clear;
 using seqan::Dna;
 using seqan::DnaString;
 using seqan::Dna5;
 using seqan::Dna5String;
 using seqan::Exact;
 using seqan::Exception;
+using seqan::length;
+using seqan::prefix;
 using seqan::resizeSpace;
+using seqan::SeqFileIn;
+using seqan::SeqFileOut;
 using seqan::StringSet;
 //include <seqan/bam_io.h>
 using seqan::atEnd;
@@ -106,32 +113,33 @@ double Simulator::NumberPairsToCoverage(uintFragCount total_pairs, uintRefLenCal
 
 void Simulator::FlushCopyValues(
 		uintTempSeq template_segment,
-		array<StringSet<CharString> *, 2> &old_output_ids,
-		array<StringSet<Dna5String> *, 2> &old_output_seqs,
-		array<StringSet<CharString> *, 2> &old_output_quals ){
-	old_output_ids.at(template_segment) = output_ids_.at(template_segment);
+		StringSet<CharString> *&old_output_ids,
+		StringSet<Dna5String> *&old_output_seqs,
+		StringSet<CharString> *&old_output_quals ){
+	old_output_ids = output_ids_.at(template_segment);
 	output_ids_.at(template_segment) = new StringSet<CharString>;
 	reserve(*output_ids_.at(template_segment), kBatchSize, Exact());
 
-	old_output_seqs.at(template_segment) = output_seqs_.at(template_segment);
+	old_output_seqs = output_seqs_.at(template_segment);
 	output_seqs_.at(template_segment) = new StringSet<Dna5String>;
 	reserve(*output_seqs_.at(template_segment), kBatchSize, Exact());
 
-	old_output_quals.at(template_segment) = output_quals_.at(template_segment);
+	old_output_quals = output_quals_.at(template_segment);
 	output_quals_.at(template_segment) = new StringSet<CharString>;
 	reserve(*output_quals_.at(template_segment), kBatchSize, Exact());
 }
 
 bool Simulator::FlushWriteValues(uintTempSeq template_segment,
-		array<StringSet<CharString> *, 2> &old_output_ids,
-		array<StringSet<Dna5String> *, 2> &old_output_seqs,
-		array<StringSet<CharString> *, 2> &old_output_quals ){
+		StringSet<CharString> *old_output_ids,
+		StringSet<Dna5String> *old_output_seqs,
+		StringSet<CharString> *old_output_quals ){
 	try{
-		writeRecords(dest_.at(template_segment), *old_output_ids.at(template_segment), *old_output_seqs.at(template_segment), *old_output_quals.at(template_segment));
+		writeRecords(dest_.at(template_segment), *old_output_ids, *old_output_seqs, *old_output_quals);
 	}
 	catch(const Exception &e){
+		simulation_error_ = true;
 		print_mutex_.lock();
-		printErr << "Could not write records " << written_records_+1 << " to " << (written_records_+length(*old_output_ids.at(template_segment))) << ": " << e.what() << std::endl;
+		printErr << "Could not write records " << written_records_+1 << " to " << (written_records_+length(*old_output_ids)) << ": " << e.what() << std::endl;
 		print_mutex_.unlock();
 		return false;
 	}
@@ -146,15 +154,15 @@ bool Simulator::Flush(){
 	array<StringSet<CharString> *, 2> old_output_quals;
 
 	for(uintTempSeq template_segment=2; template_segment--; ){
-		FlushCopyValues(template_segment, old_output_ids, old_output_seqs, old_output_quals);
+		FlushCopyValues(template_segment, old_output_ids.at(template_segment), old_output_seqs.at(template_segment), old_output_quals.at(template_segment));
 	}
 	output_mutex_.unlock();
 
 	flush_mutex_.at(0).lock();
-	bool success = FlushWriteValues(0, old_output_ids, old_output_seqs, old_output_quals);
+	bool success = FlushWriteValues(0, old_output_ids.at(0), old_output_seqs.at(0), old_output_quals.at(0));
 	flush_mutex_.at(1).lock(); // Segment 1 must be locked before releasing segment 0 to guarantee that both files have the same order in writing the reads
 	flush_mutex_.at(0).unlock();
-	success = success && FlushWriteValues(1, old_output_ids, old_output_seqs, old_output_quals);
+	success = success && FlushWriteValues(1, old_output_ids.at(1), old_output_seqs.at(1), old_output_quals.at(1));
 	flush_mutex_.at(1).unlock();
 
 	if(success){
@@ -169,6 +177,37 @@ bool Simulator::Flush(){
 		delete old_output_seqs.at(template_segment);
 		delete old_output_quals.at(template_segment);
 	}
+
+	return success;
+}
+
+bool Simulator::WriteSingleReads(
+		uintFragCount cur_block,
+		StringSet<CharString> &output_ids,
+		StringSet<Dna5String> &output_seqs,
+		StringSet<CharString> &output_quals ){
+	unique_lock<mutex> lk(output_mutex_);
+	if(written_blocks_ < cur_block){
+		output_cv_.wait(lk, [this,cur_block]{return written_blocks_ >= cur_block || simulation_error_;});
+	}
+
+	bool success = false;
+	if(!simulation_error_){
+		success = FlushWriteValues(0, &output_ids, &output_seqs, &output_quals);
+	}
+	lk.unlock();
+	output_cv_.notify_all();
+
+	if(success){
+		written_records_ += length(output_ids);
+		print_mutex_.lock();
+		printInfo << "Generated " << written_records_ << " reads." << std::endl;
+		print_mutex_.unlock();
+	}
+
+	clear(output_ids);
+	clear(output_seqs);
+	clear(output_quals);
 
 	return success;
 }
@@ -673,15 +712,28 @@ bool Simulator::CreateReads(
 			CreateReadId(sim_reads.at(template_segment).id_, block_id, read_number, print_start_position, print_end_position, allele, stats.Tiles().Tiles().at(tile_id), ref_seq_id, ref, sim_reads.at(template_segment).cigar_, num_errors);
 		}
 
-		this->Output( sim_reads );
+		if( !this->Output( sim_reads ) ){
+			return false;
+		}
 	}
 
 	return true;
 }
 
-void Simulator::ResetSystematicErrorCounters(const Reference &ref){
+void Simulator::ResetSystematicErrorCounters(){
 	sys_last_base_ = 4;
 	sys_dom_base_.Clear();
+
+	sys_gc_ = 0;
+	sys_gc_bases_ = 0;
+
+	distance_to_start_of_error_region_ = 0;
+	start_error_rate_ = 0;
+}
+
+
+void Simulator::ResetSystematicErrorCounters(const Reference &ref){
+	ResetSystematicErrorCounters();
 
 	if(ref.VariantsLoaded()){
 		sys_last_var_pos_per_allele_.clear();
@@ -693,12 +745,6 @@ void Simulator::ResetSystematicErrorCounters(const Reference &ref){
 			sys_dom_base_per_allele_.at(allele).Clear();
 		}
 	}
-
-	sys_gc_ = 0;
-	sys_gc_bases_ = 0;
-
-	distance_to_start_of_error_region_ = 0;
-	start_error_rate_ = 0;
 }
 
 bool Simulator::LoadSysErrorRecord(uintRefSeqId ref_id, const Reference &ref){
@@ -2273,6 +2319,165 @@ void Simulator::SimulationThread( Simulator &self, Reference &ref, const DataSta
 	}
 }
 
+bool Simulator::ApplyErrorsAndQualityToFastaInput(
+		StringSet<CharString> &input_ids,
+		StringSet<DnaString> &input_seqs,
+		StringSet<CharString> &output_ids,
+		StringSet<Dna5String> &output_seqs,
+		StringSet<CharString> &output_quals,
+		GeneralRandomDistributions &rdist,
+		mt19937_64 &rgen,
+		const DataStats &stats,
+		const ProbabilityEstimates &estimates
+		){
+	SimRead sim_read;
+	SimBlock block(0, 0, NULL, 0);
+	stringstream readid_stream(std::ios_base::in | std::ios_base::out | std::ios_base::ate);
+
+	for(uintFragCount i=0; i < length(input_ids); ++i){
+		// Process input
+		sim_read.org_seq_ = at(input_seqs, i);
+
+		// Systematic error part
+		if(length( at(input_ids,i) ) <= 2*length(sim_read.org_seq_) + 2){
+			printErr << "Read description is too short to contain systematic error information and a sequence id: " << at(input_ids,i) << std::endl;
+			simulation_error_ = true;
+			return false;
+		}
+
+		auto end_pos_output_id = length( at(input_ids,i) ) - 2*length(sim_read.org_seq_) - 3; // Subtract the two entries for systematic errors of same length as the sequence and the two ; separators and go to last position instead of end
+		if( ';' != at( at(input_ids,i), end_pos_output_id+1 ) || ';' != at( at(input_ids,i), end_pos_output_id+2+length(sim_read.org_seq_) ) ){
+			printErr << "The two systematic error entries are not separated by a semicolon from themselves or the rest of the ReSeq information: " << at(input_ids,i) << std::endl;
+			simulation_error_ = true;
+			return false;
+		}
+
+		block.sys_errors_.resize( length(sim_read.org_seq_) );
+		for(auto pos = block.sys_errors_.size(); pos--; ){
+			block.sys_errors_.at(pos).first = at( at(input_ids,i), end_pos_output_id+2+pos );
+			block.sys_errors_.at(pos).second = at( at(input_ids,i), length( at(input_ids,i) ) - block.sys_errors_.size() + pos ) - 33;
+			if(86 < block.sys_errors_.at(pos).second){
+				block.sys_errors_.at(pos).second += block.sys_errors_.at(pos).second-86; // Decompress percentages again (odd percentages over 86 are removed, as fastq can store only up to 94 quality values)
+			}
+		}
+
+		// Sequence id part
+		while(end_pos_output_id && ' ' != at( at(input_ids,i), end_pos_output_id ) ){
+			--end_pos_output_id;
+		}
+
+		if( 0 == end_pos_output_id ){
+			printErr << "No sequence id found that is separated by a space from the ReSeq information: " << at(input_ids,i) << std::endl;
+			simulation_error_ = true;
+			return false;
+		}
+
+		sim_read.id_ = prefix(at(input_ids,i), end_pos_output_id);
+
+		// Further information part
+		uintTempSeq template_segment(0);
+		if( '1' == at( at(input_ids,i), end_pos_output_id+1) ){
+			// Nothing to do: template_segment is already 0
+		}
+		else if( '2' == at( at(input_ids,i), end_pos_output_id+1) ){
+			template_segment = 1;
+		}
+		else{
+			printErr << "Template segment is " << at( at(input_ids,i), end_pos_output_id+1) << " not 1 or 2: " << at(input_ids,i) << std::endl;
+			simulation_error_ = true;
+			return false;
+		}
+
+		if( ';' != at( at(input_ids,i), end_pos_output_id+2 ) ){
+			printErr << "The template segment and fragment length are not separated by a semicolon: " << at(input_ids,i) << std::endl;
+			simulation_error_ = true;
+			return false;
+		}
+
+		readid_stream.str( toCString(CharString(infix(at(input_ids,i), end_pos_output_id+3, length( at(input_ids,i) ) - 2*length(sim_read.org_seq_) - 2))) );
+		size_t pos;
+		uintSeqLen fragment_length = stoi(readid_stream.str(), &pos);
+		if(pos < readid_stream.str().size()){
+			printErr << "Fragment length '" << readid_stream.str() << "' is not a pure integer: " << at(input_ids,i) << std::endl;
+			simulation_error_ = true;
+			return false;
+		}
+
+		// Create output
+		uintTileId tile_id = rdist.TileId(rgen);
+		uintReadLen num_errors(0);
+		if(!FillRead(sim_read, num_errors, template_segment, tile_id, fragment_length, &block, 0, {0,0}, 0, stats, estimates, rdist, rgen)){
+			return false;
+		}
+
+		appendValue(output_seqs, sim_read.seq_);
+		appendValue(output_quals, sim_read.qual_);
+
+		// Add cigar and error number to read id
+		readid_stream.str(" ");
+		for( const auto &cigar_element : sim_read.cigar_ ){
+			readid_stream << cigar_element.count << cigar_element.operation;
+		}
+		readid_stream << " E" << num_errors;
+		sim_read.id_ += readid_stream.str().c_str();
+		appendValue(output_ids, sim_read.id_);
+	}
+
+	// Clear input
+	clear(input_ids);
+	clear(input_seqs);
+
+	return true;
+}
+
+void Simulator::ErrorModelOnlyThread( Simulator &self, SeqFileIn &org_seq_reader, const DataStats &stats, const ProbabilityEstimates &estimates ){
+	mt19937_64 rgen;
+	GeneralRandomDistributions rdist(stats);
+
+	StringSet<CharString> input_ids;
+	reserve(input_ids, self.kBatchSizeErrorModelOnly, Exact());
+	StringSet<DnaString> input_seqs;
+	reserve(input_ids, self.kBatchSizeErrorModelOnly, Exact());
+	StringSet<CharString> output_ids;
+	reserve(input_ids, self.kBatchSizeErrorModelOnly, Exact());
+	StringSet<Dna5String> output_seqs;
+	reserve(input_ids, self.kBatchSizeErrorModelOnly, Exact());
+	StringSet<CharString> output_quals;
+	reserve(input_ids, self.kBatchSizeErrorModelOnly, Exact());
+
+	bool keep_running = true;
+	uintFragCount cur_block(0);
+	while( keep_running && !self.simulation_error_ ){
+		// Read original sequences
+		self.block_creation_mutex_.lock();
+
+		if(atEnd(org_seq_reader)){
+			keep_running = false;
+		}
+		else{
+			rgen.seed( self.block_seed_gen_() );
+			rdist.Reset();
+			cur_block = self.read_blocks_++;
+
+			readRecords(input_ids, input_seqs, org_seq_reader, self.kBatchSizeErrorModelOnly);
+			if(0 == length(input_ids)){
+				keep_running = false;
+			}
+		}
+
+		self.block_creation_mutex_.unlock();
+
+		if(keep_running){
+			// Apply error and quality model
+			if( self.ApplyErrorsAndQualityToFastaInput(input_ids, input_seqs, output_ids, output_seqs, output_quals, rdist, rgen, stats, estimates) ){
+
+				// Write out modified sequences in same order as original sequences (taking into account multi-threading)
+				self.WriteSingleReads(cur_block, output_ids, output_seqs, output_quals);
+			}
+		}
+	}
+}
+
 bool Simulator::WriteOutSystematicErrorProfile(const string &id, vector<pair<Dna5,uintPercent>> sys_errors, Dna5String dom_err, CharString err_perc){
 	// Convert systematic errors into seq, qual for fastq format
 	resize(dom_err, sys_errors.size());
@@ -2389,10 +2594,12 @@ bool Simulator::Simulate(
 
 	if( !open(dest_.at(0), destination_file_first) ){
 		printErr << "Could not open '" << destination_file_first << "' for writing." << std::endl;
+		return false;
 	}
 	else if( !open(dest_.at(1), destination_file_second) ){
 		printErr << "Could not open '" << destination_file_second << "' for writing." << std::endl;
 		close(dest_.at(0));
+		return false;
 	}
 	else{
 		// Set up random generator
@@ -2601,6 +2808,122 @@ bool Simulator::Simulate(
 		// Remove the simulated files so it is clear that we encountered an error and do not accidentally continue with the old file
 		DeleteFile( destination_file_first );
 		DeleteFile( destination_file_second );
+		return false;
+	}
+	else{
+		printInfo << "Simulation finished succesfully" << std::endl;
+		return true;
+	}
+}
+
+bool Simulator::SimulateErrorModelOnly(
+		const string &destination_file,
+		const string &org_seq_file,
+		DataStats &stats,
+		const ProbabilityEstimates &estimates,
+		uintNumThreads num_threads,
+		uintSeed seed
+		){
+	// create all missing directories
+	if( destination_file.empty() ){
+		if( !open(dest_.at(0), std::cout, seqan::Fastq()) ){
+			printErr << "Could not connect to stdout for writing." << std::endl;
+			return false;
+		}
+	}
+	else{
+		CreateDir(destination_file.c_str());
+
+		if( !open(dest_.at(0), destination_file.c_str()) ){
+			printErr << "Could not open '" << destination_file << "' for writing." << std::endl;
+			return false;
+		}
+	}
+
+	SeqFileIn org_seq_reader;
+	if( org_seq_file.empty() ){
+		if( !open(org_seq_reader, std::cin) ){
+			printErr << "Could not connect to stdin for reading." << std::endl;
+			close(dest_.at(0));
+			return false;
+		}
+	}
+	else if( !open(org_seq_reader, org_seq_file.c_str()) ){
+		printErr << "Could not open '" << org_seq_file << "' for writing." << std::endl;
+		close(dest_.at(0));
+		return false;
+	}
+
+	// Set up random generator
+	block_seed_gen_.seed(seed);
+
+	// Provide StringSet to store reads in before writing them out
+	output_ids_.at(0) = new StringSet<CharString>;
+	reserve(*output_ids_.at(0), kBatchSize, Exact());
+	output_seqs_.at(0) = new StringSet<Dna5String>;
+	reserve(*output_seqs_.at(0), kBatchSize, Exact());
+	output_quals_.at(0) = new StringSet<CharString>;
+	reserve(*output_quals_.at(0), kBatchSize, Exact());
+
+	simulation_error_ = false;
+
+	// Get average read length
+	uintFragCount reads(0);
+	uintRefLenCalc sum_read_length(0);
+	for(auto template_segment=2; template_segment--;){
+		for( auto len = stats.ReadLengths(template_segment).from(); len < stats.ReadLengths(template_segment).to(); ++len){
+			reads += stats.ReadLengths(template_segment).at(len);
+			sum_read_length += stats.ReadLengths(template_segment).at(len) * len;
+		}
+	}
+
+	// Chose systematic errors for adapters
+	sys_gc_range_ = Divide(sum_read_length,reads)/2; // Set gc range for systematic errors to half the average read length
+
+	for(auto template_segment=2; template_segment--;){
+		adapter_sys_error_.at(template_segment).reserve( stats.Adapters().Counts(template_segment).size() );
+		adapter_sys_error_.at(template_segment).resize( stats.Adapters().Counts(template_segment).size() );
+
+		for(auto seq=stats.Adapters().Counts(template_segment).size(); seq--;){
+			if( stats.Adapters().Counts(template_segment).at(seq) ){ // If the adapter does not appear, we don't need it
+				ResetSystematicErrorCounters();
+
+				adapter_sys_error_.at(template_segment).at(seq).reserve( length(stats.Adapters().Sequence(template_segment, seq)) );
+
+				SetSystematicErrors(adapter_sys_error_.at(template_segment).at(seq), stats.Adapters().Sequence(template_segment, seq), 0, length(stats.Adapters().Sequence(template_segment, seq)), stats, estimates);
+			}
+		}
+	}
+
+	if(atEnd(org_seq_reader)){
+		printErr << org_seq_file << " does not contain any sequences." << std::endl;
+		simulation_error_ = true;
+	}
+
+	if( !simulation_error_ ){
+		printInfo << "Starting read generation" << std::endl;
+
+		thread threads[num_threads];
+		for(auto i = num_threads; i--; ){
+			threads[i] = thread(ErrorModelOnlyThread, std::ref(*this), std::ref(org_seq_reader), std::cref(stats), std::cref(estimates));
+		}
+		for(auto i = num_threads; i--; ){
+			threads[i].join();
+		}
+
+		if(simulation_error_){
+			printErr << "An error occurred in the process: Terminating simulation" << std::endl;
+		}
+	}
+
+	close(dest_.at(0));
+	close(org_seq_reader);
+
+	if(simulation_error_){
+		// Remove the simulated files so it is clear that we encountered an error and do not accidentally continue with the old file
+		if( !destination_file.empty() ){
+			DeleteFile( destination_file.c_str() );
+		}
 		return false;
 	}
 	else{
