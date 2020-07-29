@@ -107,7 +107,8 @@ For it to work, all necessary informations need to be provided to ReSeq's error 
 >{sequence id} {template segment};{fragment length};{error tendencies};{error rates}
 {sequence to convert}
 ```
-`{sequence id}`: The desired sequence id. It can contain spaces. The final read description in the output fastq will be `@{sequence id} {cigar} E{number of errors in read}`
+`{sequence id}`: The desired sequence id. It can contain spaces. The final read description in the output fastq will be:
+@{sequence id} {cigar} E{number of errors in read}`
 
 `{template segment}`: 1 for first reads or 2 for second reads.
 

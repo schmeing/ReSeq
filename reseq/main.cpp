@@ -448,7 +448,7 @@ int main(int argc, char *argv[]) {
 				("maxLenDeletion", "Output lengths of longest detected deletion to stdout")
 				("maxReadLength", "Output lengths of longest detected read to stdout")
 				("ref,r", value<string>(), "Reference sequences in fasta format (gz and bz2 supported)")
-				("refSeqBias", value<string>(), "Output reference sequence bias (tsv format; - for stdout)")
+				("refSeqBias", value<string>(), "Output reference sequence bias to file (tsv format; - for stdout)")
 				("stats,s", value<string>(), "Reseq statistics file to extract reference sequence bias");
 			opt_desc_full.add(opt_desc);
 
@@ -908,10 +908,10 @@ int main(int argc, char *argv[]) {
 			options_description opt_desc("seqToIllumina");
 			opt_desc.add_options() // Returns a special object with defined operator ()
 				("errorMutliplier", value<double>(&error_mutliplier)->default_value(1.0), "Divides the original probability of correct base calls(no substitution error) by this value and renormalizes")
-				("input,i", value<string>(), "Input file [(stdin)]")
+				("input,i", value<string>(), "Input file (fasta format, gz and bz2 supported) [stdin]")
 				("ipfIterations", value<uintNumFits>(&ipf_iterations)->default_value(200), "Maximum number of iterations for iterative proportional fitting")
 				("ipfPrecision", value<double>(&ipf_precision)->default_value(5), "Iterative proportional fitting procedure stops after reaching this precision (%)")
-				("output,o", value<string>(), "Output file [(stdout)]")
+				("output,o", value<string>(), "Output file (fastq format, gz and bz2 supported) [stdout]")
 				("probabilitiesIn,p", value<string>(), "Loads last estimated probabilities and continues from there if precision is not met [<statsIn>.ipf]")
 				("probabilitiesOut,P", value<string>(), "Stores the probabilities estimated by iterative proportional fitting [<probabilitiesIn>]")
 				("seed", value<uintSeed>(), "Seed used for simulation, if none is given random seed will be used")
