@@ -7,6 +7,7 @@ More realistic simulator for genomic DNA sequences from Illumina machines that a
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Quick start examples](#quickstart)
+- [Apply errors and qualities directly to sequences](#errormodel)
 - [Parameter](#parameter)
 - [File Formats](#formats)
 - [Included libraries](#libraries)
@@ -96,20 +97,29 @@ bowtie2 -p 32 -X 2000 -x my_reference -1 <(reseq-prepare-names.py my_data_1.fq m
 ```
 For best results it is always advised to create your own profiles from a dataset very closely matching the desired sequencer, chemistry, fragmentation, adapters, PCR cycles, etc. Furthermore, training on the same or a closely related species, is best to be sure that the necessary profile space (e.g. range of GC content) is well populated. However, in many situations there is no specific case that should be simulated, but a wide variety of datasets is important. Under this condition finding good datasets is tedious work and recreating the same profile from a given dataset does not help to ensure the quality of the simulated data. Therefore, [this repository](https://github.com/schmeing/ReSeq-profiles) is designed to provide high-quality profiles with detailed information on the original datasets. Whenever possible, method benchmarks should be performed on the simulated and the original dataset to verify that the simulation created realistic conditions for the particular use case.
 
-## <a name="parameter"></a>Parameter
- `reseq getRefSeqBias [options]`
-| Parameter         | Default | Description |
-|-------------------|---------|-------------|
-| **General**       |
-| `-h` `--help`     |         | Prints help information and exits |
-| `-j` `--threads`  | 0       | Number of threads used (0=auto) |
-| `--verbosity`     | 4       | Sets the level of verbosity (4=everything, 0=nothing) |
-| `--version`       |         | Prints version info and exits |
-| **ReplaceN**      |
-| `-o` `--output`   | None    | Output file for the reference sequence bias (tsv format) |
-| `-r` `--ref`      | None    | Reference sequences in fasta format (gz and bz2 supported) |
-| `-s` `--stats`    | None    | Reseq statistics file to extract reference sequence bias |
+## <a name="errormodel"></a>Apply errors and qualities directly to sequences
+In case you cannot use the coverage model, you can directly provide sequences to ReSeq, which will be converted to reads. This includes adding qualities as well as InDel and substitution errors and cutting the sequence to the read length. If sequences are shorter than the read length ReSeq automatically adds an adapter.
+```
+reseq seqToIllumina -j2 -i my_sequences.fa -o my_simulated_reads.fq -s my_stats_profile.reseq
+```
+For it to work, all necessary informations need to be provided to ReSeq's error and quality model. Therefore, each input sequence in the fasta file must have the following form:
+```
+>{sequence id} {template segment};{fragment length};{error tendencies};{error rates}
+{sequence to convert}
+```
+`{sequence id}`: The desired sequence id. It can contain spaces. The final read description in the output fastq will be `@{sequence id} {cigar} E{number of errors in read}`
 
+`{template segment}`: 1 for first reads or 2 for second reads.
+
+`{sequence to convert}`: Sequence to which errors and qualities will be added. It may only contain A, C, G or T. Ns are not permitted, since a conversion should be performed in a consistent manner for all reads stemming from a given position in the reference (see `reseq replaceN`).
+
+`{error tendencies}` and `{error rates}`: Both must have the same length as `{sequence to convert}` and the nth position always corresponds to the nth position in the sequence. Their format is described in detail for the Systematic error file under [File Formats](#formats). All bases stemming from the same position and strand in the reference must have the same values to properly simulate systematic errors. For insertions that are specific to one read use `N` and `!` respectively. The systematic errors for a reference can be simulated by calling:
+
+`reseq illuminaPE -r my_reference.fa -s my_stats_profile.reseq --stopAfterEstimation --writeSysError my_systematic_errors.fq`
+
+This call creates a fastq file with two sequences per reference sequence (one for each strand with the reverse strand first). From this file the corresponding error tendencies and rates can be extracted. Note that the the sequence for the reverse strand is already reverse complemented.
+
+## <a name="parameter"></a>Parameter
 `reseq illuminaPE [options]`
 
 | Parameter         | Default | Description |
@@ -156,6 +166,22 @@ For best results it is always advised to create your own profiles from a dataset
 | `-V` `--vcfSim`   | None    | Defines genotypes to simulate alleles or populations |
 | `--writeSysError` | None    | Write the randomly drawn systematic errors to file in fastq format (seq=dominant error, qual=error percentage) |
 
+ `reseq queryProfile [options]`
+ 
+| Parameter         | Default | Description |
+|-------------------|---------|-------------|
+| **General**       |
+| `-h` `--help`     |         | Prints help information and exits |
+| `-j` `--threads`  | 0       | Number of threads used (0=auto) |
+| `--verbosity`     | 4       | Sets the level of verbosity (4=everything, 0=nothing) |
+| `--version`       |         | Prints version info and exits |
+| **queryProfile**  |
+| `--maxLenDeletion`| None    | Output lengths of longest detected deletion to stdout |
+| `--maxReadLength` | None    | Output lengths of longest detected read to stdout |
+| `-r` `--ref`      | None    | Reference sequences in fasta format (gz and bz2 supported) |
+| `--refSeqBias`    | None    | Output reference sequence bias to file (tsv format; `-` for stdout) |
+| `-s` `--stats`    | None    | Reseq statistics file to extract reference sequence bias |
+
 `reseq replaceN [options]`
 
 | Parameter         | Default | Description |
@@ -170,6 +196,26 @@ For best results it is always advised to create your own profiles from a dataset
 | `-R` `--refSim`   | None    | File to where reference sequences in fasta format with N's randomly replace should be written to |
 | `--seed`          | None    | Seed used for replacing N, if none is given random seed will be used |
 
+`reseq seqToIllumina [options]`
+
+| Parameter         | Default | Description |
+|-------------------|---------|-------------|
+| **General**       |
+| `-h` `--help`     |         | Prints help information and exits |
+| `-j` `--threads`  | 0       | Number of threads used (0=auto) |
+| `--verbosity`     | 4       | Sets the level of verbosity (4=everything, 0=nothing) |
+| `--version`       |         | Prints version info and exits |
+| **seqToIllumina** |
+| `--errorMutliplier` | 1.0   | Divides the original probability of correct base calls(no substitution error) by this value and renormalizes |
+| `-i` `--input`    | `stdin` | Input file (fasta format, gz and bz2 supported) |
+| `--ipfIterations` | 200     | Maximum number of iterations for iterative proportional fitting |
+| `--ipfPrecision`  | 5       | Iterative proportional fitting procedure stops after reaching this precision (%) |
+| `-o` `--output`   | `stdout`| Output file (fastq format, gz and bz2 supported) |
+| `-p` `--probabilitiesIn` | `--statsIn`.ipf | Loads last estimated probabilities and continues from there if precision is not met |
+| `-P` `--probabilitiesOut` | `--probabilitiesIn` | Stores the probabilities estimated by iterative proportional fitting |
+| `--seed`          | None    | Seed used for simulation, if none is given random seed will be used |
+| `-s` `--statsIn`  | None    | Profile file that contains the statistics used for simulation |
+
 ## <a name="formats"></a>File Formats
 | File type             | Ending     | Information |
 |-----------------------|------------|-------------|
@@ -181,7 +227,7 @@ For best results it is always advised to create your own profiles from a dataset
 | Methylation file	| .bed	     | Extended bed graph format with possibility of multiple score columns for individual alleles. Number of columns must be either 1 or the same number of alleles specified in the variant file. The number of columns need to be the same within each reference sequence. Bisulfite sequencing is simulated, so C->T conversions are inserted with a probability of 1-methylation value specified in this file. |
 | Stats file            | .reseq     | Boost archive: Not recommended to modify or create by hand even though it is in ASCII format |
 | Probability file      | .reseq.ipf | Boost archive: Not recommended to modify or create by hand even though it is in ASCII format |
-| Systematic error file | .fq        | Standard fastq format. The sequence represents the dominant error and the quality the error rate in percent at that position. There are two entries per reference sequence. The order of the reference sequences must be kept. The length must match the length of the reference sequence. The first entry per reference sequence is the reverse strand and reverse complemented. So an A in the first position means that a systematic error towards a T is simulated for the last base of the reference sequence in reads on the reverse strand. The second entry is the forward strand taken as is, so not reverse complemented. The error rate in percent is encoded similar to quality values with an offset of 33. Since the fastq format is limited to 94 quality values odd percentages over 86 are omitted. This mean `~` encodes 100% and `}` 98%. |
+| Systematic error file | .fq        | Standard fastq format. The sequence represents the error tendency and the quality the error rate in percent at that position. There are two entries per reference sequence. The order of the reference sequences must be kept. The length must match the length of the reference sequence. The first entry per reference sequence is the reverse strand and reverse complemented. So an A in the first position means that a systematic error towards a T is simulated for the last base of the reference sequence in reads on the reverse strand. The second entry is the forward strand taken as is, so not reverse complemented. The error rate in percent is encoded similar to quality values with an offset of 33. Since the fastq format is limited to 94 quality values odd percentages over 86 are omitted. This mean `~` encodes 100% and `}` 98%. |
 | Reference bias file   | .txt       | One line per specified bias. The line starts by a unique identifier of the reference sequence (the part before the first space in the reference sequence name in the reference file). The identifier can be followed by a space and after it some arbitrary information. The line ends with a space or tab separating a floating point number representing the bias for this sequence. It must be positive. All reference sequences in the reference file must have a bias given. However, the order of the sequences doesn't need to be kept and the bias for additional reference sequences could be specified. |
 
 ## <a name="libraries"></a>Included libraries
