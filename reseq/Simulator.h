@@ -92,16 +92,16 @@ namespace reseq{
 		public:
 			uintSeqLen position_;
 			std::vector<std::pair<seqan::Dna5,uintPercent>> var_errors_;
-			uintAlleleBitArray allele_;
+			std::array<uintAlleleBitArray, reseq::Reference::Variant::kMaxAlleles/64> allele_;
 
-			SysErrorVariant(uintSeqLen position, const std::vector<std::pair<seqan::Dna5,uintPercent>> &var_errors, uintAlleleBitArray allele):
+			SysErrorVariant(uintSeqLen position, const std::vector<std::pair<seqan::Dna5,uintPercent>> &var_errors, const std::array<uintAlleleBitArray, reseq::Reference::Variant::kMaxAlleles/64> &allele):
 				position_(position),
 				var_errors_(var_errors),
 				allele_(allele){
 			}
 
 			inline bool InAllele(uintAlleleId allele) const{
-				return (allele_ >> allele) & 1; // Get bit corresponding to allele
+				return (allele_.at(allele/64) >> (allele%64)) & 1; // Get bit corresponding to allele
 			}
 		};
 

@@ -28,60 +28,72 @@ void ReferenceTest::Register(){
 }
 
 void ReferenceTest::TestVariantClass(){
-	Reference::Variant test(0, "", 7);
+	Reference::Variant test(0, "", {7});
 	EXPECT_TRUE(test.InAllele(2));
 	EXPECT_TRUE(test.InAllele(1));
 	EXPECT_TRUE(test.InAllele(0));
 	EXPECT_EQ(0, test.FirstAllele());
 
-	test.allele_ = 6;
+	test.allele_.at(0) = 6;
 	EXPECT_TRUE(test.InAllele(2));
 	EXPECT_TRUE(test.InAllele(1));
 	EXPECT_FALSE(test.InAllele(0));
 	EXPECT_EQ(1, test.FirstAllele());
 
-	test.allele_ = 5;
+	test.allele_.at(0) = 5;
 	EXPECT_TRUE(test.InAllele(2));
 	EXPECT_FALSE(test.InAllele(1));
 	EXPECT_TRUE(test.InAllele(0));
 	EXPECT_EQ(0, test.FirstAllele());
 
-	test.allele_ = 4;
+	test.allele_.at(0) = 4;
 	EXPECT_TRUE(test.InAllele(2));
 	EXPECT_FALSE(test.InAllele(1));
 	EXPECT_FALSE(test.InAllele(0));
 	EXPECT_EQ(2, test.FirstAllele());
 
-	test.allele_ = 3;
+	test.allele_.at(0) = 3;
 	EXPECT_FALSE(test.InAllele(2));
 	EXPECT_TRUE(test.InAllele(1));
 	EXPECT_TRUE(test.InAllele(0));
 	EXPECT_EQ(0, test.FirstAllele());
 
-	test.allele_ = 2;
+	test.allele_.at(0) = 2;
 	EXPECT_FALSE(test.InAllele(2));
 	EXPECT_TRUE(test.InAllele(1));
 	EXPECT_FALSE(test.InAllele(0));
 	EXPECT_EQ(1, test.FirstAllele());
 
-	test.allele_ = 1;
+	test.allele_.at(0) = 1;
 	EXPECT_FALSE(test.InAllele(2));
 	EXPECT_FALSE(test.InAllele(1));
 	EXPECT_TRUE(test.InAllele(0));
 	EXPECT_EQ(0, test.FirstAllele());
+
+	test.allele_.at(1) = 1;
+	EXPECT_FALSE(test.InAllele(2));
+	EXPECT_FALSE(test.InAllele(1));
+	EXPECT_TRUE(test.InAllele(0));
+	EXPECT_TRUE(test.InAllele(64));
+	EXPECT_EQ(0, test.FirstAllele());
+
+	test.allele_.at(0) = 0;
+	EXPECT_FALSE(test.InAllele(0));
+	EXPECT_TRUE(test.InAllele(64));
+	EXPECT_EQ(64, test.FirstAllele());
 }
 
 void ReferenceTest::TestInsertVariant(){
 	ref_.variants_.resize(1);
-	ref_.InsertVariant(0, 0, DnaString("A"), 1);
-	ref_.InsertVariant(0, 1, DnaString("A"), 2);
-	ref_.InsertVariant(0, 1, DnaString("ACT"), 1);
-	ref_.InsertVariant(0, 1, DnaString("C"), 4);
-	ref_.InsertVariant(0, 1, DnaString(""), 8);
-	ref_.InsertVariant(0, 1, DnaString("C"), 16);
-	ref_.InsertVariant(0, 1, DnaString(""), 32);
-	ref_.InsertVariant(0, 1, DnaString("ACT"), 64);
-	ref_.InsertVariant(0, 1, DnaString("TG"), 128);
+	ref_.InsertVariant(0, 0, DnaString("A"), {1});
+	ref_.InsertVariant(0, 1, DnaString("A"), {2});
+	ref_.InsertVariant(0, 1, DnaString("ACT"), {1});
+	ref_.InsertVariant(0, 1, DnaString("C"), {4});
+	ref_.InsertVariant(0, 1, DnaString(""), {8});
+	ref_.InsertVariant(0, 1, DnaString("C"), {16});
+	ref_.InsertVariant(0, 1, DnaString(""), {32});
+	ref_.InsertVariant(0, 1, DnaString("ACT"), {64});
+	ref_.InsertVariant(0, 1, DnaString("TG"), {128});
 
 	const vector<Reference::Variant> &vars(ref_.variants_.at(0));
 	EXPECT_EQ(6, vars.size());
@@ -90,32 +102,32 @@ void ReferenceTest::TestInsertVariant(){
 		case 0:
 			EXPECT_EQ(0, vars.at(nvar).position_);
 			EXPECT_TRUE( vars.at(nvar).var_seq_ == "A" );
-			EXPECT_EQ(1, vars.at(nvar).allele_);
+			EXPECT_EQ(1, vars.at(nvar).allele_.at(0));
 			break;
 		case 1:
 			EXPECT_EQ(1, vars.at(nvar).position_);
 			EXPECT_TRUE( vars.at(nvar).var_seq_ == "" );
-			EXPECT_EQ(40, vars.at(nvar).allele_);
+			EXPECT_EQ(40, vars.at(nvar).allele_.at(0));
 			break;
 		case 2:
 			EXPECT_EQ(1, vars.at(nvar).position_);
 			EXPECT_TRUE( vars.at(nvar).var_seq_ == "A" );
-			EXPECT_EQ(2, vars.at(nvar).allele_);
+			EXPECT_EQ(2, vars.at(nvar).allele_.at(0));
 			break;
 		case 3:
 			EXPECT_EQ(1, vars.at(nvar).position_);
 			EXPECT_TRUE( vars.at(nvar).var_seq_ == "C" );
-			EXPECT_EQ(20, vars.at(nvar).allele_);
+			EXPECT_EQ(20, vars.at(nvar).allele_.at(0));
 			break;
 		case 4:
 			EXPECT_EQ(1, vars.at(nvar).position_);
 			EXPECT_TRUE( vars.at(nvar).var_seq_ == "TG" );
-			EXPECT_EQ(128, vars.at(nvar).allele_);
+			EXPECT_EQ(128, vars.at(nvar).allele_.at(0));
 			break;
 		case 5:
 			EXPECT_EQ(1, vars.at(nvar).position_);
 			EXPECT_TRUE( vars.at(nvar).var_seq_ == "ACT" );
-			EXPECT_EQ(65, vars.at(nvar).allele_);
+			EXPECT_EQ(65, vars.at(nvar).allele_.at(0));
 			break;
 		}
 	}
@@ -268,9 +280,9 @@ void ReferenceTest::TestLoadingAndAccess(){
 	EXPECT_EQ(10, length(test_string)) << "ReferenceSequence function does return correct size if reversed\n";
 
 	vector<Reference::Variant> test_variants;
-	test_variants.push_back({2, "", 2}); // Allele 1
-	test_variants.push_back({4, "TAG", 3}); // Allele 0 + 1
-	test_variants.push_back({9, "C", 1}); // Allele 0
+	test_variants.push_back({2, "", {2}}); // Allele 1
+	test_variants.push_back({4, "TAG", {3}}); // Allele 0 + 1
+	test_variants.push_back({9, "C", {1}}); // Allele 0
 	ref_.ReferenceSequence(test_string, 0, 0, 12, false, test_variants, {0, 0}, 0);
 	EXPECT_TRUE("AGCTTAGTTCAC" == test_string) << test_string << "\n";
 	ref_.ReferenceSequence(test_string, 0, 0, 11, false, test_variants, {0, 0}, 1);
@@ -292,7 +304,7 @@ void ReferenceTest::TestLoadingAndAccess(){
 	ref_.ReferenceSequence(test_string, 0, 5, 5, true, test_variants, {1, 1}, 0);
 	EXPECT_TRUE("AAGCT" == test_string) << test_string << "\n";
 
-	test_variants.push_back({499, "TAG", 3}); // Allele 0 + 1
+	test_variants.push_back({499, "TAG", {3}}); // Allele 0 + 1
 	ref_.ReferenceSequence(test_string, 0, 500, 12, true, test_variants, {3, 0}, 0);
 	EXPECT_TRUE("CTATGGTTTTTT" == test_string) << test_string << "\n";
 

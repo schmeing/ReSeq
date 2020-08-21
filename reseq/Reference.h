@@ -23,29 +23,34 @@ namespace reseq{
 #ifndef SWIG // This part is not needed for the python plotting and swig can't handle the nested classes
 		class Variant{
 		public:
-			static const uintAlleleId kMaxAlleles = 64; // One bit per allele is needed and uint64_t is used for allele_
+			static const uintAlleleId kMaxAlleles = 128; // One bit per allele is needed and uint64_t is used for allele_, only full multiples of 64 supported
 
 			uintSeqLen position_;
 			seqan::DnaString var_seq_;
-			uintAlleleBitArray allele_;
+			std::array<uintAlleleBitArray, kMaxAlleles/64> allele_;
 
-			template<typename T> Variant(uintSeqLen position, const T &var_seq, uintAlleleBitArray allele):
+			template<typename T> Variant(uintSeqLen position, const T &var_seq, const std::array<uintAlleleBitArray, kMaxAlleles/64> &allele):
 				position_(position),
 				var_seq_(var_seq),
 				allele_(allele){
 			}
 
 			inline bool InAllele(uintAlleleId allele) const{
-				return (allele_ >> allele) & 1; // Get bit corresponding to allele
+				return (allele_.at(allele/64) >> (allele%64)) & 1; // Get bit corresponding to allele
 			}
 
 			inline uintAlleleId FirstAllele() const{
-				if(allele_){
-					uintAlleleId first = 0;
-					while(!InAllele(first)){
-						++first;
+				uintAlleleId first = 0;
+				for( uintAlleleBitArray allele : allele_){
+					if(allele){
+						while(!InAllele(first)){
+							++first;
+						}
+						return first;
 					}
-					return first;
+					else{
+						first += 64;
+					}
 				}
 
 				printErr << "Variant belonging to no allele at position " << position_ << ": " << var_seq_ << std::endl;
@@ -107,7 +112,7 @@ namespace reseq{
 		// Variants private functions
 		bool CheckVcf() const;
 
-		template<typename T> void InsertVariant(uintRefSeqId ref_seq_id, uintSeqLen position, const T &var_seq, uintAlleleBitArray allele){
+		template<typename T> void InsertVariant(uintRefSeqId ref_seq_id, uintSeqLen position, const T &var_seq, const std::array<uintAlleleBitArray, Variant::kMaxAlleles/64> &allele){
 			if(0 == variants_.at(ref_seq_id).size()){
 				variants_.at(ref_seq_id).emplace_back(position, var_seq, allele);
 			}
@@ -118,7 +123,9 @@ namespace reseq{
 				while(0 < var && variants_.at(ref_seq_id).at(--var).position_ == position){
 					if(variants_.at(ref_seq_id).at(var).var_seq_ == var_seq){
 						// Variation is already in, so only adjust allele
-						variants_.at(ref_seq_id).at(var).allele_ = variants_.at(ref_seq_id).at(var).allele_ | allele;
+						for( auto block = variants_.at(ref_seq_id).at(var).allele_.size(); block--; ){
+							variants_.at(ref_seq_id).at(var).allele_.at(block) = variants_.at(ref_seq_id).at(var).allele_.at(block) | allele.at(block);
+						}
 						return;
 					}
 					else if(length(variants_.at(ref_seq_id).at(var).var_seq_) > length(var_seq)){

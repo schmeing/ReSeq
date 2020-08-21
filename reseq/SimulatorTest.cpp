@@ -147,7 +147,7 @@ void SimulatorTest::TestVariationInSimulateFromGivenBlock(){
 	species_reference_.variants_.clear();
 	species_reference_.variants_.resize(1);
 	species_reference_.variants_.at(0).clear();
-	uintAlleleBitArray present_in_alleles = 2; //[0:no, 1:yes]
+	std::array<uintAlleleBitArray, reseq::Reference::Variant::kMaxAlleles/64> present_in_alleles = {2}; //bitwise [0:no, 1:yes]
 	species_reference_.variants_.at(0).emplace_back(455, "", present_in_alleles);
 	species_reference_.variants_.at(0).emplace_back(1002, "TAC", present_in_alleles);
 	species_reference_.variants_.at(0).emplace_back(1004, "TGA", present_in_alleles);

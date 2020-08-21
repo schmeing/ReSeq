@@ -132,12 +132,12 @@ bool Reference::ReadVariants(uintRefSeqId end_ref_seq_id, bool positions_only){
 	uintSeqLen pos;
 	uintAlleleId cur_allele, chosen_var;
 	vector<uintAlleleId> allele;
-	vector<uintAlleleBitArray> gt_has_var;
+	vector<array<uintAlleleBitArray, Variant::kMaxAlleles/64>> gt_has_var;
 	vector<uintSeqLen> alt_start_pos;
 
 	if(!positions_only){
 		allele.resize(num_alleles_);
-		gt_has_var.resize(num_alleles_);
+		gt_has_var.reserve(num_alleles_); // Just a size guess, because there could be more or less alternative sequences specified than alleles present
 	}
 
 	uintRefSeqId old_ref_id = numeric_limits<uintRefSeqId>::max();
@@ -291,11 +291,11 @@ bool Reference::ReadVariants(uintRefSeqId end_ref_seq_id, bool positions_only){
 										alt_start_pos.push_back(pos+1); // Position after the ',' is the start of the next alternative
 
 										// Check which genotypes have this variant
-										gt_has_var.push_back(0);
+										gt_has_var.push_back({0});
 										for(cur_allele=num_alleles_; cur_allele--; ){ // Has to be backwards, because allele 0 is in the rightmost bit
-											gt_has_var.back() = gt_has_var.back() << 1;
+											gt_has_var.back().at(cur_allele/64) = gt_has_var.back().at(cur_allele/64) << 1;
 											if(allele.at(cur_allele) == chosen_var){
-												++gt_has_var.back();
+												++gt_has_var.back().at(cur_allele/64);
 											}
 										}
 										++chosen_var;
@@ -304,11 +304,11 @@ bool Reference::ReadVariants(uintRefSeqId end_ref_seq_id, bool positions_only){
 								alt_start_pos.push_back(pos+1); // To be in line with the one after the ',' we use here one after the end (which itself is one after the last character)
 
 								// Check which genotypes have the final variant
-								gt_has_var.push_back(0);
+								gt_has_var.push_back({0});
 								for(cur_allele=num_alleles_; cur_allele--; ){ // Has to be backwards, because allele 0 is in the rightmost bit
-									gt_has_var.back() = gt_has_var.back() << 1;
+									gt_has_var.back().at(cur_allele/64) = gt_has_var.back().at(cur_allele/64) << 1;
 									if(allele.at(cur_allele) == chosen_var){
-										++gt_has_var.back();
+										++gt_has_var.back().at(cur_allele/64);
 									}
 									else if(allele.at(cur_allele) > chosen_var){
 										if(++errors <= kMaxErrorsShownPerFile){
@@ -326,7 +326,13 @@ bool Reference::ReadVariants(uintRefSeqId end_ref_seq_id, bool positions_only){
 								for(pos = 0; pos < length(vcf_ref_var_); ++pos){
 									for(uintAlleleId n_alt = 0; n_alt < gt_has_var.size(); ++n_alt){
 										// Check if any genotype has this variant
-										if(gt_has_var.at(n_alt)){
+										bool variant_in_any_allele = false;
+										for(auto all : gt_has_var.at(n_alt)){
+											if(all){
+												variant_in_any_allele = true;
+											}
+										}
+										if(variant_in_any_allele){
 											// Enter record into variations vector
 											if(pos+1 == length(vcf_ref_var_) && pos+1 < alt_start_pos.at(n_alt+1)-1 - alt_start_pos.at(n_alt)){
 												// Insertion
