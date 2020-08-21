@@ -1229,6 +1229,7 @@ bool DataStats::ReadBam( const char *bam_file, const char *adapter_file, const c
 	reference_->ClearAllVariantPositions();
 
 	if(!success){
+		total_number_reads_ = 0; // Marking that the reading in was not successful
 		return false;
 	}
 
