@@ -2238,7 +2238,7 @@ bool Simulator::SimulateFromGivenBlock(
 										gc_perc = GetGCPercent( bias_mod, unit.ref_seq_id_, ref, cur_end_position, fragment_length, allele );
 
 										if(ref.VariantsLoaded()){
-											fragment_counts = stats.FragmentDistribution().GetFragmentCounts(bias_normalization_, unit.ref_seq_id_, fragment_length, gc_perc, bias_mod.surrounding_start_.at(allele), bias_mod.surrounding_end_.at(allele), probability_chosen.at(strand));
+											fragment_counts = stats.FragmentDistribution().GetFragmentCounts(bias_normalization_, unit.ref_seq_id_, fragment_length, gc_perc, bias_mod.surrounding_start_.at(allele), bias_mod.surrounding_end_.at(allele), probability_chosen.at(strand), ref.NumAlleles());
 										}
 										else{
 											fragment_counts = stats.FragmentDistribution().GetFragmentCounts(bias_normalization_, unit.ref_seq_id_, fragment_length, gc_perc, surrounding_start, bias_mod.surrounding_end_.at(allele), probability_chosen.at(strand));

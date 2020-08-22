@@ -430,7 +430,7 @@ namespace reseq{
 
 		uintRefSeqId SplitCoverageGroups(std::vector<uintRefSeqId> &coverage_groups) const;
 		static void BiasNormalizationThread( const FragmentDistributionStats &self, const Reference &reference, const std::vector<BiasCalculationParams> &params, std::atomic<uintNumFits> &current_param, std::vector<double> &norm, std::mutex &result_mutex, const std::vector<uintRefSeqId> &coverage_groups, std::vector<std::vector<double>> &max_bias );
-		double CalculateNonZeroThreshold(double bias_normalization, double max_bias) const;
+		double CalculateNonZeroThreshold(double bias_normalization, double max_bias, uintAlleleId num_alleles=1) const;
 		
 		// Boost archive functions
 		friend class boost::serialization::access;
@@ -586,7 +586,7 @@ namespace reseq{
 
 		static uintDupCount NegativeBinomial(double p, double r, double probability_chosen);
 		double Dispersion(double bias) const{ return BiasCalculationVectors::GetDispersion( bias, dispersion_parameters_.at(0), dispersion_parameters_.at(1) ); }
-		uintDupCount GetFragmentCounts(double bias_normalization, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintPercent gc, const Surrounding &fragment_start, const Surrounding &fragment_end, double probability_chosen) const;
+		uintDupCount GetFragmentCounts(double bias_normalization, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintPercent gc, const Surrounding &fragment_start, const Surrounding &fragment_end, double probability_chosen, uintAlleleId num_alleles=1) const;
 
 		void PreparePlotting();
 

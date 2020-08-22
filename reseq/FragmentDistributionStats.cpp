@@ -2924,11 +2924,13 @@ void FragmentDistributionStats::BiasNormalizationThread(
 	result_mutex.unlock();
 }
 
-double FragmentDistributionStats::CalculateNonZeroThreshold(double bias_normalization, double max_bias) const{
+double FragmentDistributionStats::CalculateNonZeroThreshold(double bias_normalization, double max_bias, uintAlleleId num_alleles) const{
 	// Threshold that random number from fragment generation has to reach or fragment count will be zero and does not have to be calculated
-	double max_dispersion( Dispersion(bias_normalization*max_bias) );
+	double max_mean = bias_normalization*max_bias;
+	double max_dispersion( Dispersion(max_mean)/num_alleles );
+	max_mean /= num_alleles;
 
-	return pow(max_dispersion/(max_dispersion+bias_normalization*max_bias), max_dispersion); // Lowest possible F(0) for negative binomial
+	return pow(max_dispersion/(max_dispersion+max_mean), max_dispersion); // Lowest possible F(0) for negative binomial
 }
 
 void FragmentDistributionStats::SetUniformBias(){
@@ -3416,7 +3418,7 @@ double FragmentDistributionStats::CalculateBiasNormalization(vector<uintRefSeqId
 	for(auto norm : normalization_by_frag_len){
 		normalization += norm;
 	}
-	double full_normalization = total_reads / (normalization * 2) / reference.NumAlleles(); // Bias is equal for both strands so it is only calculated for one, but the number of fragments at a site is calculated separately per strand: This means we have to half the calculated number of reads
+	double full_normalization = total_reads / (normalization * 2); // Bias is equal for both strands so it is only calculated for one, but the number of fragments at a site is calculated separately per strand: This means we have to half the calculated number of reads
 
 	for( auto &thresholds : non_zero_thresholds ){
 		for( auto &thresh : thresholds){
@@ -3424,7 +3426,7 @@ double FragmentDistributionStats::CalculateBiasNormalization(vector<uintRefSeqId
 				thresh = 1.0; // If the bias is zero we cannot get fragment counts drawn for this
 			}
 			else{
-				thresh = CalculateNonZeroThreshold(full_normalization, thresh);
+				thresh = CalculateNonZeroThreshold(full_normalization, thresh, reference.NumAlleles());
 			}
 		}
 	}
@@ -3445,11 +3447,12 @@ reseq::uintDupCount FragmentDistributionStats::NegativeBinomial(double p, double
 	return count;
 }
 
-reseq::uintDupCount FragmentDistributionStats::GetFragmentCounts(double bias_normalization, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintPercent gc, const Surrounding &fragment_start, const Surrounding &fragment_end, double probability_chosen) const{
+reseq::uintDupCount FragmentDistributionStats::GetFragmentCounts(double bias_normalization, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintPercent gc, const Surrounding &fragment_start, const Surrounding &fragment_end, double probability_chosen, uintAlleleId num_alleles) const{
 	double bias( Reference::Bias( ref_seq_bias_.at(ref_seq_id), insert_lengths_bias_[fragment_length], gc_fragment_content_bias_[gc], fragment_surroundings_bias_.Bias(fragment_start), fragment_surroundings_bias_.Bias(fragment_end) ) );
 	if(0.0 < bias){
 		double mean( bias * bias_normalization );
-		double dispersion( Dispersion(mean) );
+		double dispersion( Dispersion(mean)/num_alleles );
+		mean /= num_alleles;
 
 		return NegativeBinomial(mean/(mean+dispersion), dispersion, probability_chosen);
 	}
