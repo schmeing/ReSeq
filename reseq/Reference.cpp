@@ -209,10 +209,12 @@ bool Reference::ReadVariants(uintRefSeqId end_ref_seq_id, bool positions_only){
 							if(cur_allele >= num_alleles_){
 								tmp_success = false;
 								printErr << "Found to many alleles in genotype definition '";
-								for( auto &genotype : cur_vcf_record_.genotypeInfos ){
-									std::cerr << ' ' << genotype;
+								if(0 < kVerbosityLevel){
+									for( auto &genotype : cur_vcf_record_.genotypeInfos ){
+										std::cerr << ' ' << genotype;
+									}
+									std::cerr << "'" << std::endl;
 								}
-								std::cerr << "'" << std::endl;
 								if(++errors >= kMaxErrorsShownPerFile){
 									printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
 								}
@@ -260,10 +262,12 @@ bool Reference::ReadVariants(uintRefSeqId end_ref_seq_id, bool positions_only){
 						if(cur_allele < num_alleles_){
 							tmp_success = false;
 							printErr << "Could not find enough alleles in genotype definition '";
-							for( auto &genotype : cur_vcf_record_.genotypeInfos ){
-								std::cerr << ' ' << genotype;
+							if(0 < kVerbosityLevel){
+								for( auto &genotype : cur_vcf_record_.genotypeInfos ){
+									std::cerr << ' ' << genotype;
+								}
+								std::cerr << "'" << std::endl;
 							}
-							std::cerr << "'" << std::endl;
 							if(++errors >= kMaxErrorsShownPerFile){
 								printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
 								break;
@@ -424,11 +428,13 @@ bool Reference::ReadVariants(uintRefSeqId end_ref_seq_id, bool positions_only){
 void Reference::CloseVcfFile(){
 	if(VcfRecord::INVALID_REFID != cur_vcf_record_.rID){
 		printWarn << "The sequences in variant file are not sorted according to the reference. The following variation record and all after it have been ignored during simulation:" << std::endl;
-		std::cerr << cur_vcf_record_.rID << '\t' << cur_vcf_record_.beginPos+1 << '\t' << cur_vcf_record_.id << '\t' << cur_vcf_record_.ref << '\t' << cur_vcf_record_.alt << '\t' << cur_vcf_record_.qual << '\t' << cur_vcf_record_.filter << '\t' << cur_vcf_record_.info << '\t' << cur_vcf_record_.format;
-		for(auto &genotype : cur_vcf_record_.genotypeInfos){
-			std::cerr << '\t' << genotype;
+		if(1 < kVerbosityLevel){
+			std::cerr << cur_vcf_record_.rID << '\t' << cur_vcf_record_.beginPos+1 << '\t' << cur_vcf_record_.id << '\t' << cur_vcf_record_.ref << '\t' << cur_vcf_record_.alt << '\t' << cur_vcf_record_.qual << '\t' << cur_vcf_record_.filter << '\t' << cur_vcf_record_.info << '\t' << cur_vcf_record_.format;
+			for(auto &genotype : cur_vcf_record_.genotypeInfos){
+				std::cerr << '\t' << genotype;
+			}
+			std::cerr << std::endl;
 		}
-		std::cerr << std::endl;
 	}
 	clear(contigNames(context(vcf_file_)));
 	clear(contigNamesCache(context(vcf_file_)));
@@ -439,7 +445,9 @@ void Reference::CloseVcfFile(){
 void Reference::CloseMethylationFile(){
 	if(!methylation_file_.eof()){
 		printWarn << "The sequences in methylation file are not sorted according to the reference. The following methylation line and all after it have been ignored during simulation:" << std::endl;
-		std::cerr << cur_methylation_line_ << std::endl;
+		if(1 < kVerbosityLevel){
+			std::cerr << cur_methylation_line_ << std::endl;
+		}
 	}
 	methylation_file_.close();
 }

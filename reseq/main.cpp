@@ -76,8 +76,10 @@ bool AutoDetectThreads(uintNumThreads &num_threads, const options_description &o
 		num_threads = std::thread::hardware_concurrency();
 		if(0 == num_threads){
 			printErr << "Automatic detection of available cores failed." << std::endl;
-			cerr << usage_str;
-			cerr << opt_desc << std::endl;
+			if(0 < kVerbosityLevel){
+				cerr << usage_str;
+				cerr << opt_desc << std::endl;
+			}
 			return false;
 		}
 		else{
@@ -127,25 +129,33 @@ void GetDataStats(DataStats &real_data_stats, string &stats_file, bool &loaded_s
 	bool tiles = opts_map.count("tiles");
 	if(no_tiles && tiles){
 		printErr << "noTiles and tiles options are exclusive." << std::endl;
-		cerr << usage_str;
-		cerr << opt_desc << std::endl;
+		if(0 < kVerbosityLevel){
+			cerr << usage_str;
+			cerr << opt_desc << std::endl;
+		}
 	}
 
 	if(opts_map.end() == it_bam_in){ // "bamIn" hasn't been found
 		if( stats_only ){
 			printErr << "With statsOnly option bamIn option is mandatory." << std::endl;
-			cerr << usage_str;
-			cerr << opt_desc << std::endl;
+			if(0 < kVerbosityLevel){
+				cerr << usage_str;
+				cerr << opt_desc << std::endl;
+			}
 		}
 		else if( no_tiles || tiles ){
 			printErr << (no_tiles ? "noTiles" : "tiles") << " option can only be specified for generation of statistics. After that it depends on the statistics loaded." << std::endl;
-			cerr << usage_str;
-			cerr << opt_desc << std::endl;
+			if(0 < kVerbosityLevel){
+				cerr << usage_str;
+				cerr << opt_desc << std::endl;
+			}
 		}
 		else if(opts_map.end() == it_stats_in){ // "statsIn" hasn't been found
 			printErr << "Either bamIn or statsIn option are mandatory." << std::endl;
-			cerr << usage_str;
-			cerr << opt_desc << std::endl;
+			if(0 < kVerbosityLevel){
+				cerr << usage_str;
+				cerr << opt_desc << std::endl;
+			}
 		}
 		else{
 			if(opts_map.end() != it_stats_out){
@@ -212,8 +222,11 @@ void GetDataStats(DataStats &real_data_stats, string &stats_file, bool &loaded_s
 						}
 						if(failed){
 							printErr << "Switching extension of adapter-sequence file did not result in valid matrix file. Please specify the matrix file." << std::endl;
-							cerr << usage_str;
-							cerr << opt_desc << std::endl;
+							if(0 < kVerbosityLevel){
+								cerr << usage_str;
+								cerr << opt_desc << std::endl;
+							}
+
 							adapter_file = "";
 							adapter_matrix = "error";
 						}
@@ -232,8 +245,10 @@ void GetDataStats(DataStats &real_data_stats, string &stats_file, bool &loaded_s
 					}
 					if(failed){
 						printErr << "Switching extension of adapter-matrix file did not result in valid sequence file. Please specify the sequence file." << std::endl;
-						cerr << usage_str;
-						cerr << opt_desc << std::endl;
+						if(0 < kVerbosityLevel){
+							cerr << usage_str;
+							cerr << opt_desc << std::endl;
+						}
 						adapter_file = "";
 						adapter_matrix = "error";
 					}
@@ -323,8 +338,10 @@ bool WriteSysError(string &sys_error_file, uintSeed &seed, bool stop_after_estim
 		if(stop_after_estimation){
 			if(opts_map.end() != it_read ){
 				printWarn << "readSysError option is only for simulation, so it's useless with the stopAfterEstimation option." << std::endl;
-				cerr << usage_str;
-				cerr << opt_desc << std::endl;
+				if(0 < kVerbosityLevel){
+					cerr << usage_str;
+					cerr << opt_desc << std::endl;
+				}
 				return false;
 			}
 		}
@@ -342,8 +359,10 @@ bool WriteSysError(string &sys_error_file, uintSeed &seed, bool stop_after_estim
 	else{
 		if(opts_map.end() != it_read){
 			printErr << "writeSysError and readSysError option are mutually exclusive. Specify the one or the other." << std::endl;
-			cerr << usage_str;
-			cerr << opt_desc << std::endl;
+			if(0 < kVerbosityLevel){
+				cerr << usage_str;
+				cerr << opt_desc << std::endl;
+			}
 			return false;
 		}
 		else{
@@ -411,7 +430,9 @@ int main(int argc, char *argv[]) {
 	}
 	catch(const exception& e) {
 		printErr << "Could not parse general command line arguments: " << e.what() << std::endl;
-		cerr << opt_desc_full << std::endl;
+		if(0 < kVerbosityLevel){
+			cerr << opt_desc_full << std::endl;
+		}
 		return 1;
 	}
 
@@ -440,7 +461,9 @@ int main(int argc, char *argv[]) {
 		printInfo << "Running ReSeq version " << RESEQ_VERSION_MAJOR << '.' << RESEQ_VERSION_MINOR; // Always show version
 
 		if ("queryProfile" == unrecognized_opts.at(0)) {
-			cerr << " in queryProfile mode" << std::endl;
+			if(2 < kVerbosityLevel){
+				cerr << " in queryProfile mode" << std::endl;
+			}
 			unrecognized_opts.erase(unrecognized_opts.begin());
 
 			options_description opt_desc("queryProfile");
@@ -460,8 +483,10 @@ int main(int argc, char *argv[]) {
 			}
 			catch (const exception& e) {
 				printErr << "Could not parse queryProfile command line arguments: " << e.what() << std::endl;
-				cerr << usage_str;
-				cerr << opt_desc_full << std::endl;
+				if(0 < kVerbosityLevel){
+					cerr << usage_str;
+					cerr << opt_desc_full << std::endl;
+				}
 				return 1;
 			}
 
@@ -476,8 +501,10 @@ int main(int argc, char *argv[]) {
 				if(opts_map.end() == it_ref){
 					if (opts_map.end() != it_refseq_bias){
 						printErr << "ref option is required for refSeqBias output." << std::endl;
-						cerr << usage_str;
-						cerr << opt_desc_full << std::endl;
+						if(0 < kVerbosityLevel){
+							cerr << usage_str;
+							cerr << opt_desc_full << std::endl;
+						}
 						return 1;
 					}
 				}
@@ -489,8 +516,10 @@ int main(int argc, char *argv[]) {
 				auto it_stats = opts_map.find("stats");
 				if(opts_map.end() == it_stats){
 					printErr << "stats option is mandatory." << std::endl;
-					cerr << usage_str;
-					cerr << opt_desc_full << std::endl;
+					if(0 < kVerbosityLevel){
+						cerr << usage_str;
+						cerr << opt_desc_full << std::endl;
+					}
 					return 1;
 				}
 				else{
@@ -544,8 +573,10 @@ int main(int argc, char *argv[]) {
 
 						if(no_output){
 							printErr << "No output option was selected." << std::endl;
-							cerr << usage_str;
-							cerr << opt_desc_full << std::endl;
+							if(0 < kVerbosityLevel){
+								cerr << usage_str;
+								cerr << opt_desc_full << std::endl;
+							}
 							return 1;
 						}
 
@@ -560,7 +591,9 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		else if ("replaceN" == unrecognized_opts.at(0)) {
-			cerr << " in replaceN mode" << std::endl;
+			if(2 < kVerbosityLevel){
+				cerr << " in replaceN mode" << std::endl;
+			}
 			unrecognized_opts.erase(unrecognized_opts.begin());
 
 			options_description opt_desc("ReplaceN");
@@ -578,8 +611,10 @@ int main(int argc, char *argv[]) {
 			}
 			catch (const exception& e) {
 				printErr << "Could not parse replaceN command line arguments: " << e.what() << std::endl;
-				cerr << usage_str;
-				cerr << opt_desc_full << std::endl;
+				if(0 < kVerbosityLevel){
+					cerr << usage_str;
+					cerr << opt_desc_full << std::endl;
+				}
 				return 1;
 			}
 
@@ -596,8 +631,10 @@ int main(int argc, char *argv[]) {
 				string ref_input, ref_output;
 				if(opts_map.end() == it_ref_in){
 					printErr << "refIn option is mandatory." << std::endl;
-					cerr << usage_str;
-					cerr << opt_desc_full << std::endl;
+					if(0 < kVerbosityLevel){
+						cerr << usage_str;
+						cerr << opt_desc_full << std::endl;
+					}
 					return 1;
 				}
 				else{
@@ -606,8 +643,10 @@ int main(int argc, char *argv[]) {
 
 					if(opts_map.end() == it_ref_out){
 						printErr << "refSim option is mandatory." << std::endl;
-						cerr << usage_str;
-						cerr << opt_desc_full << std::endl;
+						if(0 < kVerbosityLevel){
+							cerr << usage_str;
+							cerr << opt_desc_full << std::endl;
+						}
 						return 1;
 					}
 					else{
@@ -635,7 +674,9 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		else if("illuminaPE" == unrecognized_opts.at(0)) {
-			cerr << " in illuminaPE mode" << std::endl;
+			if(2 < kVerbosityLevel){
+				cerr << " in illuminaPE mode" << std::endl;
+			}
 			unrecognized_opts.erase(unrecognized_opts.begin());
 
 			uintNumFits ipf_iterations;
@@ -701,8 +742,10 @@ int main(int argc, char *argv[]) {
 			}
 			catch(const exception& e) {
 				printErr << "Could not parse illuminaPE command line arguments: " << e.what() << std::endl;
-				cerr << usage_str;
-				cerr << opt_desc_full << std::endl;
+				if(0 < kVerbosityLevel){
+					cerr << usage_str;
+					cerr << opt_desc_full << std::endl;
+				}
 				return 1;
 			}
 
@@ -712,14 +755,18 @@ int main(int argc, char *argv[]) {
 			}
 			else if( ipf_precision < 0.0 ){
 				printErr << "ipfPrecision must be positive." << std::endl;
-				cerr << usage_str;
-				cerr << opt_desc_full << std::endl;
+				if(0 < kVerbosityLevel){
+					cerr << usage_str;
+					cerr << opt_desc_full << std::endl;
+				}
 				return 1;
 			}
 			else if(0 != num_read_pairs && 0.0 != coverage){
 				printErr << "numReads and coverage set the same value. Use either the one or the other." << std::endl;
-				cerr << usage_str;
-				cerr << opt_desc_full << std::endl;
+				if(0 < kVerbosityLevel){
+					cerr << usage_str;
+					cerr << opt_desc_full << std::endl;
+				}
 				return 1;
 			}
 			else if(!AutoDetectThreads(num_threads, opt_desc_full, usage_str)){
@@ -731,8 +778,10 @@ int main(int argc, char *argv[]) {
 				bool stop_after_estimation = opts_map.count("stopAfterEstimation");
 				if(opts_map.end() == it_ref_in && opts_map.end() == it_ref_out && (!stop_after_estimation || !opts_map.count("statsIn") || opts_map.count("writeSysError"))){
 					printErr << "refIn or refSim option mandatory." << std::endl;
-					cerr << usage_str;
-					cerr << opt_desc_full << std::endl;
+					if(0 < kVerbosityLevel){
+						cerr << usage_str;
+						cerr << opt_desc_full << std::endl;
+					}
 					return 1;
 				}
 				else{
@@ -823,8 +872,10 @@ int main(int argc, char *argv[]) {
 												}
 												else{
 													printErr << "Unknown option for refBias: " << ref_bmodel << std::endl;
-													cerr << usage_str;
-													cerr << opt_desc_full << std::endl;
+													if(0 < kVerbosityLevel){
+														cerr << usage_str;
+														cerr << opt_desc_full << std::endl;
+													}
 													ref_bias_model = RefSeqBiasSimulation::kError;
 												}
 											}
@@ -838,8 +889,10 @@ int main(int argc, char *argv[]) {
 											if(RefSeqBiasSimulation::kFile == ref_bias_model){
 												if(opts_map.end() == it_ref_bias_file){
 													printErr << "refBiasFile option mandatory if for refBias option file was chosen" << std::endl;
-													cerr << usage_str;
-													cerr << opt_desc_full << std::endl;
+													if(0 < kVerbosityLevel){
+														cerr << usage_str;
+														cerr << opt_desc_full << std::endl;
+													}
 													ref_bias_model = RefSeqBiasSimulation::kError;
 												}
 												else{
@@ -849,8 +902,10 @@ int main(int argc, char *argv[]) {
 											else{
 												if(opts_map.end() != it_ref_bias_file){
 													printErr << "refBiasFile option only allowed if for refBias option file was chosen" << std::endl;
-													cerr << usage_str;
-													cerr << opt_desc_full << std::endl;
+													if(0 < kVerbosityLevel){
+														cerr << usage_str;
+														cerr << opt_desc_full << std::endl;
+													}
 													ref_bias_model = RefSeqBiasSimulation::kError;
 												}
 											}
@@ -864,8 +919,10 @@ int main(int argc, char *argv[]) {
 
 												if(opts_map.end() == it_var_file && opts_map.count("vcfIn") && opts_map.count("statsIn")){
 													printErr << "vcfIn specified but not used as stats were loaded. Did you mean vcfSim?" << std::endl;
-													cerr << usage_str;
-													cerr << opt_desc_full << std::endl;
+													if(0 < kVerbosityLevel){
+														cerr << usage_str;
+														cerr << opt_desc_full << std::endl;
+													}
 													return 1;
 												}
 												else{
@@ -898,7 +955,9 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		else if("seqToIllumina" == unrecognized_opts.at(0)){
-			cerr << " in seqToIllumina mode" << std::endl;
+			if(2 < kVerbosityLevel){
+				cerr << " in seqToIllumina mode" << std::endl;
+			}
 			unrecognized_opts.erase(unrecognized_opts.begin());
 
 			double error_mutliplier;
@@ -926,8 +985,10 @@ int main(int argc, char *argv[]) {
 			}
 			catch(const exception& e) {
 				printErr << "Could not parse seqToIllumina command line arguments: " << e.what() << std::endl;
-				cerr << usage_str;
-				cerr << opt_desc_full << std::endl;
+				if(0 < kVerbosityLevel){
+					cerr << usage_str;
+					cerr << opt_desc_full << std::endl;
+				}
 				return 1;
 			}
 
@@ -937,8 +998,10 @@ int main(int argc, char *argv[]) {
 			}
 			else if( ipf_precision < 0.0 ){
 				printErr << "ipfPrecision must be positive." << std::endl;
-				cerr << usage_str;
-				cerr << opt_desc_full << std::endl;
+				if(0 < kVerbosityLevel){
+					cerr << usage_str;
+					cerr << opt_desc_full << std::endl;
+				}
 				return 1;
 			}
 			else if(!AutoDetectThreads(num_threads, opt_desc_full, usage_str)){
@@ -951,8 +1014,10 @@ int main(int argc, char *argv[]) {
 				auto it_stats_in = opts_map.find("statsIn");
 				if(opts_map.end() == it_stats_in){ // "statsIn" hasn't been found
 					printErr << "statsIn option is mandatory." << std::endl;
-					cerr << usage_str;
-					cerr << opt_desc << std::endl;
+					if(0 < kVerbosityLevel){
+						cerr << usage_str;
+						cerr << opt_desc << std::endl;
+					}
 				}
 				else{
 					auto stats_file = it_stats_in->second.as<string>();
@@ -1011,7 +1076,9 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		else if("test" == unrecognized_opts.at(0)) {
-			cerr << " in test mode" << std::endl;
+			if(2 < kVerbosityLevel){
+				cerr << " in test mode" << std::endl;
+			}
 
 			string usage_str = "Usage: reseq test [options]\n";
 
@@ -1064,9 +1131,13 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		else{
-			cerr << std::endl;
+			if(2 < kVerbosityLevel){
+				cerr << std::endl;
+			}
 			printErr << "Unrecognized command: '" << unrecognized_opts.at(0) << "'" << std::endl;
-			cerr << general_usage << std::endl;
+			if(0 < kVerbosityLevel){
+				cerr << general_usage << std::endl;
+			}
 		}
 	}
 

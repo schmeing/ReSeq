@@ -396,14 +396,16 @@ template<uintMarginId N> bool DataStorage<N>::SetUp(const array< pair< const Vec
 			if(! (dim_control_a == dim_control.at(dim_a)) ){
 				print_mutex.lock();
 				printErr << "The dimension " << dim_a << " is inconsistent in margin " << n << ":" << std::endl;
-				for(auto element : dim_control_a){
-					std::cerr << element << ' ';
+				if(0 < kVerbosityLevel){
+					for(auto element : dim_control_a){
+						std::cerr << element << ' ';
+					}
+					std::cerr << std::endl;
+					for(auto element : dim_control.at(dim_a)){
+						std::cerr << element << ' ';
+					}
+					std::cerr << std::endl;
 				}
-				std::cerr << std::endl;
-				for(auto element : dim_control.at(dim_a)){
-					std::cerr << element << ' ';
-				}
-				std::cerr << std::endl;
 				print_mutex.unlock();
 				return false;
 			}
@@ -416,14 +418,16 @@ template<uintMarginId N> bool DataStorage<N>::SetUp(const array< pair< const Vec
 			if(! (dim_control_b == dim_control.at(dim_b)) ){
 				print_mutex.lock();
 				printErr << "The dimension " << dim_b << " is inconsistent in margin " << n << ":" << std::endl;
-				for(auto element : dim_control_b){
-					std::cerr << element << ' ';
+				if(0 < kVerbosityLevel){
+					for(auto element : dim_control_b){
+						std::cerr << element << ' ';
+					}
+					std::cerr << std::endl;
+					for(auto element : dim_control.at(dim_b)){
+						std::cerr << element << ' ';
+					}
+					std::cerr << std::endl;
 				}
-				std::cerr << std::endl;
-				for(auto element : dim_control.at(dim_b)){
-					std::cerr << element << ' ';
-				}
-				std::cerr << std::endl;
 				print_mutex.unlock();
 				return false;
 			}
