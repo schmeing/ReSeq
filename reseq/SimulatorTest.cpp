@@ -41,6 +41,25 @@ void SimulatorTest::TearDown(){
 	DeleteTestObject();
 }
 
+void SimulatorTest::ChooseAlleles(vector<uintAlleleId> &chosen_allele_ids, vector<bool> &reverse_selection, uintAlleleId non_zero_strands, uintAlleleId possible_strands) const{
+	EXPECT_FALSE( non_zero_strands <= possible_strands/2 ) << "Not all alleles were select in the test. Something went wrong";
+
+	// More than half the possible alleles need to be drawn: Draw inverse selection
+	chosen_allele_ids.clear();
+	reverse_selection.clear();
+	reverse_selection.resize(possible_strands, true);
+	while( chosen_allele_ids.size() < possible_strands-non_zero_strands ){
+		double random_value = 0.5;
+		test_->SelectAllele(chosen_allele_ids, reverse_selection, possible_strands, random_value);
+	}
+
+	EXPECT_EQ(possible_strands-non_zero_strands, chosen_allele_ids.size());
+
+	test_->ReverseSelection(chosen_allele_ids, reverse_selection, possible_strands);
+
+	EXPECT_EQ(possible_strands, chosen_allele_ids.size());
+}
+
 void SimulatorTest::TestCoverageConversion(){
 	// CoveragePropLostFromAdapters
 	DataStats stats(NULL);
@@ -67,6 +86,33 @@ void SimulatorTest::TestCoverageConversion(){
 	EXPECT_NEAR( coverage, test_->NumberPairsToCoverage(total_pairs, total_ref_size, average_read_length, adapter_part), 0.01 );
 }
 
+void SimulatorTest::TestSelectAllele(){
+	// Test 2 alleles
+	vector<uintAlleleId> chosen_allele_ids;
+	vector<bool> reverse_selection;
+
+	reverse_selection.resize(2, true);
+	while( chosen_allele_ids.size() < 2 ){
+		test_->SelectAllele(chosen_allele_ids, reverse_selection, 2, 0.5);
+	}
+
+	EXPECT_EQ(1, chosen_allele_ids.at(0));
+	EXPECT_EQ(0, chosen_allele_ids.at(1));
+
+	// Test 4 alleles
+	chosen_allele_ids.clear();
+	reverse_selection.clear();
+	reverse_selection.resize(4, true);
+	while( chosen_allele_ids.size() < 4 ){
+		test_->SelectAllele(chosen_allele_ids, reverse_selection, 4, 0.5);
+	}
+
+	EXPECT_EQ(2, chosen_allele_ids.at(0));
+	EXPECT_EQ(1, chosen_allele_ids.at(1));
+	EXPECT_EQ(3, chosen_allele_ids.at(2));
+	EXPECT_EQ(0, chosen_allele_ids.at(3));
+}
+
 void SimulatorTest::TestVariationInInnerLoopOfSimulateFromGivenBlock(
 		Simulator::VariantBiasVarModifiers &bias_mod,
 		uintRefSeqId ref_seq_id,
@@ -80,6 +126,7 @@ void SimulatorTest::TestVariationInInnerLoopOfSimulateFromGivenBlock(
 		array<vector<intSeqShift>, 2> end_pos_shift,
 		array<uintSeqLen, 2> modified_start_pos,
 		array<Reference *, 2> comp_ref){
+	// Preparation
 	DataStats stats(NULL);
 	stats.read_lengths_.at(0)[100];
 	stats.read_lengths_.at(1)[100];
@@ -92,15 +139,27 @@ void SimulatorTest::TestVariationInInnerLoopOfSimulateFromGivenBlock(
 	uintPercent gc_perc;
 	uintSeqLen cur_end_position;
 
-	array<double, 2> probability_chosen;
-	probability_chosen.fill(1.0);
+	vector<uintAlleleId> possible_alleles, chosen_allele_ids;
+	vector<bool> reverse_selection;
 
+	double probability_chosen = 1.0;
+
+	// Inner loop
 	auto frag_len_start = frag_length_from;
+	test_->GetPossibleAlleles(possible_alleles, species_reference_, bias_mod, cur_start_position, ref_seq_id);
 
 	for( auto fragment_length=frag_len_start; fragment_length < frag_length_to; ++fragment_length){
-		for(uintAlleleId allele=0; allele < species_reference_.NumAlleles(); ++allele){
-			if( !species_reference_.VariantsLoaded() || !test_->AlleleSkipped(bias_mod, allele, species_reference_.Variants(ref_seq_id), cur_start_position) ){
-				if(test_->ProbabilityAboveThreshold(probability_chosen, ref_seq_id, fragment_length)){
+		if(test_->ProbabilityAboveThreshold(probability_chosen, ref_seq_id, fragment_length)){
+			auto non_zero_strands = stats.FragmentDistribution().DrawNumberNonZeroStrands( possible_alleles.size(), test_->NonZeroThreshold(ref_seq_id, fragment_length), probability_chosen );
+			EXPECT_EQ(2*possible_alleles.size(), non_zero_strands);
+
+			if( non_zero_strands ){
+				ChooseAlleles(chosen_allele_ids, reverse_selection, non_zero_strands, 2*possible_alleles.size());
+
+				for(auto chosen_id : chosen_allele_ids){
+					auto allele = possible_alleles.at(chosen_id/2);
+					bool strand = chosen_id%2;
+
 					test_->PrepareBiasModForCurrentFragmentLength( bias_mod, ref_seq_id, species_reference_, cur_start_position, fragment_length, allele );
 
 					comp_ref.at(allele)->ReverseSurrounding( comp_surrounding, ref_seq_id, modified_start_pos.at(allele)+fragment_length-1 );
@@ -116,20 +175,16 @@ void SimulatorTest::TestVariationInInnerLoopOfSimulateFromGivenBlock(
 
 					cur_end_position = cur_start_position + fragment_length + bias_mod.end_pos_shift_.at(allele);
 					if( cur_end_position < species_reference_.SequenceLength(ref_seq_id)){
-						for(bool strand : { false, true }){
-							if(test_->ProbabilityAboveThreshold(probability_chosen, strand, ref_seq_id, fragment_length)){
-								// Determine how many read pairs are generated for this strand and allele at this position with this fragment_length
-								gc_perc = test_->GetGCPercent( bias_mod, ref_seq_id, species_reference_, cur_end_position, fragment_length, allele );
-								EXPECT_EQ( Percent(comp_ref.at(allele)->GCContentAbsolut( ref_seq_id, modified_start_pos.at(allele), modified_start_pos.at(allele)+fragment_length ), fragment_length), gc_perc );
+						// Determine how many read pairs are generated for this strand and allele at this position with this fragment_length
+						gc_perc = test_->GetGCPercent( bias_mod, ref_seq_id, species_reference_, cur_end_position, fragment_length, allele );
+						EXPECT_EQ( Percent(comp_ref.at(allele)->GCContentAbsolut( ref_seq_id, modified_start_pos.at(allele), modified_start_pos.at(allele)+fragment_length ), fragment_length), gc_perc );
 
-								test_->GetOrgSeq(sim_reads, strand, allele, fragment_length, cur_start_position, cur_end_position, ref_seq_id, species_reference_, stats, bias_mod);
+						test_->GetOrgSeq(sim_reads, strand, allele, fragment_length, cur_start_position, cur_end_position, ref_seq_id, species_reference_, stats, bias_mod);
 
-								EXPECT_TRUE( infix(comp_ref.at(allele)->ReferenceSequence(ref_seq_id), modified_start_pos.at(allele), modified_start_pos.at(allele)+fragment_length) == prefix(sim_reads.at(strand).org_seq_, fragment_length) ) << prefix(sim_reads.at(strand).org_seq_, fragment_length) << std::endl << "Start position: " << cur_start_position << " Fragment length: " << fragment_length << " Allele: " << allele << std::endl;
-								EXPECT_TRUE( ReverseComplementorDna(infix(comp_ref.at(allele)->ReferenceSequence(ref_seq_id), modified_start_pos.at(allele), modified_start_pos.at(allele)+fragment_length)) == prefix(sim_reads.at(!strand).org_seq_, fragment_length) ) << prefix(sim_reads.at(!allele).org_seq_, fragment_length) << std::endl << "Start position: " << cur_start_position << " Fragment length: " << fragment_length << " Allele: " << allele << std::endl;
+						EXPECT_TRUE( infix(comp_ref.at(allele)->ReferenceSequence(ref_seq_id), modified_start_pos.at(allele), modified_start_pos.at(allele)+fragment_length) == prefix(sim_reads.at(strand).org_seq_, fragment_length) ) << prefix(sim_reads.at(strand).org_seq_, fragment_length) << std::endl << "Start position: " << cur_start_position << " Fragment length: " << fragment_length << " Allele: " << allele << std::endl;
+						EXPECT_TRUE( ReverseComplementorDna(infix(comp_ref.at(allele)->ReferenceSequence(ref_seq_id), modified_start_pos.at(allele), modified_start_pos.at(allele)+fragment_length)) == prefix(sim_reads.at(!strand).org_seq_, fragment_length) ) << prefix(sim_reads.at(!allele).org_seq_, fragment_length) << std::endl << "Start position: " << cur_start_position << " Fragment length: " << fragment_length << " Allele: " << allele << std::endl;
 
-								++num_tests;
-							}
-						}
+						++num_tests;
 					}
 				}
 			}
@@ -172,7 +227,7 @@ void SimulatorTest::TestVariationInSimulateFromGivenBlock(){
 
 	test_->coverage_groups_.resize(species_reference_.NumberSequences(), 0);
 	test_->non_zero_thresholds_.resize(1);
-	test_->non_zero_thresholds_.at(0).resize(100, 0.0);
+	test_->non_zero_thresholds_.at(0).resize(100, {0.75, 0.31640625});
 
 	Simulator::VariantBiasVarModifiers bias_mod(1, 2);
 	uintRefSeqId ref_seq_id = 0;
@@ -312,6 +367,7 @@ namespace reseq{
 		CreateTestObject();
 
 		TestCoverageConversion();
+		TestSelectAllele();
 	}
 
 	TEST_F(SimulatorTest, Variants){

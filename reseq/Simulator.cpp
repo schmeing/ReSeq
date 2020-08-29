@@ -1327,6 +1327,75 @@ bool Simulator::GetNextBlock( Reference &ref, const DataStats &stats, const Prob
 	return true;
 }
 
+void Simulator::GetPossibleAlleles(vector<uintAlleleId> &possible_alleles, const Reference &ref, const VariantBiasVarModifiers &bias_mod, uintSeqLen cur_start_position, uintRefSeqId ref_seq) const{
+	if( ref.VariantsLoaded() ){
+		possible_alleles.clear();
+		for(uintAlleleId allele=0; allele < ref.NumAlleles(); ++allele){
+			if( !AlleleSkipped(bias_mod, allele, ref.Variants(ref_seq), cur_start_position) ){
+				possible_alleles.push_back( allele );
+			}
+		}
+	}
+}
+
+void Simulator::SelectAllele(vector<uintAlleleId> &chosen_allele_ids, vector<bool> &reverse_selection, uintAlleleId possible_strands, double random_value) const{
+	uintAlleleId chosen_id = static_cast<uintAlleleId>( random_value * (possible_strands-chosen_allele_ids.size()) );
+
+	// Get correction for sampling without replacement
+	uintAlleleId replacement_correction = 0;
+	for( auto id : chosen_allele_ids ){
+		if( id <= chosen_id ){
+			++replacement_correction;
+		}
+	}
+
+	// Apply correction and check if this means further corrections (only if not, reduce replacement_correction)
+	while( replacement_correction ){
+		if( reverse_selection.at(++chosen_id) ){
+			--replacement_correction;
+		}
+	}
+
+	chosen_allele_ids.push_back(chosen_id);
+	reverse_selection.at(chosen_id) = false;
+}
+
+void Simulator::DrawNAlleles(vector<uintAlleleId> &chosen_allele_ids, vector<bool> &reverse_selection, uintAlleleId non_zero_strands, uintAlleleId possible_strands, GeneralRandomDistributions &rdist, mt19937_64 &rgen) const{
+	chosen_allele_ids.clear();
+	reverse_selection.clear();
+	reverse_selection.resize(possible_strands, true);
+	while( chosen_allele_ids.size() < non_zero_strands ){
+		double random_value = rdist.ZeroToOne(rgen);
+		SelectAllele(chosen_allele_ids, reverse_selection, possible_strands, random_value);
+	}
+}
+
+void Simulator::ReverseSelection(vector<uintAlleleId> &chosen_allele_ids, vector<bool> &reverse_selection, uintAlleleId possible_strands) const{
+	reverse_selection.clear();
+	reverse_selection.resize(possible_strands, true);
+	for(auto chosen_id : chosen_allele_ids){
+		reverse_selection.at(chosen_id) = false;
+	}
+	chosen_allele_ids.clear();
+	for( uintAlleleId id=0; id < reverse_selection.size(); ++id ){
+		if( reverse_selection.at(id) ){
+			chosen_allele_ids.push_back(id);
+		}
+	}
+}
+
+void Simulator::ChooseAlleles(vector<uintAlleleId> &chosen_allele_ids, vector<bool> &reverse_selection, uintAlleleId non_zero_strands, uintAlleleId possible_strands, GeneralRandomDistributions &rdist, mt19937_64 &rgen) const{
+	if( non_zero_strands <= possible_strands/2 ){
+		// Less or equal than half the possible alleles need to be drawn: Draw directly
+		DrawNAlleles(chosen_allele_ids, reverse_selection, non_zero_strands, possible_strands, rdist, rgen);
+	}
+	else{
+		// More than half the possible alleles need to be drawn: Draw inverse selection
+		DrawNAlleles(chosen_allele_ids, reverse_selection, possible_strands-non_zero_strands, possible_strands, rdist, rgen);
+		ReverseSelection(chosen_allele_ids, reverse_selection, possible_strands);
+	}
+}
+
 inline bool Simulator::VariantInsideCurrentFragment( intVariantId cur_var_id, uintSeqLen cur_end_position, intSeqShift end_pos_shift, uintRefSeqId ref_seq_id, const Reference &ref ) const{
 	 // variant with that id exists && ( is relevant to end surrounding || is relevant to start surrounding) // if insert length is very short start surrounding can be longer than end surrounding
 	return ref.Variants(ref_seq_id).size() > cur_var_id && ( ref.Variants(ref_seq_id).at(cur_var_id).position_ < cur_end_position + end_pos_shift );
@@ -1770,19 +1839,20 @@ void Simulator::PrepareBiasModForCurrentFragmentLength(
 		uintSeqLen fragment_length,
 		uintAlleleId allele ) const{
 	auto cur_end_position = cur_start_position + fragment_length - 1;
+	if(bias_mod.last_end_position_.at(allele) <= cur_end_position){ // Do not repeat this in case we run both strands of an allele at a given position, because it would mess up the order of PrepareEndSurroundingsForCurrentFragmentLength and UpdateBiasModForCurrentFragmentLength
+		UpdateBiasModForCurrentFragmentLength( bias_mod, ref_seq_id, ref, cur_start_position, cur_end_position, bias_mod.last_end_position_.at(allele), allele );
 
-	UpdateBiasModForCurrentFragmentLength( bias_mod, ref_seq_id, ref, cur_start_position, cur_end_position, bias_mod.last_end_position_.at(allele), allele );
+		if( bias_mod.start_variant_pos_ && fragment_length <= length(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_)-bias_mod.start_variant_pos_ ){
+			UpdateBiasModForCurrentFragmentLength( bias_mod, ref_seq_id, ref, cur_start_position, cur_end_position+1, cur_end_position, allele );
+			PrepareEndSurroundingsForCurrentFragmentLength( bias_mod, ref_seq_id, ref, cur_end_position, allele);
+		}
+		else{
+			PrepareEndSurroundingsForCurrentFragmentLength( bias_mod, ref_seq_id, ref, cur_end_position, allele);
+			UpdateBiasModForCurrentFragmentLength( bias_mod, ref_seq_id, ref, cur_start_position, cur_end_position+1, cur_end_position, allele );
+		}
 
-	if( bias_mod.start_variant_pos_ && fragment_length <= length(ref.Variants(ref_seq_id).at(bias_mod.first_variant_id_).var_seq_)-bias_mod.start_variant_pos_ ){
-		UpdateBiasModForCurrentFragmentLength( bias_mod, ref_seq_id, ref, cur_start_position, cur_end_position+1, cur_end_position, allele );
-		PrepareEndSurroundingsForCurrentFragmentLength( bias_mod, ref_seq_id, ref, cur_end_position, allele);
+		bias_mod.last_end_position_.at(allele) = cur_end_position+1;
 	}
-	else{
-		PrepareEndSurroundingsForCurrentFragmentLength( bias_mod, ref_seq_id, ref, cur_end_position, allele);
-		UpdateBiasModForCurrentFragmentLength( bias_mod, ref_seq_id, ref, cur_start_position, cur_end_position+1, cur_end_position, allele );
-	}
-
-	bias_mod.last_end_position_.at(allele) = cur_end_position+1;
 }
 
 reseq::uintPercent Simulator::GetGCPercent(
@@ -2202,7 +2272,17 @@ bool Simulator::SimulateFromGivenBlock(
 
 	intVariantId cur_methylation_start = block.first_methylation_id_;
 
-	array<double, 2> probability_chosen;
+	double probability_chosen;
+	vector<uintAlleleId> possible_alleles, chosen_allele_ids;
+	if( ref.VariantsLoaded() ){
+		possible_alleles.reserve(ref.NumAlleles());
+	}
+	else{
+		possible_alleles.resize(1, 0);
+	}
+	chosen_allele_ids.reserve(2*ref.NumAlleles()); // Twice the number of alleles to also choose strand
+	vector<bool> reverse_selection;
+	reverse_selection.reserve(2*ref.NumAlleles());
 
 	// Take the surrounding shifted by 1 as the first thing the loop does is shifting it back
 	ref.ForwardSurrounding( surrounding_start, unit.ref_seq_id_, ( 0<block.start_pos_ ? block.start_pos_-1 : ref.SequenceLength(unit.ref_seq_id_)-1 ) );
@@ -2219,46 +2299,47 @@ bool Simulator::SimulateFromGivenBlock(
 		do{ //while(bias_mod.start_variant_pos_)
 			auto frag_len_start = max(static_cast<uintSeqLen>(1),static_cast<uintSeqLen>(stats.FragmentDistribution().InsertLengths().from()));
 			PrepareBiasModForCurrentStartPos( bias_mod, unit.ref_seq_id_, ref, cur_start_position, frag_len_start, surrounding_start );
+			GetPossibleAlleles(possible_alleles, ref, bias_mod, cur_start_position, unit.ref_seq_id_);
 
 			for( auto fragment_length=frag_len_start; fragment_length < stats.FragmentDistribution().InsertLengths().to(); ++fragment_length){
-				for(uintAlleleId allele=0; allele < ref.NumAlleles(); ++allele){
-					if( !ref.VariantsLoaded() || !AlleleSkipped(bias_mod, allele, ref.Variants(unit.ref_seq_id_), cur_start_position) ){
-						for( auto &prob : probability_chosen ){
-							prob = rdist.ZeroToOne(rgen);
-						}
+				probability_chosen = rdist.ZeroToOne(rgen);
+				if(ProbabilityAboveThreshold(probability_chosen, unit.ref_seq_id_, fragment_length)){
+					auto non_zero_strands = stats.FragmentDistribution().DrawNumberNonZeroStrands( possible_alleles.size(), NonZeroThreshold(unit.ref_seq_id_, fragment_length), probability_chosen );
+					if( non_zero_strands ){
+						ChooseAlleles(chosen_allele_ids, reverse_selection, non_zero_strands, 2*possible_alleles.size(), rdist, rgen);
 
-						if(ProbabilityAboveThreshold(probability_chosen, unit.ref_seq_id_, fragment_length)){
+						for(auto chosen_id : chosen_allele_ids){
+							auto allele = possible_alleles.at(chosen_id/2);
+							bool strand = chosen_id%2;
+
 							PrepareBiasModForCurrentFragmentLength( bias_mod, unit.ref_seq_id_, ref, cur_start_position, fragment_length, allele );
+							cur_end_position = cur_start_position + fragment_length + bias_mod.end_pos_shift_.at( allele );
 
-							cur_end_position = cur_start_position + fragment_length + bias_mod.end_pos_shift_.at(allele);
 							if( cur_end_position < ref.SequenceLength(unit.ref_seq_id_)){
-								for(bool strand : { false, true }){
-									if(ProbabilityAboveThreshold(probability_chosen, strand, unit.ref_seq_id_, fragment_length)){
-										// Determine how many read pairs are generated for this strand and allele at this position with this fragment_length
-										gc_perc = GetGCPercent( bias_mod, unit.ref_seq_id_, ref, cur_end_position, fragment_length, allele );
+								gc_perc = GetGCPercent( bias_mod, unit.ref_seq_id_, ref, cur_end_position, fragment_length, allele );
 
-										if(ref.VariantsLoaded()){
-											fragment_counts = stats.FragmentDistribution().GetFragmentCounts(bias_normalization_, unit.ref_seq_id_, fragment_length, gc_perc, bias_mod.surrounding_start_.at(allele), bias_mod.surrounding_end_.at(allele), probability_chosen.at(strand), ref.NumAlleles());
+								// Determine how many read pairs are generated for this strand and allele at this position with this fragment_length
+								double adjusted_random = NonZeroThreshold(unit.ref_seq_id_, fragment_length) + rdist.ZeroToOne(rgen)*( 1 - NonZeroThreshold(unit.ref_seq_id_, fragment_length) ); // Adjust the uniform value to account for the previous binomial selection only alleles that are above NonZeroThreshold
+								if(ref.VariantsLoaded()){
+									fragment_counts = stats.FragmentDistribution().GetFragmentCounts(bias_normalization_, unit.ref_seq_id_, fragment_length, gc_perc, bias_mod.surrounding_start_.at(allele), bias_mod.surrounding_end_.at(allele), adjusted_random, ref.NumAlleles());
+								}
+								else{
+									fragment_counts = stats.FragmentDistribution().GetFragmentCounts(bias_normalization_, unit.ref_seq_id_, fragment_length, gc_perc, surrounding_start, bias_mod.surrounding_end_.at(allele), adjusted_random);
+								}
+
+								if( fragment_counts ){
+									GetOrgSeq(sim_reads, strand, allele, fragment_length, cur_start_position, cur_end_position, unit.ref_seq_id_, ref, stats, bias_mod);
+
+									CTConversion(sim_reads, strand, allele, cur_start_position, cur_end_position, unit.ref_seq_id_, ref, bias_mod, cur_methylation_start, rdist, rgen);
+
+									if(ref.VariantsLoaded()){
+										if(!CreateReads( ref, stats, estimates, rdist, sim_reads, rgen, fragment_counts, strand, allele, unit.ref_seq_id_, fragment_length, read_number, &block, cur_start_position, cur_end_position, bias_mod.StartVariant(), bias_mod.EndVariant(ref.Variants(unit.ref_seq_id_), cur_end_position, allele) )){
+											return false;
 										}
-										else{
-											fragment_counts = stats.FragmentDistribution().GetFragmentCounts(bias_normalization_, unit.ref_seq_id_, fragment_length, gc_perc, surrounding_start, bias_mod.surrounding_end_.at(allele), probability_chosen.at(strand));
-										}
-
-										if( fragment_counts ){
-											GetOrgSeq(sim_reads, strand, allele, fragment_length, cur_start_position, cur_end_position, unit.ref_seq_id_, ref, stats, bias_mod);
-
-											CTConversion(sim_reads, strand, allele, cur_start_position, cur_end_position, unit.ref_seq_id_, ref, bias_mod, cur_methylation_start, rdist, rgen);
-
-											if(ref.VariantsLoaded()){
-												if(!CreateReads( ref, stats, estimates, rdist, sim_reads, rgen, fragment_counts, strand, allele, unit.ref_seq_id_, fragment_length, read_number, &block, cur_start_position, cur_end_position, bias_mod.StartVariant(), bias_mod.EndVariant(ref.Variants(unit.ref_seq_id_), cur_end_position, allele) )){
-													return false;
-												}
-											}
-											else{
-												if(!CreateReads( ref, stats, estimates, rdist, sim_reads, rgen, fragment_counts, strand, allele, unit.ref_seq_id_, fragment_length, read_number, &block, cur_start_position, cur_end_position )){
-													return false;
-												}
-											}
+									}
+									else{
+										if(!CreateReads( ref, stats, estimates, rdist, sim_reads, rgen, fragment_counts, strand, allele, unit.ref_seq_id_, fragment_length, read_number, &block, cur_start_position, cur_end_position )){
+											return false;
 										}
 									}
 								}

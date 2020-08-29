@@ -781,6 +781,19 @@ void FragmentDistributionStatsTest::TestUniformBias(){
 }
 
 void FragmentDistributionStatsTest::TestDrawCounts(){
+	// Test DrawNumberNonZeroStrands( uintAlleleId num_possible_alleles, double zero_probability, double probability_chosen )
+	EXPECT_EQ( 0, test_->DrawNumberNonZeroStrands( 1, 0.75, 0.5624) );
+	EXPECT_EQ( 1, test_->DrawNumberNonZeroStrands( 1, 0.75, 0.5626) );
+	EXPECT_EQ( 1, test_->DrawNumberNonZeroStrands( 1, 0.75, 0.9374) );
+	EXPECT_EQ( 2, test_->DrawNumberNonZeroStrands( 1, 0.75, 0.9376) );
+	EXPECT_EQ( 2, test_->DrawNumberNonZeroStrands( 1, 0.75, 1.0-1e-15) );
+
+	EXPECT_EQ( 0, test_->DrawNumberNonZeroStrands( 2, 0.75, 0.31640) );
+	EXPECT_EQ( 1, test_->DrawNumberNonZeroStrands( 2, 0.75, 0.31641) );
+	EXPECT_EQ( 3, test_->DrawNumberNonZeroStrands( 2, 0.75, 0.99609) );
+	EXPECT_EQ( 4, test_->DrawNumberNonZeroStrands( 2, 0.75, 0.99610) );
+	EXPECT_EQ( 4, test_->DrawNumberNonZeroStrands( 2, 0.75, 1.0-1e-15) );
+
 	// Set biases to 0.5 to verify they are used and only use gc bias to really vary bias
 	test_->ref_seq_bias_.clear();
 	test_->ref_seq_bias_.resize(1, 0.5);

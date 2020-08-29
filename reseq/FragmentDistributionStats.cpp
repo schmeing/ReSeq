@@ -2897,7 +2897,7 @@ void FragmentDistributionStats::BiasNormalizationThread(
 		vector<double> &norm,
 		mutex &result_mutex,
 		const vector<uintRefSeqId> &coverage_groups,
-		vector<vector<double>> &max_bias){
+		vector<vector<array<double, 2>>> &max_bias){
 	decltype(params.size()) cur_par(current_param++);
 
 	vector<double> tmp_norm;
@@ -2915,7 +2915,7 @@ void FragmentDistributionStats::BiasNormalizationThread(
 	result_mutex.lock();
 	for( auto cov_group = max_bias.size(); cov_group--; ){
 		for( auto frag_len = max_bias.at(cov_group).size(); frag_len--; ){
-			SetToMax(max_bias.at(cov_group).at(frag_len), tmp_max_bias.at(cov_group).at(frag_len));
+			SetToMax(max_bias.at(cov_group).at(frag_len).at(0), tmp_max_bias.at(cov_group).at(frag_len));
 		}
 	}
 	for( auto frag_len = norm.size(); frag_len--; ){
@@ -3356,7 +3356,7 @@ bool FragmentDistributionStats::UpdateRefSeqBias(RefSeqBiasSimulation model, con
 	return true;
 }
 
-double FragmentDistributionStats::CalculateBiasNormalization(vector<uintRefSeqId> &coverage_groups, vector<vector<double>> &non_zero_thresholds, const Reference &reference, uintNumThreads num_threads, uintFragCount total_reads) const{
+double FragmentDistributionStats::CalculateBiasNormalization(vector<uintRefSeqId> &coverage_groups, vector<vector<array<double, 2>>> &non_zero_thresholds, const Reference &reference, uintNumThreads num_threads, uintFragCount total_reads) const{
 	// Select the insert_length_sample_positions
 	InsertLengthSpline insert_length_spline;
 	if( !insert_length_spline.GetSamplePositions(insert_lengths_) ){
@@ -3371,7 +3371,7 @@ double FragmentDistributionStats::CalculateBiasNormalization(vector<uintRefSeqId
 	non_zero_thresholds.clear();
 	non_zero_thresholds.resize(num_groups);
 	for( auto &thresholds : non_zero_thresholds ){
-		thresholds.resize(insert_lengths_.to(), 0.0); // First use for maximum bias: non_zero_thresholds[coverageGroup][insertLength] = maxBias;
+		thresholds.resize(insert_lengths_.to(), {0.0, 0.0}); // First use for maximum bias: non_zero_thresholds[coverageGroup][insertLength] = maxBias;
 	}
 
 	mutex result_mutex;
@@ -3397,19 +3397,19 @@ double FragmentDistributionStats::CalculateBiasNormalization(vector<uintRefSeqId
 		double max_ratio = 0.0; // max_bias/frag_bias
 		for(uintSeqLen s=0; s < insert_length_spline.sample_positions_.size(); ++s){
 			auto frag_len = insert_length_spline.sample_positions_.at(s);
-			double ratio = group.at(frag_len) / insert_lengths_bias_.at(frag_len);
+			double ratio = group.at(frag_len).at(0) / insert_lengths_bias_.at(frag_len);
 			SetToMax(max_ratio, ratio);
 		}
 
 		// Use maximum ratio to set not counted values
 		for(uintSeqLen s=1; s < insert_length_spline.sample_positions_.size(); ++s){
 			for(auto frag_len = insert_length_spline.sample_positions_.at(s-1)+1; frag_len < insert_length_spline.sample_positions_.at(s); ++frag_len){
-				group.at(frag_len) = max_ratio * insert_lengths_bias_.at(frag_len);
+				group.at(frag_len).at(0) = max_ratio * insert_lengths_bias_.at(frag_len);
 			}
 		}
 
 		for(auto frag_len = insert_length_spline.sample_positions_.at( insert_length_spline.sample_positions_.size()-1 )+1; frag_len < group.size(); ++frag_len){
-			group.at(frag_len) = max_ratio * insert_lengths_bias_.at(frag_len);
+			group.at(frag_len).at(0) = max_ratio * insert_lengths_bias_.at(frag_len);
 		}
 	}
 
@@ -3422,11 +3422,13 @@ double FragmentDistributionStats::CalculateBiasNormalization(vector<uintRefSeqId
 
 	for( auto &thresholds : non_zero_thresholds ){
 		for( auto &thresh : thresholds){
-			if(0.0 == thresh){
-				thresh = 1.0; // If the bias is zero we cannot get fragment counts drawn for this
+			if(0.0 == thresh.at(0)){
+				thresh.at(0) = 1.0; // If the bias is zero we cannot get fragment counts drawn for this
+				thresh.at(1) = 1.0;
 			}
 			else{
-				thresh = CalculateNonZeroThreshold(full_normalization, thresh, reference.NumAlleles());
+				thresh.at(0) = CalculateNonZeroThreshold(full_normalization, thresh.at(0), reference.NumAlleles());
+				thresh.at(1) = pow(thresh.at(0), 2*reference.NumAlleles());
 			}
 		}
 	}
@@ -3434,14 +3436,32 @@ double FragmentDistributionStats::CalculateBiasNormalization(vector<uintRefSeqId
 	return full_normalization;
 }
 
-reseq::uintDupCount FragmentDistributionStats::NegativeBinomial(double p, double r, double probability_chosen){
-	// (1-p)^r * mult_{i=1}^{k}[p * (r+i-1)/i]
-	double probability_count( pow(1-p, r) ), probability_sum(probability_count);
+reseq::uintAlleleId FragmentDistributionStats::Binomial(uintAlleleId N, double p, double probability_chosen){
+	// N!/(k! * (N-k)!) * p^k * (1-p)^(N-k)
+	double probability_count( pow(1-p, N) ), probability_left(probability_chosen - probability_count);
 	uintDupCount count(0);
 
-	while(probability_sum < probability_chosen){
+	while(0.0 < probability_left && count < N){
+		++count;
+		probability_count *= static_cast<double>(N+1-count)/count * p/(1-p);
+		probability_left -= probability_count;
+	}
+
+	return count;
+}
+
+reseq::uintAlleleId FragmentDistributionStats::DrawNumberNonZeroStrands( uintAlleleId num_possible_alleles, double zero_probability, double probability_chosen ) const{
+	return Binomial(2*num_possible_alleles, 1-zero_probability, probability_chosen);
+}
+
+reseq::uintDupCount FragmentDistributionStats::NegativeBinomial(double p, double r, double probability_chosen){
+	// (1-p)^r * mult_{i=1}^{k}[p * (r+i-1)/i]
+	double probability_count( pow(1-p, r) ), probability_left(probability_chosen - probability_count);
+	uintDupCount count(0);
+
+	while(0.0 < probability_left){
 		probability_count *= p * ((r-1) / ++count + 1);
-		probability_sum += probability_count;
+		probability_left -= probability_count;
 	}
 
 	return count;

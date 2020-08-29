@@ -295,7 +295,7 @@ namespace reseq{
 
 		double bias_normalization_;
 		std::vector<uintRefSeqId> coverage_groups_; // coverage_groups_[RefSeqId] = CoverageGroup
-		std::vector<std::vector<double>> non_zero_thresholds_;  // non_zero_thresholds_[CoverageGroup][FragmentLength] = Threshold that random number from fragment generation has to reach or fragment count will be zero and does not have to be calculated
+		std::vector<std::vector<std::array<double, 2>>> non_zero_thresholds_;  // non_zero_thresholds_[CoverageGroup][FragmentLength][oneAllele/allAlleles] = Threshold that random number from fragment generation has to reach or fragment count will be zero and does not have to be calculated
 		uintFragCount total_pairs_;
 		uintFragCount num_adapter_only_pairs_;
 		std::atomic_flag adapter_only_simulated_; // Int instead of bool so atomic increment works
@@ -411,15 +411,17 @@ namespace reseq{
 
 			return false;
 		}
+		void GetPossibleAlleles(std::vector<uintAlleleId> &possible_alleles, const Reference &ref, const VariantBiasVarModifiers &bias_mod, uintSeqLen cur_start_position, uintRefSeqId ref_seq) const;
+		inline double NonZeroThreshold(uintRefSeqId ref_seq, uintSeqLen fragment_length) const{
+			return non_zero_thresholds_.at(coverage_groups_.at(ref_seq)).at(fragment_length).at(0);
+		}
 		inline bool ProbabilityAboveThreshold(double probability_chosen, uintRefSeqId ref_seq, uintSeqLen fragment_length) const{
-			return probability_chosen >= non_zero_thresholds_.at(coverage_groups_.at(ref_seq)).at(fragment_length);
+			return probability_chosen >= non_zero_thresholds_.at(coverage_groups_.at(ref_seq)).at(fragment_length).at(1);
 		}
-		inline bool ProbabilityAboveThreshold(const std::array<double, 2> &probability_chosen, uintTempSeq strand, uintRefSeqId ref_seq, uintSeqLen fragment_length) const{
-			return ProbabilityAboveThreshold(probability_chosen.at(strand), ref_seq, fragment_length);
-		}
-		inline bool ProbabilityAboveThreshold(const std::array<double, 2> &probability_chosen, uintRefSeqId ref_seq, uintSeqLen fragment_length) const{
-			return ProbabilityAboveThreshold(probability_chosen, 0, ref_seq, fragment_length) || ProbabilityAboveThreshold(probability_chosen, 1, ref_seq, fragment_length);
-		}
+		void SelectAllele(std::vector<uintAlleleId> &chosen_allele_ids, std::vector<bool> &reverse_selection, uintAlleleId possible_strands, double random_value) const;
+		void DrawNAlleles(std::vector<uintAlleleId> &chosen_allele_ids, std::vector<bool> &reverse_selection, uintAlleleId non_zero_strands, uintAlleleId possible_strands, GeneralRandomDistributions &rdist, std::mt19937_64 &rgen) const;
+		void ReverseSelection(std::vector<uintAlleleId> &chosen_allele_ids, std::vector<bool> &reverse_selection, uintAlleleId possible_strands) const;
+		void ChooseAlleles(std::vector<uintAlleleId> &chosen_allele_ids, std::vector<bool> &reverse_selection, uintAlleleId non_zero_strands, uintAlleleId possible_strands, GeneralRandomDistributions &rdist, std::mt19937_64 &rgen) const;
 		inline bool VariantInsideCurrentFragment( intVariantId cur_var_id, uintSeqLen cur_end_position, intSeqShift end_pos_shift, uintRefSeqId ref_seq_id, const Reference &ref ) const;
 		void HandleGCModAndEndPosShiftForNewVariants( VariantBiasVarModifiers &bias_mod, uintAlleleId allele, uintRefSeqId ref_seq_id, const Reference &ref, uintSeqLen cur_end_position ) const;
 		void HandleSurroundingVariantsBeforeCenter(Surrounding &mod_surrounding, uintSeqLen center_position, intSeqShift initial_pos_shift, intVariantId center_var, uintAlleleId allele, uintRefSeqId ref_seq_id, const Reference &ref, bool reverse) const;

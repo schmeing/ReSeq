@@ -429,7 +429,7 @@ namespace reseq{
 		static void BiasSumThread( const FragmentDistributionStats &self, const Reference &reference, const std::vector<BiasCalculationParams> &params, std::atomic<uintNumFits> &current_param, std::atomic<uintNumFits> &finished_params, std::vector<std::vector<double>> &bias_sum, std::mutex &print_mutex );
 
 		uintRefSeqId SplitCoverageGroups(std::vector<uintRefSeqId> &coverage_groups) const;
-		static void BiasNormalizationThread( const FragmentDistributionStats &self, const Reference &reference, const std::vector<BiasCalculationParams> &params, std::atomic<uintNumFits> &current_param, std::vector<double> &norm, std::mutex &result_mutex, const std::vector<uintRefSeqId> &coverage_groups, std::vector<std::vector<double>> &max_bias );
+		static void BiasNormalizationThread( const FragmentDistributionStats &self, const Reference &reference, const std::vector<BiasCalculationParams> &params, std::atomic<uintNumFits> &current_param, std::vector<double> &norm, std::mutex &result_mutex, const std::vector<uintRefSeqId> &coverage_groups, std::vector<std::vector<std::array<double, 2>>> &max_bias );
 		double CalculateNonZeroThreshold(double bias_normalization, double max_bias, uintAlleleId num_alleles=1) const;
 		
 		// Boost archive functions
@@ -582,8 +582,10 @@ namespace reseq{
 		bool FinalizeBiasCalculation(const Reference &reference, uintNumThreads num_threads, FragmentDuplicationStats &duplications);
 		double CorrectedCoverage(const Reference &ref, uintReadLen average_read_len);
 		bool UpdateRefSeqBias(RefSeqBiasSimulation model, const std::string &bias_file, const Reference &ref, std::mt19937_64 &rgen);
-		double CalculateBiasNormalization(std::vector<uintRefSeqId> &coverage_groups, std::vector<std::vector<double>> &non_zero_thresholds, const Reference &reference, uintNumThreads num_threads, uintFragCount total_reads) const;
+		double CalculateBiasNormalization(std::vector<uintRefSeqId> &coverage_groups, std::vector<std::vector<std::array<double, 2>>> &non_zero_thresholds, const Reference &reference, uintNumThreads num_threads, uintFragCount total_reads) const;
 
+		static uintAlleleId Binomial(uintAlleleId N, double p, double probability_chosen);
+		uintAlleleId DrawNumberNonZeroStrands( uintAlleleId num_possible_alleles, double zero_probability, double probability_chosen ) const;
 		static uintDupCount NegativeBinomial(double p, double r, double probability_chosen);
 		double Dispersion(double bias) const{ return BiasCalculationVectors::GetDispersion( bias, dispersion_parameters_.at(0), dispersion_parameters_.at(1) ); }
 		uintDupCount GetFragmentCounts(double bias_normalization, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintPercent gc, const Surrounding &fragment_start, const Surrounding &fragment_end, double probability_chosen, uintAlleleId num_alleles=1) const;

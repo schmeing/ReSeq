@@ -168,6 +168,15 @@ namespace reseq{
 			}
 			return *this;
 		}
+
+		bool operator==(const SurroundingBase& right) const{
+			for(auto block=kNumBlocks; block--; ){
+				if( sur_.at(block) != right.sur_.at(block) ){
+					return false;
+				}
+			}
+			return true;
+		}
 #endif //SWIG
 
 		inline uintBaseCall BaseAt(uintSurPos pos) const{
