@@ -406,7 +406,6 @@ bool AdapterStats::PredictAdapters(){
 
 			DnaString adapter;
 			reserve(adapter, 50);
-			resize(adapter, kKmerLength);
 
 			bool found_adapter = false;
 			uintNumFits tries = 100;
@@ -423,6 +422,7 @@ bool AdapterStats::PredictAdapters(){
 				use_kmer.at(max_kmer) = false; // Prevent endless circle
 
 				auto kmer = max_kmer;
+				resize(adapter, kKmerLength);
 				for(uintReadLen pos=kKmerLength; pos--; ){
 					at(adapter, pos) = kmer%4;
 					kmer >>= 2;
