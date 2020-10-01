@@ -7,8 +7,7 @@ if (PYTHON)
 	# Python packages
 	FIND_PACKAGE(SWIG 3 REQUIRED)
 	include(${SWIG_USE_FILE})
-	message(${SWIG_USE_FILE})
-	FIND_PACKAGE(PythonLibs 2 EXACT REQUIRED)
+	FIND_PACKAGE(PythonLibs 3 REQUIRED)
 	include_directories(${PYTHON_INCLUDE_PATH})
 	
 	include_directories("${PROJECT_SOURCE_DIR}/python")
