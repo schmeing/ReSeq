@@ -372,7 +372,9 @@ namespace reseq{
 
 	TEST_F(SimulatorTest, Variants){
 		CreateTestObject();
-		LoadReference("ecoli-GCF_000005845.2_ASM584v2_genomic.fa");
+		string test_dir;
+		ASSERT_TRUE( GetTestDir(test_dir) );
+		LoadReference(test_dir+"ecoli-GCF_000005845.2_ASM584v2_genomic.fa");
 
 		TestVariationInSimulateFromGivenBlock();
 	}

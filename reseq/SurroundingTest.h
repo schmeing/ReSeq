@@ -15,8 +15,8 @@ namespace reseq{
 		virtual void TearDown();
 
 		void TestBasics();
-		void TestSettersAndUpdaters();
-		void TestSettersAndUpdatersWithN();
+		void TestSettersAndUpdaters(const std::string &test_dir);
+		void TestSettersAndUpdatersWithN(const std::string &test_dir);
 		void TestModifiers();
 		void TestModifiersExtremCases();
 		void TestCombiningBias();

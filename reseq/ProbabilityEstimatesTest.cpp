@@ -1012,7 +1012,10 @@ namespace reseq{
 		CalculateMargins(margin_def, margins, margin_quality_position, counts);
 
 		IterativeProportionalFittingQual(base, margins, margin_quality_position);
-		ASSERT_TRUE( test_.Save(kSaveTestFile.c_str()) );
+		string test_dir;
+		ASSERT_TRUE( GetTestDir(test_dir) );
+		string save_file = test_dir+"saveTest.reseq.ipf";
+		ASSERT_TRUE( test_.Save(save_file.c_str()) );
 
 		auto iterations = GetIterationsQual(test_, base);
 		auto precision = GetPrecisionQual(test_, base);
@@ -1024,14 +1027,14 @@ namespace reseq{
 		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, estimated_counts, "estimation" );
 
 		ProbabilityEstimates test2;
-		ASSERT_TRUE( test2.Load(kSaveTestFile.c_str()) );
+		ASSERT_TRUE( test2.Load(save_file.c_str()) );
 		iterations = GetIterationsQual(test2, base);
 		precision = GetPrecisionQual(test2, base);
 		GetIPFResultQual(test2, base, estimated_counts, margins);
 		test2.PrepareResult();
 		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, estimated_counts, "loading" );
 
-		EXPECT_EQ( 0, remove(kSaveTestFile.c_str()) ) << "Error deleting file: " << kSaveTestFile << '\n';
+		EXPECT_EQ( 0, remove(save_file.c_str()) ) << "Error deleting file: " << save_file << '\n';
 
 		std::vector<double> prob;
 		double prob_sum;
@@ -1133,7 +1136,10 @@ namespace reseq{
 		CalculateMargins(margin_def, margins, margin_quality_position, counts);
 
 		IterativeProportionalFittingBaseCall(margins, margin_quality_position);
-		ASSERT_TRUE( test_.Save(kSaveTestFile.c_str()) );
+		string test_dir;
+		ASSERT_TRUE( GetTestDir(test_dir) );
+		string save_file = test_dir+"saveTest.reseq.ipf";
+		ASSERT_TRUE( test_.Save(save_file.c_str()) );
 
 		auto iterations = GetIterationsBaseCall(test_);
 		auto precision = GetPrecisionBaseCall(test_);
@@ -1145,14 +1151,14 @@ namespace reseq{
 		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, estimated_counts, "estimation" );
 
 		ProbabilityEstimates test2;
-		ASSERT_TRUE( test2.Load(kSaveTestFile.c_str()) );
+		ASSERT_TRUE( test2.Load(save_file.c_str()) );
 		iterations = GetIterationsBaseCall(test2);
 		precision = GetPrecisionBaseCall(test2);
 		GetIPFResultBaseCall(test2, estimated_counts, margins);
 		test2.PrepareResult();
 		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, estimated_counts, "loading" );
 
-		EXPECT_EQ( 0, remove(kSaveTestFile.c_str()) ) << "Error deleting file: " << kSaveTestFile << '\n';
+		EXPECT_EQ( 0, remove(save_file.c_str()) ) << "Error deleting file: " << save_file << '\n';
 	}
 
 	TEST_F(ProbabilityEstimatesTest, IPFforDominantError){
@@ -1172,7 +1178,10 @@ namespace reseq{
 		CalculateMargins(margin_def, margins, margin_quality_position, counts);
 
 		IterativeProportionalFittingDomError(margins);
-		ASSERT_TRUE( test_.Save(kSaveTestFile.c_str()) );
+		string test_dir;
+		ASSERT_TRUE( GetTestDir(test_dir) );
+		string save_file = test_dir+"saveTest.reseq.ipf";
+		ASSERT_TRUE( test_.Save(save_file.c_str()) );
 
 		auto iterations = GetIterationsDomError(test_);
 		auto precision = GetPrecisionDomError(test_);
@@ -1184,14 +1193,14 @@ namespace reseq{
 		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, estimated_counts, "estimation" );
 
 		ProbabilityEstimates test2;
-		ASSERT_TRUE( test2.Load(kSaveTestFile.c_str()) );
+		ASSERT_TRUE( test2.Load(save_file.c_str()) );
 		iterations = GetIterationsDomError(test2);
 		precision = GetPrecisionDomError(test2);
 		GetIPFResultDomError(test2, estimated_counts, margins);
 		test2.PrepareResult();
 		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, estimated_counts, "loading" );
 
-		EXPECT_EQ( 0, remove(kSaveTestFile.c_str()) ) << "Error deleting file: " << kSaveTestFile << '\n';
+		EXPECT_EQ( 0, remove(save_file.c_str()) ) << "Error deleting file: " << save_file << '\n';
 	}
 
 	TEST_F(ProbabilityEstimatesTest, IPFforErrorRate){
@@ -1206,7 +1215,10 @@ namespace reseq{
 		CalculateMargins(margin_def, margins, margin_quality_position, counts);
 
 		IterativeProportionalFittingErrorRate(margins);
-		ASSERT_TRUE( test_.Save(kSaveTestFile.c_str()) );
+		string test_dir;
+		ASSERT_TRUE( GetTestDir(test_dir) );
+		string save_file = test_dir+"saveTest.reseq.ipf";
+		ASSERT_TRUE( test_.Save(save_file.c_str()) );
 
 		auto iterations = GetIterationsErrorRate(test_);
 		auto precision = GetPrecisionErrorRate(test_);
@@ -1218,13 +1230,13 @@ namespace reseq{
 		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, estimated_counts, "estimation" );
 
 		ProbabilityEstimates test2;
-		ASSERT_TRUE( test2.Load(kSaveTestFile.c_str()) );
+		ASSERT_TRUE( test2.Load(save_file.c_str()) );
 		iterations = GetIterationsErrorRate(test2);
 		precision = GetPrecisionErrorRate(test2);
 		GetIPFResultErrorRate(test2, estimated_counts, margins);
 		test2.PrepareResult();
 		CheckIPFResult( iterations, precision, margins, margin_quality_position, margin_def, estimated_counts, "loading" );
 
-		EXPECT_EQ( 0, remove(kSaveTestFile.c_str()) ) << "Error deleting file: " << kSaveTestFile << '\n';
+		EXPECT_EQ( 0, remove(save_file.c_str()) ) << "Error deleting file: " << save_file << '\n';
 	}
 }

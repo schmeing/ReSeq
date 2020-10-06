@@ -138,8 +138,9 @@ void ReferenceTest::TestInsertVariant(){
 void ReferenceTest::TestVariationLoading(){
 	// freebayes -f GCF_000005845.2_ASM584v2_genomic.fna SRR490124.bam | awk 'BEGIN{pos[1]=1;pos[17]=1;pos[21]=1;pos[11369]=1;pos[953166]=1;pos[3192438]=1;pos[3424236]=1;pos[3424237]=1}("#" == substr($0,1,1) || $2 in pos)' > test-var.vcf
 	// Manually changed alternative for pos 3192438 from GT to G to create deletion
-
-	ASSERT_TRUE( ref_.PrepareVariantFile(std::string(PROJECT_SOURCE_DIR)+"/test/test-var.vcf") );
+	string test_dir;
+	ASSERT_TRUE( GetTestDir(test_dir) );
+	ASSERT_TRUE( ref_.PrepareVariantFile(test_dir+"test-var.vcf") );
 	ASSERT_TRUE( ref_.ReadFirstVariants() );
 
 	EXPECT_EQ(2, ref_.num_alleles_);
@@ -240,8 +241,9 @@ void ReferenceTest::TestVariationLoading(){
 void ReferenceTest::TestVariationPositionLoading(){
 	// freebayes -f GCF_000005845.2_ASM584v2_genomic.fna SRR490124.bam | awk 'BEGIN{pos[1]=1;pos[17]=1;pos[21]=1;pos[11369]=1;pos[953166]=1;pos[3192438]=1;pos[3424236]=1;pos[3424237]=1}("#" == substr($0,1,1) || $2 in pos)' > test-var.vcf
 	// Manually changed alternative for pos 3192438 from GT to G to create deletion
-
-	ASSERT_TRUE( ref_.PrepareVariantFile(std::string(PROJECT_SOURCE_DIR)+"/test/test-var.vcf") );
+	string test_dir;
+	ASSERT_TRUE( GetTestDir(test_dir) );
+	ASSERT_TRUE( ref_.PrepareVariantFile(test_dir+"test-var.vcf") );
 	ASSERT_TRUE( ref_.ReadFirstVariantPositions() );
 
 	ASSERT_EQ(1, ref_.variant_positions_.size());
@@ -256,12 +258,14 @@ void ReferenceTest::TestVariationPositionLoading(){
 }
 
 void ReferenceTest::TestLoadingAndAccess(){
-	ASSERT_TRUE( ref_.ReadFasta( (string(PROJECT_SOURCE_DIR)+"/test/reference-special-chars.fa").c_str() ) );
+	string test_dir;
+	ASSERT_TRUE( GetTestDir(test_dir) );
+	ASSERT_TRUE( ref_.ReadFasta( (test_dir+"reference-special-chars.fa").c_str() ) );
 	for( auto base : ref_[0] ){
 		EXPECT_TRUE(base == 'N') << "Special characters not handled properly\n";
 	}
 
-	ASSERT_TRUE( ref_.ReadFasta( (string(PROJECT_SOURCE_DIR)+"/test/reference-test.fa").c_str() ) );
+	ASSERT_TRUE( ref_.ReadFasta( (test_dir+"reference-test.fa").c_str() ) );
 
 	ASSERT_EQ(2, ref_.NumberSequences()) << "The loaded test reference does not have the right number of sequences\n";
 	EXPECT_TRUE("NC_000913.3_1-500 bla" == ref_.ReferenceId(0)) << ref_.ReferenceId(0) << "\nThe first loaded test reference sequence does not have the correct name.\n";
@@ -328,7 +332,9 @@ void ReferenceTest::TestLoadingAndAccess(){
 }
 
 void ReferenceTest::TestGC(){
-	ASSERT_TRUE( ref_.ReadFasta( (string(PROJECT_SOURCE_DIR)+"/test/reference-test.fa").c_str() ) );
+	string test_dir;
+	ASSERT_TRUE( GetTestDir(test_dir) );
+	ASSERT_TRUE( ref_.ReadFasta( (test_dir+"reference-test.fa").c_str() ) );
 
 	string error_msg = "The function GCContentAbsolut returns wrong results\n";
 	EXPECT_EQ(2, ref_.GCContentAbsolut(0,0,7)) << error_msg;
@@ -359,7 +365,9 @@ void ReferenceTest::TestGC(){
 }
 
 void ReferenceTest::TestSumBias(){
-	ASSERT_TRUE( ref_.ReadFasta( (string(PROJECT_SOURCE_DIR)+"/test/reference-test.fa").c_str() ) );
+	string test_dir;
+	ASSERT_TRUE( GetTestDir(test_dir) );
+	ASSERT_TRUE( ref_.ReadFasta( (test_dir+"reference-test.fa").c_str() ) );
 
 	string error_msg = "The function SumBias returns wrong results\n";
 	// cat <(seqtk seq reference-test.fa | awk '(2==NR)') <(seqtk seq -r reference-test.fa | awk '(2==NR)') | awk '{for(i=21;i<=length($0)-50; i+=1){print substr($0,i-10,30), NR, i-1}}' | awk '{print ">"$1, $2, $3; print $1}' | seqtk seq -r | awk '(1==NR%2){full=substr($1,2,length($1)-1); strand=$2-1; pos=$3}(0==NR%2){print strand, pos, substr(full,11,10), full, $0}' | awk '{print $1, $2, gsub(/[GC]/,"",$3), substr($4,1,10), substr($4, 11, 10), substr($4, 21, 10) , substr($5,1,10), substr($5, 11, 10), substr( $5, 21, 10)}' | awk '(0==$1 && (27 == $2 || 50 == $2 || 90 == $2 || 100 == $2 || 162 == $2 || 242 == $2) || 1==$1 && 381==$2)' | awk '{print $1, $2, $3; print $4; print $5; print $6; print $7; print $8; print $9}' | awk 'BEGIN{d["A"]=0;d["C"]=1;d["G"]=2;d["T"]=3}{if(NR%7==1){print $0}else{mult=1;sur=0;for(i=length($0);i>0;i-=1){sur+=mult*d[substr($0,i,1)];mult*=4}; print $0, sur}}'
@@ -435,7 +443,9 @@ void ReferenceTest::TestSumBias(){
 }
 
 void ReferenceTest::TestGetFragmentSites(){
-	ASSERT_TRUE( ref_.ReadFasta( (string(PROJECT_SOURCE_DIR)+"/test/reference-test.fa").c_str() ) );
+	string test_dir;
+	ASSERT_TRUE( GetTestDir(test_dir) );
+	ASSERT_TRUE( ref_.ReadFasta( (test_dir+"reference-test.fa").c_str() ) );
 	at(at(ref_.reference_sequences_, 0), 253) = 'N';
 	at(at(ref_.reference_sequences_, 0), 256) = 'N';
 	at(at(ref_.reference_sequences_, 0), 263) = 'N';
@@ -514,7 +524,9 @@ void ReferenceTest::TestGetFragmentSites(){
 }
 
 void ReferenceTest::TestReplaceN(){
-	ASSERT_TRUE( ref_.ReadFasta( (string(PROJECT_SOURCE_DIR)+"/test/reference-test.fa").c_str() ) );
+	string test_dir;
+	ASSERT_TRUE( GetTestDir(test_dir) );
+	ASSERT_TRUE( ref_.ReadFasta( (test_dir+"reference-test.fa").c_str() ) );
 
 	for(uintSeqLen i=50; i<150; ++i){
 		at(at(ref_.reference_sequences_, 0), i) = 'N';
@@ -581,7 +593,9 @@ void ReferenceTest::TestReplaceN(){
 }
 
 void ReferenceTest::TestExclusionRegions(){
-	ASSERT_TRUE( ref_.ReadFasta( (string(PROJECT_SOURCE_DIR)+"/test/reference-test.fa").c_str() ) );
+	string test_dir;
+	ASSERT_TRUE( GetTestDir(test_dir) );
+	ASSERT_TRUE( ref_.ReadFasta( (test_dir+"reference-test.fa").c_str() ) );
 
 	// Shorten second sequence so it is invalid
 	resize(at(ref_.reference_sequences_, 1), 140);
@@ -691,12 +705,14 @@ void ReferenceTest::TestExclusionRegions(){
 }
 
 void ReferenceTest::TestMethylationLoading(){
-	ASSERT_TRUE( ref_.ReadFasta( (string(PROJECT_SOURCE_DIR)+"/test/drosophila-GCF_000001215.4_cut.fna").c_str() ) );
+	string test_dir;
+	ASSERT_TRUE( GetTestDir(test_dir) );
+	ASSERT_TRUE( ref_.ReadFasta( (test_dir+"drosophila-GCF_000001215.4_cut.fna").c_str() ) );
 	ref_.num_alleles_ = 2;
 
 	EXPECT_FALSE( ref_.MethylationLoaded() );
 
-	ASSERT_TRUE( ref_.PrepareMethylationFile(string(PROJECT_SOURCE_DIR)+"/test/drosophila-methylation.bed") );
+	ASSERT_TRUE( ref_.PrepareMethylationFile(test_dir+"drosophila-methylation.bed") );
 	ASSERT_TRUE( ref_.ReadMethylation(2) ); // Not actually reading anything, because second sequence is the first with entries
 	EXPECT_TRUE( ref_.MethylationLoaded() );
 	EXPECT_TRUE( ref_.MethylationLoadedForSequence(1) );
@@ -753,7 +769,9 @@ void ReferenceTest::TestMethylationLoading(){
 
 namespace reseq{
 	TEST_F(ReferenceTest, Variants){
-		ASSERT_TRUE( ref_.ReadFasta( (string(PROJECT_SOURCE_DIR)+"/test/ecoli-GCF_000005845.2_ASM584v2_genomic.fa").c_str() ) );
+		string test_dir;
+		ASSERT_TRUE( GetTestDir(test_dir) );
+		ASSERT_TRUE( ref_.ReadFasta( (test_dir+"ecoli-GCF_000005845.2_ASM584v2_genomic.fa").c_str() ) );
 
 		TestVariantClass();
 		TestInsertVariant();
@@ -770,13 +788,17 @@ namespace reseq{
 	}
 
 	TEST_F(ReferenceTest, GZip){
-		ASSERT_TRUE( ref_.ReadFasta( (string(PROJECT_SOURCE_DIR)+"/test/reference-test.fa.gz").c_str() ) );
+		string test_dir;
+		ASSERT_TRUE( GetTestDir(test_dir) );
+		ASSERT_TRUE( ref_.ReadFasta( (test_dir+"reference-test.fa.gz").c_str() ) );
 
 		ASSERT_EQ(2, ref_.NumberSequences()) << "The gz test file did not load properly\n";
 	}
 
 	TEST_F(ReferenceTest, BZip2){
-		ASSERT_TRUE( ref_.ReadFasta( (string(PROJECT_SOURCE_DIR)+"/test/reference-test.fa.bz2").c_str() ) );
+		string test_dir;
+		ASSERT_TRUE( GetTestDir(test_dir) );
+		ASSERT_TRUE( ref_.ReadFasta( (test_dir+"reference-test.fa.bz2").c_str() ) );
 
 		ASSERT_EQ(2, ref_.NumberSequences()) << "The bz2 test file did not load properly\n";
 	}

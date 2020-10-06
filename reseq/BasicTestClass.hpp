@@ -9,9 +9,9 @@
 
 #include "reportingUtils.hpp"
 
-#include "CMakeConfig.h"
 #include "Reference.h"
 #include "SeqQualityStats.hpp"
+#include "utilities.hpp"
 
 namespace reseq{
 	class BasicTestClass : public ::testing::Test{
@@ -118,6 +118,10 @@ namespace reseq{
 			real_verbosity_(kVerbosityLevel)
 			{
 		}
+
+		static inline bool GetTestDir(std::string &test_dir){
+			return utilities::GetReSeqDir(test_dir, "test", "reference-test.fa");
+		}
 	};
 
 	class BasicTestClassWithReference : public BasicTestClass{
@@ -125,7 +129,7 @@ namespace reseq{
 		Reference species_reference_;
 
 		void LoadReference(const std::string &ref_file){
-			ASSERT_TRUE( species_reference_.ReadFasta( (std::string(PROJECT_SOURCE_DIR)+"/test/"+ref_file).c_str() ) );
+			ASSERT_TRUE( species_reference_.ReadFasta(ref_file.c_str()) );
 		}
 	};
 }

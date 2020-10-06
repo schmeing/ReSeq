@@ -1,6 +1,9 @@
 #include "CoverageStatsTest.h"
 using reseq::CoverageStatsTest;
 
+#include <string>
+using std::string;
+
 void CoverageStatsTest::CreateTestObject(){
 	ASSERT_TRUE( test_ = new CoverageStats() ) << "Could not allocate memory for CoverageStats object\n";
 }
@@ -352,7 +355,9 @@ void CoverageStatsTest::TestCoverage(const CoverageStats &test){
 
 namespace reseq{
 	TEST_F(CoverageStatsTest, NonSystematicErrorRate){
-		LoadReference("ecoli-GCF_000005845.2_ASM584v2_genomic.fa");
+		string test_dir;
+		ASSERT_TRUE( GetTestDir(test_dir) );
+		LoadReference(test_dir+"ecoli-GCF_000005845.2_ASM584v2_genomic.fa");
 		CreateTestObject();
 
 		TestNonSystematicErrorRate();

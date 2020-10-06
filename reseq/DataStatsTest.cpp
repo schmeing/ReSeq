@@ -25,6 +25,8 @@ using reseq::FragmentDuplicationStatsTest;
 using reseq::QualityStatsTest;
 #include "TileStatsTest.h"
 using reseq::TileStatsTest;
+#include "utilities.hpp"
+using reseq::utilities::GetReSeqDir;
 
 void DataStatsTest::Register(){
 	// Guarantees that library is included
@@ -46,7 +48,9 @@ void DataStatsTest::LoadStats(const string &stats_file, bool ignore_tiles, bool 
 		test_->tiles_.IgnoreTiles();
 	}
 
-	ASSERT_TRUE( test_->ReadBam( (string(PROJECT_SOURCE_DIR)+"/test/"+stats_file).c_str(), (string(PROJECT_SOURCE_DIR)+"/adapters/"+adapter+".fa").c_str(), (string(PROJECT_SOURCE_DIR)+"/adapters/"+adapter+".mat").c_str(), (variants.empty()?variants:string(PROJECT_SOURCE_DIR)+"/test/"+variants), 100000000, 1, calculate_biases ) );
+	string adapter_dir;
+	ASSERT_TRUE( GetReSeqDir(adapter_dir, "adapters", adapter+".fa") );
+	ASSERT_TRUE( test_->ReadBam( stats_file.c_str(), (adapter_dir+adapter+".fa").c_str(), (adapter_dir+adapter+".mat").c_str(), variants, 100000000, 1, calculate_biases ) );
 	test_->PrepareTesting();
 }
 
@@ -392,7 +396,9 @@ namespace reseq{
 	}
 
 	TEST_F(DataStatsTest, Ecoli){
-		LoadReference("ecoli-GCF_000005845.2_ASM584v2_genomic.fa");
+		string test_dir;
+		ASSERT_TRUE( GetTestDir(test_dir) );
+		LoadReference(test_dir+"ecoli-GCF_000005845.2_ASM584v2_genomic.fa");
 		CreateTestObject(&species_reference_);
 
 		// zcat ecoli-SRR490124_1.fastq.gz | head -n16 > ecoli-SRR490124-4pairs-R1.fq
@@ -401,15 +407,15 @@ namespace reseq{
 		// ...
 		// zcat SRR490124_1.fastq.gz | head -n8 | awk '{if(1==NR%4 || 3==NR%4){print $1 "c7", $2, $3}else{print $0}}' >> ecoli-SRR490124-4pairs-R1.fq
 		// bowtie2 -X 2000 -x ecoli-GCF_000005845.2_ASM584v2_genomic.fa -1 <(reseq-prepare-names.py ecoli-SRR490124-4pairs-R1.fq ecoli-SRR490124-4pairs-R2.fq) -2 <(reseq-prepare-names.py ecoli-SRR490124-4pairs-R2.fq ecoli-SRR490124-4pairs-R1.fq) | samtools sort -m 10G -@ 4 -T _tmp -o ecoli-SRR490124-4pairs.sam -
-		LoadStats("ecoli-SRR490124-4pairs.sam");
+		LoadStats(test_dir+"ecoli-SRR490124-4pairs.sam");
 		TestSrr490124Equality("samfile");
 
 		DeleteTestObject();
 		CreateTestObject(&species_reference_);
 
 		// samtools view -o ecoli-SRR490124-4pairs.bam ecoli-SRR490124-4pairs.sam
-		LoadStats("ecoli-SRR490124-4pairs.bam");
-		string save_test_file = string(PROJECT_SOURCE_DIR)+"/test/saveTest.reseq";
+		LoadStats(test_dir+"ecoli-SRR490124-4pairs.bam");
+		string save_test_file = test_dir+"saveTest.reseq";
 		ASSERT_TRUE( test_->Save(save_test_file.c_str()) ); // Save before the test, so the test does not modify variables
 		TestSrr490124Equality("bamfile");
 
@@ -423,32 +429,34 @@ namespace reseq{
 		DeleteTestObject();
 		CreateTestObject(&species_reference_);
 		// bwa mem ecoli-GCF_000005845.2_ASM584v2_genomic.fa <(reseq-prepare-names.py ecoli-SRR490124-4pairs-R1.fq ecoli-SRR490124-4pairs-R2.fq) <(reseq-prepare-names.py ecoli-SRR490124-4pairs-R2.fq ecoli-SRR490124-4pairs-R1.fq) | samtools sort -m 10G -@ 4 -T _tmp -o ecoli-SRR490124-4pairs-bwa.bam -
-		LoadStats("ecoli-SRR490124-4pairs-bwa.bam");
+		LoadStats(test_dir+"ecoli-SRR490124-4pairs-bwa.bam");
 		TestSrr490124Equality("bwa", true, true);
 
 		DeleteTestObject();
 		CreateTestObject(&species_reference_);
-		LoadStats("ecoli-tiles.bam");
+		LoadStats(test_dir+"ecoli-tiles.bam");
 		TestTiles();
 
 		DeleteTestObject();
 		CreateTestObject(&species_reference_);
 		// bowtie2 -X 2000 -x ecoli-GCF_000005845.2_ASM584v2_genomic.fa -1 ecoli-duplicates-R1.fq -2 ecoli-duplicates-R2.fq | samtools sort -m 10G -@ 4 -T _tmp -o ecoli-duplicates.bam -
-		LoadStats("ecoli-duplicates.bam", true);
+		LoadStats(test_dir+"ecoli-duplicates.bam", true);
 		TestDuplicates();
 
 		DeleteTestObject();
 		CreateTestObject(&species_reference_);
-		LoadStats("ecoli-SRR490124-4pairs.bam", false, false, "TruSeq_single", "ecoli-SRR490124-4pairs.vcf");
+		LoadStats(test_dir+"ecoli-SRR490124-4pairs.bam", false, false, "TruSeq_single", test_dir+"ecoli-SRR490124-4pairs.vcf");
 		TestVariants();
 	}
 
 	TEST_F(DataStatsTest, Drosophila){
-		LoadReference("drosophila-GCF_000001215.4_cut.fna");
+		string test_dir;
+		ASSERT_TRUE( GetTestDir(test_dir) );
+		LoadReference(test_dir+"drosophila-GCF_000001215.4_cut.fna");
 		CreateTestObject(&species_reference_);
 
 		// bowtie2 -X 2000 -x drosophila-GCF_000001215.4_cut.fna -1 drosophila-crossDuplicates-R1.fq -2 drosophila-crossDuplicates-R2.fq | samtools sort -m 10G -@ 4 -T _tmp -o drosophila-crossDuplicates.bam -
-		LoadStats("drosophila-crossDuplicates.bam", true);
+		LoadStats(test_dir+"drosophila-crossDuplicates.bam", true);
 		TestCrossDuplicates();
 
 		DeleteTestObject();
@@ -456,12 +464,14 @@ namespace reseq{
 
 		// samtools faidx drosophila-GCF_000001215.4_cut.fna NW_007931113.1 | seqtk seq | awk '(0==NR%2){print length($0)}' | awk '{for(pos=1;pos<=$0-150;++pos){system("samtools faidx drosophila-GCF_000001215.4_cut.fna NW_007931113.1:" pos "-" pos+49 " NW_007931113.1:" pos+100 "-" pos+149)}}' | awk '(1==NR%2){print $0}(0==NR%2){system("seqtk seq drosophila-GCF_000001215.4_cut.fna | grep -i -o " $0 " | wc -l")}' | awk '(1==NR%4){head1=$0}(2==NR%4){num1=$0}(3==NR%4){head2=$0}(0==NR%4 && 1==num1 && 1==$0){print head1, head2, num1, $0}'
 		// bowtie2 -X 2000 -x drosophila-GCF_000001215.4_cut.fna -1 drosophila-coverageTest-R1.fq -2 drosophila-coverageTest-R2.fq | samtools sort -m 10G -@ 4 -T _tmp -o drosophila-coverageTest.bam -
-		LoadStats("drosophila-coverageTest.bam", true);
+		LoadStats(test_dir+"drosophila-coverageTest.bam", true);
 		TestCoverage();
 	}
 
 	TEST_F(DataStatsTest, Adapter){
-		LoadReference("ecoli-GCF_000005845.2_ASM584v2_genomic.fa");
+		string test_dir;
+		ASSERT_TRUE( GetTestDir(test_dir) );
+		LoadReference(test_dir+"ecoli-GCF_000005845.2_ASM584v2_genomic.fa");
 		CreateTestObject(&species_reference_);
 
 		// Check if adapters are counted properly
@@ -469,10 +479,10 @@ namespace reseq{
 		// zcat ../../../ecoli/data/SRR490124_1.fastq.gz | awk '{if(1==NR%4){if($1=="@SRR490124.10672007" || $1=="@SRR490124.2703087" || $1=="@SRR490124.7718805" || $1=="@SRR490124.7353367" || $1=="@SRR490124.3382600" || $1=="@SRR490124.8368120" || $1=="@SRR490124.10415918" || $1=="@SRR490124.110795" || $1=="@SRR490124.202918"){print $0;pri=1}else{pri=0}}else{if(pri){print $0}}}' > ecoli-SRR490124-adapter-R1.fq
 		// Manually added additional information in id and inserted _ to keep it after mapping
 		// bowtie2 -X 2000 -x ecoli-GCF_000005845.2_ASM584v2_genomic.fa -1 ecoli-SRR490124-adapter-R1.fq -2 ecoli-SRR490124-adapter-R2.fq | samtools sort -m 10G -@ 4 -T _tmp -o ecoli-SRR490124-adapter.bam -
-		LoadStats("ecoli-SRR490124-adapter.bam");
+		LoadStats(test_dir+"ecoli-SRR490124-adapter.bam");
 
 		// Check if adapter information is stored properly
-		string save_test_file = string(PROJECT_SOURCE_DIR)+"/test/saveTest.reseq";
+		string save_test_file = test_dir+"saveTest.reseq";
 		ASSERT_TRUE( test_->Save(save_test_file.c_str()) );
 
 		TestAdapters("bowtie2");
@@ -488,13 +498,15 @@ namespace reseq{
 		DeleteTestObject();
 		CreateTestObject(&species_reference_);
 		// bwa mem ecoli-GCF_000005845.2_ASM584v2_genomic.fa ecoli-SRR490124-adapter-R1.fq ecoli-SRR490124-adapter-R2.fq | samtools sort -m 10G -@ 4 -T _tmp -o ecoli-SRR490124-adapter-bwa.bam -
-		LoadStats("ecoli-SRR490124-adapter-bwa.bam");
+		LoadStats(test_dir+"ecoli-SRR490124-adapter-bwa.bam");
 
 		TestAdapters("bwa", true);
 	}
 
 	TEST_F(DataStatsTest, NexteraAdapter){
-		LoadReference("ecoli-GCF_000005845.2_ASM584v2_genomic.fa");
+		string test_dir;
+		ASSERT_TRUE( GetTestDir(test_dir) );
+		LoadReference(test_dir+"ecoli-GCF_000005845.2_ASM584v2_genomic.fa");
 		CreateTestObject(&species_reference_);
 
 		// zcat Nextera-Repeat-600pM-2x151-DI/Nextera_L1/Ecoli1_L001_S5_L001_R1_001.fastq.gz | awk '(2==NR%4){print NR, $0}' | grep --color=always 'CCGAGCCCACGAGAC' | head -n20
@@ -506,7 +518,7 @@ namespace reseq{
 		// zcat Nextera-Repeat-600pM-2x151-DI/Nextera_L1/Ecoli1_L001_S5_L001_R2_001.fastq.gz | awk '(NR>=129)' | head -n4 >> ecoli-S1L001-adapters-R2.fq
 		// bowtie2 -X 2000 -x ecoli-GCF_000005845.2_ASM584v2_genomic.fa -1 ecoli-S1L001-adapters-R1.fq -2 ecoli-S1L001-adapters-R2.fq | samtools sort -m 10G -@ 4 -T _tmp -o ecoli-S1L001-adapters.bam -
 
-		LoadStats("ecoli-S1L001-adapters.bam",false,false,"Nextera_XTv2");
+		LoadStats(test_dir+"ecoli-S1L001-adapters.bam",false,false,"Nextera_XTv2");
 
 		TestNexteraAdapters();
 	}

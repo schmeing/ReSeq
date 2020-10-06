@@ -3,9 +3,12 @@
 
 #include <array>
 #include <atomic>
+#include <cstdlib>
 #include <fstream>
 #include <random>
 #include <stdexcept>
+#include <string>
+#include <sys/stat.h>
 
 #include <boost/filesystem.hpp>
 
@@ -14,6 +17,8 @@
 #include <seqan/modifier.h>
 #include <seqan/sequence.h>
 #include <seqan/bam_io.h>
+
+#include "CMakeConfig.h"
 
 //https://stackoverflow.com/questions/3599160/how-to-suppress-unused-parameter-warnings-in-c
 #ifdef __GNUC__
@@ -414,8 +419,32 @@ namespace reseq{
 			}
 		}
 
+		inline bool FileExists(const std::string &file){
+			struct stat buffer;
+			return (stat(file.c_str(), &buffer) == 0);
+		}
+
 		inline void DeleteFile(const char *file){
 			boost::filesystem::remove(boost::filesystem::path(file));
+		}
+
+		inline bool GetReSeqDir(std::string &full_dir, const std::string dir, const std::string test_file){
+			full_dir = std::string(PROJECT_SOURCE_DIR) + '/' + dir + '/';
+			if(!FileExists(full_dir + test_file)){
+				full_dir = std::string( std::getenv("CONDA_PREFIX") ) + "/etc/reseq/" + dir + '/';
+				if(!FileExists(full_dir + test_file)){
+					full_dir = std::string( std::getenv("RESEQ_FOLDER") ) + '/' + dir + '/';
+					if(!FileExists(full_dir + test_file)){
+						printErr << "Could not find " << dir << " folder. Searching at " << std::endl <<
+								(std::string(PROJECT_SOURCE_DIR)+'/'+dir+'/') << std::endl <<
+								("${CONDA_PREFIX}/etc/reseq/"+dir+'/') << std::endl <<
+								("${RESEQ_FOLDER}/"+dir+'/') << std::endl;
+						return false;
+					}
+				}
+			}
+
+			return true;
 		}
 
 		template<typename T> inline T Divide(T nom, T den){ // Calculates the division: nom/den with proper rounding to int

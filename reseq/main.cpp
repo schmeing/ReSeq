@@ -36,6 +36,8 @@ using boost::program_options::value;
 using boost::program_options::variable_value;
 using boost::program_options::variables_map;
 
+#include "BasicTestClass.hpp"
+using reseq::BasicTestClass;
 #include "CMakeConfig.h"
 #include "DataStats.h"
 using reseq::DataStats;
@@ -55,6 +57,8 @@ using reseq::uintSeqLen;
 using reseq::uintFragCount;
 using reseq::uintSeed;
 using reseq::utilities::DeleteFile;
+using reseq::utilities::FileExists;
+using reseq::utilities::GetReSeqDir;
 using reseq::utilities::TrueRandom;
 
 #include "AdapterStatsTest.h"
@@ -90,34 +94,39 @@ bool AutoDetectThreads(uintNumThreads &num_threads, const options_description &o
 	return true;
 }
 
-void DefaultExtensionFile(string &file_name, const string folder, const string extension){
-	if (FILE *file = fopen(file_name.c_str(), "r")){
+bool DefaultExtensionFile(string &file_name, const string extension){
+	if(FileExists(file_name)){
 		// File exists without modification
-		fclose(file);
-		return;
+		return true;
 	}
 
 	if( 0 == count(file_name.begin(), file_name.end(), '.' ) ){
 		file_name += extension;
-		if (FILE *file = fopen(file_name.c_str(), "r")){
+		if(FileExists(file_name)){
 			// File exists with adding extension
-			fclose(file);
-			return;
+			return true;
 		}
 	}
 
 	if( 0 == count(file_name.begin(), file_name.end(), '/' ) ){
-		file_name = folder + file_name;
-		if (FILE *file = fopen(file_name.c_str(), "r")){
+		string adapter_dir;
+		if( GetReSeqDir(adapter_dir, "adapters", "TruSeq_single.fa") ){
+			file_name = adapter_dir + file_name;
+		}
+		else{
+			file_name = "";
+			return false;
+		}
+
+		if(FileExists(file_name)){
 			// File exists with adding folder
-			fclose(file);
-			return;
+			return true;
 		}
 	}
 
 	printErr << "Automatic filename deduction failed for: '" << file_name << "'. Please provide valid path." << std::endl;
 	file_name = "";
-	return;
+	return false;
 }
 
 void GetDataStats(DataStats &real_data_stats, string &stats_file, bool &loaded_stats, bool stats_only, uintSeqLen max_ref_seq_bin_size, const variables_map &opts_map, const options_description &opt_desc, const string &usage_str, uintNumThreads num_threads ){
@@ -195,75 +204,80 @@ void GetDataStats(DataStats &real_data_stats, string &stats_file, bool &loaded_s
 			printInfo << "Storing real data statistics in " << stats_file << std::endl;
 
 			// Set adapter files to input or default
+			bool adapters_failed = false;
 			string adapter_file, adapter_matrix;
 			auto it_adapter_file = opts_map.find("adapterFile");
 			auto it_adapter_matrix = opts_map.find("adapterMatrix");
-			if( opts_map.end() != it_adapter_file || opts_map.end() != it_adapter_matrix ){
-				if( opts_map.end() != it_adapter_file ){
-					adapter_file = it_adapter_file->second.as<string>();
-					DefaultExtensionFile(adapter_file, string(PROJECT_SOURCE_DIR)+"/adapters/", ".fa");
-				}
-				if( opts_map.end() != it_adapter_matrix ){
-					adapter_matrix = it_adapter_matrix->second.as<string>();
-					DefaultExtensionFile(adapter_matrix, string(PROJECT_SOURCE_DIR)+"/adapters/", ".mat");
-				}
 
+			if( opts_map.end() != it_adapter_file ){
+				adapter_file = it_adapter_file->second.as<string>();
+				if( !DefaultExtensionFile(adapter_file, ".fa") ){
+					adapters_failed = true;
+				}
+			}
+			if( opts_map.end() != it_adapter_matrix ){
+				adapter_matrix = it_adapter_matrix->second.as<string>();
+				if( !DefaultExtensionFile(adapter_matrix, ".mat") ){
+					adapters_failed = true;
+				}
+			}
+
+			if( !adapters_failed ){
 				if( adapter_file.size() ){
 					if( 0 == adapter_matrix.size() ){
 						// Only sequences
-						bool failed = true;
 						if(2 < adapter_file.size()){
 							adapter_matrix = adapter_file;
 							adapter_matrix.replace(adapter_matrix.size()-3,3,".mat");
-							if (FILE *file = fopen(adapter_matrix.c_str(), "r")){
-								fclose(file);
-								failed = false;
+							if(!FileExists(adapter_matrix)){
+								adapters_failed = true;
 							}
 						}
-						if(failed){
+						else{
+							adapters_failed = true;
+						}
+
+						if(adapters_failed){
 							printErr << "Switching extension of adapter-sequence file did not result in valid matrix file. Please specify the matrix file." << std::endl;
 							if(0 < kVerbosityLevel){
 								cerr << usage_str;
 								cerr << opt_desc << std::endl;
 							}
-
-							adapter_file = "";
-							adapter_matrix = "error";
 						}
 					}
 				}
-				else{
+				else if( adapter_matrix.size() ){
 					// Only matrix
-					bool failed = true;
 					if(3 < adapter_matrix.size()){
 						adapter_file = adapter_matrix;
 						adapter_file.replace(adapter_file.size()-4,4,".fa");
-						if (FILE *file = fopen(adapter_file.c_str(), "r")){
-							fclose(file);
-							failed = false;
+						if(!FileExists(adapter_file)){
+							adapters_failed = true;
 						}
 					}
-					if(failed){
+					else{
+						adapters_failed = true;
+					}
+
+					if(adapters_failed){
 						printErr << "Switching extension of adapter-matrix file did not result in valid sequence file. Please specify the sequence file." << std::endl;
 						if(0 < kVerbosityLevel){
 							cerr << usage_str;
 							cerr << opt_desc << std::endl;
 						}
-						adapter_file = "";
-						adapter_matrix = "error";
 					}
 				}
 			}
 
-			if( !tiles ){
-				printInfo << "Tiles will be ignored and all statistics will be generated like all reads are from the same tile." << std::endl;
-				real_data_stats.IgnoreTiles();
-			}
-			else{
-				printInfo << "Statistics will be split into tiles if possible." << std::endl;
-			}
+			if( !adapters_failed ){
+				if( !tiles ){
+					printInfo << "Tiles will be ignored and all statistics will be generated like all reads are from the same tile." << std::endl;
+					real_data_stats.IgnoreTiles();
+				}
+				else{
+					printInfo << "Statistics will be split into tiles if possible." << std::endl;
+				}
 
-			if( !adapter_file.empty() || adapter_matrix.empty() ){
 				string variant_file = "";
 				auto it_variant_file = opts_map.find("vcfIn");
 				if( opts_map.end() != it_variant_file ){
@@ -1087,6 +1101,11 @@ int main(int argc, char *argv[]) {
 				cerr << opt_desc_full << std::endl;
 			}
 			else if(AutoDetectThreads(num_threads, opt_desc_full, usage_str)){
+				string test_dir;
+				if(!BasicTestClass::GetTestDir(test_dir)){
+					return 1; // We cannot find the test folder and don't want every individual test failing because of this
+				}
+
 				reseq::AdapterStatsTest::Register();
 				reseq::DataStatsTest::Register();
 				reseq::FragmentDistributionStatsTest::Register(num_threads);
@@ -1138,6 +1157,7 @@ int main(int argc, char *argv[]) {
 			if(0 < kVerbosityLevel){
 				cerr << general_usage << std::endl;
 			}
+			return 1;
 		}
 	}
 

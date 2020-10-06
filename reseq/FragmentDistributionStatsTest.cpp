@@ -986,7 +986,9 @@ void FragmentDistributionStatsTest::TestRefBinProcessing(){
 
 namespace reseq{
 	TEST_F(FragmentDistributionStatsTest, BiasCalculationVectors){
-		LoadReference("reference-test-withN.fa");
+		string test_dir;
+		ASSERT_TRUE( GetTestDir(test_dir) );
+		LoadReference(test_dir+"reference-test-withN.fa");
 		SetExlusionRegionsAtEnds();
 
 		TestBiasCalculationVectorsPreprocessing();
@@ -997,7 +999,9 @@ namespace reseq{
 
 	TEST_F(FragmentDistributionStatsTest, BiasCalculation){
 		// samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:100-199 | awk '(NR==1){print $0 "_1000times"}(NR==2){for(i=0;i<1000;i++){print $0}}' | seqtk seq > reference-bias-calculation.fa
-		LoadReference("reference-bias-calculation.fa");
+		string test_dir;
+		ASSERT_TRUE( GetTestDir(test_dir) );
+		LoadReference(test_dir+"reference-bias-calculation.fa");
 		SetExlusionRegionsAtEnds();
 		CreateTestObject(&species_reference_);
 
@@ -1006,7 +1010,9 @@ namespace reseq{
 	}
 
 	TEST_F(FragmentDistributionStatsTest, UpdateRefSeqBias){
-		LoadReference("reference-test.fa");
+		string test_dir;
+		ASSERT_TRUE( GetTestDir(test_dir) );
+		LoadReference(test_dir+"reference-test.fa");
 		SetExlusionRegionsAtEnds();
 		CreateTestObject(&species_reference_);
 		std::mt19937_64 rgen;
@@ -1035,14 +1041,16 @@ namespace reseq{
 		EXPECT_EQ(1.0, test_->ref_seq_bias_.at(1)) << "No reference bias does not work.";
 
 		test_->ref_seq_bias_.resize(1);
-		EXPECT_TRUE(test_-> UpdateRefSeqBias(RefSeqBiasSimulation::kFile, std::string(PROJECT_SOURCE_DIR)+"/test/ref-bias-test.txt", species_reference_, rgen));
+		EXPECT_TRUE(test_-> UpdateRefSeqBias(RefSeqBiasSimulation::kFile, test_dir+"ref-bias-test.txt", species_reference_, rgen));
 		EXPECT_EQ(2, test_->ref_seq_bias_.size()) << "Reference bias from file does not work.";
 		EXPECT_EQ(2.0, test_->ref_seq_bias_.at(0)) << "Reference bias from file does not work.";
 		EXPECT_EQ(1.0, test_->ref_seq_bias_.at(1)) << "Reference bias from file does not work.";
 	}
 
 	TEST_F(FragmentDistributionStatsTest, Functionality){
-		LoadReference("drosophila-GCF_000001215.4_cut.fna"); // So we have many sequences
+		string test_dir;
+		ASSERT_TRUE( GetTestDir(test_dir) );
+		LoadReference(test_dir+"drosophila-GCF_000001215.4_cut.fna"); // So we have many sequences
 		SetExlusionRegionsAtEnds();
 		AddExlusionRegionsDrosophila();
 		ASSERT_TRUE( test_ = new FragmentDistributionStats ) << "Could not allocate memory for FragmentDistributionStats object\n";

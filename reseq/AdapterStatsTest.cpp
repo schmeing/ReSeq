@@ -7,7 +7,8 @@ using std::string;
 #include <seqan/sequence.h>
 using seqan::CharString;
 
-#include "CMakeConfig.h"
+#include "utilities.hpp"
+using reseq::utilities::GetReSeqDir;
 
 void AdapterStatsTest::Register(){
 	// Guarantees that library is included
@@ -30,7 +31,9 @@ void AdapterStatsTest::TearDown(){
 }
 
 void AdapterStatsTest::LoadAdapters(){
-	EXPECT_TRUE( test_->LoadAdapters( (string(PROJECT_SOURCE_DIR)+"/adapters/TruSeq_single.fa").c_str(), (string(PROJECT_SOURCE_DIR)+"/adapters/TruSeq_single.mat").c_str() ) ) << "Problem loading the default adapters";
+	string adapter_dir;
+	ASSERT_TRUE( GetReSeqDir(adapter_dir, "adapters", "TruSeq_single.fa") );
+	EXPECT_TRUE( test_->LoadAdapters( (adapter_dir+"TruSeq_single.fa").c_str(), (adapter_dir+"TruSeq_single.mat").c_str() ) ) << "Problem loading the default adapters";
 	test_->PrepareAdapters(33, 101);
 }
 

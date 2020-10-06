@@ -11,7 +11,6 @@
 #include "gtest/gtest.h"
 
 #include "BasicTestClass.hpp"
-#include "CMakeConfig.h"
 #include "utilities.hpp"
 #include "Vect.hpp"
 
@@ -34,8 +33,6 @@ namespace reseq{
 		void SetUpDataErrorRate(DataStats &stats, const std::vector<Vect<Vect<uintMatrixCount>>> &margins);
 
 	protected:
-		const std::string kSaveTestFile = std::string(PROJECT_SOURCE_DIR)+"/test/saveTest.reseq.ipf";
-
 		// Class instance to test
 		ProbabilityEstimates test_;
 

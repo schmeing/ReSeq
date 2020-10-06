@@ -37,9 +37,9 @@ void SurroundingTest::TestBasics(){
 	EXPECT_EQ(1, test.BaseAt(29));
 }
 
-void SurroundingTest::TestSettersAndUpdaters(){
+void SurroundingTest::TestSettersAndUpdaters(const string &test_dir){
 	Reference ref;
-	ASSERT_TRUE( ref.ReadFasta( (string(PROJECT_SOURCE_DIR)+"/test/reference-test.fa").c_str() ) );
+	ASSERT_TRUE( ref.ReadFasta( (test_dir+"reference-test.fa").c_str() ) );
 
 	// cat reference-test.fa | seqtk seq | awk '(2==NR){print substr($0,length($0)-9,10) $0 substr($0,1,20)}' | awk 'BEGIN{split("0,1,2,15,497,498,499",poslist,",")}{for(p=1;p<=length(poslist);++p){pos=poslist[p];for(i=0;i<3;++i){print i, pos, substr($0,i*10+pos+1,10)}}}' | awk 'BEGIN{d["A"]=0;d["C"]=1;d["G"]=2;d["T"]=3}{mult=1;sur=0;for(i=length($3);i>0;i-=1){sur+=mult*d[substr($3,i,1)];mult*=4}; print $1, $2, $3, sur}'
 	string error_msg = "The function ForwardSurrounding returns wrong results\n";
@@ -210,9 +210,9 @@ void SurroundingTest::TestSettersAndUpdaters(){
 	EXPECT_EQ(626906, surrounding.sur_.at(2)) << error_msg2;
 }
 
-void SurroundingTest::TestSettersAndUpdatersWithN(){
+void SurroundingTest::TestSettersAndUpdatersWithN(const string &test_dir){
 	Reference ref;
-	ASSERT_TRUE( ref.ReadFasta( (string(PROJECT_SOURCE_DIR)+"/test/reference-test.fa").c_str() ) );
+	ASSERT_TRUE( ref.ReadFasta( (test_dir+"reference-test.fa").c_str() ) );
 	at(at(ref.reference_sequences_, 0), 253) = 'N';
 	at(at(ref.reference_sequences_, 0), 256) = 'N';
 	at(at(ref.reference_sequences_, 0), 263) = 'N';
@@ -643,13 +643,18 @@ void SurroundingTest::TestSeparatingBias(){
 
 namespace reseq{
 	TEST_F(SurroundingTest, Basics){
+		string test_dir;
+		ASSERT_TRUE( GetTestDir(test_dir) );
+
 		TestBasics();
-		TestSettersAndUpdaters();
-		TestSettersAndUpdatersWithN();
+		TestSettersAndUpdaters(test_dir);
+		TestSettersAndUpdatersWithN(test_dir);
 	}
 
 	TEST_F(SurroundingTest, Modifiers){
-		LoadReference("ecoli-GCF_000005845.2_ASM584v2_genomic.fa");
+		string test_dir;
+		ASSERT_TRUE( GetTestDir(test_dir) );
+		LoadReference(test_dir+"ecoli-GCF_000005845.2_ASM584v2_genomic.fa");
 
 		TestModifiers();
 		TestModifiersExtremCases();

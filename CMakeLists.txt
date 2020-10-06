@@ -22,6 +22,7 @@ find_package(ZLIB REQUIRED)
 find_package(BZip2 REQUIRED)
 
 # Add boost
+cmake_policy(SET CMP0057 NEW)
 find_package(Boost 1.48.0 REQUIRED filesystem math_c99 math_c99f math_c99l math_tr1 math_tr1f math_tr1l program_options serialization system)
 include_directories(${Boost_INCLUDE_DIRS})
 link_directories(${Boost_LIBRARY_DIRS})
