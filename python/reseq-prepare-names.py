@@ -15,8 +15,10 @@ def modName(name, num_spaces, num_colons):
     split_part = split_line[num_spaces].split(':')
     part = ':'.join(split_part[:num_colons+1])
     start = '_'.join(split_line[:num_spaces])
-    return start+'_'+part
-    return ""
+    if len(start):
+        return start+'_'+part
+    else:
+        return part
 
 def prepareNames(file1,file2):
     with gzip.open(file2, 'r') if 'gz' == file2.split('.')[-1] else open(file2, 'r') as f2:
