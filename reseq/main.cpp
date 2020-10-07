@@ -74,6 +74,10 @@ using reseq::utilities::TrueRandom;
 #include "VectTest.h"
 #include "utilitiesTest.h"
 
+// Definitions so that referencing a const static is valid
+seqan::FunctorComplement<seqan::Dna5> reseq::utilities::Complement::Dna5;
+seqan::FunctorComplement<seqan::Dna> reseq::utilities::Complement::Dna;
+
 // Helper functions
 bool AutoDetectThreads(uintNumThreads &num_threads, const options_description &opt_desc, const string &usage_str ){
 	if(0 == num_threads){

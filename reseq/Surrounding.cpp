@@ -103,7 +103,7 @@ void Surrounding::InsertSurroundingBasesShiftingOnRightSide(uintSurPos pos, DnaS
 	}
 	else{
 		while(0 < bases_to_insert){
-			bases_to_insert_into_this_block = min(bases_to_insert, kRange);
+			bases_to_insert_into_this_block = min(bases_to_insert, (uintSurPos)kRange);
 			bases_to_insert -= bases_to_insert_into_this_block;
 
 			// Store the part of the block that is not overwritten by insertions
@@ -176,7 +176,7 @@ void Surrounding::InsertSurroundingBasesShiftingOnLeftSide(uintSurPos pos, DnaSt
 	sur_.at(block) += tmp_sur;
 
 	while(0 < bases_to_insert){
-		bases_to_insert_into_this_block = min(bases_to_insert, kRange);
+		bases_to_insert_into_this_block = min(bases_to_insert, (uintSurPos)kRange);
 
 		// Leave only the part of the block that should not be overwritten by insertions
 		sur_.at(--block) >>= 2*bases_to_insert_into_this_block;

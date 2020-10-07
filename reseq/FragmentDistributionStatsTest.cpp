@@ -47,7 +47,7 @@ void FragmentDistributionStatsTest::SetExlusionRegionsAtEnds(){
 	species_reference_.excluded_regions_.resize( species_reference_.NumberSequences() );
 	species_reference_.sum_of_excluded_bases_.resize( species_reference_.NumberSequences(), 2*Reference::kMinDistToContigEnds );
 	for(auto ref_seq = species_reference_.NumberSequences(); ref_seq--; ){
-		species_reference_.excluded_regions_.at(ref_seq).emplace_back(0, Reference::kMinDistToContigEnds);
+		species_reference_.excluded_regions_.at(ref_seq).emplace_back(0, (uintSeqLen)Reference::kMinDistToContigEnds);
 		species_reference_.excluded_regions_.at(ref_seq).emplace_back(species_reference_.SequenceLength(ref_seq) - Reference::kMinDistToContigEnds, species_reference_.SequenceLength(ref_seq));
 	}
 	species_reference_.obtained_exclusion_regions_for_num_sequences_ = species_reference_.NumberSequences();

@@ -25,7 +25,7 @@ namespace reseq{
 				kVerbosityLevel = reduced_verbosity;
 			}
 		}
-		inline void RestoreTestVerbosity(){ kVerbosityLevel = std::min(kTestVerbosity,real_verbosity_); }
+		inline void RestoreTestVerbosity(){ kVerbosityLevel = std::min((uint16_t)kTestVerbosity,real_verbosity_); }
 		inline void RestoreVerbosity(){ kVerbosityLevel = real_verbosity_; }
 
 		virtual void SetUp(){

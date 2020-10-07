@@ -46,6 +46,9 @@ using reseq::utilities::SetToMax;
 using reseq::utilities::SetToMin;
 using reseq::utilities::TransformDistanceToStartOfErrorRegion;
 
+// Definitions so that referencing a const static is valid
+const reseq::uintCovCount reseq::CoverageStats::kMaxCoverage;
+
 void CoverageStats::EvalRead( FullRecord *record, CoverageStats::CoverageBlock *coverage_block, const Reference &reference, QualityStats &qualities, ErrorStats &errors, uintQual phred_quality_offset){
 	// Fragments that did not made the filters have to_ref_pos_=0
 	if(record->to_ref_pos_){
