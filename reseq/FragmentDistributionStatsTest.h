@@ -45,7 +45,7 @@ namespace reseq{
 		static void TestCrossDuplicates(const FragmentDistributionStats &test);
 		static void TestCoverage(const FragmentDistributionStats &test);
 		static void TestAdapters(const FragmentDistributionStats &test, const char *context, bool bwa=false);
-		static void BiasCalculationThread(FragmentDistributionStats &test, const Reference &reference, FragmentDuplicationStats &duplications, BiasCalculationVectors &thread_values, std::mutex &print_mutex);
+		static void BiasCalculationThread(FragmentDistributionStats &test, const Reference &reference, FragmentDuplicationStats &duplications, std::mutex &print_mutex);
 		void TestBiasCalculationVectorsPreprocessing();
 		void TestBiasCalculationVectorsNormalizations();
 		void TestBiasCalculationVectorsSpline();

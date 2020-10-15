@@ -5,6 +5,7 @@
 #include <array>
 #include <atomic>
 #include <cmath>
+#include <deque>
 #include <mutex>
 #include <random>
 #include <stdint.h>
@@ -281,8 +282,6 @@ namespace reseq{
 		private:
 			std::vector<uintSeqLen> num_sites_per_insert_length_;
 			std::vector<std::pair<uintSeqLen, std::pair<uintRefSeqBin, uintSeqLen>>> bias_calc_tmp_params_;
-			BiasCalculationVectors bias_calc_vects_;
-			std::vector<uintFragCount> tmp_frag_count_;
 
 			uintRefSeqBin last_bin_;
 			uintSeqLen last_added_region_;
@@ -293,13 +292,11 @@ namespace reseq{
 			// Google test
 			friend class FragmentDistributionStatsTest;
 		public:
-			ThreadData( uintSeqLen maximum_insert_length, uintSeqLen max_seq_bin_len, uintSeqLen start_exclusion_length ):
+			ThreadData( uintSeqLen maximum_insert_length, uintSeqLen start_exclusion_length ):
 				last_bin_(0),
 				last_added_region_(0),
 				correction_(start_exclusion_length){
 				bias_calc_tmp_params_.reserve( maximum_insert_length );
-				bias_calc_vects_.sites_.reserve(max_seq_bin_len);
-				tmp_frag_count_.reserve(max_seq_bin_len+maximum_insert_length+1);
 			}
 		};
 	private:
@@ -365,6 +362,10 @@ namespace reseq{
 		std::atomic<uintNumFits> params_left_for_calculation_;
 		std::atomic<uintNumFits> params_fitted_;
 
+		uintSeqLen calc_max_seq_bin_len_;
+		std::deque<std::pair<std::atomic_flag, BiasCalculationVectors>> bias_calc_vects_; // Use deque instead of vector so we can set the size after construction despite having atomic flags inside
+		std::deque<std::pair<std::atomic_flag, std::vector<uintFragCount>>> tmp_frag_count_; // Use deque instead of vector so we can set the size after construction despite having atomic flags inside
+
 		// Collected variables for bias calculation
 		std::vector<uintFragCount> abundance_; // abundance_[referenceID] = #numberOfPairsMapToIt
 		Vect<uintFragCount> insert_lengths_; // insert_lengths_[length] = #pairs
@@ -397,9 +398,10 @@ namespace reseq{
 			return ref_seq_bin_def_.at(ref_seq_bin).first;
 		}
 		inline void IncreaseErrorCounter(uintErrorCount &errors);
-		void PrepareBiasCalculation( const Reference &ref, uintSeqLen maximum_insert_length, uintSeqLen max_ref_seq_bin_size, const std::vector<uintFragCount> &reads_per_frag_len_bin, const std::vector<uintFragCount> &lowq_reads_per_frag_len_bin );
+		void PrepareBiasCalculation( const Reference &ref, uintSeqLen maximum_insert_length, uintSeqLen max_ref_seq_bin_size, const std::vector<uintFragCount> &reads_per_frag_len_bin, const std::vector<uintFragCount> &lowq_reads_per_frag_len_bin, uintNumThreads num_threads );
 		inline void CheckLowQExclusion(std::vector<std::pair<uintSeqLen,uintSeqLen>> &lowq_site_exclusion, uintSeqLen excluded_pos, uintFragCount lowq_count, const std::vector<uintFragCount> &tmp_frag_count );
 		void CheckLowQExclusions(uintRefSeqBin ref_seq_bin, std::vector<uintFragCount> &tmp_frag_count, const Reference &reference);
+		void CheckLowQExclusions(uintRefSeqBin ref_seq_bin, const Reference &reference);
 		void SortFragmentSites(uintRefSeqBin ref_seq_bin, std::vector<uintSeqLen> &num_sites_per_insert_length);
 		void UpdateBiasCalculationParams(uintRefSeqBin ref_seq_bin, uint32_t queue_spot, std::vector<std::pair<uintSeqLen, std::pair<uintRefSeqBin, uintSeqLen>>> &tmp_params, std::mutex &print_mutex );
 		void FillParams(std::vector<BiasCalculationParams> &params, const Reference &reference, const std::vector<uintSeqLen> &sample_frag_length) const;
@@ -424,7 +426,7 @@ namespace reseq{
 		bool CalculateInsertLengthAndRefSeqBias(const Reference &reference, uintNumThreads num_threads);
 		void ReplaceUncertainCorrectedAbundanceWithMedian(const Reference &ref);
 		void AddNewBiasCalculations(uintRefSeqBin still_needed_ref_bin, ThreadData &thread, std::mutex &print_mutex, const Reference &reference);
-		void ExecuteBiasCalculations( const Reference &reference, FragmentDuplicationStats &duplications, BiasCalculationVectors &thread_values, std::mutex &print_mutex );
+		void ExecuteBiasCalculations( const Reference &reference, FragmentDuplicationStats &duplications, std::mutex &print_mutex );
 		void HandleReferenceSequencesUntil(uintRefSeqBin still_needed_ref_bin, ThreadData &thread, const Reference &reference, FragmentDuplicationStats &duplications, std::mutex &print_mutex);
 		static void BiasSumThread( const FragmentDistributionStats &self, const Reference &reference, const std::vector<BiasCalculationParams> &params, std::atomic<uintNumFits> &current_param, std::atomic<uintNumFits> &finished_params, std::vector<std::vector<double>> &bias_sum, std::mutex &print_mutex );
 
@@ -572,7 +574,7 @@ namespace reseq{
 			return max;
 		}
 
-		void Prepare( const Reference &ref, uintSeqLen maximum_insert_length, uintSeqLen max_ref_seq_bin_size, const std::vector<uintFragCount> &reads_per_frag_len_bin, const std::vector<uintFragCount> &lowq_reads_per_frag_len_bin );
+		void Prepare( const Reference &ref, uintSeqLen maximum_insert_length, uintSeqLen max_ref_seq_bin_size, const std::vector<uintFragCount> &reads_per_frag_len_bin, const std::vector<uintFragCount> &lowq_reads_per_frag_len_bin, uintNumThreads num_threads );
 		void FillInOutskirtContent( const Reference &reference, const seqan::BamAlignmentRecord &record_start, uintSeqLen fragment_start_pos, uintSeqLen fragment_end_pos );
 
 		void HandleReferenceSequencesUntil(uintRefSeqId still_needed_reference_sequence, uintSeqLen still_needed_position, ThreadData &thread, const Reference &reference, FragmentDuplicationStats &duplications, std::mutex &print_mutex);

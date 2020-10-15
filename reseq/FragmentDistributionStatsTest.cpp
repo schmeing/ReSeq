@@ -74,7 +74,7 @@ void FragmentDistributionStatsTest::CreateTestObject(const Reference *ref){
 	reads_per_frag_len_bin.resize(num_bins, 0);
 	vector<uintFragCount> lowq_reads_per_frag_len_bin;
 	lowq_reads_per_frag_len_bin.resize(num_bins, 0);
-	test_->Prepare(*ref, maximum_insert_length, 100000000, reads_per_frag_len_bin, lowq_reads_per_frag_len_bin);
+	test_->Prepare(*ref, maximum_insert_length, 100000000, reads_per_frag_len_bin, lowq_reads_per_frag_len_bin, 4);
 
 	//test_->Finalize();
 	test_->tmp_insert_lengths_.resize(101); // Reverted in Finalize, so it has to be done here
@@ -363,8 +363,8 @@ void FragmentDistributionStatsTest::TestAdapters(const FragmentDistributionStats
 	EXPECT_EQ(1, test.outskirt_content_.at(1).at(1)[7] ) << "for " << context;
 }
 
-void FragmentDistributionStatsTest::BiasCalculationThread(FragmentDistributionStats &test, const Reference &reference, FragmentDuplicationStats &duplications, BiasCalculationVectors &thread_values, mutex &print_mutex){
-	test.ExecuteBiasCalculations( reference, duplications, thread_values, print_mutex );
+void FragmentDistributionStatsTest::BiasCalculationThread(FragmentDistributionStats &test, const Reference &reference, FragmentDuplicationStats &duplications, mutex &print_mutex){
+	test.ExecuteBiasCalculations( reference, duplications, print_mutex );
 }
 
 void FragmentDistributionStatsTest::TestBiasCalculationVectorsPreprocessing(){
@@ -700,7 +700,7 @@ void FragmentDistributionStatsTest::TestBiasCalculation(){
 	FragmentDuplicationStats duplications;
 	duplications.PrepareTmpDuplicationVector();
 	uintNumThreads num_threads = min(static_cast<uintNumThreads>(4), test_with_num_threads);
-	array<FragmentDistributionStats::ThreadData, 4> thread_data = {FragmentDistributionStats::ThreadData(100, species_reference_.SequenceLength(0), Reference::kMinDistToContigEnds), FragmentDistributionStats::ThreadData(100, species_reference_.SequenceLength(0), Reference::kMinDistToContigEnds), FragmentDistributionStats::ThreadData(100, species_reference_.SequenceLength(0), Reference::kMinDistToContigEnds), FragmentDistributionStats::ThreadData(100, species_reference_.SequenceLength(0), Reference::kMinDistToContigEnds)};
+	array<FragmentDistributionStats::ThreadData, 4> thread_data = {FragmentDistributionStats::ThreadData(100, Reference::kMinDistToContigEnds), FragmentDistributionStats::ThreadData(100, Reference::kMinDistToContigEnds), FragmentDistributionStats::ThreadData(100, Reference::kMinDistToContigEnds), FragmentDistributionStats::ThreadData(100, Reference::kMinDistToContigEnds)};
 	mutex print_mutex;
 
 	ReduceVerbosity(1); // Suppress warnings
@@ -708,7 +708,7 @@ void FragmentDistributionStatsTest::TestBiasCalculation(){
 
 	thread threads[num_threads];
 	for(auto i = num_threads; i--; ){
-		threads[i] = thread(BiasCalculationThread, std::ref(*test_), std::cref(species_reference_), std::ref(duplications), std::ref(thread_data.at(i).bias_calc_vects_), std::ref(print_mutex));
+		threads[i] = thread(BiasCalculationThread, std::ref(*test_), std::cref(species_reference_), std::ref(duplications), std::ref(print_mutex));
 	}
 	for(auto i = num_threads; i--; ){
 		threads[i].join();
@@ -878,7 +878,7 @@ void FragmentDistributionStatsTest::TestRefSeqSplitting(){
 	EXPECT_EQ(1200, test_->GetRefSeqId(1208));
 	EXPECT_EQ(1201, test_->GetRefSeqId(1209));
 
-	FragmentDistributionStats::ThreadData thread(0, 0, Reference::kMinDistToContigEnds); // Set the first two to zero so no vector space is acquired
+	FragmentDistributionStats::ThreadData thread(0, Reference::kMinDistToContigEnds); // Set the first two to zero so no vector space is acquired
 	array<uintRefSeqId, 18> ref_seq_ids =       {    0,     0,     0,     0,     1,     1,  1200,  1200,  1200,  1200,  1200,  1200,  1225,  1225,  1225,  1225,  1225,  1225};
 	array<uintSeqLen, 18> positions =           {   50, 33219, 33220, 66388,    50, 33265,    50, 28137, 28138, 59225, 59226, 87314,    50, 29605, 29606, 59162, 59163, 88717};
 	array<uintRefSeqBin, 18> ref_seq_bins =     {    0,     0,     1,     1,     2,     2,  1206,  1206,  1207,  1207,  1208,  1208,  1240,  1240,  1241,  1241,  1242,  1242};
@@ -922,7 +922,7 @@ void FragmentDistributionStatsTest::TestRefBinProcessing(){
 	test_->fragment_sites_by_ref_seq_bin_cur_id_.resize( num_bins );
 	test_->fragment_sites_by_ref_seq_bin_by_insert_length_.resize(num_bins);
 
-	FragmentDistributionStats::ThreadData thread(0, 0, Reference::kMinDistToContigEnds); // Set the first two to zero so no vector space is acquired
+	FragmentDistributionStats::ThreadData thread(0, Reference::kMinDistToContigEnds); // Set the first two to zero so no vector space is acquired
 	// seqtk seq drosophila-GCF_000001215.4_cut.fna | awk '(NR%2==0 && length($0) > 40000){print NR/2-1, length($0)}'
 	// seqtk seq drosophila-GCF_000001215.4_cut.fna | awk '(NR%2==0){print length($0)}' | head -n5
 	std::array<uintRefSeqBin, 9> ref_seq_ids =  {    0,            0,            1,         1200,         1200,         1200,         1225,         1225,         1225};

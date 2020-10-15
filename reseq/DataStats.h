@@ -54,8 +54,8 @@ namespace reseq{
 			uintSeqLen last_exclusion_region_id_;
 			uintRefSeqId last_exclusion_ref_seq_;
 
-			ThreadData( uintSeqLen maximum_insert_length, uintSeqLen max_seq_bin_len, uintSeqLen start_exclusion_length ):
-				fragment_distribution_(maximum_insert_length, max_seq_bin_len, start_exclusion_length),
+			ThreadData( uintSeqLen maximum_insert_length, uintSeqLen start_exclusion_length ):
+				fragment_distribution_(maximum_insert_length, start_exclusion_length),
 				last_exclusion_region_id_(0),
 				last_exclusion_ref_seq_(0)
 			{}
@@ -163,7 +163,7 @@ namespace reseq{
 		bool EvalRecord( std::pair<CoverageStats::FullRecord *, CoverageStats::FullRecord *> record, ThreadData &thread ); // Don't use a reference hear, so it isn't affected by a pointer switch
 
 		bool SignsOfPairsWithNamesNotIdentical();
-		void PrepareReadIn(uintQual size_mapping_quality, uintReadLen size_indel, uintSeqLen max_ref_seq_bin_size);
+		void PrepareReadIn(uintQual size_mapping_quality, uintReadLen size_indel, uintSeqLen max_ref_seq_bin_size, uintNumThreads num_threads);
 		void FinishReadIn();
 		void Shrink(); // Reduce all arrays to minimal size by removing unused bins at the beginning and end
 		bool Calculate(uintNumThreads num_threads);
@@ -173,7 +173,7 @@ namespace reseq{
 		bool PreRun(seqan::BamFileIn &bam, const char *bam_file, seqan::BamHeader &header, uintQual &size_mapping_quality, uintReadLen &size_indel);
 		bool ReadRecords( seqan::BamFileIn &bam, bool &not_done, ThreadData &thread_data );
 
-		static void ReadThread( DataStats &self, seqan::BamFileIn &bam, uintSeqLen max_seq_bin_len );
+		static void ReadThread( DataStats &self, seqan::BamFileIn &bam );
 
 		// boost serialization
 		friend class boost::serialization::access;

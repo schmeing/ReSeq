@@ -1745,7 +1745,7 @@ inline void FragmentDistributionStats::IncreaseErrorCounter(uintErrorCount &erro
 	}
 }
 
-void FragmentDistributionStats::PrepareBiasCalculation( const Reference &ref, uintSeqLen maximum_insert_length, uintSeqLen max_ref_seq_bin_size, const vector<uintFragCount> &reads_per_frag_len_bin, const vector<uintFragCount> &lowq_reads_per_frag_len_bin ){
+void FragmentDistributionStats::PrepareBiasCalculation( const Reference &ref, uintSeqLen maximum_insert_length, uintSeqLen max_ref_seq_bin_size, const vector<uintFragCount> &reads_per_frag_len_bin, const vector<uintFragCount> &lowq_reads_per_frag_len_bin, uintNumThreads num_threads ){
 	// Bin reference sequence
 	auto num_bins = CreateRefBins(ref, max_ref_seq_bin_size);
 
@@ -1865,6 +1865,14 @@ void FragmentDistributionStats::PrepareBiasCalculation( const Reference &ref, ui
 		current_bias_param_.at(bin) = maximum_insert_length+1; // So no thread tries to calculate on the unfilled bins
 		finished_bias_calcs_.at(bin) = 0;
 		claimed_bias_bins_.at(bin).clear();
+	}
+
+	calc_max_seq_bin_len_ = MaxRefSeqBinLength(ref);
+	bias_calc_vects_.resize(num_threads);
+	tmp_frag_count_.resize(num_threads);
+	for( auto i=tmp_frag_count_.size(); i--; ){
+		bias_calc_vects_.at(i).first.clear();
+		tmp_frag_count_.at(i).first.clear();
 	}
 
 	// Creating files for additional output
@@ -2050,6 +2058,25 @@ void FragmentDistributionStats::CheckLowQExclusions(uintRefSeqBin ref_seq_bin, v
 	// Use start as we add positions close to bin ends twice to end
 	excluded_lowq_positions_ += ExcludedLowQBases( lowq_site_start_exclusion_.at(ref_seq_bin) );
 	excluded_lowq_regions_ += lowq_site_start_exclusion_.at(ref_seq_bin).size();
+}
+
+void FragmentDistributionStats::CheckLowQExclusions(uintRefSeqBin ref_seq_bin, const Reference &reference){
+	// Acquire a vector from tmp_frag_count_
+	uintNumFits nvar=0;
+	while( tmp_frag_count_.at(nvar).first.test_and_set() ){
+		++nvar;
+	}
+
+	// Make sure the vector has enough space (on first use make it big enough for all later uses)
+	if( tmp_frag_count_.at(nvar).second.capacity() < calc_max_seq_bin_len_+tmp_insert_lengths_.size() ){
+		tmp_frag_count_.at(nvar).second.reserve(calc_max_seq_bin_len_+tmp_insert_lengths_.size());
+	}
+
+	// Run CheckLowQExclusions
+	CheckLowQExclusions(ref_seq_bin, tmp_frag_count_.at(nvar).second, reference);
+
+	// Release vector from tmp_frag_count_
+	tmp_frag_count_.at(nvar).first.clear();
 }
 
 void FragmentDistributionStats::SortFragmentSites(uintRefSeqBin ref_seq_bin, vector<uintSeqLen> &num_sites_per_insert_length){
@@ -2792,7 +2819,7 @@ void FragmentDistributionStats::AddNewBiasCalculations(uintRefSeqBin still_neede
 			// Additional reference sequences can be handled
 			if( num_handled_reference_sequence_bins_.compare_exchange_strong(ref_seq_bin, ref_seq_bin+1) ){
 				// Handle ref_seq_bin
-				CheckLowQExclusions(ref_seq_bin, thread.tmp_frag_count_, reference);
+				CheckLowQExclusions(ref_seq_bin, reference);
 				SortFragmentSites(ref_seq_bin, thread.num_sites_per_insert_length_);
 				UpdateBiasCalculationParams(ref_seq_bin, queue_spot, thread.bias_calc_tmp_params_, print_mutex);
 				ref_seq_bin = num_handled_reference_sequence_bins_; // Set ref_seq_bin after everything has been done to the new value (In case compare_exchange_strong fails this is done automatically)
@@ -2807,7 +2834,7 @@ void FragmentDistributionStats::AddNewBiasCalculations(uintRefSeqBin still_neede
 	}
 }
 
-void FragmentDistributionStats::ExecuteBiasCalculations( const Reference &reference, FragmentDuplicationStats &duplications, BiasCalculationVectors &thread_values, mutex &print_mutex ){
+void FragmentDistributionStats::ExecuteBiasCalculations( const Reference &reference, FragmentDuplicationStats &duplications, mutex &print_mutex ){
 	auto queue_bin_size = bias_calc_params_.size()/kMaxBinsQueuedForBiasCalc;
 	for(uint16_t queue_bin=0; queue_bin < kMaxBinsQueuedForBiasCalc; ++queue_bin ){
 		auto cur_par = queue_bin*queue_bin_size + current_bias_param_.at(queue_bin)++;
@@ -2818,8 +2845,23 @@ void FragmentDistributionStats::ExecuteBiasCalculations( const Reference &refere
 			// Execute calculations
 			if( bias_calc_params_.at(cur_par).fragment_length_ ){
 				if( bias_calc_params_.at(cur_par).bias_calculation_ ){
-					CalculateBiasByBin(thread_values, reference, duplications, bias_calc_params_.at(cur_par).ref_seq_bin_, bias_calc_params_.at(cur_par).fragment_length_);
-					AcquireBiases(thread_values, print_mutex);
+					// Acquire a vector from bias_calc_vects_
+					uintNumFits nvar=0;
+					while( bias_calc_vects_.at(nvar).first.test_and_set() ){
+						++nvar;
+					}
+
+					// Make sure the vector has enough space (on first use make it big enough for all later uses)
+					if( bias_calc_vects_.at(nvar).second.sites_.capacity() < calc_max_seq_bin_len_ ){
+						bias_calc_vects_.at(nvar).second.sites_.reserve(calc_max_seq_bin_len_);
+					}
+
+					// Run bias calculations
+					CalculateBiasByBin(bias_calc_vects_.at(nvar).second, reference, duplications, bias_calc_params_.at(cur_par).ref_seq_bin_, bias_calc_params_.at(cur_par).fragment_length_);
+					AcquireBiases(bias_calc_vects_.at(nvar).second, print_mutex);
+
+					// Release vector from bias_calc_vects_
+					bias_calc_vects_.at(nvar).first.clear();
 				}
 				else{
 					CountDuplicates(duplications, bias_calc_params_.at(cur_par), reference);
@@ -2841,7 +2883,7 @@ void FragmentDistributionStats::ExecuteBiasCalculations( const Reference &refere
 
 void FragmentDistributionStats::HandleReferenceSequencesUntil(uintRefSeqBin still_needed_ref_bin, ThreadData &thread, const Reference &reference, FragmentDuplicationStats &duplications, mutex &print_mutex){
 	AddNewBiasCalculations(still_needed_ref_bin, thread, print_mutex, reference);
-	ExecuteBiasCalculations( reference, duplications, thread.bias_calc_vects_, print_mutex );
+	ExecuteBiasCalculations( reference, duplications, print_mutex );
 }
 
 void FragmentDistributionStats::BiasSumThread(
@@ -2992,7 +3034,7 @@ reseq::uintRefSeqBin FragmentDistributionStats::CreateRefBins( const Reference &
 	return ref_seq_start_bin_.at(ref_seq_start_bin_.size()-1);
 }
 
-void FragmentDistributionStats::Prepare( const Reference &ref, uintSeqLen maximum_insert_length, uintSeqLen max_ref_seq_bin_size, const vector<uintFragCount> &reads_per_frag_len_bin, const vector<uintFragCount> &lowq_reads_per_frag_len_bin ){
+void FragmentDistributionStats::Prepare( const Reference &ref, uintSeqLen maximum_insert_length, uintSeqLen max_ref_seq_bin_size, const vector<uintFragCount> &reads_per_frag_len_bin, const vector<uintFragCount> &lowq_reads_per_frag_len_bin, uintNumThreads num_threads ){
 	tmp_abundance_.resize(ref.NumberSequences());
 	tmp_insert_lengths_.resize(maximum_insert_length+1);
 	tmp_gc_fragment_content_.resize(101);
@@ -3003,7 +3045,7 @@ void FragmentDistributionStats::Prepare( const Reference &ref, uintSeqLen maximu
 		}
 	}
 
-	PrepareBiasCalculation( ref, maximum_insert_length, max_ref_seq_bin_size, reads_per_frag_len_bin, lowq_reads_per_frag_len_bin );
+	PrepareBiasCalculation( ref, maximum_insert_length, max_ref_seq_bin_size, reads_per_frag_len_bin, lowq_reads_per_frag_len_bin, num_threads );
 }
 
 void FragmentDistributionStats::FillInOutskirtContent( const Reference &reference, const BamAlignmentRecord &record_start, uintSeqLen fragment_start_pos, uintSeqLen fragment_end_pos ){

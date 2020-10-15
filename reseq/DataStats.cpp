@@ -562,7 +562,7 @@ bool DataStats::SignsOfPairsWithNamesNotIdentical(){
 	return false;
 }
 
-void DataStats::PrepareReadIn(uintQual size_mapping_quality, uintReadLen size_indel, uintSeqLen max_ref_seq_bin_size){
+void DataStats::PrepareReadIn(uintQual size_mapping_quality, uintReadLen size_indel, uintSeqLen max_ref_seq_bin_size, uintNumThreads num_threads){
 	uintReadLen size_pos = max(read_lengths_.at(0).to(), read_lengths_.at(1).to());
 
 	uintFragCount num_reads(0);
@@ -578,7 +578,7 @@ void DataStats::PrepareReadIn(uintQual size_mapping_quality, uintReadLen size_in
 	coverage_.Prepare( Divide(num_bases,reference_->TotalSize()), Divide(num_bases,num_reads), maximum_read_length_on_reference_ );
 	duplicates_.PrepareTmpDuplicationVector();
 	errors_.Prepare(tiles_.NumTiles(), maximum_quality_+1, size_pos, size_indel);
-	fragment_distribution_.Prepare(*reference_, maximum_insert_length_, max_ref_seq_bin_size, reads_per_frag_len_bin_, lowq_reads_per_frag_len_bin_);
+	fragment_distribution_.Prepare(*reference_, maximum_insert_length_, max_ref_seq_bin_size, reads_per_frag_len_bin_, lowq_reads_per_frag_len_bin_, num_threads);
 	reads_per_frag_len_bin_.clear();
 	reads_per_frag_len_bin_.shrink_to_fit();
 	lowq_reads_per_frag_len_bin_.clear();
@@ -905,7 +905,7 @@ bool DataStats::ReadRecords( BamFileIn &bam, bool &not_done, ThreadData &thread_
 	return true;
 }
 
-void DataStats::ReadThread( DataStats &self, BamFileIn &bam, uintSeqLen max_seq_bin_len ){
+void DataStats::ReadThread( DataStats &self, BamFileIn &bam ){
 	CoverageStats::CoverageBlock *cov_block;
 	uintFragCount processed_fragments(0);
 	bool not_done(true);
@@ -915,7 +915,7 @@ void DataStats::ReadThread( DataStats &self, BamFileIn &bam, uintSeqLen max_seq_
 		self.reading_success_ = false;
 		first_ref_seq = 0; // Just so that the next command does not crash, before we shut down
 	}
-	ThreadData thread_data( self.maximum_insert_length_, max_seq_bin_len, self.reference_->StartExclusion(first_ref_seq) );
+	ThreadData thread_data( self.maximum_insert_length_, self.reference_->StartExclusion(first_ref_seq) );
 	thread_data.rec_store_.reserve(self.kBatchSize);
 	uintRefSeqId still_needed_reference_sequence(0);
 	uintSeqLen still_needed_position(0);
@@ -1180,17 +1180,16 @@ bool DataStats::ReadBam( const char *bam_file, const char *adapter_file, const c
 								}
 
 								if(success){
-									PrepareReadIn(size_mapping_quality, size_indel, max_ref_seq_bin_size);
+									PrepareReadIn(size_mapping_quality, size_indel, max_ref_seq_bin_size, num_threads);
 
 									printInfo << "Starting main read-in" << std::endl;
 
-									auto max_seq_bin_len = fragment_distribution_.MaxRefSeqBinLength(*reference_);
 									thread threads[num_threads];
 									running_threads_ = num_threads;
 									finish_threads_ = false;
 
 									for(auto i = num_threads; i--; ){
-										threads[i] = thread(ReadThread, std::ref(*this), std::ref(bam), max_seq_bin_len);
+										threads[i] = thread(ReadThread, std::ref(*this), std::ref(bam));
 									}
 									for(auto i = num_threads; i--; ){
 										threads[i].join();
