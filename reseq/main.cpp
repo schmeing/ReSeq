@@ -714,7 +714,7 @@ int main(int argc, char *argv[]) {
 				("bamIn,b", value<string>(), "Position sorted bam/sam file with reads mapped to refIn")
 				("binSizeBiasFit", value<uintSeqLen>(&max_ref_seq_bin_size)->default_value(100000000), "Reference sequences large then this are split for bias fitting to limit memory consumption")
 				("maxFragLen", value<uintSeqLen>(&maximum_insert_length)->default_value(2000), "Maximum fragment length to include pairs into statistics")
-				("minMapQ", value<uintQualPrint>(&minimum_mapping_quality)->default_value(10), "Minimum mapping quality to include pairs into statistics")
+				("minMapQ", value<uintQualPrint>(&minimum_mapping_quality)->default_value(2), "Minimum mapping quality to include pairs into statistics")
 				("noBias", "Do not perform bias fit. Results in uniform coverage if simulated from")
 				("noTiles", "Ignore tiles for the statistics [default]")
 				("refIn,r", value<string>(), "Reference sequences in fasta format (gz and bz2 supported)")
