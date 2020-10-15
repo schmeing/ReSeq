@@ -2,6 +2,8 @@
 
 import getopt
 from math import ceil
+import matplotlib as mpl
+mpl.use('pdf')
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.collections import PatchCollection
 from matplotlib.colorbar import ColorbarBase
