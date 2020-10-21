@@ -701,7 +701,7 @@ int main(int argc, char *argv[]) {
 			double ipf_precision;
 			uintFragCount num_read_pairs;
 			double coverage;
-			double error_mutliplier;
+			double error_multiplier;
 			uintSeqLen maximum_insert_length;
 			uintQualPrint minimum_mapping_quality;
 			uintSeqLen max_ref_seq_bin_size;
@@ -738,8 +738,10 @@ int main(int argc, char *argv[]) {
 				("firstReadsOut,1", value<string>(), "Writes the simulated first reads into this file [reseq-R1.fq]")
 				("secondReadsOut,2", value<string>(), "Writes the simulated second reads into this file [reseq-R2.fq]")
 				("coverage,c", value<double>(&coverage)->default_value(0.0), "Approximate average read depth simulated (0 = Corrected original coverage)")
-				("errorMutliplier", value<double>(&error_mutliplier)->default_value(1.0), "Divides the original probability of correct base calls(no substitution error) by this value and renormalizes")
+				("errorMutliplier", value<double>(&error_multiplier)->default_value(1.0), "Divides the original probability of correct base calls(no substitution error) by this value and renormalizes")
 				("methylation", value<string>(&meth_file)->default_value(""), "Extended bed graph file specifying methylation for regions. Multiple score columns for individual alleles are possible, but must match with vcfSim. C->T conversions for 1-specified value in region.")
+				("noInDelErrors", "Simulate reads without InDel errors")
+				("noSubstitutionErrors", "Simulate reads without substitution errors")
 				("numReads", value<uintFragCount>(&num_read_pairs)->default_value(0), "Approximate number of read pairs simulated (0 = Use <coverage>)")
 				("readSysError", value<string>(), "Read systematic errors from file in fastq format (seq=dominant error, qual=error percentage)")
 				("recordBaseIdentifier", value<string>(&record_base_identifier)->default_value("ReseqRead"), "Base Identifier for the simulated fastq records, followed by a count and other information about the read")
@@ -953,8 +955,24 @@ int main(int argc, char *argv[]) {
 														printInfo << "Simulating variance from file: '" << var_file << "'" << std::endl;
 													}
 
-													if(1.0 != error_mutliplier){
-														probabilities.ChangeErrorRate( error_mutliplier );
+													if( opts_map.count("noInDelErrors") ){
+														probabilities.RemoveInDelErrors();
+													}
+													if( opts_map.count("noSubstitutionErrors") ){
+														probabilities.RemoveSubstitutionErrors();
+													}
+
+													if(1.0 != error_multiplier){
+														if(0.0 == error_multiplier){
+															probabilities.RemoveSubstitutionErrors();
+														}
+														else if(0.0 > error_multiplier){
+															printErr << "--error_multiplier must be a positive value." << std::endl;
+															return 1;
+														}
+														else{
+															probabilities.ChangeErrorRate( error_multiplier );
+														}
 													}
 
 													Simulator sim;
@@ -978,16 +996,18 @@ int main(int argc, char *argv[]) {
 			}
 			unrecognized_opts.erase(unrecognized_opts.begin());
 
-			double error_mutliplier;
+			double error_multiplier;
 			uintNumFits ipf_iterations;
 			double ipf_precision;
 
 			options_description opt_desc("seqToIllumina");
 			opt_desc.add_options() // Returns a special object with defined operator ()
-				("errorMutliplier", value<double>(&error_mutliplier)->default_value(1.0), "Divides the original probability of correct base calls(no substitution error) by this value and renormalizes")
+				("errorMutliplier", value<double>(&error_multiplier)->default_value(1.0), "Divides the original probability of correct base calls(no substitution error) by this value and renormalizes")
 				("input,i", value<string>(), "Input file (fasta format, gz and bz2 supported) [stdin]")
 				("ipfIterations", value<uintNumFits>(&ipf_iterations)->default_value(200), "Maximum number of iterations for iterative proportional fitting")
 				("ipfPrecision", value<double>(&ipf_precision)->default_value(5), "Iterative proportional fitting procedure stops after reaching this precision (%)")
+				("noInDelErrors", "Simulate reads without InDel errors")
+				("noSubstitutionErrors", "Simulate reads without substitution errors")
 				("output,o", value<string>(), "Output file (fastq format, gz and bz2 supported) [stdout]")
 				("probabilitiesIn,p", value<string>(), "Loads last estimated probabilities and continues from there if precision is not met [<statsIn>.ipf]")
 				("probabilitiesOut,P", value<string>(), "Stores the probabilities estimated by iterative proportional fitting [<probabilitiesIn>]")
@@ -1081,8 +1101,24 @@ int main(int argc, char *argv[]) {
 
 						auto seed = GetSeed(opts_map);
 
-						if(1.0 != error_mutliplier){
-							probabilities.ChangeErrorRate( error_mutliplier );
+						if( opts_map.count("noInDelErrors") ){
+							probabilities.RemoveInDelErrors();
+						}
+						if( opts_map.count("noSubstitutionErrors") ){
+							probabilities.RemoveSubstitutionErrors();
+						}
+
+						if(1.0 != error_multiplier){
+							if(0.0 == error_multiplier){
+								probabilities.RemoveSubstitutionErrors();
+							}
+							else if(0.0 > error_multiplier){
+								printErr << "--error_multiplier must be a positive value." << std::endl;
+								return 1;
+							}
+							else{
+								probabilities.ChangeErrorRate( error_multiplier );
+							}
 						}
 
 						Simulator sim;

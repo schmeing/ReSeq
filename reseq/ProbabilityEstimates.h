@@ -543,6 +543,17 @@ namespace reseq{
 					}
 				}
 			}
+
+			inline void SetPar0(uintMatrixIndex par0_index){
+				// Fixes parameter 0 to par0_index
+				par0_indeces_.resize(1);
+				par0_indeces_.at(0) = par0_index;
+
+				for(uintMarginId n=0; n<kNumMargins; ++n ){
+					dim2_.at(n).clear();
+					dim2_.at(n).resize(limits_.at(n).second - limits_.at(n).first, 1.0);
+				}
+			}
 		};
 
 		template<uintMarginId G1, uintMarginId G2, uintMarginId L> double SumLogTerms(
@@ -1511,6 +1522,28 @@ namespace reseq{
 							base_call_result_.at(template_segment).at(tile_id).at(ref_base).at(dom_error).ModifyPar0(ref_base, 1.0/error_multiplier); // Didive the probability of the correct base by error_multiplier
 						}
 					}
+				}
+			}
+		}
+
+		void RemoveSubstitutionErrors(){
+			printInfo << "Removing substitution errors" << std::endl;
+			for(auto template_segment=base_call_result_.size(); template_segment--; ){
+				for(auto tile_id=base_call_result_.at(template_segment).size(); tile_id--; ){
+					for(auto ref_base=base_call_result_.at(template_segment).at(tile_id).size(); ref_base--; ){
+						for(auto dom_error=base_call_result_.at(template_segment).at(tile_id).at(ref_base).size(); dom_error--; ){
+							base_call_result_.at(template_segment).at(tile_id).at(ref_base).at(dom_error).SetPar0(ref_base);
+						}
+					}
+				}
+			}
+		}
+
+		void RemoveInDelErrors(){
+			printInfo << "Removing InDel errors" << std::endl;
+			for(auto prev_indel=indels_result_.size(); prev_indel--; ){
+				for(auto prev_call=indels_result_.at(prev_indel).size(); prev_call--; ){
+					indels_result_.at(prev_indel).at(prev_call).SetPar0(0);
 				}
 			}
 		}
