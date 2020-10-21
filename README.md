@@ -138,7 +138,7 @@ This call creates a fastq file with two sequences per reference sequence (one fo
 | `--binSizeBiasFit`| 100000000 | Reference sequences large then this are split for bias fitting to limit memory consumption |
 | `--maxFragLen`    | 2000    | Maximum fragment length to include pairs into statistics |
 | `--minMapQ`       | 10      | Minimum mapping quality to include pairs into statistics |
-|  --noBias         |         | Do not perform bias fit. Results in uniform coverage if simulated from |
+| `--noBias`        |         | Do not perform bias fit. Results in uniform coverage if simulated from |
 | `--noTiles`       |         | Ignore tiles for the statistics [default] |
 | `-r` `--refIn`    | None    | Reference sequences in fasta format (gz and bz2 supported) |
 | `--statsOnly`     |         | Only generate the statistics |
@@ -158,6 +158,8 @@ This call creates a fastq file with two sequences per reference sequence (one fo
 | `-c` `--coverage` | 0       | Approximate average read depth simulated (0 = Corrected original coverage) |
 | `--errorMutliplier` | 1.0   | Divides the original probability of correct base calls(no substitution error) by this value and renormalizes |
 | `--methylation`   |         | Extended bed graph file specifying methylation for regions. Multiple score columns for individual alleles are possible, but must match with vcfSim. C->T conversions for 1-specified value in region. |
+| `--noInDelErrors` |         | Simulate reads without InDel errors |
+| `--noSubstitutionErrors` |  | Simulate reads without substitution errors |
 | `--numReads`      | 0       | Approximate number of read pairs simulated (0 = Use `--coverage`) |
 | `--readSysError`  | None    | Read systematic errors from file in fastq format (seq=dominant error, qual=error percentage) |
 | `--recordBaseIdentifier` | ReseqRead | Base Identifier for the simulated fastq records, followed by a count and other information about the read |
@@ -212,6 +214,8 @@ This call creates a fastq file with two sequences per reference sequence (one fo
 | `-i` `--input`    | `stdin` | Input file (fasta format, gz and bz2 supported) |
 | `--ipfIterations` | 200     | Maximum number of iterations for iterative proportional fitting |
 | `--ipfPrecision`  | 5       | Iterative proportional fitting procedure stops after reaching this precision (%) |
+| `--noInDelErrors` |         | Simulate reads without InDel errors |
+| `--noSubstitutionErrors` |  | Simulate reads without substitution errors |
 | `-o` `--output`   | `stdout`| Output file (fastq format, gz and bz2 supported) |
 | `-p` `--probabilitiesIn` | `--statsIn`.ipf | Loads last estimated probabilities and continues from there if precision is not met |
 | `-P` `--probabilitiesOut` | `--probabilitiesIn` | Stores the probabilities estimated by iterative proportional fitting |
