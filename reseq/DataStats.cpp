@@ -241,7 +241,7 @@ bool DataStats::EvalReferenceStatistics(
 	ReversedConstCharString reversed_qual(record->record_.qual);
 	ReversedConstCigarString rev_cigar(record->record_.cigar);
 
-	uintReadLen read_pos(0);
+	uintReadLen read_pos(0), read_pos_ref(0);
 	Dna ref_base;
 	Dna5 base;
 	uintBaseCall last_base(5);
@@ -275,7 +275,7 @@ bool DataStats::EvalReferenceStatistics(
 						++seq_content_mapped.at(4);
 					}
 					else{
-						++tmp_sequence_content_reference_.at(template_segment).at(hasFlagRC(record->record_)).at(ref_base).at(read_pos);
+						++tmp_sequence_content_reference_.at(template_segment).at(hasFlagRC(record->record_)).at(ref_base).at(read_pos_ref);
 
 						errors_.AddBasePlotting(template_segment, ref_base, base, qual, last_base);
 						errors_.AddInDel( indel_type, last_base, ErrorStats::kNoInDel, indel_pos, read_pos, gc_percent);
@@ -286,6 +286,7 @@ bool DataStats::EvalReferenceStatistics(
 					last_base = base;
 
 					++read_pos;
+					++read_pos_ref;
 
 					if( hasFlagRC(record->record_) ){
 						coverage_.AddReverse(coverage_pos, coverage_block, base);
@@ -332,6 +333,7 @@ bool DataStats::EvalReferenceStatistics(
 					indel_type = 1;
 				}
 			}
+			read_pos_ref += cigar_element.count;
 			break;
 		case 'I':
 			if(record->from_ref_pos_ <= ref_pos && ref_pos < record->to_ref_pos_){
@@ -885,7 +887,12 @@ bool DataStats::ReadRecords( BamFileIn &bam, bool &not_done, ThreadData &thread_
 				// Work with the pairs and not individual reads, so first combine reads to pairs, by storing first and then processing both reads at the same time
 				CoverageStats::FullRecord *record_first;
 				if( IsSecondRead(record, record_first, cov_block) ){
-					thread_data.rec_store_.emplace_back(record_first, record);
+					if( length(record_first->record_.qual) == length(record_first->record_.seq) && length(record->record_.qual) == length(record->record_.seq) ){
+						thread_data.rec_store_.emplace_back(record_first, record);
+					}
+					else{
+						printWarn << "Ignoring read pair, because sequence and quality have different length for " << record->record_.qName << ": Seq(" << length(record_first->record_.seq) << ", " << length(record->record_.seq) << ") Qual(" << length(record_first->record_.qual) << ", " << length(record->record_.qual) << ')' << std::endl;
+					}
 				}
 			}
 
