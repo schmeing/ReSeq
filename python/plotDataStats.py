@@ -558,7 +558,7 @@ def plot2dQuality(pdf, xtitle, ytitle, names, quals, axis_lable_dist = 5):
                 pass
         
             subplot_x += 1
-            subplot_y += subplot_x/num_x_subplots
+            subplot_y += subplot_x//num_x_subplots
             subplot_x %= num_x_subplots
             pass
     
