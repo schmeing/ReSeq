@@ -862,14 +862,21 @@ int main(int argc, char *argv[]) {
 
 											RefSeqBiasSimulation ref_bias_model;
 											auto it_ref_bias = opts_map.find("refBias");
+											auto it_ref_bias_file = opts_map.find("refBiasFile");
 											if(opts_map.end() == it_ref_bias){
-												if(opts_map.end() == it_ref_out){
-													printInfo << "Keeping reference sequence biases from read in[default]." << std::endl;
-													ref_bias_model = RefSeqBiasSimulation::kKeep;
+												if(opts_map.end() == it_ref_bias_file){
+													if(opts_map.end() == it_ref_out){
+														printInfo << "Keeping reference sequence biases from read in[default]." << std::endl;
+														ref_bias_model = RefSeqBiasSimulation::kKeep;
+													}
+													else{
+														printInfo << "Removing all reference sequence biases[default]." << std::endl;
+														ref_bias_model = RefSeqBiasSimulation::kNo;
+													}
 												}
 												else{
-													printInfo << "Removing all reference sequence biases[default]." << std::endl;
-													ref_bias_model = RefSeqBiasSimulation::kNo;
+													printInfo << "Reading reference sequence biases from file." << std::endl;
+													ref_bias_model = RefSeqBiasSimulation::kFile;
 												}
 											}
 											else{
@@ -905,7 +912,6 @@ int main(int argc, char *argv[]) {
 											}
 
 											string ref_bias_file;
-											auto it_ref_bias_file = opts_map.find("refBiasFile");
 											if(RefSeqBiasSimulation::kFile == ref_bias_model){
 												if(opts_map.end() == it_ref_bias_file){
 													printErr << "refBiasFile option mandatory if for refBias option file was chosen" << std::endl;
