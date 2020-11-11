@@ -686,7 +686,7 @@ bool DataStats::Calculate(uintNumThreads num_threads){
 			num_bases += read_lengths_.at(template_segment).at(len)*len;
 		}
 	}
-	corrected_coverage_ = fragment_distribution_.CorrectedCoverage(*reference_, static_cast<double>(num_bases)/num_reads); // Must be called after FinalizeBiasCalculation, where the coverage is corrected
+	corrected_coverage_ = fragment_distribution_.CorrectedCoverage(*reference_, static_cast<double>(num_bases)/num_reads, coverage_.Coverage()); // Must be called after FinalizeBiasCalculation, where the coverage is corrected
 	printInfo << "Estimated a corrected mean coverage of " << corrected_coverage_ << "x" << std::endl;
 
 	return true;

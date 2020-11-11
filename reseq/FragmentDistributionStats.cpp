@@ -3233,7 +3233,7 @@ bool FragmentDistributionStats::FinalizeBiasCalculation(const Reference &referen
 	return true;
 }
 
-double FragmentDistributionStats::CorrectedCoverage(const Reference &ref, uintReadLen average_read_len){
+double FragmentDistributionStats::CorrectedCoverage(const Reference &ref, uintReadLen average_read_len, const Vect<uintNucCount> &cov_dist){
 	// Calculate corrected coverage
 	double corrected_abundance(0.0);
 	for(uintRefSeqId ref_seq = 0; ref_seq < ref.NumberSequences(); ++ref_seq){
@@ -3243,7 +3243,110 @@ double FragmentDistributionStats::CorrectedCoverage(const Reference &ref, uintRe
 	corrected_abundance_.clear();
 	corrected_abundance_.shrink_to_fit();
 
-	return corrected_abundance * average_read_len * 2 / ref.TotalSize();
+	auto corrected_coverage = corrected_abundance * average_read_len * 2 / ref.TotalSize();
+
+	// Adjust coverage according to coverage peak of largest scaffold
+	if(corrected_coverage < cov_dist.to()){
+		// Get average ref_seq_bias over all positions
+		double bias_sum = 0;
+		uintRefLenCalc bases = 0;
+		uintRefSeqId longest_seq = 0;
+		for( auto rid=ref.NumberSequences(); rid--; ){
+			bases += ref.SequenceLength(rid);
+			bias_sum += ref.SequenceLength(rid) * ref_seq_bias_.at(rid);
+
+			if( ref.SequenceLength(rid) > ref.SequenceLength(longest_seq)){
+				longest_seq = rid;
+			}
+		}
+		auto average_bias = bias_sum/bases;
+
+		auto seq_cov = ref_seq_bias_.at(longest_seq) / average_bias * corrected_coverage;
+		if(seq_cov < cov_dist.to()){
+			// Find peak around coverage of longest sequence (peak ends in both directions when the value drops below PeakMaxValue/kCovPeakFactor)
+			uintCovCount left_pos(seq_cov), right_pos(seq_cov), left_peak(seq_cov), right_peak(seq_cov);
+			uintNucCount left_max(cov_dist.at(left_pos)), left_min_before_max(left_max), left_min_after_max(left_max);
+			uintNucCount right_max(left_max), right_min_before_max(left_max), right_min_after_max(left_max);
+			while((0 < left_pos || cov_dist.to() > right_pos+1) && ((max(left_min_after_max, min(left_min_before_max,min(right_min_before_max,right_min_after_max))) >= left_max/kCovPeakFactor || left_max < right_max) && (max(right_min_after_max, min(right_min_before_max,min(left_min_before_max,left_min_after_max))) >= right_max/kCovPeakFactor || left_max > right_max)) ){
+				if(0 < left_pos){
+					if(cov_dist.at(--left_pos) < left_min_after_max){
+						left_min_after_max = cov_dist.at(left_pos);
+					}
+					else if(cov_dist.at(left_pos) > left_max){
+						left_peak = left_pos;
+						left_max = cov_dist.at(left_pos);
+						left_min_before_max = min(left_min_before_max, left_min_after_max);
+						left_min_after_max = left_max;
+					}
+				}
+
+				if(cov_dist.to() > ++right_pos){
+					if(cov_dist.at(right_pos) < right_min_after_max){
+						right_min_after_max = cov_dist.at(right_pos);
+					}
+					else if(cov_dist.at(right_pos) > right_max){
+						right_peak = right_pos;
+						right_max = cov_dist.at(right_pos);
+						right_min_before_max = min(right_min_before_max, right_min_after_max);
+						right_min_after_max = right_max;
+					}
+				}
+				else{
+					--right_pos;
+				}
+			}
+
+			// Get mean coverage for peak
+			uintCovCount peak_pos;
+			if(right_max > left_max){
+				peak_pos = right_peak;
+			}
+			else{
+				peak_pos = left_peak;
+			}
+
+			uintCovCount peak_from(peak_pos), peak_to(peak_pos);
+			uintNucCount peak_value(cov_dist.at(peak_pos)), cov_sum(peak_value*peak_pos);
+			bases = peak_value;
+
+			while(0 < peak_from && peak_value/kCovPeakFactor <= cov_dist.at(--peak_from)){
+				bases += cov_dist.at(peak_from);
+				cov_sum += cov_dist.at(peak_from) * peak_from;
+			}
+			++peak_from;
+
+			while(cov_dist.to() > ++peak_to && peak_value/kCovPeakFactor <= cov_dist.at(peak_to)){
+				bases += cov_dist.at(peak_to);
+				cov_sum += cov_dist.at(peak_to) * peak_to;
+			}
+
+			printInfo << "Found main coverage peak from " << peak_from << " to " << peak_to << " with the maximum at " << peak_pos << '.' << std::endl;
+			auto mean_cov = static_cast<double>(cov_sum) / bases;
+
+			// Find the reference sequences that contribute to this peak
+			double min_bias = static_cast<double>(peak_from) / corrected_coverage * average_bias;
+			double max_bias = static_cast<double>(peak_to) / corrected_coverage * average_bias;
+			double peak_bias_sum(0);
+			bases = 0;
+			for( auto rid=ref.NumberSequences(); rid--; ){
+				if( min_bias <= ref_seq_bias_.at(rid) && ref_seq_bias_.at(rid) <= max_bias){
+					bases += ref.SequenceLength(rid);
+					peak_bias_sum += ref.SequenceLength(rid) * ref_seq_bias_.at(rid);
+				}
+			}
+			double mean_peak_bias = peak_bias_sum/bases;
+			double sim_peak_cov = mean_peak_bias / average_bias * corrected_coverage;
+			double new_corrected_coverage = corrected_coverage * mean_cov / sim_peak_cov;
+
+			// Only accept the correction if it moves the coverage in the right direction (a safeguard against errors if we are at the ends of the coverage vector)
+
+			if((new_corrected_coverage >= corrected_coverage && peak_pos >= sim_peak_cov) || (new_corrected_coverage <= corrected_coverage && peak_pos <= sim_peak_cov)){
+				corrected_coverage = new_corrected_coverage;
+			}
+		}
+	}
+
+	return corrected_coverage;
 }
 
 bool FragmentDistributionStats::UpdateRefSeqBias(RefSeqBiasSimulation model, const std::string &bias_file, const Reference &ref, mt19937_64 &rgen){

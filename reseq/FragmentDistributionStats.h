@@ -311,6 +311,7 @@ namespace reseq{
 		const uintFragCount kMinSites = 25000;
 		const uintFragCount kMinCounts = 100;
 		const uintFragCount kMaxSitesPerCount = 10000;
+		const uintCovCount kCovPeakFactor = 10; // A coverage peak ends, when the value drops below PeakMaxValue/kCovPeakFactor
 
 		uintNumFits num_fits_per_ref_bin_;
 
@@ -582,7 +583,7 @@ namespace reseq{
 
 		void Finalize();
 		bool FinalizeBiasCalculation(const Reference &reference, uintNumThreads num_threads, FragmentDuplicationStats &duplications);
-		double CorrectedCoverage(const Reference &ref, uintReadLen average_read_len);
+		double CorrectedCoverage(const Reference &ref, uintReadLen average_read_len, const Vect<uintNucCount> &cov_dist);
 		bool UpdateRefSeqBias(RefSeqBiasSimulation model, const std::string &bias_file, const Reference &ref, std::mt19937_64 &rgen);
 		double CalculateBiasNormalization(std::vector<uintRefSeqId> &coverage_groups, std::vector<std::vector<std::array<double, 2>>> &non_zero_thresholds, const Reference &reference, uintNumThreads num_threads, uintFragCount total_reads) const;
 
