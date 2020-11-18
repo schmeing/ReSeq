@@ -3,7 +3,7 @@
 import getopt
 from math import ceil
 import matplotlib as mpl
-mpl.use('pdf')
+mpl.use('Agg')
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.collections import PatchCollection
 from matplotlib.colorbar import ColorbarBase
@@ -25,6 +25,7 @@ import DataStats
 
 text_size = 20
 colour_scheme = ["#D92120","#488BC2","#7FB972","#E6642C","#781C81","#D9AD3C","#BBBBBB","#4065B1"]
+markers = ["s","o","^","v","x","D"]
 #colour_scheme = ['#D92120', '#4065B1', '#7FB972']
 #colour_scheme = ['#D92120', '#7FB972', '#4065B1']
 fill_colour_scheme = ["#C8100F","#377AB1","#6EA861","#D5531B","#670B70","#C89C2B","#AAAAAA","#2F54A0"]
@@ -35,6 +36,7 @@ nucleotide_colour_scheme = ['#E6642C','#488BC2','#781C81','#B5BD4C','#BEBEBE']
 baseline_colour = '#781C81';
 
 line_width = 4
+marker_size = 12
 
 def getMinMaxX(hists,zero_padding=True, cov_plot=False):
     min_x = sys.maxsize
@@ -184,17 +186,28 @@ def setAxis(ax, log, ylimits=None):
     
     return
 
-def plotMinimal(ax, names, hists, min_x, max_x, x_vals, log=False, marker=None, linewidth=line_width, linestyle='-', normalize=False, normVectors=False, cov_plot=False, ignore_zero_for_y_scale=False, yrange=None):
+def plotMinimal(ax, names, hists, min_x, max_x, x_vals, log=False, marker=None, linewidth=line_width, linestyle='-', normalize=False, normVectors=False, cov_plot=False, ignore_zero_for_y_scale=False, yrange=None, rmempty=False, marker_dist=0, marker_max=0):
     if not normVectors:
         normVectors = [False] * len(names)
         pass
     
+    # Plot lines
     for (name, hist, col, norm) in zip(names, hists, colour_scheme, normVectors):
         if(0 == len(hist[1]) or 0 == max(hist[1])):
+            if rmempty:
+                continue # Do not plot the empty stats
             log = False
-            pass
-        ax.plot(x_vals, padList(hist, min_x, max_x, normalize=normalize, normVector=norm), linewidth=linewidth, marker=marker, linestyle=linestyle, label=name, color=col)
-        pass
+        y_vals = padList(hist, min_x, max_x, normalize=normalize, normVector=norm)
+        ax.plot(x_vals, y_vals, linewidth=linewidth, marker=marker, linestyle=linestyle, label=name, color=col)
+
+    # Plot markers
+    if marker_dist and (bool(marker_max) == (marker_max >= max_x)):
+        for (name, hist, col, norm, mark) in zip(names, hists, colour_scheme, normVectors, markers):
+            if(0 == len(hist[1]) or 0 == max(hist[1])):
+                if rmempty:
+                    continue # Do not plot the empty stats
+            y_vals = padList(hist, min_x, max_x, normalize=normalize, normVector=norm)
+            ax.plot([val for val in x_vals if val%marker_dist == 0], [val for x,val in zip(x_vals,y_vals) if x%marker_dist == 0], marker=mark, linewidth=0, color=col, fillstyle='none', markersize=marker_size, markeredgewidth=4)
 
     if yrange:
         ylimits = yrange
@@ -211,7 +224,7 @@ def plotMinimal(ax, names, hists, min_x, max_x, x_vals, log=False, marker=None, 
 
     return
 
-def plotBackend(xtitle, ytitle, names, hists, title="", ax=plt, zero_padding=True, log=False, shift_x=0, multiply_x=1, baseline=None, normalize=False, normVectors=False, cov_plot=False, ignore_zero_for_y_scale=False, yrange=None):
+def plotBackend(xtitle, ytitle, names, hists, title="", ax=plt, zero_padding=True, log=False, shift_x=0, multiply_x=1, baseline=None, normalize=False, normVectors=False, cov_plot=False, ignore_zero_for_y_scale=False, yrange=None, rmempty=False, marker_dist=0, marker_max=0):
     (min_x, max_x) = getMinMaxX(hists, zero_padding, cov_plot=cov_plot)
 
     if 1 < max_x-min_x: # Otherwise the plot has only one data point and no lines can be plotted
@@ -221,7 +234,7 @@ def plotBackend(xtitle, ytitle, names, hists, title="", ax=plt, zero_padding=Tru
             ax.fill_between(x_vals, padList(baseline[1], min_x*multiply_x, max_x*multiply_x), label=baseline[0], color=baseline_colour)
             pass
         
-        plotMinimal(ax, names, hists, min_x, max_x, x_vals, log=log, normalize=normalize, normVectors=normVectors, cov_plot=cov_plot, ignore_zero_for_y_scale=ignore_zero_for_y_scale, yrange=yrange)
+        plotMinimal(ax, names, hists, min_x, max_x, x_vals, log=log, normalize=normalize, normVectors=normVectors, cov_plot=cov_plot, ignore_zero_for_y_scale=ignore_zero_for_y_scale, yrange=yrange, rmempty=rmempty, marker_dist=marker_dist, marker_max=marker_max)
     
         finalizePlot(xtitle, ytitle, title)
     
@@ -229,10 +242,10 @@ def plotBackend(xtitle, ytitle, names, hists, title="", ax=plt, zero_padding=Tru
     else:
         return False
 
-def plot(pdf, xtitle, ytitle, names, hists, plot_legend, title, zero_padding=True, log=False, shift_x=0, multiply_x=1, baseline=None, legend='upper right', normalize=False, normVectors=False, cov_plot=False, ignore_zero_for_y_scale=False, yrange=None):
+def plot(pdf, xtitle, ytitle, names, hists, plot_legend, title, zero_padding=True, log=False, shift_x=0, multiply_x=1, baseline=None, legend='upper right', normalize=False, normVectors=False, cov_plot=False, ignore_zero_for_y_scale=False, yrange=None, rmempty=False, marker_dist=0, marker_max=0):
     plt.close()
     
-    if plotBackend(xtitle, ytitle, names, hists, title, zero_padding=zero_padding, log=log, shift_x=shift_x, multiply_x=multiply_x, baseline=baseline, normalize=normalize, normVectors=normVectors, cov_plot=cov_plot, ignore_zero_for_y_scale=ignore_zero_for_y_scale, yrange=yrange):
+    if plotBackend(xtitle, ytitle, names, hists, title, zero_padding=zero_padding, log=log, shift_x=shift_x, multiply_x=multiply_x, baseline=baseline, normalize=normalize, normVectors=normVectors, cov_plot=cov_plot, ignore_zero_for_y_scale=ignore_zero_for_y_scale, yrange=yrange, rmempty=rmempty, marker_dist=marker_dist, marker_max=marker_max):
         if plot_legend:
             plt.legend(loc=legend, shadow=True)
             pass
@@ -580,7 +593,7 @@ def nucleotidePlot(pdf, xtitle, ytitle, names, hists, plot_legend, zero_padding=
             max_x = max( max_x, hist[0]+len(hist[1]) )
             pass
         pass
-    
+
     if normalize:
         normed_hists=[]
         for nuc_hists in hists:
@@ -593,10 +606,10 @@ def nucleotidePlot(pdf, xtitle, ytitle, names, hists, plot_legend, zero_padding=
         pass
     elif pos_normalize:
         # Update max_x to remove fluctuations at the end due to indels
-        min_total = 0
-        while max_x >= min_x and 50 > min_total:
+        max_total = 0
+        while max_x >= min_x and 50 > max_total:
             max_x -= 1
-            min_total = sys.maxsize
+            max_total = 0
             for dataset in range(len(names)):
                 total=0
 
@@ -606,13 +619,13 @@ def nucleotidePlot(pdf, xtitle, ytitle, names, hists, plot_legend, zero_padding=
                         pass
                     pass
                 
-                if total < min_total:
-                    min_total = total
+                if total > max_total:
+                    max_total = total
                     pass
                 pass
             pass
         max_x += 1
-                
+
         normed_hists=[]
         for nuc_hists in hists:
             normed_hists.append([])
@@ -645,7 +658,6 @@ def nucleotidePlot(pdf, xtitle, ytitle, names, hists, plot_legend, zero_padding=
         normed_hists=hists
         pass
 
-    
     if 1 < max_x-min_x: # Otherwise the plot is empty
         # Pad the hists with a zero at the beginning and the end
         if zero_padding:
@@ -816,7 +828,7 @@ def plotCalledBases( pdf, xtitle, ytitle, names, called_bases, total_bases, incl
 
     return
 
-def plotDataStats(statsFiles, oFile, plot_legend=True, title = ""):
+def plotDataStats(statsFiles, oFile, plot_legend=True, title = "", plot_markers=False):
     names = []
     for sf in statsFiles:
         if 'gz' == sf.split('.')[-1]:
@@ -863,11 +875,10 @@ def plotDataStats(statsFiles, oFile, plot_legend=True, title = ""):
             #plot( pdf, "Coverage - strand / total Coverage [%]", "# bases of reference (min cov 10)", names, [st.CoverageStrandedPercentMinCov10(True) for st in stats], plot_legend, title, zero_padding=False )
             #plot( pdf, "Coverage + strand / total Coverage [%]", "# bases of reference (min cov 20)", names, [st.CoverageStrandedPercentMinCov20(False) for st in stats], plot_legend, title, zero_padding=False )
             #plot( pdf, "Coverage - strand / total Coverage [%]", "# bases of reference (min cov 20)", names, [st.CoverageStrandedPercentMinCov20(True) for st in stats], plot_legend, title, zero_padding=False )
-            
-            plot( pdf, "Fragment duplication number", "% fragments", names, [st.FragmentDuplicationNumber() for st in stats], plot_legend, title, log=True, normalize=True )
+            plot( pdf, "Fragment duplication number", "% fragments", names, [st.FragmentDuplicationNumber() for st in stats], plot_legend, title, log=True, normalize=True, rmempty=True, marker_dist=1 if plot_markers else 0, marker_max=10 if plot_markers else 0 )
             
             plot( pdf, "Reference sequence", "# pairs", names, [(0,st.Abundance()) for st in stats], plot_legend, title )
-            plot( pdf, "Insert length", "% read pairs", names, [st.InsertLengths() for st in stats], plot_legend, title, normalize=True )
+            plot( pdf, "Fragment length", "% read pairs", names, [st.InsertLengths() for st in stats], plot_legend, title, normalize=True, marker_dist=50 if plot_markers else 0, cov_plot=0.98 )
             
             plot( pdf, "GC read content[%] (first)", "% reads", names, [st.GCReadContent(0) for st in stats], plot_legend, title, zero_padding=False, normalize=True )
             plot( pdf, "GC read content[%] (second)", "% reads", names, [st.GCReadContent(1) for st in stats], plot_legend, title, zero_padding=False, normalize=True )
@@ -1016,13 +1027,14 @@ def usage():
     print( "Plots the DataStats from an boost archive from readar." )
     print( "  -h, --help            display this help and exit" )
     print( "  -i, --nolegend        do not plot a legend" )
+    print( "  -m, --markers         add markers to some plots" )
     print( "  -o, --output          define plotting output file [File with ending pdf]" )
     print( "  -t, --title           title added above plots" )
     pass
 
 def main(argv):
     try:
-        optlist, args = getopt.getopt(argv, 'hio:t:', ['help','nolegend','output=','title='])
+        optlist, args = getopt.getopt(argv, 'himo:t:', ['help','nolegend','markers','output=','title='])
         pass
     except getopt.GetoptError:
         print( "Unknown option\n" )
@@ -1032,6 +1044,7 @@ def main(argv):
 
     oFile = ''
     plot_legend = True
+    plot_markers = False
     title = ""
     for opt, par in optlist:
         if opt in ("-h", "--help"):
@@ -1040,6 +1053,9 @@ def main(argv):
             pass
         elif opt in ("-i", "--nolegend"):
             plot_legend = False
+            pass
+        elif opt in ("-m", "--markers"):
+            plot_markers = True
             pass
         elif opt in ("-o", "--output"):
             oFile = par
@@ -1055,7 +1071,7 @@ def main(argv):
         sys.exit(2)
         pass
 
-    plotDataStats(args,oFile,plot_legend,title)
+    plotDataStats(args,oFile,plot_legend,title,plot_markers)
     pass
 
 if __name__ == "__main__":
