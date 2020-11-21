@@ -478,7 +478,7 @@ bool DataStats::EvalRecord( pair<CoverageStats::FullRecord *, CoverageStats::Ful
 					}
 
 					bool adapter_detected(false);
-					if(hasFlagRC(record.first->record_) && !hasFlagRC(record.second->record_) && end_pos_first > start_pos_second && end_pos_first - start_pos_second > (end_pos_first - start_pos_first)/2 ){
+					if(hasFlagRC(record.first->record_) && !hasFlagRC(record.second->record_) && end_pos_first > start_pos_second){
 						adapter_detected = true;
 					}
 
