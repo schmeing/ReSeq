@@ -247,9 +247,9 @@ void DataStatsTest::TestDuplicates(){
 	EXPECT_EQ(2, test_->improper_pair_mapping_quality_[42]) << "improper_pair_mapping_quality_ wrong in duplicates test\n";
 	EXPECT_EQ(0, test_->single_read_mapping_quality_.size()) << "single_read_mapping_quality_ wrong in duplicates test\n";
 
-	// samtools view -q 10 -f 99 ecoli-duplicates.bam | awk '(0 != substr($1,12,1)){print $6; system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $4 "-" $4+length($10)-1)}' | awk 'BEGIN{last=""}{if(">" == substr($0,1,1)){print ">" last; last=""}else{print last; last = $0}}END{print last}' | seqtk seq | awk '(1==NR%2){cigar = substr($0,2,length($0)-1)}(0==NR%2){pos=1; print_pos=0; num=0; for(i=1;i<=length(cigar);i+=1){e=substr(cigar,i,1);if(e ~ /^[0-9]/){num=num*10+e}else{if("M"==e){while(0<num){print print_pos, substr($0,pos,1); ++print_pos; ++pos; --num}};if("D"==e){pos+=num;num=0};if("I"==e){print_pos+=num;num=0}}}}' | awk '($1 < 10 && $1 ~ /^[4-7]/)' | sort -k1,1n -k2,2 | uniq -c
+	// samtools view -q 2 -f 99 ecoli-duplicates.bam | awk '(0 != substr($1,12,1)){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $4 "-" $4+length($10)-1)}' | awk '(0==NR%2){for(i=1;i<=length($1);i+=1){print i-1, substr($1,i,1)}}' | awk '($1 < 10 && $1 ~ /^[4-7]/)' | sort -k1,1n -k2,2 | uniq -c
 	TestSequenceContentReference(0, 0, 4, 7, 0, 1, 5, "duplicates test");
-	TestSequenceContentReference(0, 0, 5, 5, 0, 7, 1, "duplicates test");
+	TestSequenceContentReference(0, 0, 5, 6, 0, 7, 0, "duplicates test");
 	TestSequenceContentReference(0, 0, 6, 0, 1, 5, 7, "duplicates test");
 	TestSequenceContentReference(0, 0, 7, 0, 0, 3, 10, "duplicates test");
 	// samtools view -q 10 -f 83 ecoli-duplicates.bam | awk '(0 != substr($1,12,1)){system("samtools faidx ecoli-GCF_000005845.2_ASM584v2_genomic.fa NC_000913.3:" $4 "-" $4+length($10)-1)}' | seqtk seq -r | awk '(0==NR%2){print substr($0,5,1)}' | sort | uniq -c

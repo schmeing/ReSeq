@@ -319,8 +319,12 @@ bool DataStats::EvalReferenceStatistics(
 					}
 
 					if( coverage_block->coverage_.at(coverage_pos).valid_ ){
+						++tmp_sequence_content_reference_.at(template_segment).at(hasFlagRC(record->record_)).at(ref_base).at(read_pos_ref);
+
 						errors_.AddInDel( indel_type, last_base, ErrorStats::kDeletion, indel_pos, read_pos, gc_percent);
 					}
+
+					++read_pos_ref;
 
 					if( hasFlagRC(record->record_) ){
 						CoverageStats::DecrementPos(coverage_pos, coverage_block);
@@ -333,7 +337,6 @@ bool DataStats::EvalReferenceStatistics(
 					indel_type = 1;
 				}
 			}
-			read_pos_ref += cigar_element.count;
 			break;
 		case 'I':
 			if(record->from_ref_pos_ <= ref_pos && ref_pos < record->to_ref_pos_){
