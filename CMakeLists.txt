@@ -61,7 +61,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # Version
 set(RESEQ_VERSION_MAJOR 1)
-set(RESEQ_VERSION_MINOR 0)
+set(RESEQ_VERSION_MINOR 1)
 
 # Configure header file to pass CMake settings to code
 configure_file(
