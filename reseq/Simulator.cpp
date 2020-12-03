@@ -1178,6 +1178,11 @@ bool Simulator::CreateBlock(Reference &ref, const DataStats &stats, const Probab
 				return false;
 			}
 		}
+		else{
+			// There is no reference sequence
+			printErr << "No reference sequences are found" << std::endl;
+			return false;
+		}
 	}
 	else{
 		if( last_unit_->last_block_->start_pos_ + kBlockSize >= ref.SequenceLength(last_unit_->ref_seq_id_) ){
@@ -1188,6 +1193,7 @@ bool Simulator::CreateBlock(Reference &ref, const DataStats &stats, const Probab
 			}
 			if( ref.NumberSequences() > ref_id ){
 				if(!CreateUnit(ref_id, last_unit_->last_block_->id_+1, ref, stats, estimates, block, unit)){
+					current_unit_ = NULL;
 					return false;
 				}
 				block = new SimBlock(last_unit_->last_block_->id_+1, 0, block, block_seed_gen_());
@@ -1256,6 +1262,7 @@ bool Simulator::CreateBlock(Reference &ref, const DataStats &stats, const Probab
 			else{
 				printErr << "Ran out of simulation blocks, but simulation is not complete.";
 				simulation_error_ = true;
+				current_unit_ = NULL;
 				return false;
 			}
 
@@ -1267,6 +1274,7 @@ bool Simulator::CreateBlock(Reference &ref, const DataStats &stats, const Probab
 		return true;
 	}
 	else{
+		current_unit_ = NULL;
 		return false;
 	}
 }
@@ -1298,9 +1306,7 @@ bool Simulator::GetNextBlock( Reference &ref, const DataStats &stats, const Prob
 	lock_guard<mutex> lock(block_creation_mutex_);
 
 	// Create a new block to keep the buffer for long fragments
-	if( !CreateBlock(ref, stats, estimates) ){
-		return false;
-	}
+	CreateBlock(ref, stats, estimates);
 
 	if(!current_unit_){
 		// No new reference sequence anymore: Simulation is complete
@@ -2286,7 +2292,6 @@ bool Simulator::SimulateFromGivenBlock(
 
 	// Take the surrounding shifted by 1 as the first thing the loop does is shifting it back
 	ref.ForwardSurrounding( surrounding_start, unit.ref_seq_id_, ( 0<block.start_pos_ ? block.start_pos_-1 : ref.SequenceLength(unit.ref_seq_id_)-1 ) );
-
 	for( auto cur_start_position = block.start_pos_; cur_start_position < block.start_pos_ + kBlockSize && cur_start_position < ref.SequenceLength(unit.ref_seq_id_); ++cur_start_position ){
 		surrounding_start.UpdateForward( ref.ReferenceSequence(unit.ref_seq_id_), cur_start_position );
 
