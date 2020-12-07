@@ -6,6 +6,7 @@ More realistic simulator for genomic DNA sequences from Illumina machines that a
 - [Abstract](#abstract)
 - [Requirements](#requirements)
 - [Installation](#installation)
+- [Bioconda](#conda)
 - [Quick start examples](#quickstart)
 - [Apply errors and qualities directly to sequences](#errormodel)
 - [Parameter](#parameter)
@@ -64,6 +65,13 @@ reseq test
 ```
 
 Some useful python scripts can be found in `/where/you/want/to/install/ReSeq/ReSeq/python` or after an installation in `usr/local/bin` or `/where/you/want/to/install/ReSeq/bin/`.
+
+## <a name="conda"></a>Bioconda
+ReSeq can also be installed in an automatic fashion via anaconda/miniconda(https://docs.conda.io/projects/continuumio-conda/en/latest/user-guide/install/index.html) with the following command:
+```
+conda install -c bioconda -c conda-forge reseq
+```
+However, updates will not be as frequent and the option to switch to the devel branch to get the most recent bugfixes is missing.
 
 ## <a name="quickstart"></a>Quick start examples
 To create simulated data similar to real data you first need to map the real data to a reference. For example with `bowtie2`:
