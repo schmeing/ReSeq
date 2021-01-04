@@ -1146,6 +1146,16 @@ void Simulator::SetSystematicErrorVariantsForward(uintSeqLen &start_dist_error_r
 	}
 }
 
+void Simulator::SkipSequencesShorterThanMinFragLen(uintRefSeqId &ref_id, const Reference &ref, const Vect<uintFragCount> &frag_len){
+	uintSeqLen min_frag_len = max(static_cast<size_t>(1), frag_len.from());
+	while( min_frag_len < frag_len.size() && frag_len.at(min_frag_len) == 0){
+		++min_frag_len;
+	}
+	while(ref.NumberSequences() > ref_id && ref.SequenceLength(ref_id) < min_frag_len ){
+		++ref_id;
+	}
+}
+
 bool Simulator::CreateBlock(Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates){
 	SimBlock *block;
 	SimUnit *unit;
@@ -1156,9 +1166,7 @@ bool Simulator::CreateBlock(Reference &ref, const DataStats &stats, const Probab
 		if( ref.NumberSequences() ){
 			// Take first reference sequence that is long enough
 			uintRefSeqId ref_id=0;
-			while(ref.NumberSequences() > ref_id && ref.SequenceLength(ref_id) < stats.FragmentDistribution().InsertLengths().to() ){
-				++ref_id;
-			}
+			SkipSequencesShorterThanMinFragLen(ref_id, ref, stats.FragmentDistribution().InsertLengths());
 			if(ref.NumberSequences() > ref_id){
 				if(!CreateUnit(ref_id, 0, ref, stats, estimates, block, unit)){
 					return false;
@@ -1188,9 +1196,7 @@ bool Simulator::CreateBlock(Reference &ref, const DataStats &stats, const Probab
 		if( last_unit_->last_block_->start_pos_ + kBlockSize >= ref.SequenceLength(last_unit_->ref_seq_id_) ){
 			// Create next unit as the current one is completed: Go to the next reference sequence that is long enough if exists
 			uintRefSeqId ref_id=last_unit_->ref_seq_id_+1;
-			while(ref.NumberSequences() > ref_id && ref.SequenceLength(ref_id) < stats.FragmentDistribution().InsertLengths().to() ){
-				++ref_id;
-			}
+			SkipSequencesShorterThanMinFragLen(ref_id, ref, stats.FragmentDistribution().InsertLengths());
 			if( ref.NumberSequences() > ref_id ){
 				if(!CreateUnit(ref_id, last_unit_->last_block_->id_+1, ref, stats, estimates, block, unit)){
 					current_unit_ = NULL;
@@ -2289,7 +2295,6 @@ bool Simulator::SimulateFromGivenBlock(
 	chosen_allele_ids.reserve(2*ref.NumAlleles()); // Twice the number of alleles to also choose strand
 	vector<bool> reverse_selection;
 	reverse_selection.reserve(2*ref.NumAlleles());
-
 	// Take the surrounding shifted by 1 as the first thing the loop does is shifting it back
 	ref.ForwardSurrounding( surrounding_start, unit.ref_seq_id_, ( 0<block.start_pos_ ? block.start_pos_-1 : ref.SequenceLength(unit.ref_seq_id_)-1 ) );
 	for( auto cur_start_position = block.start_pos_; cur_start_position < block.start_pos_ + kBlockSize && cur_start_position < ref.SequenceLength(unit.ref_seq_id_); ++cur_start_position ){
@@ -2310,6 +2315,7 @@ bool Simulator::SimulateFromGivenBlock(
 				probability_chosen = rdist.ZeroToOne(rgen);
 				if(ProbabilityAboveThreshold(probability_chosen, unit.ref_seq_id_, fragment_length)){
 					auto non_zero_strands = stats.FragmentDistribution().DrawNumberNonZeroStrands( possible_alleles.size(), NonZeroThreshold(unit.ref_seq_id_, fragment_length), probability_chosen );
+
 					if( non_zero_strands ){
 						ChooseAlleles(chosen_allele_ids, reverse_selection, non_zero_strands, 2*possible_alleles.size(), rdist, rgen);
 
@@ -2320,7 +2326,7 @@ bool Simulator::SimulateFromGivenBlock(
 							PrepareBiasModForCurrentFragmentLength( bias_mod, unit.ref_seq_id_, ref, cur_start_position, fragment_length, allele );
 							cur_end_position = cur_start_position + fragment_length + bias_mod.end_pos_shift_.at( allele );
 
-							if( cur_end_position < ref.SequenceLength(unit.ref_seq_id_)){
+							if( cur_end_position <= ref.SequenceLength(unit.ref_seq_id_)){
 								gc_perc = GetGCPercent( bias_mod, unit.ref_seq_id_, ref, cur_end_position, fragment_length, allele );
 
 								// Determine how many read pairs are generated for this strand and allele at this position with this fragment_length

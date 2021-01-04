@@ -395,6 +395,7 @@ namespace reseq{
 		void SetSystematicErrorVariantsReverse(uintSeqLen &start_dist_error_region, uintPercent &start_rate, SimBlock &block, uintRefSeqId ref_seq_id, uintSeqLen end_pos, const Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates);
 		bool CreateUnit(uintRefSeqId ref_id, uintRefSeqBin first_block_id, Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates, SimBlock *&first_reverse_block, SimUnit *&unit);
 		void SetSystematicErrorVariantsForward(uintSeqLen &start_dist_error_region, uintPercent &start_rate, SimBlock &block, uintRefSeqId ref_seq_id, uintSeqLen end_pos, const Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates);
+		void SkipSequencesShorterThanMinFragLen(uintRefSeqId &ref_id, const Reference &ref, const Vect<uintFragCount> &frag_len);
 		bool CreateBlock( Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates );
 		bool GetNextBlock( Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates, SimBlock *&block, SimUnit *&unit );
 

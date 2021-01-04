@@ -2183,7 +2183,7 @@ void FragmentDistributionStats::FillParams(vector<BiasCalculationParams> &params
 }
 
 void FragmentDistributionStats::FillParamsSimulation(vector<BiasCalculationParams> &params, const Reference &reference, const vector<uintSeqLen> &sample_frag_length) const{
-	params.reserve( insert_lengths_.size() * abundance_.size() );
+	params.reserve( insert_lengths_.size() * ref_seq_bias_.size() );
 
 	for( uintRefSeqId ref_id=ref_seq_bias_.size(); ref_id--; ){
 		if(0.0 != ref_seq_bias_.at(ref_id)){
@@ -2941,7 +2941,6 @@ void FragmentDistributionStats::BiasNormalizationThread(
 		const vector<uintRefSeqId> &coverage_groups,
 		vector<vector<array<double, 2>>> &max_bias){
 	decltype(params.size()) cur_par(current_param++);
-
 	vector<double> tmp_norm;
 	tmp_norm.resize(norm.size(), 0.0);
 	vector<vector<double>> tmp_max_bias;

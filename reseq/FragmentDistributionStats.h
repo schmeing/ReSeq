@@ -480,6 +480,7 @@ namespace reseq{
 		const std::vector<double> &RefSeqBias() const{ return ref_seq_bias_; }
 		const Vect<double> &InsertLengthsBias() const{ return insert_lengths_bias_; }
 		const Vect<double> &GCFragmentContentBias() const{ return gc_fragment_content_bias_; }
+		const SurroundingBias &FragmentSurroundingBias() const{return fragment_surroundings_bias_; }
 		
 		const Vect<uintFragCount> &OutskirtContent(uintTempSeq direction, uintBaseCall nucleotide) const{ return outskirt_content_.at(direction).at(nucleotide); }
 		const std::vector<double> &FragmentSurroundingBiasByBase(uintBaseCall nucleotide) const{ return fragment_surrounding_bias_by_base_.at(nucleotide); }
