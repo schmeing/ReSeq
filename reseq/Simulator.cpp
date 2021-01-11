@@ -933,11 +933,14 @@ bool Simulator::CreateUnit(uintRefSeqId ref_id, uintRefSeqBin first_block_id, Re
 	// Additional stuff in case a variant file has been specified
 	if(ref.VariantsLoaded()){
 		// Make sure the variation for this unit is already loaded
+
 		if( !ref.VariantsLoadedForSequence(ref_id) ){
+			uintSeqLen max_del_shift = 0;
 			lock_guard<mutex> lock(var_read_mutex_);
-			if(!ref.ReadVariants(ref_id+1)){ // End is specified, so to get the current one +1
+			if(!ref.ReadVariants(max_del_shift, ref_id+1, 2*stats.MaxReadLenOnReference())){ // End is specified, so to get the current one +1
 				return false;
 			}
+			RequestBufferSize(max_del_shift);
 		}
 
 		// Assign last variant (first in reverse direction) to each reverse block
@@ -1289,11 +1292,12 @@ bool Simulator::GetNextBlock( Reference &ref, const DataStats &stats, const Prob
 	// See if we can already read in more variants, so we are always one reference sequence ahead of the simulation
 	if(!ref.VariantsCompletelyLoaded() && current_unit_ && !ref.VariantsLoadedForSequence(current_unit_->ref_seq_id_+2)){
 		if( var_read_mutex_.try_lock() ){
-			if( !ref.ReadVariants(current_unit_->ref_seq_id_+2) ){
+			uintSeqLen max_del_shift = 0;
+			if( !ref.ReadVariants(max_del_shift, current_unit_->ref_seq_id_+2, 2*stats.MaxReadLenOnReference()) ){ // Use twice the read length to be absolutely sure, because the InDel distribution in the simulation is not necessary exactly the same as in the real data
 				var_read_mutex_.unlock();
 				return false;
 			}
-
+			RequestBufferSize(max_del_shift);
 			var_read_mutex_.unlock();
 		}
 	}
@@ -1313,6 +1317,7 @@ bool Simulator::GetNextBlock( Reference &ref, const DataStats &stats, const Prob
 
 	// Create a new block to keep the buffer for long fragments
 	CreateBlock(ref, stats, estimates);
+	CheckDeletionBuffer(ref, stats, estimates);
 
 	if(!current_unit_){
 		// No new reference sequence anymore: Simulation is complete
@@ -2601,8 +2606,10 @@ bool Simulator::WriteOutSystematicErrorProfile(const string &id, vector<pair<Dna
 Simulator::Simulator():
 	written_records_(0),
 	last_unit_(NULL),
+	deletion_buffer_(0),
 	rdist_zero_to_one_(0,1)
 	{
+	req_deletion_buffer_ = 0;
 }
 
 bool Simulator::CreateSystematicErrorProfile(
@@ -2759,8 +2766,10 @@ bool Simulator::Simulate(
 			// Prepare vcf file handle if needed
 			if(!var_file.empty()){
 				if(ref.PrepareVariantFile(var_file)){
-					if(ref.ReadFirstVariants()){
+					uintSeqLen max_del_shift = 0;
+					if(ref.ReadFirstVariants(max_del_shift, 2*stats.MaxReadLenOnReference())){
 						sys_dom_base_per_allele_.resize(ref.NumAlleles());
+						RequestBufferSize(max_del_shift);
 					}
 					else{
 						simulation_error_ = true;
@@ -2835,6 +2844,7 @@ bool Simulator::Simulate(
 					for( auto n_blocks = stats.FragmentDistribution().InsertLengths().to()/kBlockSize; n_blocks--; ){
 						CreateBlock(ref, stats, estimates);
 					}
+					CheckDeletionBuffer(ref, stats, estimates);
 
 					printInfo << "Starting read generation" << std::endl;
 

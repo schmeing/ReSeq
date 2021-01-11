@@ -141,7 +141,9 @@ void ReferenceTest::TestVariationLoading(){
 	string test_dir;
 	ASSERT_TRUE( GetTestDir(test_dir) );
 	ASSERT_TRUE( ref_.PrepareVariantFile(test_dir+"test-var.vcf") );
-	ASSERT_TRUE( ref_.ReadFirstVariants() );
+	uintSeqLen max_del_shift = 0;
+	ASSERT_TRUE( ref_.ReadFirstVariants(max_del_shift, 10) );
+	EXPECT_EQ(1, max_del_shift);
 
 	EXPECT_EQ(2, ref_.num_alleles_);
 	ASSERT_EQ(1, ref_.variants_.size());

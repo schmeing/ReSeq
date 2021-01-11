@@ -272,6 +272,8 @@ namespace reseq{
 		SimUnit *last_unit_;
 		SimUnit *current_unit_;
 		SimBlock *current_block_;
+		uintRefSeqBin deletion_buffer_; // If we have long deletions we need to add additional blocks as buffer to ensure that the end of a fragment lies in a valid block
+		std::atomic<uintRefSeqBin> req_deletion_buffer_; // Request this size for the deletion buffer
 		std::mt19937_64 block_seed_gen_;
 		std::atomic<bool> simulation_error_;
 
@@ -396,6 +398,21 @@ namespace reseq{
 		bool CreateUnit(uintRefSeqId ref_id, uintRefSeqBin first_block_id, Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates, SimBlock *&first_reverse_block, SimUnit *&unit);
 		void SetSystematicErrorVariantsForward(uintSeqLen &start_dist_error_region, uintPercent &start_rate, SimBlock &block, uintRefSeqId ref_seq_id, uintSeqLen end_pos, const Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates);
 		void SkipSequencesShorterThanMinFragLen(uintRefSeqId &ref_id, const Reference &ref, const Vect<uintFragCount> &frag_len);
+		void RequestBufferSize(uintSeqLen max_del_shift){
+			if(max_del_shift){
+				uintRefSeqBin req_buffer = (max_del_shift-1)/kBlockSize + 1;
+				if(req_buffer > req_deletion_buffer_){
+					req_deletion_buffer_ = req_buffer;
+				}
+			}
+		}
+		void CheckDeletionBuffer(Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates){
+			// Check if we need to increase the buffer blocks due to long deletions
+			while( req_deletion_buffer_ > deletion_buffer_ ){
+				CreateBlock(ref, stats, estimates);
+				++deletion_buffer_;
+			}
+		}
 		bool CreateBlock( Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates );
 		bool GetNextBlock( Reference &ref, const DataStats &stats, const ProbabilityEstimates &estimates, SimBlock *&block, SimUnit *&unit );
 

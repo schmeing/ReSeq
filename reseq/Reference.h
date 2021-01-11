@@ -140,6 +140,7 @@ namespace reseq{
 
 		inline bool ReadFirstVcfRecord();
 		bool ReadVariants(uintRefSeqId end_ref_seq_id, bool positions_only);
+		uintSeqLen MaxDelShift(uintRefSeqId seq_id, uintSeqLen max_read_len);
 		void CloseVcfFile();
 
 		// Methylation bisulfite conversion private functions
@@ -374,9 +375,18 @@ namespace reseq{
 		inline const std::vector<uintRefSeqId> &VariantPositions(uintRefSeqId ref_seq_id) const{ return variant_positions_.at(ref_seq_id); }
 
 		bool PrepareVariantFile(const std::string &var_file);
-		inline bool ReadVariants(uintRefSeqId end_ref_seq_id){ return ReadVariants(end_ref_seq_id, false); };
-		inline bool ReadVariantPositions(uintRefSeqId end_ref_seq_id){ return ReadVariants(end_ref_seq_id, true); };
-		bool ReadFirstVariants();
+		bool ReadVariants(uintSeqLen &max_del_shift, uintRefSeqId end_ref_seq_id, uintSeqLen max_read_len){
+			uintRefSeqId del_check = read_variation_for_num_sequences_;
+			if( !ReadVariants(end_ref_seq_id, false) ){
+				return false;
+			}
+			while( del_check < read_variation_for_num_sequences_ ){
+				utilities::SetToMax(max_del_shift, MaxDelShift(del_check++, max_read_len));
+			}
+			return true;
+		}
+		inline bool ReadVariantPositions(uintRefSeqId end_ref_seq_id){ return ReadVariants(end_ref_seq_id, true); }
+		bool ReadFirstVariants(uintSeqLen &max_del_shift, uintSeqLen max_read_len);
 		bool ReadFirstVariantPositions();
 		void ClearVariants(uintRefSeqId end_ref_seq_id);
 		void ClearVariantPositions(uintRefSeqId end_ref_seq_id);

@@ -67,6 +67,7 @@ using reseq::utilities::IsN;
 using reseq::utilities::Percent;
 using reseq::utilities::ReverseComplementorDna;
 using reseq::utilities::SetToMin;
+using reseq::utilities::SetToMax;
 
 
 inline void Reference::PushBackExclusionRegion( pair<uintSeqLen, uintSeqLen> region, uintRefSeqId ref_seq, uintSeqLen maximum_fragment_length){
@@ -423,6 +424,53 @@ bool Reference::ReadVariants(uintRefSeqId end_ref_seq_id, bool positions_only){
 	}
 
 	return !errors;
+}
+
+reseq::uintSeqLen Reference::MaxDelShift(uintRefSeqId seq_id, uintSeqLen max_read_len){
+	uintSeqLen max_del_shift(0), cur_del_shift(0);
+	intSeqPos last_pos(-1);
+	uintSeqLen read_len(0);
+
+	intVariantId start_var = 0;
+	// Set start_var to first deletion
+	while(start_var < variants_.at(seq_id).size() && length(variants_.at(seq_id).at(start_var).var_seq_)){
+		++start_var;
+	}
+
+	if(start_var < variants_.at(seq_id).size() ){
+		uintSeqLen start_pos = variants_.at(seq_id).at(start_var).position_;
+
+		// Get maximum sum of all deletions in a read length window as maximum deletion shift
+		for( const auto &var : variants_.at(seq_id) ){
+			if( 0 == length(var.var_seq_) ){
+				// Add new deletion
+				++cur_del_shift;
+				if(0 <= last_pos){
+					// For the first deletion read_len is 0, only for the others add distance to previous deletion
+					read_len += var.position_ - last_pos - 1;
+				}
+				last_pos = var.position_;
+
+				// Remove deletions that fall out of the max_read_len window
+				while(read_len > max_read_len){
+					 // Go to next deletion
+					++start_var;
+					while(length(variants_.at(seq_id).at(start_var).var_seq_)){
+						// Skip all variants except deletions
+						++start_var;
+					}
+
+					// Remove deletion
+					--cur_del_shift;
+					read_len -= variants_.at(seq_id).at(start_var).position_ - start_pos - 1;
+					start_pos = variants_.at(seq_id).at(start_var).position_;
+				}
+				SetToMax(max_del_shift, cur_del_shift);
+			}
+		}
+	}
+
+	return max_del_shift;
 }
 
 void Reference::CloseVcfFile(){
@@ -1039,7 +1087,7 @@ bool Reference::PrepareVariantFile(const string &var_file){
 	return success;
 }
 
-bool Reference::ReadFirstVariants(){
+bool Reference::ReadFirstVariants(uintSeqLen &max_del_shift, uintSeqLen max_read_len){
 	if( ReadFirstVcfRecord() ){
 		// Set number of alleles to correct value
 		num_alleles_ = 0;
@@ -1071,7 +1119,7 @@ bool Reference::ReadFirstVariants(){
 			}
 
 			variants_.resize(NumberSequences());
-			return ReadVariants(2);
+			return ReadVariants(max_del_shift, 2, max_read_len);
 		}
 	}
 

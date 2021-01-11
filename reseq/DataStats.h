@@ -238,6 +238,7 @@ namespace reseq{
 		}
 
 		const Vect<uintFragCount> &ReadLengths(uintTempSeq template_segment) const{ return read_lengths_.at(template_segment); }
+		uintReadLen MaxReadLenOnReference() const{ return maximum_read_length_on_reference_; }
 		const Vect<Vect<uintFragCount>> &ReadLengthsByFragmentLength(uintTempSeq template_segment) const{ return read_lengths_by_fragment_length_.at(template_segment); }
 		const Vect<Vect<uintFragCount>> &NonMappedReadLengthsByFragmentLength(uintTempSeq template_segment) const{ return non_mapped_read_lengths_by_fragment_length_.at(template_segment); }
 

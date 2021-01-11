@@ -68,6 +68,7 @@ namespace reseq{
 
 	typedef int64_t intExtSurrounding; // Extended surrounding value to combine blocks, etc.
 	typedef int64_t intFragCountShift; // General count of fragments/reads with direction information for shifts
+	typedef int64_t intSeqPos; // Position on reference sequence that can be invalid (-1)
 
 	typedef uint64_t uintAlleleBitArray; // bit array for storing yes/no for 64 alleles
 	typedef uint64_t uintFragCount; // General count of fragments/reads
