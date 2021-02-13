@@ -3667,3 +3667,27 @@ bool FragmentDistributionStats::WriteRefSeqBias(const std::string &bias_file, co
 
 	return true;
 }
+
+bool FragmentDistributionStats::WriteFragLenBias(const std::string &bias_file){
+	if(bias_file.empty()){
+		for( uintSeqLen frag_len = 0; frag_len < insert_lengths_bias_.to(); ++frag_len ){
+			std::cout << frag_len << '\t' << insert_lengths_bias_[frag_len] << '\n';
+		}
+	}
+	else{
+		ofstream fbias(bias_file);
+		if( !fbias.is_open() ){
+			printErr << "Unable to open fragment length bias file " << bias_file << std::endl;
+			return false;
+		}
+		else{
+			for( uintSeqLen frag_len = 0; frag_len < insert_lengths_bias_.to(); ++frag_len ){
+				fbias << frag_len << '\t' << insert_lengths_bias_[frag_len] << '\n';
+			}
+
+			fbias.close();
+		}
+	}
+
+	return true;
+}

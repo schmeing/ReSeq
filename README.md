@@ -188,6 +188,7 @@ This call creates a fastq file with two sequences per reference sequence (one fo
 | `--verbosity`     | 4       | Sets the level of verbosity (4=everything, 0=nothing) |
 | `--version`       |         | Prints version info and exits |
 | **queryProfile**  |
+| `--fragLenBias`   | None    | Output fragment length bias to file (tsv format; `-` for stdout) |
 | `--maxLenDeletion`| None    | Output lengths of longest detected deletion to stdout |
 | `--maxReadLength` | None    | Output lengths of longest detected read to stdout |
 | `-r` `--ref`      | None    | Reference sequences in fasta format (gz and bz2 supported) |
