@@ -251,8 +251,11 @@ Yes. You can set `kMaxAlleles` in `reseq/Reference.h` to any multiple of 64. Aft
 **Can I simulate exome sequencing?**
 Yes. You need to use a reference that only contains the exons as individual scaffolds. Using `--refBiasFile` you can specify the coverage of individual exons. To simulate intron contamination you can add the whole reference to the reference containing the exons and strongly reduce the coverage for these scaffolds using `--refBiasFile`.
 
-**Can I train on datasets without adapters**
+**Can I train on datasets without adapters?**
 Generally, it is not advised to use trimmed datasets, because they result in worse perfomance. However, by specifying decoy adapters with `--adapterFile TruSeq_single` you can skip the automatic adapter detection, which otherwise will prevent you from training on datasets without adapters.
+
+**When I train the model a large part of the genome is excluded, because the sequences are too short.**
+Lowering the `--maxFragLen` parameter most likely helps in this situation, because sequences that are not at least 100 bases longer than this parameter are excluded in any case. However, you need to check that you are not truncating your fragment lengths distribution by setting `--maxFragLen` too low.
 
 ## <a name="libraries"></a>Included libraries
 Googletest (https://github.com/google/googletest.git, BSD 3-Clause license)\
