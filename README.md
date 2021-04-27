@@ -264,4 +264,4 @@ SeqAn (https://github.com/seqan/seqan, BSD 3-Clause license)\
 skewer (https://github.com/relipmoc/skewer, MIT license, made slight adaptations to the code to be able to include it)
 
 ## <a name="publication"></a>Publication
-Stephan Schmeing, Mark D. Robinson: ReSeq simulates realistic Illumina high-throughput sequencing data. bioRxiv doi: https://doi.org/10.1101/2020.07.17.209072.
+Schmeing, S., Robinson, M.D. ReSeq simulates realistic Illumina high-throughput sequencing data. Genome Biol 22, 67 (2021). https://doi.org/10.1186/s13059-021-02265-7
