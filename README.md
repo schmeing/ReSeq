@@ -252,8 +252,11 @@ Yes. You can set `kMaxAlleles` in `reseq/Reference.h` to any multiple of 64. Aft
 **Can I simulate exome sequencing?**
 Yes. You need to use a reference that only contains the exons as individual scaffolds. Using `--refBiasFile` you can specify the coverage of individual exons. To simulate intron contamination you can add the whole reference to the reference containing the exons and strongly reduce the coverage for these scaffolds using `--refBiasFile`.
 
-**Can I train on datasets without adapters**
+**Can I train on datasets without adapters?**
 Generally, it is not advised to use trimmed datasets, because they result in worse perfomance. However, by specifying decoy adapters with `--adapterFile TruSeq_single` you can skip the automatic adapter detection, which otherwise will prevent you from training on datasets without adapters.
+
+**When I train the model a large part of the genome is excluded, because the sequences are too short.**
+Lowering the `--maxFragLen` parameter most likely helps in this situation, because sequences that are not at least 100 bases longer than this parameter are excluded in any case. However, you need to check that you are not truncating your fragment lengths distribution by setting `--maxFragLen` too low.
 
 ## <a name="libraries"></a>Included libraries
 Googletest (https://github.com/google/googletest.git, BSD 3-Clause license)\
@@ -262,4 +265,4 @@ SeqAn (https://github.com/seqan/seqan, BSD 3-Clause license)\
 skewer (https://github.com/relipmoc/skewer, MIT license, made slight adaptations to the code to be able to include it)
 
 ## <a name="publication"></a>Publication
-Stephan Schmeing, Mark D. Robinson: ReSeq simulates realistic Illumina high-throughput sequencing data. bioRxiv doi: https://doi.org/10.1101/2020.07.17.209072.
+Schmeing, S., Robinson, M.D. ReSeq simulates realistic Illumina high-throughput sequencing data. Genome Biol 22, 67 (2021). https://doi.org/10.1186/s13059-021-02265-7
