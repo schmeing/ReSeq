@@ -71,6 +71,9 @@ using reseq::utilities::SetToMax;
 
 
 inline void Reference::PushBackExclusionRegion( pair<uintSeqLen, uintSeqLen> region, uintRefSeqId ref_seq, uintSeqLen maximum_fragment_length){
+	// Make sure we stay within the reference sequence (exclusions centered within kMinDistToContigEnds from sequence ends could reach out)
+	SetToMax(region.first, 0);
+	SetToMin(region.second, SequenceLength(ref_seq));
 	// If not all fragment length fit between the two regions, merge them
 	if(excluded_regions_.at(ref_seq).back().second + maximum_fragment_length <= region.first){
 		// Distance is big enough, insert new region

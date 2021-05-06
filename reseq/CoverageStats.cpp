@@ -232,8 +232,12 @@ double CoverageStats::GetPositionProbabilities(CoverageBlock *block, const Refer
 			total_bases += thread.block_coverage_.at(pos).at(0) + thread.block_coverage_.at(pos).at(1);
 			correct_bases += block->coverage_.at(pos).coverage_forward_.at(ref_base) + block->coverage_.at(pos).coverage_reverse_.at(rev_base);
 
-			thread.error_rates_sorted_.emplace_back(static_cast<double>(thread.block_coverage_.at(pos).at(0)-block->coverage_.at(pos).coverage_forward_.at(ref_base)) / thread.block_coverage_.at(pos).at(0), thread.block_coverage_.at(pos).at(0));
-			thread.error_rates_sorted_.emplace_back(static_cast<double>(thread.block_coverage_.at(pos).at(1)-block->coverage_.at(pos).coverage_reverse_.at(rev_base)) / thread.block_coverage_.at(pos).at(1), thread.block_coverage_.at(pos).at(1));
+			if( thread.block_coverage_.at(pos).at(0) ){
+				thread.error_rates_sorted_.emplace_back(static_cast<double>(thread.block_coverage_.at(pos).at(0)-block->coverage_.at(pos).coverage_forward_.at(ref_base)) / thread.block_coverage_.at(pos).at(0), thread.block_coverage_.at(pos).at(0));
+			}
+			if( thread.block_coverage_.at(pos).at(1) ){
+				thread.error_rates_sorted_.emplace_back(static_cast<double>(thread.block_coverage_.at(pos).at(1)-block->coverage_.at(pos).coverage_reverse_.at(rev_base)) / thread.block_coverage_.at(pos).at(1), thread.block_coverage_.at(pos).at(1));
+			}
 		}
 	}
 
