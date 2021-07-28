@@ -34,7 +34,8 @@ namespace reseq{
 
 			FullRecord():
 				from_ref_pos_(0),
-				to_ref_pos_(0){
+				to_ref_pos_(0),
+				sequence_quality_(255){ // Mark them as completely unprocessed (pair not found yet)
 			}
 		};
 

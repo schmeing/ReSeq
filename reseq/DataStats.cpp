@@ -560,7 +560,7 @@ bool DataStats::EvalRecord( pair<CoverageStats::FullRecord *, CoverageStats::Ful
 bool DataStats::SignsOfPairsWithNamesNotIdentical(){
 	// All reads have been processed, so first_read_records_ must be empty
 	if( first_read_records_.size() ){
-		printErr << "Read names of reads from the same pair are not identical. Cannot continue.\nExample position: " << (*first_read_records_.begin())->record_.rID << ":" << (*first_read_records_.begin())->record_.beginPos << "\nExample read name: " << (*first_read_records_.begin())->record_.qName << std::endl;
+		printErr << "Did not find a match for all paired reads: Read names of reads from the same pair are not identical or reads from a pair are missing. Cannot continue.\nExample position (ReferenceSequence:StartPosition): " << reference_->ReferenceIdFirstPart((*first_read_records_.begin())->record_.rID) << ":" << (*first_read_records_.begin())->record_.beginPos << "\nExample read name: " << (*first_read_records_.begin())->record_.qName << std::endl;
 		return true;
 	}
 
@@ -856,7 +856,6 @@ bool DataStats::ReadRecords( BamFileIn &bam, bool &not_done, ThreadData &thread_
 	try{
 		while( thread_data.rec_store_.size() < kBatchSize && !atEnd(bam) && reading_success_){
 			++read_records_;
-
 			record = new CoverageStats::FullRecord;
 			readRecord(record->record_, bam);
 
@@ -1233,6 +1232,7 @@ bool DataStats::ReadBam( const char *bam_file, const char *adapter_file, const c
 		printErr << "No reference provided" << std::endl;
 		success = false;
 	}
+
 	seqan::close(bam);
 
 	reference_->ClearAllVariantPositions();

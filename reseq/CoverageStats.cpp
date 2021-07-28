@@ -195,7 +195,12 @@ void CoverageStats::EvalRead( FullRecord *record, CoverageStats::CoverageBlock *
 		}
 	}
 
-	delete record;
+	if( 255 > record->sequence_quality_){ // 255 marks reads that have not yet been processed by DataStats::EvalRecord (because the other read of the pair has not been found yet)
+		delete record;
+	}
+	else{
+		printWarn << "Did not yet find the paired read for:\n(ReferenceSequence:StartPosition): " << reference.ReferenceIdFirstPart(record->record_.rID) << ":" << record->record_.beginPos << "\nRead name: " << record->record_.qName << std::endl;
+	}
 }
 
 inline void CoverageStats::ApplyZeroCoverageRegion(){
