@@ -1683,7 +1683,7 @@ bool InsertLengthSpline::GetSamplePositions(const Vect<uintFragCount> &insert_le
 	}
 
 	if(2 > num_samples){
-		printErr << "Sampling insert lengths did not find at least two usable lengths." << std::endl;
+		printErr << "Sampling insert lengths did not find at least two usable lengths. This normally happens if a dataset with very few reads has been used in the training step." << std::endl;
 		return false;
 	}
 
