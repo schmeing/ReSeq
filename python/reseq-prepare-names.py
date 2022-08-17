@@ -22,11 +22,11 @@ def modName(name, num_spaces, num_colons):
 
 def prepareNames(file1,file2):
     with gzip.open(file2, 'r') if 'gz' == file2.split('.')[-1] else open(file2, 'r') as f2:
-        first_line2 = f2.readline().decode('utf-8')
+        first_line2 = f2.readline()
 
     with gzip.open(file1, 'r') if 'gz' == file1.split('.')[-1] else open(file1, 'r') as f1:
         # Find the space and the semicolon where to separate
-        first_line1 = f1.readline().decode('utf-8')
+        first_line1 = f1.readline()
 
         num_spaces = 0;
         num_colons = 0;
@@ -54,7 +54,7 @@ def prepareNames(file1,file2):
         print( modName(first_line1, num_spaces, num_colons) )
         n_lines = 1 # We already have the first line
         for line in f1:
-            line = line.decode('utf-8')
+            line = line
             if 0 == n_lines % 4:
                 print( modName(line, num_spaces, num_colons) )
             else:
