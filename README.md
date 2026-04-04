@@ -1,4 +1,9 @@
-# ReSeq
+# ReSeq (Archived)
+
+> **This repository has been archived.** Development continues at **[berntpopp/ReSeq2](https://github.com/berntpopp/ReSeq2)**.
+
+[![codecov](https://codecov.io/gh/berntpopp/ReSeq/graph/badge.svg)](https://codecov.io/gh/berntpopp/ReSeq)
+
 More realistic simulator for genomic DNA sequences from Illumina machines that achieves a similar k-mer spectrum as the original sequences.
 
 ## Table of Contents
@@ -9,6 +14,7 @@ More realistic simulator for genomic DNA sequences from Illumina machines that a
 - [Bioconda](#conda)
 - [Quick start examples](#quickstart)
 - [Apply errors and qualities directly to sequences](#errormodel)
+- [Profile format conversion](#convertprofile)
 - [Parameter](#parameter)
 - [File Formats](#formats)
 - [FAQ](#faq)
@@ -22,49 +28,45 @@ Even though sequencing biases and errors have been deeply researched to adequate
 
 ## <a name="requirements"></a>Requirements
 
-| Requirement               | Ubuntu/Debian                      | CentOS | Manual installation | Comments | Tested version |
-|---------------------------|------------------------------------|--------|---------------------|----------|----------------|
-| Linux system              |
-| Compiler supporting C++14 | `sudo apt install build-essential` | `sudo yum install gcc gcc-c++ glibc-devel make` | | On CentOs 7 the g++ compiler is too old to support C++14 so you need to additionally to the yum command install a newer version following for example this guide (https://linuxhostsupport.com/blog/how-to-install-gcc-on-centos-7/). If the standard install path `usr/local/` was used, afterwards the `CXX` variable has to be set to `/usr/local/bin/c++`, the `CC` variable to `/usr/local/bin/gcc`, `/usr/local/lib64/` has to be added to your `LD_LIBRARY_PATH` and `/usr/local/bin` to your `PATH` before installing boost. | 7.2.1 20171019|
-| ZLIB                      | `sudo apt-get install zlib1g-dev`  | `sudo yum install zlib-devel`   | | | |
-| BZip2                     | `sudo apt-get install libbz2-dev`  | `sudo yum install bzip2-devel`  | | | |
-| Python 3                  |                                    |                                 | | | 3.6.11 |
-| Python libraries          | `sudo apt-get install python3-dev`  | `sudo yum install python3-devel.x86_64` | | | |
-| Git                       | `sudo apt-get install git`         | `sudo yum install git`          | | | |
-| CMake                     | `sudo apt-get install cmake`       | (too old version)               | https://cmake.org/install/  | The newest versions (starting 3.16) require `sudo apt-get install libssl-dev` or `sudo yum install openssl-devel` | 3.5.1 |
-| Boost C++ libraries       | `sudo apt-get install libboost-all-dev` | (version not working) | https://www.boost.org/doc/libs/1_71_0/more/getting_started/unix-variants.html | Only download and extraction in section 1 and library builds in section 5 are strictly needed, if you set a prefix you need to set `BOOST_ROOT` to this `prefix` before the installation process below or you will get boost library errors at the cmake and make step. If you manually installed g++ run `./b2` without sudo so the environment variables `CXX` and `CC` are found. | 1.67.0 |
-| SWIG                      | `sudo apt-get install swig`        | (too old version)               | http://www.swig.org/Doc4.0/Preface.html | If you set a prefix you need to add prefix/bin to your PATH variable | 3.0.8 |
+**Build requirements:**
+
+| Requirement | Minimum version | Ubuntu/Debian |
+|-------------|----------------|---------------|
+| C++20 compiler (GCC or Clang) | GCC 10+ / Clang 12+ | `sudo apt install build-essential` |
+| CMake | 3.16+ | `sudo apt install cmake` |
+| Boost (serialization, program_options, filesystem, system, math) | 1.48+ | `sudo apt install libboost-all-dev` |
+| ZLIB | — | `sudo apt install zlib1g-dev` |
+| BZip2 | — | `sudo apt install libbz2-dev` |
+| Git | — | `sudo apt install git` |
+
+SeqAn 2.5.2, GoogleTest, and NLopt are fetched automatically via CMake FetchContent (or found via `find_package()` if installed).
+
+**Optional (Python plotting tools):**
+
+| Requirement | Minimum version | Ubuntu/Debian |
+|-------------|----------------|---------------|
+| Python | 3.9+ | (usually pre-installed) |
+| python3-dev | — | `sudo apt install python3-dev` |
+| SWIG | 3+ | `sudo apt install swig` |
+
+Build with `-DRESEQ_BUILD_PYTHON=ON` to enable Python bindings.
 
 ## <a name="installation"></a>Installation
-To install to the standard folder `usr/local` or to keep everything in the build folder:
-```
-cd /where/you/want/to/build/ReSeq
-git clone https://github.com/schmeing/ReSeq.git
+```bash
+git clone https://github.com/berntpopp/ReSeq.git
 cd ReSeq
-mkdir build
-cd build
-cmake ..
-make
+cmake -S . -B build
+cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
 ```
 
-To install to a different folder the same steps apply but the `cmake ..` line has to be exchange with:
-```
-cmake -DCMAKE_INSTALL_PREFIX=/where/you/want/to/install/ReSeq/ ..
-```
-
-The executable file will afterwards be `/where/you/want/to/build/ReSeq/ReSeq/build/bin/reseq` and can be added to the PATH variable or copied to the desired place.
-
-Alternatively ReSeq can be install to the standard folder `usr/local` or the previously defined folder by:
-```
-make install
+The executable will be at `build/bin/reseq`. To install system-wide:
+```bash
+cmake --install build                                       # installs to /usr/local
+cmake --install build --prefix /your/custom/prefix          # or a custom location
 ```
 
-To test the installation run:
-```
-reseq test
-```
-
-Some useful python scripts can be found in `/where/you/want/to/install/ReSeq/ReSeq/python` or after an installation in `usr/local/bin` or `/where/you/want/to/install/ReSeq/bin/`.
+Python plotting tools are in `python/reseq/` and can be installed as a package (`pip install .`).
 
 ## <a name="conda"></a>Bioconda
 ReSeq can also be installed in an automatic fashion via anaconda/miniconda(https://docs.conda.io/projects/continuumio-conda/en/latest/user-guide/install/index.html) with the following command:
@@ -100,9 +102,9 @@ or
 reseq illuminaPE -j 32 -R my_reference.fa -s my_mappings.bam.reseq -V my_variation.vcf --ipfIterations 0 -1 my_simulated_data_1.fq -2 my_simulated_data_2.fq
 ```
 
-To run a simulation with tiles the tile information needs to stay in the read names after the mapping. This means there must not be a space before it, like it is often the case for read archive data. To replace the space on the fly with an underscore the reseq-prepare-names.py script is provided. In this case run the mapping like this:
+To run a simulation with tiles the tile information needs to stay in the read names after the mapping. This means there must not be a space before it, like it is often the case for read archive data. To replace the space on the fly with an underscore the `reseq-prepare-names` tool is provided (install with `pip install .`). In this case run the mapping like this:
 ```
-bowtie2 -p 32 -X 2000 -x my_reference -1 <(reseq-prepare-names.py my_data_1.fq my_data_2.fq) -2 <(reseq-prepare-names.py my_data_2.fq my_data_1.fq) | samtools sort -m 10G -@ 4 -T _tmp -o my_mappings.bam -
+bowtie2 -p 32 -X 2000 -x my_reference -1 <(reseq-prepare-names my_data_1.fq my_data_2.fq) -2 <(reseq-prepare-names my_data_2.fq my_data_1.fq) | samtools sort -m 10G -@ 4 -T _tmp -o my_mappings.bam -
 ```
 For best results it is always advised to create your own profiles from a dataset very closely matching the desired sequencer, chemistry, fragmentation, adapters, PCR cycles, etc. Furthermore, training on the same or a closely related species, is best to be sure that the necessary profile space (e.g. range of GC content) is well populated. However, in many situations there is no specific case that should be simulated, but a wide variety of datasets is important. Under this condition finding good datasets is tedious work and recreating the same profile from a given dataset does not help to ensure the quality of the simulated data. Therefore, [this repository](https://github.com/schmeing/ReSeq-profiles) is designed to provide high-quality profiles with detailed information on the original datasets. Whenever possible, method benchmarks should be performed on the simulated and the original dataset to verify that the simulation created realistic conditions for the particular use case.
 
@@ -129,6 +131,19 @@ For it to work, all necessary informations need to be provided to ReSeq's error 
 
 This call creates a fastq file with two sequences per reference sequence (one for each strand with the reverse strand first). From this file the corresponding error tendencies and rates can be extracted. Note that the the sequence for the reverse strand is already reverse complemented.
 
+## <a name="convertprofile"></a>Profile format conversion
+ReSeq writes profiles in gzip-compressed binary format by default, which is ~65% smaller and loads ~2-3x faster than text format. However, binary profiles are **not portable** across different CPU architectures or compilers (e.g., a profile generated on x86 with GCC may not load on ARM or with Clang). For cross-platform sharing, use text format:
+```
+# Convert binary profile to portable text format
+reseq convertProfile -s my_mappings.bam.reseq --textFormat
+
+# Convert text profile to binary (for faster local use)
+reseq convertProfile -s my_mappings.bam.reseq
+
+# Generate both formats during stats creation
+reseq illuminaPE -j 32 -r my_reference.fa -b my_mappings.bam --statsOnly --bothFormats
+```
+
 ## <a name="parameter"></a>Parameter
 `reseq illuminaPE [options]`
 
@@ -154,6 +169,8 @@ This call creates a fastq file with two sequences per reference sequence (one fo
 | `-S` `--statsOut` | `--bamIn`.reseq | Stores the real data statistics for reuse in given file |
 | `--tiles`         |         | Use tiles for the statistics |
 | `-v` `--vcfIn`    | None    | Ignore all positions with a listed variant for stats generation |
+| `--textFormat`    |         | Write profile files in portable text format instead of compressed binary |
+| `--bothFormats`   |         | Write profiles in both binary and text formats (alternate gets `.text` or `.bin` suffix) |
 | **Probabilities** |
 | `--ipfIterations` | 200     | Maximum number of iterations for iterative proportional fitting |
 | `--ipfPrecision`  | 5       | Iterative proportional fitting procedure stops after reaching this precision (%) |
@@ -179,7 +196,7 @@ This call creates a fastq file with two sequences per reference sequence (one fo
 | `--writeSysError` | None    | Write the randomly drawn systematic errors to file in fastq format (seq=dominant error, qual=error percentage) |
 
  `reseq queryProfile [options]`
- 
+
 | Parameter         | Default | Description |
 |-------------------|---------|-------------|
 | **General**       |
@@ -188,6 +205,7 @@ This call creates a fastq file with two sequences per reference sequence (one fo
 | `--verbosity`     | 4       | Sets the level of verbosity (4=everything, 0=nothing) |
 | `--version`       |         | Prints version info and exits |
 | **queryProfile**  |
+| `--fragLenBias`   | None    | Output fragment length bias to file (tsv format; `-` for stdout) |
 | `--maxLenDeletion`| None    | Output lengths of longest detected deletion to stdout |
 | `--maxReadLength` | None    | Output lengths of longest detected read to stdout |
 | `-r` `--ref`      | None    | Reference sequences in fasta format (gz and bz2 supported) |
@@ -229,6 +247,24 @@ This call creates a fastq file with two sequences per reference sequence (one fo
 | `-P` `--probabilitiesOut` | `--probabilitiesIn` | Stores the probabilities estimated by iterative proportional fitting |
 | `--seed`          | None    | Seed used for simulation, if none is given random seed will be used |
 | `-s` `--statsIn`  | None    | Profile file that contains the statistics used for simulation |
+| `--textFormat`    |         | Write profile files in portable text format instead of compressed binary |
+| `--bothFormats`   |         | Write profiles in both binary and text formats (alternate gets `.text` or `.bin` suffix) |
+
+`reseq convertProfile [options]`
+
+| Parameter         | Default | Description |
+|-------------------|---------|-------------|
+| **General**       |
+| `-h` `--help`     |         | Prints help information and exits |
+| `-j` `--threads`  | 0       | Number of threads used (0=auto) |
+| `--verbosity`     | 4       | Sets the level of verbosity (4=everything, 0=nothing) |
+| `--version`       |         | Prints version info and exits |
+| **convertProfile**|
+| `-s` `--statsIn`  | None    | Input stats file (.reseq) |
+| `-o` `--statsOut` | Overwrites input | Output stats file |
+| `-p` `--probsIn`  | None    | Input probabilities file (.reseq.ipf) |
+| `-P` `--probsOut` | Overwrites input | Output probabilities file |
+| `--textFormat`    |         | Write in portable text format (default: compressed binary) |
 
 ## <a name="formats"></a>File Formats
 | File type             | Ending     | Information |
@@ -239,8 +275,8 @@ This call creates a fastq file with two sequences per reference sequence (one fo
 | Adapter matrix        | .mat       | 0/1 matrix stating if the adapters can occur in a read pair together. (0:no; 1:yes). The n-th row/column is the n-th entry in the adapter file. Rows represent the adapter in the first read and columns represent the adapter in the second read. Columns are consecutive digits in a row. Number of rows and columns need to match the number of entries in the adapter file. |
 | Variant file          | .vcf       | Standard vcf format. The reference information in the header and in the reference column must match the given reference file. Ambiguous bases (e.g. N's) are not supported in the reference and alternative column. Except of this only the CHROM, POS, ALT columns and the genotype information are used. No filtering by quality etc. takes place. All genotypes in the file will be simulated. No distinction is made if genotypes are in a single sample or spread out over multiple samples. All genotype information is considered phased independent of what is encoded in the file. At most 128 genotypes are supported by default (see FAQ). |
 | Methylation file	| .bed	     | Extended bed graph format with possibility of multiple score columns for individual alleles. Number of columns must be either 1 or the same number of alleles specified in the variant file. The number of columns need to be the same within each reference sequence. Bisulfite sequencing is simulated, so C->T conversions are inserted with a probability of 1-methylation value specified in this file. |
-| Stats file            | .reseq     | Boost archive: Not recommended to modify or create by hand even though it is in ASCII format |
-| Probability file      | .reseq.ipf | Boost archive: Not recommended to modify or create by hand even though it is in ASCII format |
+| Stats file            | .reseq     | Boost archive containing sequencing statistics. Written in gzip-compressed binary format by default (faster, ~65% smaller) or legacy text format with `--textFormat`. Binary format is not portable across different architectures or compilers; use `--textFormat` or `convertProfile` for cross-platform sharing. |
+| Probability file      | .reseq.ipf | Boost archive containing estimated probabilities. Same format options as stats file. Both text and binary formats are auto-detected on load. |
 | Systematic error file | .fq        | Standard fastq format. The sequence represents the error tendency and the quality the error rate in percent at that position. There are two entries per reference sequence. The order of the reference sequences must be kept. The length must match the length of the reference sequence. The first entry per reference sequence is the reverse strand and reverse complemented. So an A in the first position means that a systematic error towards a T is simulated for the last base of the reference sequence in reads on the reverse strand. The second entry is the forward strand taken as is, so not reverse complemented. The error rate in percent is encoded similar to quality values with an offset of 33. Since the fastq format is limited to 94 quality values odd percentages over 86 are omitted. This mean `~` encodes 100% and `}` 98%. |
 | Reference bias file   | .txt       | One line per specified bias. The line starts by a unique identifier of the reference sequence (the part before the first space in the reference sequence name in the reference file). The identifier can be followed by a space and after it some arbitrary information. The line ends with a space or tab separating a floating point number representing the bias for this sequence. It must be positive. All reference sequences in the reference file must have a bias given. However, the order of the sequences doesn't need to be kept and the bias for additional reference sequences could be specified. The biases will be automatically normalized and define the relative base coverage of the reference sequences. Simulated base coverage will differ from this due to other biases additionally taken into account. |
 
@@ -258,10 +294,10 @@ Generally, it is not advised to use trimmed datasets, because they result in wor
 Lowering the `--maxFragLen` parameter most likely helps in this situation, because sequences that are not at least 100 bases longer than this parameter are excluded in any case. However, you need to check that you are not truncating your fragment lengths distribution by setting `--maxFragLen` too low.
 
 ## <a name="libraries"></a>Included libraries
-Googletest (https://github.com/google/googletest.git, BSD 3-Clause license)\
-NLopt (https://github.com/stevengj/nlopt.git, MIT license)\
-SeqAn (https://github.com/seqan/seqan, BSD 3-Clause license)\
-skewer (https://github.com/relipmoc/skewer, MIT license, made slight adaptations to the code to be able to include it)
+GoogleTest (https://github.com/google/googletest.git, BSD 3-Clause license) — fetched via FetchContent\
+NLopt (https://github.com/stevengj/nlopt.git, MIT license) — fetched via FetchContent\
+SeqAn 2.5.2 (https://github.com/seqan/seqan, BSD 3-Clause license) — fetched via FetchContent\
+skewer (https://github.com/relipmoc/skewer, MIT license) — vendored with local modifications (see `skewer/MODIFICATIONS.md`)
 
 ## <a name="publication"></a>Publication
 Schmeing, S., Robinson, M.D. ReSeq simulates realistic Illumina high-throughput sequencing data. Genome Biol 22, 67 (2021). https://doi.org/10.1186/s13059-021-02265-7

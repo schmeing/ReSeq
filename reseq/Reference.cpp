@@ -2,15 +2,11 @@
 using reseq::Reference;
 
 #include <algorithm>
-using std::min;
 using std::max;
+using std::min;
 using std::sort;
-//include <array>
+// include <array>
 using std::array;
-#include <cmath>
-using std::log;
-using std::pow;
-using std::round;
 #include <exception>
 using std::exception;
 #include <fstream>
@@ -23,25 +19,23 @@ using std::numeric_limits;
 #include <random>
 using std::mt19937_64;
 using std::uniform_int_distribution;
-//include <set>
-using std::set;
 #include <string>
 using std::stod;
 using std::stoll;
 using std::string;
 #include <utility>
 using std::pair;
-//include <vector>
+// include <vector>
 using std::vector;
 
-#include "reportingUtils.hpp"
+#include "logging.hpp"
 
-//include <seqan/seq_io.h>
+// include <seqan/seq_io.h>
 using seqan::CharString;
 using seqan::clear;
-using seqan::DnaString;
 using seqan::Dna5;
 using seqan::Dna5String;
+using seqan::DnaString;
 using seqan::Exception;
 using seqan::IupacString;
 using seqan::length;
@@ -50,1298 +44,1418 @@ using seqan::prefix;
 using seqan::readRecord;
 using seqan::SeqFileIn;
 using seqan::SeqFileOut;
-//include <seqan/vcf_io.h>
+// include <seqan/vcf_io.h>
 using seqan::VcfFileIn;
 using seqan::VcfHeader;
 using seqan::VcfRecord;
 
 #include "CMakeConfig.h"
-//include "Surrounding.h"
+// include "Surrounding.h"
 using reseq::Surrounding;
 using reseq::SurroundingBias;
-//include "utilities.hpp"
-using reseq::utilities::ComplementedConstDna5String;
+// include "utilities.hpp"
 using reseq::utilities::at;
+using reseq::utilities::ComplementedConstDna5String;
 using reseq::utilities::DivideAndCeil;
 using reseq::utilities::IsN;
 using reseq::utilities::Percent;
 using reseq::utilities::ReverseComplementorDna;
+using reseq::utilities::SetToMax;
 using reseq::utilities::SetToMin;
 
+inline void Reference::PushBackExclusionRegion(pair<uintSeqLen, uintSeqLen> region, uintRefSeqId ref_seq,
+                                               uintSeqLen maximum_fragment_length) {
+    // Make sure we stay within the reference sequence (exclusions centered within kMinDistToContigEnds from sequence
+    // ends could reach out)
+    SetToMax(region.first, 0);
+    SetToMin(region.second, SequenceLength(ref_seq));
+    // If not all fragment length fit between the two regions, merge them
+    if (excluded_regions_.at(ref_seq).back().second + maximum_fragment_length <= region.first) {
+        // Distance is big enough, insert new region
+        excluded_regions_.at(ref_seq).push_back(region);
+    } else {
+        // Merge regions
+        auto it_first_merged_region = excluded_regions_.at(ref_seq).rbegin() + 1;
+        while (it_first_merged_region != excluded_regions_.at(ref_seq).rend() &&
+               (it_first_merged_region)->second + maximum_fragment_length > region.first) {
+            ++it_first_merged_region;
+        }
+        --it_first_merged_region; // Go back to the element that needed merging
 
-inline void Reference::PushBackExclusionRegion( pair<uintSeqLen, uintSeqLen> region, uintRefSeqId ref_seq, uintSeqLen maximum_fragment_length){
-	// If not all fragment length fit between the two regions, merge them
-	if(excluded_regions_.at(ref_seq).back().second + maximum_fragment_length <= region.first){
-		// Distance is big enough, insert new region
-		excluded_regions_.at(ref_seq).push_back(region);
-	}
-	else{
-		// Merge regions
-		auto it_first_merged_region = excluded_regions_.at(ref_seq).rbegin() + 1;
-		while( it_first_merged_region != excluded_regions_.at(ref_seq).rend() && (it_first_merged_region)->second + maximum_fragment_length > region.first ){
-			++it_first_merged_region;
-		}
-		--it_first_merged_region; // Go back to the element that needed merging
+        // Set new values to the first region that still needs to be merged
+        SetToMin(it_first_merged_region->first, region.first);
+        it_first_merged_region->second = max(excluded_regions_.at(ref_seq).back().second, region.second);
 
-		// Set new values to the first region that still needs to be merged
-		SetToMin(it_first_merged_region->first, region.first);
-		it_first_merged_region->second = max(excluded_regions_.at(ref_seq).back().second, region.second);
-
-		// Remove all the regions after it that are merged
-		excluded_regions_.at(ref_seq).resize( excluded_regions_.at(ref_seq).size() - distance(excluded_regions_.at(ref_seq).rbegin(), it_first_merged_region) );
-	}
+        // Remove all the regions after it that are merged
+        excluded_regions_.at(ref_seq).resize(excluded_regions_.at(ref_seq).size() -
+                                             distance(excluded_regions_.at(ref_seq).rbegin(), it_first_merged_region));
+    }
 }
 
-bool Reference::CheckVcf() const{
-	auto contigs = contigNames(context(vcf_file_));
-	uintErrorCount errors = 0;
+bool Reference::CheckVcf() const {
+    auto contigs = contigNames(context(vcf_file_));
+    uintErrorCount errors = 0;
 
-	if(length(contigs) != NumberSequences()){
-		printErr << "Number of contigs does not match between reference(" << NumberSequences() << ") and variant(" << length(contigs) << ") file." << std::endl;
-		++errors;
-	}
-	for(uintRefSeqId con=0; con < min(static_cast<uintRefSeqId>(length(contigs)), NumberSequences()); ++con){
-		if(errors < 20 && at(contigs, con) != ReferenceIdFirstPart(con)){
-			printErr << "Contigs at position " << con << " do not match between reference(" << ReferenceId(con) << ") and variant(" << at(contigs, con) << ") file." << std::endl;
-			++errors;
-		}
-	}
+    if (length(contigs) != NumberSequences()) {
+        printErr << "Number of contigs does not match between reference(" << NumberSequences() << ") and variant("
+                 << length(contigs) << ") file." << std::endl;
+        ++errors;
+    }
+    for (uintRefSeqId con = 0; con < min(static_cast<uintRefSeqId>(length(contigs)), NumberSequences()); ++con) {
+        if (errors < 20 && at(contigs, con) != ReferenceIdFirstPart(con)) {
+            printErr << "Contigs at position " << con << " do not match between reference(" << ReferenceId(con)
+                     << ") and variant(" << at(contigs, con) << ") file." << std::endl;
+            ++errors;
+        }
+    }
 
-	return !errors;
+    return !errors;
 }
 
-inline bool Reference::ReadFirstVcfRecord(){
-	try{
-		// Read the first record, so that cur_vcf_record_ is valid
-		readRecord(cur_vcf_record_, vcf_file_);
-	}
-	catch (const Exception& e){
-		printErr << "Could not read first vcf record: " << e.what() << std::endl;
-		return false;
-	}
+inline bool Reference::ReadFirstVcfRecord() {
+    try {
+        // Read the first record, so that cur_vcf_record_ is valid
+        readRecord(cur_vcf_record_, vcf_file_);
+    } catch (const Exception& e) {
+        printErr << "Could not read first vcf record: " << e.what() << std::endl;
+        return false;
+    }
 
-	return true;
+    return true;
 }
 
-bool Reference::ReadVariants(uintRefSeqId end_ref_seq_id, bool positions_only){
-	// Read the file record by record until variant is for sequence end_ref_seq_id or later
-	uintErrorCount errors=0;
-	bool tmp_success = true;
-	uintSeqLen start_pos, end_pos(0);
+bool Reference::ReadVariants(uintRefSeqId end_ref_seq_id, bool positions_only) {
+    // Read the file record by record until variant is for sequence end_ref_seq_id or later
+    uintErrorCount errors = 0;
+    bool tmp_success = true;
+    uintSeqLen start_pos, end_pos(0);
 
-	uintSeqLen pos;
-	uintAlleleId cur_allele, chosen_var;
-	vector<uintAlleleId> allele;
-	vector<array<uintAlleleBitArray, Variant::kMaxAlleles/64>> gt_has_var;
-	vector<uintSeqLen> alt_start_pos;
+    uintSeqLen pos;
+    uintAlleleId cur_allele, chosen_var;
+    vector<uintAlleleId> allele;
+    vector<array<uintAlleleBitArray, Variant::kMaxAlleles / 64>> gt_has_var;
+    vector<uintSeqLen> alt_start_pos;
 
-	if(!positions_only){
-		allele.resize(num_alleles_);
-		gt_has_var.reserve(num_alleles_); // Just a size guess, because there could be more or less alternative sequences specified than alleles present
-	}
+    if (!positions_only) {
+        allele.resize(num_alleles_);
+        gt_has_var.reserve(num_alleles_); // Just a size guess, because there could be more or less alternative
+                                          // sequences specified than alleles present
+    }
 
-	uintRefSeqId old_ref_id = numeric_limits<uintRefSeqId>::max();
+    uintRefSeqId old_ref_id = numeric_limits<uintRefSeqId>::max();
 
-	try{
-		while(VcfRecord::INVALID_REFID != cur_vcf_record_.rID && cur_vcf_record_.rID < end_ref_seq_id){
-			// Parse record
-			if(cur_vcf_record_.rID >= NumberSequences()){
-				printErr << "Variant starting in reference sequence " << cur_vcf_record_.rID << " at position " << start_pos << " does not belong to an existing reference sequence." << std::endl;
-				if(++errors >= kMaxErrorsShownPerFile){
-					printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
-					break;
-				}
-			}
-			else{
-				if(cur_vcf_record_.beginPos >= SequenceLength(cur_vcf_record_.rID)){
-					printErr << "Variant starting in reference sequence " << cur_vcf_record_.rID << " at position " << start_pos << " starts after the end of the reference sequence." << std::endl;
-					if(++errors >= kMaxErrorsShownPerFile){
-						printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
-						break;
-					}
-				}
-				else{
-					start_pos = cur_vcf_record_.beginPos;
+    try {
+        while (VcfRecord::INVALID_REFID != cur_vcf_record_.rID && cur_vcf_record_.rID < end_ref_seq_id) {
+            // Parse record
+            if (cur_vcf_record_.rID >= NumberSequences()) {
+                printErr << "Variant starting in reference sequence " << cur_vcf_record_.rID << " at position "
+                         << start_pos << " does not belong to an existing reference sequence." << std::endl;
+                if (++errors >= kMaxErrorsShownPerFile) {
+                    printErr << "Maximum number of errors reached. Additional errors are not shown for this file."
+                             << std::endl;
+                    break;
+                }
+            } else {
+                if (cur_vcf_record_.beginPos >= SequenceLength(cur_vcf_record_.rID)) {
+                    printErr << "Variant starting in reference sequence " << cur_vcf_record_.rID << " at position "
+                             << start_pos << " starts after the end of the reference sequence." << std::endl;
+                    if (++errors >= kMaxErrorsShownPerFile) {
+                        printErr << "Maximum number of errors reached. Additional errors are not shown for this file."
+                                 << std::endl;
+                        break;
+                    }
+                } else {
+                    start_pos = cur_vcf_record_.beginPos;
 
-					if(old_ref_id == cur_vcf_record_.rID){
-						if(start_pos < end_pos){
-							printErr << "Variant starting in reference sequence " << cur_vcf_record_.rID << " at position " << start_pos << " overlaps with a previous variant." << std::endl;
-							if(++errors >= kMaxErrorsShownPerFile){
-								printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
-								break;
-							}
-						}
-					}
-					else{
-						old_ref_id = cur_vcf_record_.rID;
-					}
+                    if (old_ref_id == cur_vcf_record_.rID) {
+                        if (start_pos < end_pos) {
+                            printErr << "Variant starting in reference sequence " << cur_vcf_record_.rID
+                                     << " at position " << start_pos << " overlaps with a previous variant."
+                                     << std::endl;
+                            if (++errors >= kMaxErrorsShownPerFile) {
+                                printErr << "Maximum number of errors reached. Additional errors are not shown for "
+                                            "this file."
+                                         << std::endl;
+                                break;
+                            }
+                        }
+                    } else {
+                        old_ref_id = cur_vcf_record_.rID;
+                    }
 
-					end_pos = start_pos + length(cur_vcf_record_.ref);
-					Dna5String vcf_ref_var_ = cur_vcf_record_.ref;
+                    end_pos = start_pos + length(cur_vcf_record_.ref);
+                    Dna5String vcf_ref_var_ = cur_vcf_record_.ref;
 
-					if( utilities::HasN(vcf_ref_var_) ){
-						printErr << "Variant starting in reference sequence " << cur_vcf_record_.rID << " at position " << start_pos << " has an reference column containing ambiguous bases (e.g. N). Please change or remove them, but make sure the reference file stays consistent with this column." << std::endl;
-						if(++errors >= kMaxErrorsShownPerFile){
-							printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
-							break;
-						}
-					}
-					else{
-						if( vcf_ref_var_ != infix(ReferenceSequence(cur_vcf_record_.rID), start_pos, end_pos) ){
-							printErr << "The specified reference in vcf file '" << vcf_ref_var_ << "' is not identical with the specified reference sequence " << cur_vcf_record_.rID << " at position " << start_pos << ": '" << infix(ReferenceSequence(cur_vcf_record_.rID), start_pos, end_pos ) << "'." << std::endl;
-							if(++errors >= kMaxErrorsShownPerFile){
-								printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
-								break;
-							}
-						}
-					}
+                    if (utilities::HasN(vcf_ref_var_)) {
+                        printErr << "Variant starting in reference sequence " << cur_vcf_record_.rID << " at position "
+                                 << start_pos
+                                 << " has an reference column containing ambiguous bases (e.g. N). Please change or "
+                                    "remove them, but make sure the reference file stays consistent with this column."
+                                 << std::endl;
+                        if (++errors >= kMaxErrorsShownPerFile) {
+                            printErr
+                                << "Maximum number of errors reached. Additional errors are not shown for this file."
+                                << std::endl;
+                            break;
+                        }
+                    } else {
+                        if (vcf_ref_var_ != infix(ReferenceSequence(cur_vcf_record_.rID), start_pos, end_pos)) {
+                            printErr << "The specified reference in vcf file '" << vcf_ref_var_
+                                     << "' is not identical with the specified reference sequence "
+                                     << cur_vcf_record_.rID << " at position " << start_pos << ": '"
+                                     << infix(ReferenceSequence(cur_vcf_record_.rID), start_pos, end_pos) << "'."
+                                     << std::endl;
+                            if (++errors >= kMaxErrorsShownPerFile) {
+                                printErr << "Maximum number of errors reached. Additional errors are not shown for "
+                                            "this file."
+                                         << std::endl;
+                                break;
+                            }
+                        }
+                    }
 
-					if(positions_only){
-						for(auto pos=start_pos; pos<end_pos; ++pos){
-							variant_positions_.at(cur_vcf_record_.rID).push_back(pos);
-						}
-					}
-					else{
-						// Get genotypes
-						tmp_success = true;
-						cur_allele = 0;
-						for( auto &genotype : cur_vcf_record_.genotypeInfos ){
-							if(cur_allele >= num_alleles_){
-								tmp_success = false;
-								printErr << "Found to many alleles in genotype definition '";
-								if(0 < kVerbosityLevel){
-									for( auto &genotype : cur_vcf_record_.genotypeInfos ){
-										std::cerr << ' ' << genotype;
-									}
-									std::cerr << "'" << std::endl;
-								}
-								if(++errors >= kMaxErrorsShownPerFile){
-									printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
-								}
-								break;
-							}
+                    if (positions_only) {
+                        for (auto pos = start_pos; pos < end_pos; ++pos) {
+                            variant_positions_.at(cur_vcf_record_.rID).push_back(pos);
+                        }
+                    } else {
+                        // Get genotypes
+                        tmp_success = true;
+                        cur_allele = 0;
+                        for (auto& genotype : cur_vcf_record_.genotypeInfos) {
+                            if (cur_allele >= num_alleles_) {
+                                tmp_success = false;
+                                printErr << "Found to many alleles in genotype definition '";
+                                if (0 < kVerbosityLevel) {
+                                    for (auto& genotype : cur_vcf_record_.genotypeInfos) {
+                                        std::cerr << ' ' << genotype;
+                                    }
+                                    std::cerr << "'" << std::endl;
+                                }
+                                if (++errors >= kMaxErrorsShownPerFile) {
+                                    printErr << "Maximum number of errors reached. Additional errors are not shown for "
+                                                "this file."
+                                             << std::endl;
+                                }
+                                break;
+                            }
 
-							pos=0;
-							chosen_var=0;
-							while(pos < length(genotype) && ':' != at(genotype, pos)){
-								if('|' == at(genotype, pos) || '/' == at(genotype, pos)){
-									allele.at(cur_allele++) = chosen_var;
-									chosen_var = 0;
-								}
-								else if('0' <= at(genotype, pos) && '9' >= at(genotype, pos)){
-									chosen_var *= 10;
-									chosen_var += at(genotype, pos) - 48;
-								}
-								else{
-									tmp_success = false;
-									printErr << "Unallowed character '" << at(genotype, pos) << "' in genotype definition '" << genotype << "'" << std::endl;
-									if(++errors >= kMaxErrorsShownPerFile){
-										printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
-										break;
-									}
-								}
-								++pos;
-							}
+                            pos = 0;
+                            chosen_var = 0;
+                            while (pos < length(genotype) && ':' != at(genotype, pos)) {
+                                if ('|' == at(genotype, pos) || '/' == at(genotype, pos)) {
+                                    allele.at(cur_allele++) = chosen_var;
+                                    chosen_var = 0;
+                                } else if ('0' <= at(genotype, pos) && '9' >= at(genotype, pos)) {
+                                    chosen_var *= 10;
+                                    chosen_var += at(genotype, pos) - 48;
+                                } else {
+                                    tmp_success = false;
+                                    printErr << "Unallowed character '" << at(genotype, pos)
+                                             << "' in genotype definition '" << genotype << "'" << std::endl;
+                                    if (++errors >= kMaxErrorsShownPerFile) {
+                                        printErr << "Maximum number of errors reached. Additional errors are not shown "
+                                                    "for this file."
+                                                 << std::endl;
+                                        break;
+                                    }
+                                }
+                                ++pos;
+                            }
 
-							if(errors >= kMaxErrorsShownPerFile){
-								break;
-							}
+                            if (errors >= kMaxErrorsShownPerFile) {
+                                break;
+                            }
 
-							if(tmp_success){
-								allele.at(cur_allele++) = chosen_var;
-							}
-							else{
-								allele.at(cur_allele++) = 0;
-							}
-						}
+                            if (tmp_success) {
+                                allele.at(cur_allele++) = chosen_var;
+                            } else {
+                                allele.at(cur_allele++) = 0;
+                            }
+                        }
 
-						if(errors >= kMaxErrorsShownPerFile){
-							break;
-						}
+                        if (errors >= kMaxErrorsShownPerFile) {
+                            break;
+                        }
 
-						if(cur_allele < num_alleles_){
-							tmp_success = false;
-							printErr << "Could not find enough alleles in genotype definition '";
-							if(0 < kVerbosityLevel){
-								for( auto &genotype : cur_vcf_record_.genotypeInfos ){
-									std::cerr << ' ' << genotype;
-								}
-								std::cerr << "'" << std::endl;
-							}
-							if(++errors >= kMaxErrorsShownPerFile){
-								printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
-								break;
-							}
-						}
+                        if (cur_allele < num_alleles_) {
+                            tmp_success = false;
+                            printErr << "Could not find enough alleles in genotype definition '";
+                            if (0 < kVerbosityLevel) {
+                                for (auto& genotype : cur_vcf_record_.genotypeInfos) {
+                                    std::cerr << ' ' << genotype;
+                                }
+                                std::cerr << "'" << std::endl;
+                            }
+                            if (++errors >= kMaxErrorsShownPerFile) {
+                                printErr << "Maximum number of errors reached. Additional errors are not shown for "
+                                            "this file."
+                                         << std::endl;
+                                break;
+                            }
+                        }
 
-						if(tmp_success){
-							// Find variations for the genotypes
-							gt_has_var.clear();
-							alt_start_pos.clear();
-							alt_start_pos.push_back(0);
+                        if (tmp_success) {
+                            // Find variations for the genotypes
+                            gt_has_var.clear();
+                            alt_start_pos.clear();
+                            alt_start_pos.push_back(0);
 
-							if(length(cur_vcf_record_.alt) > numeric_limits<uintSeqLen>::max()){
-								printErr << "Variant starting in reference sequence " << cur_vcf_record_.rID << " at position " << start_pos << " has an alternative column of length " << length(cur_vcf_record_.alt) << ", but currently only a maximum of " << numeric_limits<uintSeqLen>::max() << " characters are supported." << std::endl;
-								if(++errors >= kMaxErrorsShownPerFile){
-									printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
-									break;
-								}
-							}
-							else{
-								chosen_var = 1; // 0 is the reference sequence
-								// Split alternative sequences
-								for(pos = 0; pos < length(cur_vcf_record_.alt); ++pos){
-									if(',' == at(cur_vcf_record_.alt, pos)){
-										alt_start_pos.push_back(pos+1); // Position after the ',' is the start of the next alternative
+                            if (length(cur_vcf_record_.alt) > numeric_limits<uintSeqLen>::max()) {
+                                printErr << "Variant starting in reference sequence " << cur_vcf_record_.rID
+                                         << " at position " << start_pos << " has an alternative column of length "
+                                         << length(cur_vcf_record_.alt) << ", but currently only a maximum of "
+                                         << numeric_limits<uintSeqLen>::max() << " characters are supported."
+                                         << std::endl;
+                                if (++errors >= kMaxErrorsShownPerFile) {
+                                    printErr << "Maximum number of errors reached. Additional errors are not shown for "
+                                                "this file."
+                                             << std::endl;
+                                    break;
+                                }
+                            } else {
+                                chosen_var = 1; // 0 is the reference sequence
+                                // Split alternative sequences
+                                for (pos = 0; pos < length(cur_vcf_record_.alt); ++pos) {
+                                    if (',' == at(cur_vcf_record_.alt, pos)) {
+                                        alt_start_pos.push_back(
+                                            pos + 1); // Position after the ',' is the start of the next alternative
 
-										// Check which genotypes have this variant
-										gt_has_var.push_back({0});
-										for(cur_allele=num_alleles_; cur_allele--; ){ // Has to be backwards, because allele 0 is in the rightmost bit
-											gt_has_var.back().at(cur_allele/64) = gt_has_var.back().at(cur_allele/64) << 1;
-											if(allele.at(cur_allele) == chosen_var){
-												++gt_has_var.back().at(cur_allele/64);
-											}
-										}
-										++chosen_var;
-									}
-								}
-								alt_start_pos.push_back(pos+1); // To be in line with the one after the ',' we use here one after the end (which itself is one after the last character)
+                                        // Check which genotypes have this variant
+                                        gt_has_var.push_back({0});
+                                        for (cur_allele = num_alleles_;
+                                             cur_allele--;) { // Has to be backwards, because allele 0 is in the
+                                                              // rightmost bit
+                                            gt_has_var.back().at(cur_allele / 64) =
+                                                gt_has_var.back().at(cur_allele / 64) << 1;
+                                            if (allele.at(cur_allele) == chosen_var) {
+                                                ++gt_has_var.back().at(cur_allele / 64);
+                                            }
+                                        }
+                                        ++chosen_var;
+                                    }
+                                }
+                                alt_start_pos.push_back(
+                                    pos + 1); // To be in line with the one after the ',' we use here one after the end
+                                              // (which itself is one after the last character)
 
-								// Check which genotypes have the final variant
-								gt_has_var.push_back({0});
-								for(cur_allele=num_alleles_; cur_allele--; ){ // Has to be backwards, because allele 0 is in the rightmost bit
-									gt_has_var.back().at(cur_allele/64) = gt_has_var.back().at(cur_allele/64) << 1;
-									if(allele.at(cur_allele) == chosen_var){
-										++gt_has_var.back().at(cur_allele/64);
-									}
-									else if(allele.at(cur_allele) > chosen_var){
-										if(++errors <= kMaxErrorsShownPerFile){
-											printErr << "Variant number " << allele.at(cur_allele) << " does not exist for sequence id " << cur_vcf_record_.rID << " and position " << cur_vcf_record_.beginPos << std::endl;
-										}
-										if(errors >= kMaxErrorsShownPerFile){
-											printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
-										}
-									}
-								}
-								++chosen_var;
+                                // Check which genotypes have the final variant
+                                gt_has_var.push_back({0});
+                                for (cur_allele = num_alleles_;
+                                     cur_allele--;) { // Has to be backwards, because allele 0 is in the rightmost bit
+                                    gt_has_var.back().at(cur_allele / 64) = gt_has_var.back().at(cur_allele / 64) << 1;
+                                    if (allele.at(cur_allele) == chosen_var) {
+                                        ++gt_has_var.back().at(cur_allele / 64);
+                                    } else if (allele.at(cur_allele) > chosen_var) {
+                                        if (++errors <= kMaxErrorsShownPerFile) {
+                                            printErr << "Variant number " << allele.at(cur_allele)
+                                                     << " does not exist for sequence id " << cur_vcf_record_.rID
+                                                     << " and position " << cur_vcf_record_.beginPos << std::endl;
+                                        }
+                                        if (errors >= kMaxErrorsShownPerFile) {
+                                            printErr << "Maximum number of errors reached. Additional errors are not "
+                                                        "shown for this file."
+                                                     << std::endl;
+                                        }
+                                    }
+                                }
+                                ++chosen_var;
 
-								// Enter variants into vector (split into single reference positions)
-								Dna5String inserted_variant;
-								for(pos = 0; pos < length(vcf_ref_var_); ++pos){
-									for(uintAlleleId n_alt = 0; n_alt < gt_has_var.size(); ++n_alt){
-										// Check if any genotype has this variant
-										bool variant_in_any_allele = false;
-										for(auto all : gt_has_var.at(n_alt)){
-											if(all){
-												variant_in_any_allele = true;
-											}
-										}
-										if(variant_in_any_allele){
-											// Enter record into variations vector
-											if(pos+1 == length(vcf_ref_var_) && pos+1 < alt_start_pos.at(n_alt+1)-1 - alt_start_pos.at(n_alt)){
-												// Insertion
-												inserted_variant = infix(cur_vcf_record_.alt, alt_start_pos.at(n_alt)+pos, alt_start_pos.at(n_alt+1)-1);
+                                // Enter variants into vector (split into single reference positions)
+                                Dna5String inserted_variant;
+                                for (pos = 0; pos < length(vcf_ref_var_); ++pos) {
+                                    for (uintAlleleId n_alt = 0; n_alt < gt_has_var.size(); ++n_alt) {
+                                        // Check if any genotype has this variant
+                                        bool variant_in_any_allele = false;
+                                        for (auto all : gt_has_var.at(n_alt)) {
+                                            if (all) {
+                                                variant_in_any_allele = true;
+                                            }
+                                        }
+                                        if (variant_in_any_allele) {
+                                            // Enter record into variations vector
+                                            if (pos + 1 == length(vcf_ref_var_) &&
+                                                pos + 1 < alt_start_pos.at(n_alt + 1) - 1 - alt_start_pos.at(n_alt)) {
+                                                // Insertion
+                                                inserted_variant =
+                                                    infix(cur_vcf_record_.alt, alt_start_pos.at(n_alt) + pos,
+                                                          alt_start_pos.at(n_alt + 1) - 1);
 
-											}
-											else if(pos < alt_start_pos.at(n_alt+1)-1 - alt_start_pos.at(n_alt)){
-												// Base Mutation
-												if(at(vcf_ref_var_, pos) != at(cur_vcf_record_.alt, alt_start_pos.at(n_alt)+pos)){
-													inserted_variant = at(cur_vcf_record_.alt, alt_start_pos.at(n_alt)+pos);
-												}
-												else{
-													continue; // If variant is identical to reference, we don't need to add it
-												}
-											}
-											else{
-												// Deletion
-												inserted_variant = Dna5String("");
-											}
+                                            } else if (pos <
+                                                       alt_start_pos.at(n_alt + 1) - 1 - alt_start_pos.at(n_alt)) {
+                                                // Base Mutation
+                                                if (at(vcf_ref_var_, pos) !=
+                                                    at(cur_vcf_record_.alt, alt_start_pos.at(n_alt) + pos)) {
+                                                    inserted_variant =
+                                                        at(cur_vcf_record_.alt, alt_start_pos.at(n_alt) + pos);
+                                                } else {
+                                                    continue; // If variant is identical to reference, we don't need to
+                                                              // add it
+                                                }
+                                            } else {
+                                                // Deletion
+                                                inserted_variant = Dna5String("");
+                                            }
 
-											if( utilities::HasN(inserted_variant) ){
-												if(++errors <= kMaxErrorsShownPerFile){
-													printErr << "Variant starting in reference sequence " << cur_vcf_record_.rID << " at position " << start_pos << " has an alternative column containing ambiguous bases (e.g. N). Please change or remove them." << std::endl;
-												}
-												if(errors >= kMaxErrorsShownPerFile){
-													printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
-												}
-											}
-											else{
-												InsertVariant(cur_vcf_record_.rID, start_pos+pos, inserted_variant, gt_has_var.at(n_alt));
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
+                                            if (utilities::HasN(inserted_variant)) {
+                                                if (++errors <= kMaxErrorsShownPerFile) {
+                                                    printErr << "Variant starting in reference sequence "
+                                                             << cur_vcf_record_.rID << " at position " << start_pos
+                                                             << " has an alternative column containing ambiguous bases "
+                                                                "(e.g. N). Please change or remove them."
+                                                             << std::endl;
+                                                }
+                                                if (errors >= kMaxErrorsShownPerFile) {
+                                                    printErr << "Maximum number of errors reached. Additional errors "
+                                                                "are not shown for this file."
+                                                             << std::endl;
+                                                }
+                                            } else {
+                                                InsertVariant(cur_vcf_record_.rID, start_pos + pos, inserted_variant,
+                                                              gt_has_var.at(n_alt));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
-			// Read next record
-			if(atEnd(vcf_file_)){
-				cur_vcf_record_.rID = VcfRecord::INVALID_REFID;
-				read_variation_for_num_sequences_ = NumberSequences();
-			}
-			else{
-				readRecord(cur_vcf_record_, vcf_file_);
+            // Read next record
+            if (atEnd(vcf_file_)) {
+                cur_vcf_record_.rID = VcfRecord::INVALID_REFID;
+                read_variation_for_num_sequences_ = NumberSequences();
+            } else {
+                readRecord(cur_vcf_record_, vcf_file_);
 
-				if( cur_vcf_record_.rID < read_variation_for_num_sequences_ ){
-					printErr << "Variant file is not properly position sorted. Found sequence id " << cur_vcf_record_.rID << " after id " << read_variation_for_num_sequences_ << std::endl;
-					if(++errors >= kMaxErrorsShownPerFile){
-						printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
-						break;
-					}
-					else{
-						continue;
-					}
-				}
-				else if(cur_vcf_record_.rID == read_variation_for_num_sequences_){
-					if(cur_vcf_record_.beginPos < start_pos){
-						printErr << "Variant file is not properly position sorted. Found in sequence id " << cur_vcf_record_.rID << " position " << cur_vcf_record_.beginPos << " after position " << start_pos << std::endl;
-						if(++errors >= kMaxErrorsShownPerFile){
-							printErr << "Maximum number of errors reached. Additional errors are not shown for this file." << std::endl;
-							break;
-						}
-						else{
-							continue;
-						}
-					}
-				}
-				else{
-					read_variation_for_num_sequences_ = cur_vcf_record_.rID;
-				}
-			}
-		}
-	}
-	catch (const Exception& e){
-		printErr << "Could not read vcf record: " << e.what() << std::endl;
-		++errors;
-	}
+                if (cur_vcf_record_.rID < read_variation_for_num_sequences_) {
+                    printErr << "Variant file is not properly position sorted. Found sequence id "
+                             << cur_vcf_record_.rID << " after id " << read_variation_for_num_sequences_ << std::endl;
+                    if (++errors >= kMaxErrorsShownPerFile) {
+                        printErr << "Maximum number of errors reached. Additional errors are not shown for this file."
+                                 << std::endl;
+                        break;
+                    } else {
+                        continue;
+                    }
+                } else if (cur_vcf_record_.rID == read_variation_for_num_sequences_) {
+                    if (cur_vcf_record_.beginPos < start_pos) {
+                        printErr << "Variant file is not properly position sorted. Found in sequence id "
+                                 << cur_vcf_record_.rID << " position " << cur_vcf_record_.beginPos
+                                 << " after position " << start_pos << std::endl;
+                        if (++errors >= kMaxErrorsShownPerFile) {
+                            printErr
+                                << "Maximum number of errors reached. Additional errors are not shown for this file."
+                                << std::endl;
+                            break;
+                        } else {
+                            continue;
+                        }
+                    }
+                } else {
+                    read_variation_for_num_sequences_ = cur_vcf_record_.rID;
+                }
+            }
+        }
+    } catch (const Exception& e) {
+        printErr << "Could not read vcf record: " << e.what() << std::endl;
+        ++errors;
+    }
 
-	if(errors){
-		cur_vcf_record_.rID = VcfRecord::INVALID_REFID;
-	}
+    if (errors) {
+        cur_vcf_record_.rID = VcfRecord::INVALID_REFID;
+    }
 
-	return !errors;
+    return !errors;
 }
 
-void Reference::CloseVcfFile(){
-	if(VcfRecord::INVALID_REFID != cur_vcf_record_.rID){
-		printWarn << "The sequences in variant file are not sorted according to the reference. The following variation record and all after it have been ignored during simulation:" << std::endl;
-		if(1 < kVerbosityLevel){
-			std::cerr << cur_vcf_record_.rID << '\t' << cur_vcf_record_.beginPos+1 << '\t' << cur_vcf_record_.id << '\t' << cur_vcf_record_.ref << '\t' << cur_vcf_record_.alt << '\t' << cur_vcf_record_.qual << '\t' << cur_vcf_record_.filter << '\t' << cur_vcf_record_.info << '\t' << cur_vcf_record_.format;
-			for(auto &genotype : cur_vcf_record_.genotypeInfos){
-				std::cerr << '\t' << genotype;
-			}
-			std::cerr << std::endl;
-		}
-	}
-	clear(contigNames(context(vcf_file_)));
-	clear(contigNamesCache(context(vcf_file_)));
-	clear(sampleNames(context(vcf_file_)));
-	close(vcf_file_);
+reseq::uintSeqLen Reference::MaxDelShift(uintRefSeqId seq_id, uintSeqLen max_read_len) {
+    uintSeqLen max_del_shift(0), cur_del_shift(0);
+    intSeqPos last_pos(-1);
+    uintSeqLen read_len(0);
+
+    intVariantId start_var = 0;
+    // Set start_var to first deletion
+    while (start_var < variants_.at(seq_id).size() && length(variants_.at(seq_id).at(start_var).var_seq_)) {
+        ++start_var;
+    }
+
+    if (start_var < variants_.at(seq_id).size()) {
+        uintSeqLen start_pos = variants_.at(seq_id).at(start_var).position_;
+
+        // Get maximum sum of all deletions in a read length window as maximum deletion shift
+        for (const auto& var : variants_.at(seq_id)) {
+            if (0 == length(var.var_seq_)) {
+                // Add new deletion
+                ++cur_del_shift;
+                if (0 <= last_pos) {
+                    // For the first deletion read_len is 0, only for the others add distance to previous deletion
+                    read_len += var.position_ - last_pos - 1;
+                }
+                last_pos = var.position_;
+
+                // Remove deletions that fall out of the max_read_len window
+                while (read_len > max_read_len) {
+                    // Go to next deletion
+                    ++start_var;
+                    while (length(variants_.at(seq_id).at(start_var).var_seq_)) {
+                        // Skip all variants except deletions
+                        ++start_var;
+                    }
+
+                    // Remove deletion
+                    --cur_del_shift;
+                    read_len -= variants_.at(seq_id).at(start_var).position_ - start_pos - 1;
+                    start_pos = variants_.at(seq_id).at(start_var).position_;
+                }
+                SetToMax(max_del_shift, cur_del_shift);
+            }
+        }
+    }
+
+    return max_del_shift;
 }
 
-void Reference::CloseMethylationFile(){
-	if(!methylation_file_.eof()){
-		printWarn << "The sequences in methylation file are not sorted according to the reference. The following methylation line and all after it have been ignored during simulation:" << std::endl;
-		if(1 < kVerbosityLevel){
-			std::cerr << cur_methylation_line_ << std::endl;
-		}
-	}
-	methylation_file_.close();
+void Reference::CloseVcfFile() {
+    if (VcfRecord::INVALID_REFID != cur_vcf_record_.rID) {
+        printWarn << "The sequences in variant file are not sorted according to the reference. The following variation "
+                     "record and all after it have been ignored during simulation:"
+                  << std::endl;
+        if (1 < kVerbosityLevel) {
+            std::cerr << cur_vcf_record_.rID << '\t' << cur_vcf_record_.beginPos + 1 << '\t' << cur_vcf_record_.id
+                      << '\t' << cur_vcf_record_.ref << '\t' << cur_vcf_record_.alt << '\t' << cur_vcf_record_.qual
+                      << '\t' << cur_vcf_record_.filter << '\t' << cur_vcf_record_.info << '\t'
+                      << cur_vcf_record_.format;
+            for (auto& genotype : cur_vcf_record_.genotypeInfos) {
+                std::cerr << '\t' << genotype;
+            }
+            std::cerr << std::endl;
+        }
+    }
+    clear(contigNames(context(vcf_file_)));
+    clear(contigNamesCache(context(vcf_file_)));
+    clear(sampleNames(context(vcf_file_)));
+    close(vcf_file_);
 }
 
-inline void Reference::AddFragmentSite(
-		std::vector<FragmentSite> &sites,
-		uintSeqLen fragment_length,
-		uintSeqLen gc,
-		uintSeqLen n_count,
-		const Surrounding &start_sur,
-		const Surrounding &end_sur
-		) const{
-	if(n_count <= kMaxNInFragmentSite && start_sur.Valid() && end_sur.Valid()){
-		uintPercent gc_perc = Percent(gc, fragment_length-n_count);
-		sites.emplace_back(gc_perc, start_sur, end_sur);
-	}
-	else{
-		sites.emplace_back(); // Just a placeholder, so that the indexes in sites match starting positions(with the shift due to kMinDistToContigEnds), will be removed after counts have been entered
-	}
+void Reference::CloseMethylationFile() {
+    if (!methylation_file_.eof()) {
+        printWarn << "The sequences in methylation file are not sorted according to the reference. The following "
+                     "methylation line and all after it have been ignored during simulation:"
+                  << std::endl;
+        if (1 < kVerbosityLevel) {
+            std::cerr << cur_methylation_line_ << std::endl;
+        }
+    }
+    methylation_file_.close();
 }
 
-Reference::Reference():
-	num_alleles_(1) // In case we don't load a variant file, we have a single allele
-	{
+inline void Reference::AddFragmentSite(std::vector<FragmentSite>& sites, uintSeqLen fragment_length, uintSeqLen gc,
+                                       uintSeqLen n_count, const Surrounding& start_sur,
+                                       const Surrounding& end_sur) const {
+    if (n_count <= kMaxNInFragmentSite && start_sur.Valid() && end_sur.Valid()) {
+        uintPercent gc_perc = Percent(gc, fragment_length - n_count);
+        sites.emplace_back(gc_perc, start_sur, end_sur);
+    } else {
+        sites.emplace_back(); // Just a placeholder, so that the indexes in sites match starting positions(with the
+                              // shift due to kMinDistToContigEnds), will be removed after counts have been entered
+    }
 }
 
-const Prefix<const CharString>::Type Reference::ReferenceIdFirstPart( uintRefSeqId n ) const{
-	uintSeqLen pos=0; // declare before the for loop to be able to access it afterwards
-	for( ; pos < length(ReferenceId(n)) && ' ' != at(ReferenceId(n), pos); ++pos ); // loop until pos is at the first ' ' or at the end of the string
-	return prefix(ReferenceId(n), pos);
+Reference::Reference()
+    : num_alleles_(1) // In case we don't load a variant file, we have a single allele
+{}
+
+const Prefix<const CharString>::Type Reference::ReferenceIdFirstPart(uintRefSeqId n) const {
+    uintSeqLen pos = 0; // declare before the for loop to be able to access it afterwards
+    for (; pos < length(ReferenceId(n)) && ' ' != at(ReferenceId(n), pos); ++pos) {
+        ; // loop until pos is at the first ' ' or at the end of the string
+    }
+    return prefix(ReferenceId(n), pos);
 }
 
-void Reference::ReferenceSequence(
-		DnaString &insert_string,
-		uintRefSeqId seq_id,
-		uintSeqLen start_pos,
-		uintSeqLen frag_length,
-		bool reversed) const{
-	if( reversed ){
-		insert_string = infix(ReferenceSequence(seq_id), start_pos-frag_length, start_pos);
-		reverseComplement(insert_string);
-	}
-	else{
-		insert_string = infix(ReferenceSequence(seq_id), start_pos, start_pos+frag_length);
-	}
+void Reference::ReferenceSequence(DnaString& insert_string, uintRefSeqId seq_id, uintSeqLen start_pos,
+                                  uintSeqLen frag_length, bool reversed) const {
+    if (reversed) {
+        insert_string = infix(ReferenceSequence(seq_id), start_pos - frag_length, start_pos);
+        reverseComplement(insert_string);
+    } else {
+        insert_string = infix(ReferenceSequence(seq_id), start_pos, start_pos + frag_length);
+    }
 }
 
-void Reference::ReferenceSequence(
-		DnaString &insert_string,
-		uintRefSeqId seq_id,
-		uintSeqLen start_pos,
-		uintSeqLen frag_length,
-		bool reversed,
-		const vector<Variant> &variants,
-		pair<intVariantId, uintSeqLen> first_variant, // {id, posCurrentlyAt}
-		uintAlleleId allele) const{
-	if( reversed ){
-		insert_string = "";
-		auto cur_start = start_pos;
-		auto cur_var = first_variant.first;
-		if(first_variant.second){
-			insert_string += ReverseComplementorDna(prefix(variants.at(cur_var).var_seq_, first_variant.second));
-			--cur_var;
-			--cur_start;
-		}
-		for( ; cur_var >= 0 && length(insert_string) < frag_length; --cur_var ){
-			if(variants.at(cur_var).InAllele(allele)){
-				if(cur_start-variants.at(cur_var).position_ > frag_length-length(insert_string)){
-					// Variant after return sequence
-					insert_string += ReverseComplementorDna(infix(ReferenceSequence(seq_id), cur_start+length(insert_string)-frag_length, cur_start));
-				}
-				else{
-					// Variant inside return sequence
-					insert_string += ReverseComplementorDna(infix(ReferenceSequence(seq_id), variants.at(cur_var).position_+1, cur_start));
-					insert_string += ReverseComplementorDna(variants.at(cur_var).var_seq_);
-					cur_start = variants.at(cur_var).position_;
-				}
-			}
-		}
-		if(cur_var == -1 && length(insert_string) < frag_length){
-			// Fill rest after the last variant
-			insert_string += ReverseComplementorDna(infix(ReferenceSequence(seq_id), cur_start+length(insert_string)-frag_length, cur_start));
-		}
-	}
-	else{
-		insert_string = "";
-		auto cur_start = start_pos;
-		auto cur_var = first_variant.first;
-		if(first_variant.second){
-			insert_string += suffix(variants.at(cur_var).var_seq_, first_variant.second);
-			++cur_var;
-			++cur_start;
-		}
-		for( ; cur_var < variants.size() && length(insert_string) < frag_length; ++cur_var ){
-			if(variants.at(cur_var).InAllele(allele)){
-				if(variants.at(cur_var).position_-cur_start >= frag_length-length(insert_string)){
-					// Variant after return sequence
-					insert_string += infix(ReferenceSequence(seq_id), cur_start, cur_start+frag_length-length(insert_string));
-				}
-				else{
-					// Variant inside return sequence
-					insert_string += infix(ReferenceSequence(seq_id), cur_start, variants.at(cur_var).position_);
-					insert_string += variants.at(cur_var).var_seq_;
-					cur_start = variants.at(cur_var).position_+1;
-				}
-			}
-		}
-		if(cur_var == variants.size() && length(insert_string) < frag_length){
-			// Fill rest after the last variant
-			insert_string += infix(ReferenceSequence(seq_id), cur_start, cur_start+frag_length-length(insert_string));
-		}
-	}
+void Reference::ReferenceSequence(DnaString& insert_string, uintRefSeqId seq_id, uintSeqLen start_pos,
+                                  uintSeqLen frag_length, bool reversed, const vector<Variant>& variants,
+                                  pair<intVariantId, uintSeqLen> first_variant, // {id, posCurrentlyAt}
+                                  uintAlleleId allele) const {
+    if (reversed) {
+        insert_string = "";
+        auto cur_start = start_pos;
+        auto cur_var = first_variant.first;
+        if (first_variant.second) {
+            insert_string += ReverseComplementorDna(prefix(variants.at(cur_var).var_seq_, first_variant.second));
+            --cur_var;
+            --cur_start;
+        }
+        for (; cur_var >= 0 && length(insert_string) < frag_length; --cur_var) {
+            if (variants.at(cur_var).InAllele(allele)) {
+                if (cur_start - variants.at(cur_var).position_ > frag_length - length(insert_string)) {
+                    // Variant after return sequence
+                    insert_string += ReverseComplementorDna(
+                        infix(ReferenceSequence(seq_id), cur_start + length(insert_string) - frag_length, cur_start));
+                } else {
+                    // Variant inside return sequence
+                    insert_string += ReverseComplementorDna(
+                        infix(ReferenceSequence(seq_id), variants.at(cur_var).position_ + 1, cur_start));
+                    insert_string += ReverseComplementorDna(variants.at(cur_var).var_seq_);
+                    cur_start = variants.at(cur_var).position_;
+                }
+            }
+        }
+        if (cur_var == -1 && length(insert_string) < frag_length) {
+            // Fill rest after the last variant
+            insert_string += ReverseComplementorDna(
+                infix(ReferenceSequence(seq_id), cur_start + length(insert_string) - frag_length, cur_start));
+        }
+    } else {
+        insert_string = "";
+        auto cur_start = start_pos;
+        auto cur_var = first_variant.first;
+        if (first_variant.second) {
+            insert_string += suffix(variants.at(cur_var).var_seq_, first_variant.second);
+            ++cur_var;
+            ++cur_start;
+        }
+        for (; cur_var < variants.size() && length(insert_string) < frag_length; ++cur_var) {
+            if (variants.at(cur_var).InAllele(allele)) {
+                if (variants.at(cur_var).position_ - cur_start >= frag_length - length(insert_string)) {
+                    // Variant after return sequence
+                    insert_string +=
+                        infix(ReferenceSequence(seq_id), cur_start, cur_start + frag_length - length(insert_string));
+                } else {
+                    // Variant inside return sequence
+                    insert_string += infix(ReferenceSequence(seq_id), cur_start, variants.at(cur_var).position_);
+                    insert_string += variants.at(cur_var).var_seq_;
+                    cur_start = variants.at(cur_var).position_ + 1;
+                }
+            }
+        }
+        if (cur_var == variants.size() && length(insert_string) < frag_length) {
+            // Fill rest after the last variant
+            insert_string +=
+                infix(ReferenceSequence(seq_id), cur_start, cur_start + frag_length - length(insert_string));
+        }
+    }
 
-	if(length(insert_string) > frag_length){ // This can happen if we insert a variant that is longer than the end of the sequence as we do not check for the length of variants
-		resize(insert_string, frag_length);
-	}
+    if (length(insert_string) > frag_length) { // This can happen if we insert a variant that is longer than the end of
+                                               // the sequence as we do not check for the length of variants
+        resize(insert_string, frag_length);
+    }
 }
 
-reseq::uintRefLenCalc Reference::TotalSize() const{
-	uintRefLenCalc sum = 0;
-	for(const auto &seq : reference_sequences_){
-		sum += length(seq);
-	}
-	return sum;
+reseq::uintRefLenCalc Reference::TotalSize() const {
+    uintRefLenCalc sum = 0;
+    for (const auto& seq : reference_sequences_) {
+        sum += length(seq);
+    }
+    return sum;
 }
 
-void Reference::RefSeqsSortedByNxx(vector<pair<double, uintRefSeqId>> &ref_seqs) const{
-	double tot_size = TotalSize();
-	tot_size /= 100; // Nxx in percent
+void Reference::RefSeqsSortedByNxx(vector<pair<double, uintRefSeqId>>& ref_seqs) const {
+    double tot_size = TotalSize();
+    tot_size /= 100; // Nxx in percent
 
-	ref_seqs.reserve( NumberSequences() );
-	for(uintRefSeqId id=0; id < NumberSequences(); ++id){
-		ref_seqs.emplace_back( SequenceLength(id)/tot_size , id );
-	}
+    ref_seqs.reserve(NumberSequences());
+    for (uintRefSeqId id = 0; id < NumberSequences(); ++id) {
+        ref_seqs.emplace_back(SequenceLength(id) / tot_size, id);
+    }
 
-	sort(ref_seqs.begin(), ref_seqs.end(), std::greater<pair<double, uintRefSeqId>>());
+    sort(ref_seqs.begin(), ref_seqs.end(), std::greater<pair<double, uintRefSeqId>>());
 
-	double sum = 0.0;
-	for(uintRefSeqId id=0; id < NumberSequences(); ++id){
-		sum += ref_seqs.at(id).first;
-		ref_seqs.at(id).first = sum;
-	}
+    double sum = 0.0;
+    for (uintRefSeqId id = 0; id < NumberSequences(); ++id) {
+        sum += ref_seqs.at(id).first;
+        ref_seqs.at(id).first = sum;
+    }
 }
 
-reseq::uintRefSeqId Reference::RefSeqsInNxx(vector<bool> &ref_seqs, double nxx_ref_seqs) const{
-	// Get nxx for all reference sequences
-	vector<pair<double, uintRefSeqId>> ref_seq_nxx;
-	RefSeqsSortedByNxx(ref_seq_nxx);
+reseq::uintRefSeqId Reference::RefSeqsInNxx(vector<bool>& ref_seqs, double nxx_ref_seqs) const {
+    // Get nxx for all reference sequences
+    vector<pair<double, uintRefSeqId>> ref_seq_nxx;
+    RefSeqsSortedByNxx(ref_seq_nxx);
 
-	// Count how many sequences are needed to get nxx_ref_seqs taking only the largest ones
-	uintRefSeqId needed_ref_seqs = 0;
-	ref_seqs.resize(NumberSequences(), false);
-	while(needed_ref_seqs+1 < ref_seq_nxx.size() && nxx_ref_seqs > ref_seq_nxx.at(needed_ref_seqs).first){
-		ref_seqs.at(ref_seq_nxx.at(needed_ref_seqs++).second) = true;
-	}
+    // Count how many sequences are needed to get nxx_ref_seqs taking only the largest ones
+    uintRefSeqId needed_ref_seqs = 0;
+    ref_seqs.resize(NumberSequences(), false);
+    while (needed_ref_seqs + 1 < ref_seq_nxx.size() && nxx_ref_seqs > ref_seq_nxx.at(needed_ref_seqs).first) {
+        ref_seqs.at(ref_seq_nxx.at(needed_ref_seqs++).second) = true;
+    }
 
-	ref_seqs.at(ref_seq_nxx.at(needed_ref_seqs++).second) = true; // Get last one and convert index to size
+    ref_seqs.at(ref_seq_nxx.at(needed_ref_seqs++).second) = true; // Get last one and convert index to size
 
-	return needed_ref_seqs;
+    return needed_ref_seqs;
 }
 
-reseq::uintRefSeqBin Reference::NumRefSeqBinsInNxx(const std::vector<bool> &ref_seqs, uintSeqLen max_ref_seq_bin_length) const{
-	uintRefSeqBin num_bins = 0;
-	for(uintRefSeqId ref_id=0; ref_id<ref_seqs.size(); ++ref_id){
-		if(ref_seqs.at(ref_id)){
-			num_bins += DivideAndCeil(SequenceLength(ref_id),  max_ref_seq_bin_length);
-		}
-	}
-	return num_bins;
+reseq::uintRefSeqBin Reference::NumRefSeqBinsInNxx(const std::vector<bool>& ref_seqs,
+                                                   uintSeqLen max_ref_seq_bin_length) const {
+    uintRefSeqBin num_bins = 0;
+    for (uintRefSeqId ref_id = 0; ref_id < ref_seqs.size(); ++ref_id) {
+        if (ref_seqs.at(ref_id)) {
+            num_bins += DivideAndCeil(SequenceLength(ref_id), max_ref_seq_bin_length);
+        }
+    }
+    return num_bins;
 }
 
-double Reference::SumBias(
-		double &max_bias,
-		uintRefSeqId ref_seq_id,
-		uintSeqLen fragment_length,
-		double general_bias,
-		const Vect<double> &gc_bias,
-		const SurroundingBias &sur_bias) const{
-	// Ignores exclusion regions and does not account for N's as it is used for simulation only
-	double tot(0.0);
+double Reference::SumBias(double& max_bias, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, double general_bias,
+                          const Vect<double>& gc_bias, const SurroundingBias& sur_bias) const {
+    // Ignores exclusion regions and does not account for N's as it is used for simulation only
+    double tot(0.0);
 
-	uintSeqLen n_count(0);
-	uintSeqLen gc = GCContentAbsolut(n_count, ref_seq_id, 0, fragment_length);
+    uintSeqLen n_count(0);
+    uintSeqLen gc = GCContentAbsolut(n_count, ref_seq_id, 0, fragment_length);
 
-	Surrounding start_sur, end_sur;
-	ForwardSurrounding(start_sur, ref_seq_id, 0);
-	ReverseSurrounding(end_sur, ref_seq_id, fragment_length-1);
+    Surrounding start_sur, end_sur;
+    ForwardSurrounding(start_sur, ref_seq_id, 0);
+    ReverseSurrounding(end_sur, ref_seq_id, fragment_length - 1);
 
-	double bias = Bias(general_bias, gc_bias[Percent(gc, fragment_length)], sur_bias.Bias(start_sur), sur_bias.Bias(end_sur));
-	if(bias > max_bias){
-		max_bias = bias;
-	}
-	tot += bias;
+    double bias =
+        Bias(general_bias, gc_bias[Percent(gc, fragment_length)], sur_bias.Bias(start_sur), sur_bias.Bias(end_sur));
+    if (bias > max_bias) {
+        max_bias = bias;
+    }
+    tot += bias;
 
-	const Dna5String &ref_seq(ReferenceSequence(ref_seq_id));
-	for( uintSeqLen start_pos=0; start_pos < length(ref_seq)-fragment_length; ){
-		UpdateGC( gc, n_count, ref_seq, start_pos, start_pos+fragment_length );
-		end_sur.UpdateReverse( ref_seq, start_pos+fragment_length );
-		start_sur.UpdateForward( ref_seq, ++start_pos );
+    const Dna5String& ref_seq(ReferenceSequence(ref_seq_id));
+    for (uintSeqLen start_pos = 0; start_pos < length(ref_seq) - fragment_length;) {
+        UpdateGC(gc, n_count, ref_seq, start_pos, start_pos + fragment_length);
+        end_sur.UpdateReverse(ref_seq, start_pos + fragment_length);
+        start_sur.UpdateForward(ref_seq, ++start_pos);
 
-		double bias = Bias(general_bias, gc_bias[Percent(gc, fragment_length)], sur_bias.Bias(start_sur), sur_bias.Bias(end_sur));
-		if(bias > max_bias){
-			max_bias = bias;
-		}
-		tot += bias;
-	}
+        double bias =
+            Bias(general_bias, gc_bias[Percent(gc, fragment_length)], sur_bias.Bias(start_sur), sur_bias.Bias(end_sur));
+        if (bias > max_bias) {
+            max_bias = bias;
+        }
+        tot += bias;
+    }
 
-	return tot;
+    return tot;
 }
 
-double Reference::SumBias(
-		uintRefSeqId ref_seq_id,
-		uintSeqLen fragment_length,
-		double general_bias,
-		const Vect<double> &gc_bias,
-		const SurroundingBias &sur_bias) const{
-	// Uses exclusion regions as it is used for stats creation
-	double tot(0.0);
+double Reference::SumBias(uintRefSeqId ref_seq_id, uintSeqLen fragment_length, double general_bias,
+                          const Vect<double>& gc_bias, const SurroundingBias& sur_bias) const {
+    // Uses exclusion regions as it is used for stats creation
+    double tot(0.0);
 
-	uintSeqLen n_count(0);
-	uintSeqLen start_pos = excluded_regions_.at(ref_seq_id).front().second;
-	uintSeqLen gc = GCContentAbsolut(n_count, ref_seq_id, start_pos, start_pos+fragment_length);
+    uintSeqLen n_count(0);
+    uintSeqLen start_pos = excluded_regions_.at(ref_seq_id).front().second;
+    uintSeqLen gc = GCContentAbsolut(n_count, ref_seq_id, start_pos, start_pos + fragment_length);
 
-	Surrounding start_sur, end_sur;
-	ForwardSurroundingWithN(start_sur, ref_seq_id, start_pos);
-	ReverseSurroundingWithN(end_sur, ref_seq_id, start_pos+fragment_length-1);
+    Surrounding start_sur, end_sur;
+    ForwardSurroundingWithN(start_sur, ref_seq_id, start_pos);
+    ReverseSurroundingWithN(end_sur, ref_seq_id, start_pos + fragment_length - 1);
 
-	if(start_sur.Valid() && end_sur.Valid()){
-		tot += Bias(general_bias, gc_bias[Percent(gc, fragment_length)], sur_bias.Bias(start_sur), sur_bias.Bias(end_sur));
-	}
+    if (start_sur.Valid() && end_sur.Valid()) {
+        tot +=
+            Bias(general_bias, gc_bias[Percent(gc, fragment_length)], sur_bias.Bias(start_sur), sur_bias.Bias(end_sur));
+    }
 
-	const Dna5String &ref_seq(ReferenceSequence(ref_seq_id));
-	uintSeqLen next_exclusion_region(1);
-	for( ; ++start_pos < length(ref_seq); ){
-		if(start_pos == excluded_regions_.at(ref_seq_id).at(next_exclusion_region).first-fragment_length+1){
-			// We hit an exclusion region, go to end of it
-			start_pos = excluded_regions_.at(ref_seq_id).at(next_exclusion_region++).second;
+    const Dna5String& ref_seq(ReferenceSequence(ref_seq_id));
+    uintSeqLen next_exclusion_region(1);
+    for (; ++start_pos < length(ref_seq);) {
+        if (start_pos == excluded_regions_.at(ref_seq_id).at(next_exclusion_region).first - fragment_length + 1) {
+            // We hit an exclusion region, go to end of it
+            start_pos = excluded_regions_.at(ref_seq_id).at(next_exclusion_region++).second;
 
-			if(start_pos >= length(ref_seq)){
-				break;
-			}
+            if (start_pos >= length(ref_seq)) {
+                break;
+            }
 
-			gc = GCContentAbsolut(n_count, ref_seq_id, start_pos, start_pos+fragment_length);
-			ForwardSurroundingWithN(start_sur, ref_seq_id, start_pos);
-			ReverseSurroundingWithN(end_sur, ref_seq_id, start_pos+fragment_length-1);
-		}
-		else{
-			UpdateGC( gc, n_count, ref_seq, start_pos-1, start_pos+fragment_length-1 );
-			end_sur.UpdateReverseWithN( ref_seq, start_pos+fragment_length-1);
-			start_sur.UpdateForwardWithN( ref_seq, start_pos );
-		}
+            gc = GCContentAbsolut(n_count, ref_seq_id, start_pos, start_pos + fragment_length);
+            ForwardSurroundingWithN(start_sur, ref_seq_id, start_pos);
+            ReverseSurroundingWithN(end_sur, ref_seq_id, start_pos + fragment_length - 1);
+        } else {
+            UpdateGC(gc, n_count, ref_seq, start_pos - 1, start_pos + fragment_length - 1);
+            end_sur.UpdateReverseWithN(ref_seq, start_pos + fragment_length - 1);
+            start_sur.UpdateForwardWithN(ref_seq, start_pos);
+        }
 
-		if(start_sur.Valid() && end_sur.Valid()){
-			// If 0==fragment_length-n_count surrounding would be invalid, so no check needed
-			tot += Bias(general_bias, gc_bias[Percent(gc, fragment_length)], sur_bias.Bias(start_sur), sur_bias.Bias(end_sur));
-		}
-	}
+        if (start_sur.Valid() && end_sur.Valid()) {
+            // If 0==fragment_length-n_count surrounding would be invalid, so no check needed
+            tot += Bias(general_bias, gc_bias[Percent(gc, fragment_length)], sur_bias.Bias(start_sur),
+                        sur_bias.Bias(end_sur));
+        }
+    }
 
-	return tot;
+    return tot;
 }
 
-void Reference::GetFragmentSites( vector<FragmentSite> &sites, uintRefSeqId ref_seq_id, uintSeqLen fragment_length, uintSeqLen start, uintSeqLen end ) const{
-	// Uses exclusion regions as it is used for stats creation
-	sites.clear();
+void Reference::GetFragmentSites(vector<FragmentSite>& sites, uintRefSeqId ref_seq_id, uintSeqLen fragment_length,
+                                 uintSeqLen start, uintSeqLen end) const {
+    // Uses exclusion regions as it is used for stats creation
+    sites.clear();
 
-	const Dna5String &ref_seq(ReferenceSequence(ref_seq_id));
-	auto start_pos = max(excluded_regions_.at(ref_seq_id).front().second, start);
-	auto end_pos = min(excluded_regions_.at(ref_seq_id).back().first-fragment_length+1, end);
+    const Dna5String& ref_seq(ReferenceSequence(ref_seq_id));
+    auto start_pos = max(excluded_regions_.at(ref_seq_id).front().second, start);
+    auto end_pos = min(excluded_regions_.at(ref_seq_id).back().first - fragment_length + 1, end);
 
-	uintSeqLen n_count(0);
-	uintSeqLen gc = GCContentAbsolut(n_count, ref_seq_id, start_pos, start_pos+fragment_length);
+    uintSeqLen n_count(0);
+    uintSeqLen gc = GCContentAbsolut(n_count, ref_seq_id, start_pos, start_pos + fragment_length);
 
-	Surrounding start_sur, end_sur;
-	ForwardSurroundingWithN(start_sur, ref_seq_id, start_pos);
-	ReverseSurroundingWithN(end_sur, ref_seq_id, start_pos+fragment_length-1);
+    Surrounding start_sur, end_sur;
+    ForwardSurroundingWithN(start_sur, ref_seq_id, start_pos);
+    ReverseSurroundingWithN(end_sur, ref_seq_id, start_pos + fragment_length - 1);
 
-	AddFragmentSite( sites, fragment_length, gc, n_count, start_sur, end_sur );
+    AddFragmentSite(sites, fragment_length, gc, n_count, start_sur, end_sur);
 
-	auto next_exclusion_region = NextExclusionRegion(ref_seq_id, start_pos);
+    auto next_exclusion_region = NextExclusionRegion(ref_seq_id, start_pos);
 
-	for( uintSeqLen frag_start=start_pos; ++frag_start < end_pos; ){
-		if(frag_start == excluded_regions_.at(ref_seq_id).at(next_exclusion_region).first-fragment_length+1){
-			// We hit an exclusion region, go to end of it
-			frag_start = excluded_regions_.at(ref_seq_id).at(next_exclusion_region++).second;
+    for (uintSeqLen frag_start = start_pos; ++frag_start < end_pos;) {
+        if (frag_start == excluded_regions_.at(ref_seq_id).at(next_exclusion_region).first - fragment_length + 1) {
+            // We hit an exclusion region, go to end of it
+            frag_start = excluded_regions_.at(ref_seq_id).at(next_exclusion_region++).second;
 
-			if(frag_start >= end_pos){
-				break;
-			}
+            if (frag_start >= end_pos) {
+                break;
+            }
 
-			// Add placeholder for the fragment length as corrected positions only handle the excluded regions themselves
-			sites.resize( sites.size()+fragment_length-1 );
+            // Add placeholder for the fragment length as corrected positions only handle the excluded regions
+            // themselves
+            sites.resize(sites.size() + fragment_length - 1);
 
-			// Set values to end of excluded region
-			gc = GCContentAbsolut(n_count, ref_seq_id, frag_start, frag_start+fragment_length);
-			ForwardSurroundingWithN(start_sur, ref_seq_id, frag_start);
-			ReverseSurroundingWithN(end_sur, ref_seq_id, frag_start+fragment_length-1);
-		}
-		else{
-			UpdateGC( gc, n_count, ref_seq, frag_start-1, frag_start+fragment_length-1 );
-			end_sur.UpdateReverseWithN( ref_seq, frag_start+fragment_length-1 );
-			start_sur.UpdateForwardWithN( ref_seq, frag_start );
-		}
+            // Set values to end of excluded region
+            gc = GCContentAbsolut(n_count, ref_seq_id, frag_start, frag_start + fragment_length);
+            ForwardSurroundingWithN(start_sur, ref_seq_id, frag_start);
+            ReverseSurroundingWithN(end_sur, ref_seq_id, frag_start + fragment_length - 1);
+        } else {
+            UpdateGC(gc, n_count, ref_seq, frag_start - 1, frag_start + fragment_length - 1);
+            end_sur.UpdateReverseWithN(ref_seq, frag_start + fragment_length - 1);
+            start_sur.UpdateForwardWithN(ref_seq, frag_start);
+        }
 
-		AddFragmentSite( sites, fragment_length, gc, n_count, start_sur, end_sur );
-	}
+        AddFragmentSite(sites, fragment_length, gc, n_count, start_sur, end_sur);
+    }
 }
 
-bool Reference::ReadFasta(const char *fasta_file){
-	bool success = true;
+bool Reference::ReadFasta(const char* fasta_file) {
+    bool success = true;
 
-	SeqFileIn ref;
-	seqan::StringSet<seqan::IupacString> tmp_ref_seqs;
-	clear(reference_ids_);
-	if( !open(ref, fasta_file) ){
-		printErr << "Could not open " << fasta_file << " for reading." << std::endl;
-		success = false;
-	}
-	else if(atEnd(ref)){
-		printErr << fasta_file << " does not contain any reference sequences." << std::endl;
-		success = false;
-	}
-	else{
-		try{
-			readRecords(reference_ids_, tmp_ref_seqs, ref);
-			printInfo << "Read in " << length(reference_ids_) << " reference sequences." << std::endl;
-		}
-		catch(const Exception &e){
-			printErr << "Could not read record in " << fasta_file << ": " << e.what() << std::endl;
-			success = false;
-		}
-	}
+    SeqFileIn ref;
+    seqan::StringSet<seqan::IupacString> tmp_ref_seqs;
+    clear(reference_ids_);
+    if (!open(ref, fasta_file)) {
+        printErr << "Could not open " << fasta_file << " for reading." << std::endl;
+        success = false;
+    } else if (atEnd(ref)) {
+        printErr << fasta_file << " does not contain any reference sequences." << std::endl;
+        success = false;
+    } else {
+        try {
+            readRecords(reference_ids_, tmp_ref_seqs, ref);
+            printInfo << "Read in " << length(reference_ids_) << " reference sequences." << std::endl;
+        } catch (const Exception& e) {
+            printErr << "Could not read record in " << fasta_file << ": " << e.what() << std::endl;
+            success = false;
+        }
+    }
 
-	if(!success){
-		return false;
-	}
+    if (!success) {
+        return false;
+    }
 
-	if( length(tmp_ref_seqs) > numeric_limits<uintRefSeqId>::max() ){
-		printErr << "Reference has  " << length(tmp_ref_seqs) << " sequence entries. Currently a maximum of " << numeric_limits<uintRefSeqId>::max() << " is supported." << std::endl;
-		return false;
-	}
+    if (length(tmp_ref_seqs) > numeric_limits<uintRefSeqId>::max()) {
+        printErr << "Reference has  " << length(tmp_ref_seqs) << " sequence entries. Currently a maximum of "
+                 << numeric_limits<uintRefSeqId>::max() << " is supported." << std::endl;
+        return false;
+    }
 
-	uintErrorCount errors=0;
-	for( auto ref_seq_id = length(tmp_ref_seqs); ref_seq_id--;  ){
-		if( length(at(tmp_ref_seqs, ref_seq_id)) > numeric_limits<uintSeqLen>::max() ){
-			printErr << "Reference sequence " << at(reference_ids_, ref_seq_id) << " is " << length(at(tmp_ref_seqs, ref_seq_id)) << " bases long. Currently a maximum of " << numeric_limits<uintSeqLen>::max() << " is supported." << std::endl;
+    uintErrorCount errors = 0;
+    for (auto ref_seq_id = length(tmp_ref_seqs); ref_seq_id--;) {
+        if (length(at(tmp_ref_seqs, ref_seq_id)) > numeric_limits<uintSeqLen>::max()) {
+            printErr << "Reference sequence " << at(reference_ids_, ref_seq_id) << " is "
+                     << length(at(tmp_ref_seqs, ref_seq_id)) << " bases long. Currently a maximum of "
+                     << numeric_limits<uintSeqLen>::max() << " is supported." << std::endl;
 
-			if(++errors >= kMaxErrorsShownPerFile){
-				printErr << "Maximum number of errors reached. Additional errors are not shown for this reference." << std::endl;
-				return false;
-			}
-		}
-	}
+            if (++errors >= kMaxErrorsShownPerFile) {
+                printErr << "Maximum number of errors reached. Additional errors are not shown for this reference."
+                         << std::endl;
+                return false;
+            }
+        }
+    }
 
-	if(errors){
-		return false;
-	}
+    if (errors) {
+        return false;
+    }
 
-	reference_sequences_ = tmp_ref_seqs;
+    reference_sequences_ = tmp_ref_seqs;
 
-	return true;
+    return true;
 }
 
-void Reference::ReplaceN( uintSeed seed ){
-	mt19937_64 rgen;
-	rgen.seed(seed);
-	uniform_int_distribution<> rdis(0, 3);
+void Reference::ReplaceN(uintSeed seed) {
+    mt19937_64 rgen;
+    rgen.seed(seed);
+    uniform_int_distribution<> rdis(0, 3);
 
-	for( auto &seq : reference_sequences_){
-		for( uintSeqLen start=0; start < length(seq); ){
-			if( IsN( at(seq, start) ) ){
-				// Get start and end of stretch of N
-				uintSeqLen end = start;
-				while( ++end < length(seq) && IsN( at(seq, end) ) );
+    for (auto& seq : reference_sequences_) {
+        for (uintSeqLen start = 0; start < length(seq);) {
+            if (IsN(at(seq, start))) {
+                // Get start and end of stretch of N
+                uintSeqLen end = start;
+                while (++end < length(seq) && IsN(at(seq, end))) {
+                    ;
+                }
 
-				// Replace N's
-				if(end - start < kMinNToReplaceNWithRepeat){
-					// Short stretch of N's
-					for(auto pos=start; pos < end; ++pos){
-						at(seq, pos) = rdis(rgen);
-					}
-				}
-				else{
-					// Long stretch of N's
-					// Prepare short repeat
-					Dna5String short_repeat;
-					if( 2 > start ){
-						if( end+4 > length(seq) ){
-							// N's that are the complete sequence
-							for(uintSeqLen pos=4; pos--;){
-								short_repeat += rdis(rgen);
-							}
-						}
-						else{
-							// N's at start of sequence
-							short_repeat = infix(seq, end, end+4);
-							// Replace N's randomly in the short_repeat
-							for(uintSeqLen pos=4; --pos;){ // Position 0 cannot be a repeat
-								if( IsN( at(short_repeat, pos) ) ){
-									at(short_repeat, pos) = rdis(rgen);
-								}
-							}
-						}
-					}
-					else{
-						if( end+2 > length(seq) ){
-							if( 4 > start ){
-								// N's that are the complete sequence
-								for(uintSeqLen pos=4; pos--;){
-									short_repeat += rdis(rgen);
-								}
-							}
-							else{
-								// N's at end of sequence
-								short_repeat = infix(seq, start-4, start);
-							}
-						}
-						else{
-							// N's in the middle of sequence
-							short_repeat += infix(seq, end, end+2);
-							short_repeat += infix(seq, start-2, start);
+                // Replace N's
+                if (end - start < kMinNToReplaceNWithRepeat) {
+                    // Short stretch of N's
+                    for (auto pos = start; pos < end; ++pos) {
+                        at(seq, pos) = rdis(rgen);
+                    }
+                } else {
+                    // Long stretch of N's
+                    // Prepare short repeat
+                    Dna5String short_repeat;
+                    if (2 > start) {
+                        if (end + 4 > length(seq)) {
+                            // N's that are the complete sequence
+                            for (uintSeqLen pos = 4; pos--;) {
+                                short_repeat += rdis(rgen);
+                            }
+                        } else {
+                            // N's at start of sequence
+                            short_repeat = infix(seq, end, end + 4);
+                            // Replace N's randomly in the short_repeat
+                            for (uintSeqLen pos = 4; --pos;) { // Position 0 cannot be a repeat
+                                if (IsN(at(short_repeat, pos))) {
+                                    at(short_repeat, pos) = rdis(rgen);
+                                }
+                            }
+                        }
+                    } else {
+                        if (end + 2 > length(seq)) {
+                            if (4 > start) {
+                                // N's that are the complete sequence
+                                for (uintSeqLen pos = 4; pos--;) {
+                                    short_repeat += rdis(rgen);
+                                }
+                            } else {
+                                // N's at end of sequence
+                                short_repeat = infix(seq, start - 4, start);
+                            }
+                        } else {
+                            // N's in the middle of sequence
+                            short_repeat += infix(seq, end, end + 2);
+                            short_repeat += infix(seq, start - 2, start);
 
-							// Replace N's randomly in the short_repeat (Only position 1 can be one)
-							if( IsN( at(short_repeat, 1) ) ){
-								at(short_repeat, 1) = rdis(rgen);
-							}
-						}
-					}
+                            // Replace N's randomly in the short_repeat (Only position 1 can be one)
+                            if (IsN(at(short_repeat, 1))) {
+                                at(short_repeat, 1) = rdis(rgen);
+                            }
+                        }
+                    }
 
-					// Replace N's with short repeat
-					for(auto pos=start; pos < end; ++pos){
-						at(seq, pos) = at(short_repeat, (pos-start)%4);
-					}
-				}
-				start = end;
-			}
-			else{
-				++start;
-			}
-		}
-	}
+                    // Replace N's with short repeat
+                    for (auto pos = start; pos < end; ++pos) {
+                        at(seq, pos) = at(short_repeat, (pos - start) % 4);
+                    }
+                }
+                start = end;
+            } else {
+                ++start;
+            }
+        }
+    }
 }
 
-bool Reference::HasN() const{
-	for( auto &seq : reference_sequences_){
-		utilities::HasN(seq);
-	}
+bool Reference::HasN() const {
+    for (auto& seq : reference_sequences_) {
+        utilities::HasN(seq);
+    }
 
-	return false;
+    return false;
 }
 
-bool Reference::WriteFasta(const char *fasta_file) const{
-	bool success = true;
+bool Reference::WriteFasta(const char* fasta_file) const {
+    bool success = true;
 
-	SeqFileOut ref_out;
-	if( !open(ref_out, fasta_file) ){
-		printErr << "Could not open " << fasta_file << " for writing." << std::endl;
-		success = false;
-	}
-	else{
-		try{
-			writeRecords(ref_out, reference_ids_, reference_sequences_);
-			printInfo << "Wrote " << length(reference_ids_) << " reference sequences." << std::endl;
-		}
-		catch(const Exception &e){
-			printErr << "Could not write generated sequences to " << fasta_file << ": " << e.what() << std::endl;
-			success = false;
-		}
-	}
+    SeqFileOut ref_out;
+    if (!open(ref_out, fasta_file)) {
+        printErr << "Could not open " << fasta_file << " for writing." << std::endl;
+        success = false;
+    } else {
+        try {
+            writeRecords(ref_out, reference_ids_, reference_sequences_);
+            printInfo << "Wrote " << length(reference_ids_) << " reference sequences." << std::endl;
+        } catch (const Exception& e) {
+            printErr << "Could not write generated sequences to " << fasta_file << ": " << e.what() << std::endl;
+            success = false;
+        }
+    }
 
-	return success;
+    return success;
 }
 
-void Reference::PrepareExclusionRegions(){
-	excluded_regions_.resize( NumberSequences() );
-	sum_of_excluded_bases_.resize( NumberSequences() );
-	obtained_exclusion_regions_for_num_sequences_ = 0;
-	cleared_exclusion_regions_for_num_sequences_ = 0;
+void Reference::PrepareExclusionRegions() {
+    excluded_regions_.resize(NumberSequences());
+    sum_of_excluded_bases_.resize(NumberSequences());
+    obtained_exclusion_regions_for_num_sequences_ = 0;
+    cleared_exclusion_regions_for_num_sequences_ = 0;
 }
 
-void Reference::ObtainExclusionRegions( uintRefSeqId end_ref_seq_id, uintSeqLen maximum_fragment_length ){
-	for(uintRefSeqId ref_seq = obtained_exclusion_regions_for_num_sequences_; ref_seq < end_ref_seq_id && ref_seq < NumberSequences(); ++ref_seq){
-		excluded_regions_.at(ref_seq).clear();
+void Reference::ObtainExclusionRegions(uintRefSeqId end_ref_seq_id, uintSeqLen maximum_fragment_length) {
+    for (uintRefSeqId ref_seq = obtained_exclusion_regions_for_num_sequences_;
+         ref_seq < end_ref_seq_id && ref_seq < NumberSequences(); ++ref_seq) {
+        excluded_regions_.at(ref_seq).clear();
 
-		if(SequenceLength(ref_seq) < maximum_fragment_length + 2*kMinDistToContigEnds){
-			excluded_regions_.at(ref_seq).emplace_back(0, SequenceLength(ref_seq)); // Sequence is too short and completely excluded
-		}
-		else{
-			// Add first region of ref seq
-			uintSeqLen pos=0;
-			for(; pos < SequenceLength(ref_seq) && IsN(at(ReferenceSequence(ref_seq), pos)); ++pos); // Count starting N's
-			excluded_regions_.at(ref_seq).emplace_back(0,pos+kMinDistToContigEnds);
+        if (SequenceLength(ref_seq) < maximum_fragment_length + 2 * kMinDistToContigEnds) {
+            excluded_regions_.at(ref_seq).emplace_back(
+                0, SequenceLength(ref_seq)); // Sequence is too short and completely excluded
+        } else {
+            // Add first region of ref seq
+            uintSeqLen pos = 0;
+            for (; pos < SequenceLength(ref_seq) && IsN(at(ReferenceSequence(ref_seq), pos)); ++pos) {
+                ; // Count starting N's
+            }
+            excluded_regions_.at(ref_seq).emplace_back(0, pos + kMinDistToContigEnds);
 
-			// Add regions in the middle of ref seq
-			uintSeqLen counted_ns(0);
-			for(; pos < SequenceLength(ref_seq); ++pos){
-				if( IsN(at(ReferenceSequence(ref_seq), pos)) ){
-					++counted_ns;
-				}
-				else{
-					if( kMinNToSplitContigs <= counted_ns ){
-						if( kMinDistToContigEnds < pos-counted_ns){
-							PushBackExclusionRegion({pos-counted_ns - kMinDistToContigEnds, pos + kMinDistToContigEnds}, ref_seq, maximum_fragment_length);
-						}
-						else{
-							PushBackExclusionRegion({0, pos + kMinDistToContigEnds}, ref_seq, maximum_fragment_length);
-						}
-					}
+            // Add regions in the middle of ref seq
+            uintSeqLen counted_ns(0);
+            for (; pos < SequenceLength(ref_seq); ++pos) {
+                if (IsN(at(ReferenceSequence(ref_seq), pos))) {
+                    ++counted_ns;
+                } else {
+                    if (kMinNToSplitContigs <= counted_ns) {
+                        if (kMinDistToContigEnds < pos - counted_ns) {
+                            PushBackExclusionRegion(
+                                {pos - counted_ns - kMinDistToContigEnds, pos + kMinDistToContigEnds}, ref_seq,
+                                maximum_fragment_length);
+                        } else {
+                            PushBackExclusionRegion({0, pos + kMinDistToContigEnds}, ref_seq, maximum_fragment_length);
+                        }
+                    }
 
-					counted_ns = 0;
-				}
+                    counted_ns = 0;
+                }
+            }
 
-			}
+            // Add last region of ref seq
+            PushBackExclusionRegion(
+                {SequenceLength(ref_seq) - counted_ns - kMinDistToContigEnds, SequenceLength(ref_seq)}, ref_seq,
+                maximum_fragment_length);
+        }
 
-			// Add last region of ref seq
-			PushBackExclusionRegion({SequenceLength(ref_seq) - counted_ns - kMinDistToContigEnds, SequenceLength(ref_seq)}, ref_seq, maximum_fragment_length);
-		}
+        // Sum excluded regions
+        sum_of_excluded_bases_.at(ref_seq) = 0;
+        for (auto& region : excluded_regions_.at(ref_seq)) {
+            sum_of_excluded_bases_.at(ref_seq) += region.second - region.first;
+        }
 
-		// Sum excluded regions
-		sum_of_excluded_bases_.at(ref_seq) = 0;
-		for(auto &region : excluded_regions_.at(ref_seq) ){
-			sum_of_excluded_bases_.at(ref_seq) += region.second - region.first;
-		}
-
-		++obtained_exclusion_regions_for_num_sequences_;
-	}
+        ++obtained_exclusion_regions_for_num_sequences_;
+    }
 }
 
-bool Reference::FragmentExcluded( uintSeqLen &last_region_id, uintRefSeqId &last_ref_seq, uintRefSeqId ref_seq_id, uintSeqLen fragment_start, uintSeqLen fragment_end ) const{
-	// Check if fragment overlaps with an exclusion region
-	if(last_ref_seq != ref_seq_id){
-		if( last_ref_seq < ref_seq_id ){
-			last_region_id = 0;
-		}
-		else{
-			last_region_id = excluded_regions_.at(ref_seq_id).size()-1;
-		}
+bool Reference::FragmentExcluded(uintSeqLen& last_region_id, uintRefSeqId& last_ref_seq, uintRefSeqId ref_seq_id,
+                                 uintSeqLen fragment_start, uintSeqLen fragment_end) const {
+    // Check if fragment overlaps with an exclusion region
+    if (last_ref_seq != ref_seq_id) {
+        if (last_ref_seq < ref_seq_id) {
+            last_region_id = 0;
+        } else {
+            last_region_id = excluded_regions_.at(ref_seq_id).size() - 1;
+        }
 
-		last_ref_seq = ref_seq_id;
-	}
+        last_ref_seq = ref_seq_id;
+    }
 
-	// Find a region that starts before the fragment end
-	while( excluded_regions_.at(ref_seq_id).at(last_region_id).first >= fragment_end ){ // Cannot reach negative last_region_id, because first exclusion region starts at ref seq start
-		--last_region_id;
-	}
+    // Find a region that starts before the fragment end
+    while (
+        excluded_regions_.at(ref_seq_id).at(last_region_id).first >=
+        fragment_end) { // Cannot reach negative last_region_id, because first exclusion region starts at ref seq start
+        --last_region_id;
+    }
 
-	// Find a region that ends after the fragment start
-	while( excluded_regions_.at(ref_seq_id).at(last_region_id).second <= fragment_start ){ // Cannot reach over size of excluded_regions_, because last exclusion region end at ref seq end
-		++last_region_id;
-	}
+    // Find a region that ends after the fragment start
+    while (excluded_regions_.at(ref_seq_id).at(last_region_id).second <=
+           fragment_start) { // Cannot reach over size of excluded_regions_, because last exclusion region end at ref
+                             // seq end
+        ++last_region_id;
+    }
 
-	// If an overlapping region exists last_region_id is now pointing at it
-	return excluded_regions_.at(ref_seq_id).at(last_region_id).first < fragment_end; // excluded_regions_.at(last_region_id).second > fragment_start is already valid
+    // If an overlapping region exists last_region_id is now pointing at it
+    return excluded_regions_.at(ref_seq_id).at(last_region_id).first <
+           fragment_end; // excluded_regions_.at(last_region_id).second > fragment_start is already valid
 }
 
-bool Reference::PrepareVariantFile(const string &var_file){
-	bool success = true;
+bool Reference::PrepareVariantFile(const string& var_file) {
+    bool success = true;
 
-	try{
-		// Open input file
-		if( !open(vcf_file_, var_file.c_str()) ){
-			printErr << "Could not open vcf file '" << var_file << "'." << std::endl;
-			success = false;
-		}
-		else{
-			// Read header
-			VcfHeader header;
-			readHeader(header, vcf_file_);
+    try {
+        // Open input file
+        if (!open(vcf_file_, var_file.c_str())) {
+            printErr << "Could not open vcf file '" << var_file << "'." << std::endl;
+            success = false;
+        } else {
+            // Read header
+            VcfHeader header;
+            readHeader(header, vcf_file_);
 
-			// Check if vcf fits to reference
-			if( !CheckVcf() ){
-				success = false;
-			}
-			else{
-				if(atEnd(vcf_file_)){
-					printErr << "Vcf file '" << var_file << "' has no records." << std::endl;
-					success = false;
-				}
-			}
-		}
-	}
-	catch (const Exception& e){
-		printErr << "Could not prepare vcf file '" << var_file << "' for record readin:" << e.what() << std::endl;
-		success = false;
-	}
+            // Check if vcf fits to reference
+            if (!CheckVcf()) {
+                success = false;
+            } else {
+                if (atEnd(vcf_file_)) {
+                    printErr << "Vcf file '" << var_file << "' has no records." << std::endl;
+                    success = false;
+                }
+            }
+        }
+    } catch (const Exception& e) {
+        printErr << "Could not prepare vcf file '" << var_file << "' for record readin:" << e.what() << std::endl;
+        success = false;
+    }
 
-	read_variation_for_num_sequences_ = 0;
-	cleared_variation_for_num_sequences_ = 0;
+    read_variation_for_num_sequences_ = 0;
+    cleared_variation_for_num_sequences_ = 0;
 
-	return success;
+    return success;
 }
 
-bool Reference::ReadFirstVariants(){
-	if( ReadFirstVcfRecord() ){
-		// Set number of alleles to correct value
-		num_alleles_ = 0;
-		for( auto &genotype : cur_vcf_record_.genotypeInfos ){
-			uint16_t pos=0;
-			while(pos < length(genotype) && ':' != at(genotype, pos)){
-				if('|' == at(genotype, pos) || '/' == at(genotype, pos)){
-					++num_alleles_; // Additional alleles in a population
-				}
-				++pos;
-			}
-			++num_alleles_; // Every population has at least one allele defined
-		}
+bool Reference::ReadFirstVariants(uintSeqLen& max_del_shift, uintSeqLen max_read_len) {
+    if (ReadFirstVcfRecord()) {
+        // Set number of alleles to correct value
+        num_alleles_ = 0;
+        for (auto& genotype : cur_vcf_record_.genotypeInfos) {
+            uint16_t pos = 0;
+            while (pos < length(genotype) && ':' != at(genotype, pos)) {
+                if ('|' == at(genotype, pos) || '/' == at(genotype, pos)) {
+                    ++num_alleles_; // Additional alleles in a population
+                }
+                ++pos;
+            }
+            ++num_alleles_; // Every population has at least one allele defined
+        }
 
-		if(num_alleles_ > Variant::kMaxAlleles){
-			printErr << "Currently only " << Variant::kMaxAlleles << " alleles are supported, but file has " << num_alleles_ << '.' << std::endl;
-		}
-		else{
-			if(1 == length(cur_vcf_record_.genotypeInfos)){
-				if( 1 == num_alleles_ ){
-					printInfo << "Reading variants for a single population with a single allele." << std::endl;
-				}
-				else{
-					printInfo << "Reading variants for a single population with " << num_alleles_ << " alleles." << std::endl;
-				}
-			}
-			else{
-				printInfo << "Reading variants for " << length(cur_vcf_record_.genotypeInfos) << " populations with a total of " << num_alleles_ << " alleles." << std::endl;
-			}
+        if (num_alleles_ > Variant::kMaxAlleles) {
+            printErr << "Currently only " << Variant::kMaxAlleles << " alleles are supported, but file has "
+                     << num_alleles_ << '.' << std::endl;
+        } else {
+            if (1 == length(cur_vcf_record_.genotypeInfos)) {
+                if (1 == num_alleles_) {
+                    printInfo << "Reading variants for a single population with a single allele." << std::endl;
+                } else {
+                    printInfo << "Reading variants for a single population with " << num_alleles_ << " alleles."
+                              << std::endl;
+                }
+            } else {
+                printInfo << "Reading variants for " << length(cur_vcf_record_.genotypeInfos)
+                          << " populations with a total of " << num_alleles_ << " alleles." << std::endl;
+            }
 
-			variants_.resize(NumberSequences());
-			return ReadVariants(2);
-		}
-	}
+            variants_.resize(NumberSequences());
+            return ReadVariants(max_del_shift, 2, max_read_len);
+        }
+    }
 
-	return false;
+    return false;
 }
 
-bool Reference::ReadFirstVariantPositions(){
-	if( ReadFirstVcfRecord() ){
-		variant_positions_.resize(NumberSequences());
-		return ReadVariantPositions(2);
-	}
+bool Reference::ReadFirstVariantPositions() {
+    if (ReadFirstVcfRecord()) {
+        variant_positions_.resize(NumberSequences());
+        return ReadVariantPositions(2);
+    }
 
-	return false;
+    return false;
 }
 
-void Reference::ClearVariants(uintRefSeqId end_ref_seq_id){
-	if(VariantsLoaded()){
-		uintRefSeqBin ref_seq_bin = cleared_variation_for_num_sequences_;
-		while( ref_seq_bin < end_ref_seq_id ){
-			if( cleared_variation_for_num_sequences_.compare_exchange_strong(ref_seq_bin, ref_seq_bin+1) ){
-				variants_.at(ref_seq_bin).clear();
-				variants_.at(ref_seq_bin).shrink_to_fit();
-				ref_seq_bin = cleared_variation_for_num_sequences_; // Set ref_seq_bin after everything has been done to the new value (In case compare_exchange_strong fails this is done automatically)
-			}
-		}
-	}
+void Reference::ClearVariants(uintRefSeqId end_ref_seq_id) {
+    if (VariantsLoaded()) {
+        uintRefSeqBin ref_seq_bin = cleared_variation_for_num_sequences_;
+        while (ref_seq_bin < end_ref_seq_id) {
+            if (cleared_variation_for_num_sequences_.compare_exchange_strong(ref_seq_bin, ref_seq_bin + 1)) {
+                variants_.at(ref_seq_bin).clear();
+                variants_.at(ref_seq_bin).shrink_to_fit();
+                ref_seq_bin = cleared_variation_for_num_sequences_; // Set ref_seq_bin after everything has been done to
+                                                                    // the new value (In case compare_exchange_strong
+                                                                    // fails this is done automatically)
+            }
+        }
+    }
 }
 
-void Reference::ClearVariantPositions(uintRefSeqId end_ref_seq_id){
-	if(VariantPositionsLoaded()){
-		uintRefSeqBin ref_seq_bin = cleared_variation_for_num_sequences_;
-		while( ref_seq_bin < end_ref_seq_id ){
-			if( cleared_variation_for_num_sequences_.compare_exchange_strong(ref_seq_bin, ref_seq_bin+1) ){
-				variant_positions_.at(ref_seq_bin).clear();
-				variant_positions_.at(ref_seq_bin).shrink_to_fit();
-				ref_seq_bin = cleared_variation_for_num_sequences_; // Set ref_seq_bin after everything has been done to the new value (In case compare_exchange_strong fails this is done automatically)
-			}
-		}
-	}
+void Reference::ClearVariantPositions(uintRefSeqId end_ref_seq_id) {
+    if (VariantPositionsLoaded()) {
+        uintRefSeqBin ref_seq_bin = cleared_variation_for_num_sequences_;
+        while (ref_seq_bin < end_ref_seq_id) {
+            if (cleared_variation_for_num_sequences_.compare_exchange_strong(ref_seq_bin, ref_seq_bin + 1)) {
+                variant_positions_.at(ref_seq_bin).clear();
+                variant_positions_.at(ref_seq_bin).shrink_to_fit();
+                ref_seq_bin = cleared_variation_for_num_sequences_; // Set ref_seq_bin after everything has been done to
+                                                                    // the new value (In case compare_exchange_strong
+                                                                    // fails this is done automatically)
+            }
+        }
+    }
 }
 
-void Reference::ClearAllVariants(){
-	if(VariantsLoaded()){
-		CloseVcfFile();
-		variants_.clear();
-		variants_.shrink_to_fit();
-	}
+void Reference::ClearAllVariants() {
+    if (VariantsLoaded()) {
+        CloseVcfFile();
+        variants_.clear();
+        variants_.shrink_to_fit();
+    }
 }
 
-void Reference::ClearAllVariantPositions(){
-	if(VariantPositionsLoaded()){
-		CloseVcfFile();
-		variant_positions_.clear();
-		variant_positions_.shrink_to_fit();
-	}
+void Reference::ClearAllVariantPositions() {
+    if (VariantPositionsLoaded()) {
+        CloseVcfFile();
+        variant_positions_.clear();
+        variant_positions_.shrink_to_fit();
+    }
 }
 
-bool Reference::PrepareMethylationFile(const std::string &methylation_file){
-	methylation_file_.open(methylation_file);
-	if( !methylation_file_.is_open() ){
-		printErr << "Unable to open methylation file " << methylation_file << std::endl;
-		return false;
-	}
+bool Reference::PrepareMethylationFile(const std::string& methylation_file) {
+    methylation_file_.open(methylation_file);
+    if (!methylation_file_.is_open()) {
+        printErr << "Unable to open methylation file " << methylation_file << std::endl;
+        return false;
+    }
 
-	if(!getline(methylation_file_, cur_methylation_line_)){
-		if(methylation_file_.eof()){
-			printErr << "Methylation file is empty: " << methylation_file << std::endl;
-		}
-		else{
-			printErr << "Could not read from methylation file: " << methylation_file << std::endl;
-		}
-		return false;
-	}
+    if (!getline(methylation_file_, cur_methylation_line_)) {
+        if (methylation_file_.eof()) {
+            printErr << "Methylation file is empty: " << methylation_file << std::endl;
+        } else {
+            printErr << "Could not read from methylation file: " << methylation_file << std::endl;
+        }
+        return false;
+    }
 
-	// Ignore track lines
-	while( (cur_methylation_line_.empty() || !cur_methylation_line_.compare(0,5,"track")) && getline(methylation_file_, cur_methylation_line_));
+    // Ignore track lines
+    while ((cur_methylation_line_.empty() || !cur_methylation_line_.compare(0, 5, "track")) &&
+           getline(methylation_file_, cur_methylation_line_)) {
+        ;
+    }
 
-	if(methylation_file_.fail()){
-		if(methylation_file_.eof()){
-			printErr << "Methylation file only contains track lines: " << methylation_file << std::endl;
-		}
-		else{
-			printErr << "Could not read past track lines in methylation file: " << methylation_file << std::endl;
-		}
-		return false;
-	}
+    if (methylation_file_.fail()) {
+        if (methylation_file_.eof()) {
+            printErr << "Methylation file only contains track lines: " << methylation_file << std::endl;
+        } else {
+            printErr << "Could not read past track lines in methylation file: " << methylation_file << std::endl;
+        }
+        return false;
+    }
 
-	printInfo << "Reading methylation from file: " << methylation_file << std::endl;
+    printInfo << "Reading methylation from file: " << methylation_file << std::endl;
 
-	cur_methylation_sequence_ = cur_methylation_line_.substr(0, cur_methylation_line_.find_first_of(" \t"));
+    cur_methylation_sequence_ = cur_methylation_line_.substr(0, cur_methylation_line_.find_first_of(" \t"));
 
-	unmethylation_.clear();
-	unmethylation_.resize(NumberSequences());
-	unmethylated_regions_.clear();
-	unmethylated_regions_.resize(NumberSequences());
+    unmethylation_.clear();
+    unmethylation_.resize(NumberSequences());
+    unmethylated_regions_.clear();
+    unmethylated_regions_.resize(NumberSequences());
 
-	read_methylation_for_num_sequences_ = 0;
-	cleared_methylation_for_num_sequences_ = 0;
+    read_methylation_for_num_sequences_ = 0;
+    cleared_methylation_for_num_sequences_ = 0;
 
-	return true;
+    return true;
 }
 
-bool Reference::ReadMethylation(uintRefSeqId end_ref_seq_id){
-	size_t first_space, second_space;
-	uintSeqLen region_start, region_end;
-	uintAlleleId allele, num_alleles;
-	long long tmp_int;
-	double tmp_double;
-	while(read_methylation_for_num_sequences_ < end_ref_seq_id && read_methylation_for_num_sequences_ < NumberSequences()){
-		if(CharString(ReferenceIdFirstPart(read_methylation_for_num_sequences_)) == cur_methylation_sequence_){
-			unmethylation_.at(read_methylation_for_num_sequences_).resize(NumAlleles());
-			num_alleles = NumAlleles();
-			while( !methylation_file_.fail() ){
-				first_space = cur_methylation_line_.find_first_not_of(" \t", cur_methylation_sequence_.size()+1); // Start of second field
-				second_space = cur_methylation_line_.find_first_of(" \t", first_space);
-				try{
-					tmp_int = stoll(cur_methylation_line_.substr(first_space, second_space));
-				}
-				catch(const exception &e){
-					printErr << "Could not convert second field to int for line:\n" << cur_methylation_line_ << std::endl << e.what() << std::endl;
-					return false;
-				}
-				if(0 == unmethylated_regions_.at(read_methylation_for_num_sequences_).size()){
-					if(tmp_int < 0){
-						printErr << "Second field is negative in line:\n" << cur_methylation_line_ << std::endl;
-						return false;
-					}
-				}
-				else{
-					if( tmp_int < unmethylated_regions_.at(read_methylation_for_num_sequences_).back().second ){
-						printErr << "Region is overlapping with previous region[" << unmethylated_regions_.at(read_methylation_for_num_sequences_).back().first << " - " << unmethylated_regions_.at(read_methylation_for_num_sequences_).back().second << "] in line:\n" << cur_methylation_line_ << std::endl;
-						return false;
-					}
-				}
-				if(tmp_int >= SequenceLength(read_methylation_for_num_sequences_)){
-					printErr << "Second field is larger than sequence length:\n" << cur_methylation_line_ << std::endl;
-					return false;
-				}
-				region_start = tmp_int;
+bool Reference::ReadMethylation(uintRefSeqId end_ref_seq_id) {
+    size_t first_space, second_space;
+    uintSeqLen region_start, region_end;
+    uintAlleleId allele, num_alleles;
+    long long tmp_int;
+    double tmp_double;
+    while (read_methylation_for_num_sequences_ < end_ref_seq_id &&
+           read_methylation_for_num_sequences_ < NumberSequences()) {
+        if (CharString(ReferenceIdFirstPart(read_methylation_for_num_sequences_)) == cur_methylation_sequence_) {
+            unmethylation_.at(read_methylation_for_num_sequences_).resize(NumAlleles());
+            num_alleles = NumAlleles();
+            while (!methylation_file_.fail()) {
+                first_space = cur_methylation_line_.find_first_not_of(" \t", cur_methylation_sequence_.size() +
+                                                                                 1); // Start of second field
+                second_space = cur_methylation_line_.find_first_of(" \t", first_space);
+                try {
+                    tmp_int = stoll(cur_methylation_line_.substr(first_space, second_space));
+                } catch (const exception& e) {
+                    printErr << "Could not convert second field to int for line:\n"
+                             << cur_methylation_line_ << std::endl
+                             << e.what() << std::endl;
+                    return false;
+                }
+                if (0 == unmethylated_regions_.at(read_methylation_for_num_sequences_).size()) {
+                    if (tmp_int < 0) {
+                        printErr << "Second field is negative in line:\n" << cur_methylation_line_ << std::endl;
+                        return false;
+                    }
+                } else {
+                    if (tmp_int < unmethylated_regions_.at(read_methylation_for_num_sequences_).back().second) {
+                        printErr << "Region is overlapping with previous region["
+                                 << unmethylated_regions_.at(read_methylation_for_num_sequences_).back().first << " - "
+                                 << unmethylated_regions_.at(read_methylation_for_num_sequences_).back().second
+                                 << "] in line:\n"
+                                 << cur_methylation_line_ << std::endl;
+                        return false;
+                    }
+                }
+                if (tmp_int >= SequenceLength(read_methylation_for_num_sequences_)) {
+                    printErr << "Second field is larger than sequence length:\n" << cur_methylation_line_ << std::endl;
+                    return false;
+                }
+                region_start = tmp_int;
 
-				first_space = cur_methylation_line_.find_first_not_of(" \t", second_space);
-				second_space = cur_methylation_line_.find_first_of(" \t", first_space);
-				try{
-					tmp_int = stoll(cur_methylation_line_.substr(first_space, second_space));
-				}
-				catch(const exception &e){
-					printErr << "Could not convert third field to int for line:\n" << cur_methylation_line_ << std::endl << e.what() << std::endl;
-					return false;
-				}
-				if(tmp_int <= region_start){
-					printErr << "Third field is smaller than second field in line:\n" << cur_methylation_line_ << std::endl;
-					return false;
-				}
-				if(tmp_int > SequenceLength(read_methylation_for_num_sequences_)){
-					printErr << "Third field is larger than sequence length:\n" << cur_methylation_line_ << std::endl;
-					return false;
-				}
-				region_end = tmp_int;
+                first_space = cur_methylation_line_.find_first_not_of(" \t", second_space);
+                second_space = cur_methylation_line_.find_first_of(" \t", first_space);
+                try {
+                    tmp_int = stoll(cur_methylation_line_.substr(first_space, second_space));
+                } catch (const exception& e) {
+                    printErr << "Could not convert third field to int for line:\n"
+                             << cur_methylation_line_ << std::endl
+                             << e.what() << std::endl;
+                    return false;
+                }
+                if (tmp_int <= region_start) {
+                    printErr << "Third field is smaller than second field in line:\n"
+                             << cur_methylation_line_ << std::endl;
+                    return false;
+                }
+                if (tmp_int > SequenceLength(read_methylation_for_num_sequences_)) {
+                    printErr << "Third field is larger than sequence length:\n" << cur_methylation_line_ << std::endl;
+                    return false;
+                }
+                region_end = tmp_int;
 
-				unmethylated_regions_.at(read_methylation_for_num_sequences_).emplace_back(region_start, region_end);
+                unmethylated_regions_.at(read_methylation_for_num_sequences_).emplace_back(region_start, region_end);
 
-				allele = 0;
-				first_space = cur_methylation_line_.find_first_not_of(" \t", second_space);
+                allele = 0;
+                first_space = cur_methylation_line_.find_first_not_of(" \t", second_space);
 
-				while(first_space < cur_methylation_line_.size()){
-					if(allele >= num_alleles){
-						if(allele >= NumAlleles()){
-							printErr << "More alleles specified than in variant file [" << NumAlleles() << "] in line:\n" << cur_methylation_line_ << std::endl;
-							return false;
-						}
-						else{
-							printErr << "More alleles specified than in last line [" << num_alleles << "] in line:\n" << cur_methylation_line_ << std::endl;
-							return false;
-						}
-					}
+                while (first_space < cur_methylation_line_.size()) {
+                    if (allele >= num_alleles) {
+                        if (allele >= NumAlleles()) {
+                            printErr << "More alleles specified than in variant file [" << NumAlleles()
+                                     << "] in line:\n"
+                                     << cur_methylation_line_ << std::endl;
+                            return false;
+                        } else {
+                            printErr << "More alleles specified than in last line [" << num_alleles << "] in line:\n"
+                                     << cur_methylation_line_ << std::endl;
+                            return false;
+                        }
+                    }
 
-					second_space = cur_methylation_line_.find_first_of(" \t", first_space);
+                    second_space = cur_methylation_line_.find_first_of(" \t", first_space);
 
-					try{
-						tmp_double = stod(cur_methylation_line_.substr(first_space, second_space));
-					}
-					catch(const exception &e){
-						printErr << "Could not convert field " << 4+allele << " to double for line:\n" << cur_methylation_line_ << std::endl << e.what() << std::endl;
-						return false;
-					}
-					if( 0.0 > tmp_double || tmp_double > 1.0){
-						printErr << "Field " << 4+allele << " is not between 0 and 1:\n" << cur_methylation_line_ << std::endl;
-						return false;
-					}
-					unmethylation_.at(read_methylation_for_num_sequences_).at(allele++).push_back(1.0-tmp_double); // Methylation is stored in file, but we want the probability of C->T conversion
+                    try {
+                        tmp_double = stod(cur_methylation_line_.substr(first_space, second_space));
+                    } catch (const exception& e) {
+                        printErr << "Could not convert field " << 4 + allele << " to double for line:\n"
+                                 << cur_methylation_line_ << std::endl
+                                 << e.what() << std::endl;
+                        return false;
+                    }
+                    if (0.0 > tmp_double || tmp_double > 1.0) {
+                        printErr << "Field " << 4 + allele << " is not between 0 and 1:\n"
+                                 << cur_methylation_line_ << std::endl;
+                        return false;
+                    }
+                    unmethylation_.at(read_methylation_for_num_sequences_)
+                        .at(allele++)
+                        .push_back(1.0 - tmp_double); // Methylation is stored in file, but we want the probability of
+                                                      // C->T conversion
 
-					first_space = cur_methylation_line_.find_first_not_of(" \t", second_space);
-				}
+                    first_space = cur_methylation_line_.find_first_not_of(" \t", second_space);
+                }
 
-				if( 1 == unmethylation_.at(read_methylation_for_num_sequences_).at(0).size() ){
-					// First entry for this reference sequence
-					if(1 != allele && NumAlleles() != allele ){
-						printErr << allele << " alleles specified (must be either 1 or same as in variant file[" << NumAlleles() << "])" << " in line:\n" << cur_methylation_line_ << std::endl;
-						return false;
-					}
+                if (1 == unmethylation_.at(read_methylation_for_num_sequences_).at(0).size()) {
+                    // First entry for this reference sequence
+                    if (1 != allele && NumAlleles() != allele) {
+                        printErr << allele << " alleles specified (must be either 1 or same as in variant file["
+                                 << NumAlleles() << "])" << " in line:\n"
+                                 << cur_methylation_line_ << std::endl;
+                        return false;
+                    }
 
-					num_alleles = allele;
-					unmethylation_.at(read_methylation_for_num_sequences_).resize(allele);
-				}
-				else{
-					if(num_alleles != allele){
-						printErr << allele << " alleles specified (must be either identical in all lines of a sequence [" << num_alleles << "])" << " in line:\n" << cur_methylation_line_ << std::endl;
-						return false;
-					}
-				}
+                    num_alleles = allele;
+                    unmethylation_.at(read_methylation_for_num_sequences_).resize(allele);
+                } else {
+                    if (num_alleles != allele) {
+                        printErr << allele
+                                 << " alleles specified (must be either identical in all lines of a sequence ["
+                                 << num_alleles << "])" << " in line:\n"
+                                 << cur_methylation_line_ << std::endl;
+                        return false;
+                    }
+                }
 
-				// Load next line
-				while( getline(methylation_file_, cur_methylation_line_) && cur_methylation_line_.empty() ); // Ignore all empty lines
-				if( !methylation_file_.fail() ){
-					first_space = cur_methylation_line_.find_first_of(" \t");
-					if( cur_methylation_line_.compare(0, first_space, cur_methylation_sequence_) ){
-						// Strings are unequal: New reference sequence
-						cur_methylation_sequence_ = cur_methylation_line_.substr(0, first_space);
-						break;
-					}
-				}
-			}
+                // Load next line
+                while (getline(methylation_file_, cur_methylation_line_) && cur_methylation_line_.empty()) {
+                    ; // Ignore all empty lines
+                }
+                if (!methylation_file_.fail()) {
+                    first_space = cur_methylation_line_.find_first_of(" \t");
+                    if (cur_methylation_line_.compare(0, first_space, cur_methylation_sequence_)) {
+                        // Strings are unequal: New reference sequence
+                        cur_methylation_sequence_ = cur_methylation_line_.substr(0, first_space);
+                        break;
+                    }
+                }
+            }
 
-			if( methylation_file_.fail() ){
-				if( methylation_file_.eof() ){
-					// Read in all sequences
-					while(++read_methylation_for_num_sequences_ < NumberSequences()){
-						unmethylation_.at(read_methylation_for_num_sequences_).resize(1);
-					}
+            if (methylation_file_.fail()) {
+                if (methylation_file_.eof()) {
+                    // Read in all sequences
+                    while (++read_methylation_for_num_sequences_ < NumberSequences()) {
+                        unmethylation_.at(read_methylation_for_num_sequences_).resize(1);
+                    }
 
-					return true;
-				}
-				else{
-					printErr << "Could not read methylation file for reference sequence: " << ReferenceIdFirstPart(read_methylation_for_num_sequences_) << std::endl;
-					return false;
-				}
-			}
-		}
-		else{
-			// No entries for this sequence, so create one pseudo allele
-			unmethylation_.at(read_methylation_for_num_sequences_).resize(1);
-		}
+                    return true;
+                } else {
+                    printErr << "Could not read methylation file for reference sequence: "
+                             << ReferenceIdFirstPart(read_methylation_for_num_sequences_) << std::endl;
+                    return false;
+                }
+            }
+        } else {
+            // No entries for this sequence, so create one pseudo allele
+            unmethylation_.at(read_methylation_for_num_sequences_).resize(1);
+        }
 
-		++read_methylation_for_num_sequences_;
-	}
+        ++read_methylation_for_num_sequences_;
+    }
 
-	return true;
+    return true;
 }
 
-void Reference::ClearMethylation(uintRefSeqId end_ref_seq_id){
-	if(MethylationLoaded()){
-		uintRefSeqBin ref_seq_bin = cleared_methylation_for_num_sequences_;
-		while( ref_seq_bin < end_ref_seq_id ){
-			if( cleared_methylation_for_num_sequences_.compare_exchange_strong(ref_seq_bin, ref_seq_bin+1) ){
-				unmethylation_.at(ref_seq_bin).clear();
-				unmethylation_.at(ref_seq_bin).shrink_to_fit();
-				unmethylated_regions_.at(ref_seq_bin).clear();
-				unmethylated_regions_.at(ref_seq_bin).shrink_to_fit();
-				ref_seq_bin = cleared_methylation_for_num_sequences_; // Set ref_seq_bin after everything has been done to the new value (In case compare_exchange_strong fails this is done automatically)
-			}
-		}
-	}
+void Reference::ClearMethylation(uintRefSeqId end_ref_seq_id) {
+    if (MethylationLoaded()) {
+        uintRefSeqBin ref_seq_bin = cleared_methylation_for_num_sequences_;
+        while (ref_seq_bin < end_ref_seq_id) {
+            if (cleared_methylation_for_num_sequences_.compare_exchange_strong(ref_seq_bin, ref_seq_bin + 1)) {
+                unmethylation_.at(ref_seq_bin).clear();
+                unmethylation_.at(ref_seq_bin).shrink_to_fit();
+                unmethylated_regions_.at(ref_seq_bin).clear();
+                unmethylated_regions_.at(ref_seq_bin).shrink_to_fit();
+                ref_seq_bin =
+                    cleared_methylation_for_num_sequences_; // Set ref_seq_bin after everything has been done to the new
+                                                            // value (In case compare_exchange_strong fails this is done
+                                                            // automatically)
+            }
+        }
+    }
 }
 
-void Reference::ClearAllMethylation(){
-	if(MethylationLoaded()){
-		CloseMethylationFile();
-		unmethylation_.clear();
-		unmethylation_.shrink_to_fit();
-		unmethylated_regions_.clear();
-		unmethylated_regions_.shrink_to_fit();
-	}
+void Reference::ClearAllMethylation() {
+    if (MethylationLoaded()) {
+        CloseMethylationFile();
+        unmethylation_.clear();
+        unmethylation_.shrink_to_fit();
+        unmethylated_regions_.clear();
+        unmethylated_regions_.shrink_to_fit();
+    }
 }

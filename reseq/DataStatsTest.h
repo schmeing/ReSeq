@@ -2,47 +2,50 @@
 #define DATASTATSTEST_H
 #include "DataStats.h"
 
-#include <stdint.h>
+#include <cstdint>
+#include <memory>
 #include <string>
 
 #include "gtest/gtest.h"
 
 #include "BasicTestClass.hpp"
 
-namespace reseq{
-	class DataStatsTest : public BasicTestClassWithReference{
-	public:
-		static void Register();
+namespace reseq {
+class DataStatsTest : public BasicTestClassWithReference {
+  public:
+    static void Register();
 
-	protected:
-		DataStats *test_;
+  protected:
+    std::unique_ptr<DataStats> test_;
 
-		void CreateTestObject(Reference *ref);
-		void DeleteTestObject();
-		void LoadStats(const std::string &stats_file, bool ignore_tiles=false, bool calculate_biases=false, const std::string adapter="TruSeq_single", const std::string variants="");
+    void CreateTestObject(Reference* ref);
+    void DeleteTestObject();
+    void LoadStats(const std::string& stats_file, bool ignore_tiles = false, bool calculate_biases = false,
+                   const std::string adapter = "TruSeq_single", const std::string variants = "");
 
-		void TestSequenceContent(uintTempSeq template_segment, uintReadLen at_pos, uintNucCount cont_a, uintNucCount cont_c, uintNucCount cont_g, uintNucCount cont_t, uintNucCount cont_n, const char * context );
-		void TestSequenceContentReference(uintTempSeq template_segment, uintTempSeq strand, uintReadLen at_pos, uintNucCount cont_a, uintNucCount cont_c, uintNucCount cont_g, uintNucCount cont_t, const char * context );
+    void TestSequenceContent(uintTempSeq template_segment, uintReadLen at_pos, uintNucCount cont_a, uintNucCount cont_c,
+                             uintNucCount cont_g, uintNucCount cont_t, uintNucCount cont_n, const char* context);
+    void TestSequenceContentReference(uintTempSeq template_segment, uintTempSeq strand, uintReadLen at_pos,
+                                      uintNucCount cont_a, uintNucCount cont_c, uintNucCount cont_g,
+                                      uintNucCount cont_t, const char* context);
 
-		void TestSrr490124Equality(const char *context, bool test_tile_information=true, bool bwa=false);
-		void TestTiles();
-		void TestDuplicates();
-		void TestVariants();
+    void TestSrr490124Equality(const char* context, bool test_tile_information = true, bool bwa = false);
+    void TestTiles();
+    void TestDuplicates();
+    void TestVariants();
 
-		void TestCrossDuplicates();
-		void TestCoverage();
+    void TestCrossDuplicates();
+    void TestCoverage();
 
-		void TestAdapters(const char *context, bool bwa=false);
-		void TestNexteraAdapters();
+    void TestAdapters(const char* context, bool bwa = false);
+    void TestNexteraAdapters();
+    void TestConstruction();
 
-		virtual void TearDown();
+    virtual void TearDown();
 
-	public:
-		DataStatsTest():
-			test_(NULL)
-			{
-		}
-	};
-}
+  public:
+    DataStatsTest() {}
+};
+} // namespace reseq
 
 #endif // DATASTATSTEST_H

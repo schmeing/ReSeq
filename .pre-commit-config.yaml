@@ -1,0 +1,27 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^(seqan|googletest|nlopt|skewer|2016-05-15_ROOTPWA)/
+      - id: end-of-file-fixer
+        exclude: ^(seqan|googletest|nlopt|skewer|2016-05-15_ROOTPWA)/
+      - id: check-yaml
+        exclude: ^conda/
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+
+  - repo: https://github.com/pocc/pre-commit-hooks
+    rev: v1.3.5
+    hooks:
+      - id: clang-format
+        args: ['--style=file', '-i']
+        files: '^reseq/.*\.(cpp|h|hpp)$'
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.9
+    hooks:
+      - id: ruff
+        files: '^python/.*\.py$'
+      - id: ruff-format
+        files: '^python/.*\.py$'

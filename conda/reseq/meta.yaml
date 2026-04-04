@@ -17,7 +17,7 @@ requirements:
     - python
     - zlib
     - bzip2
-    - boost 
+    - boost
   run:
     - python
     - boost

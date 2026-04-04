@@ -1,28 +1,79 @@
-# Own libraries
-set(PRIVATE_COMPILE_OPTIONS -Wall -Wextra -Wno-sign-compare -Wno-implicit-fallthrough)
-SET(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
-SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+set(PRIVATE_COMPILE_OPTIONS -Wall -Wextra -Wno-sign-compare -Wno-implicit-fallthrough -fPIC)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  list(APPEND PRIVATE_COMPILE_OPTIONS -fext-numeric-literals -Wno-deprecated-declarations)
+endif()
 
-add_library(DataStats STATIC DataStats.cpp AdapterStats.cpp CoverageStats.cpp ErrorStats.cpp FragmentDistributionStats.cpp FragmentDuplicationStats.cpp QualityStats.cpp TileStats.cpp Reference.cpp Surrounding.cpp)
-target_link_libraries(DataStats skewer_matrix)
-target_link_libraries(DataStats nlopt)
-target_link_libraries(DataStats ${SEQAN_LIBRARIES})
-target_link_libraries(DataStats ${Boost_LIBRARIES})
-target_compile_options(DataStats PRIVATE ${PRIVATE_COMPILE_OPTIONS})
+set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-add_library(DataStatsInterface STATIC DataStatsInterface.cpp)
-target_link_libraries(DataStatsInterface DataStats)
-target_compile_options(DataStatsInterface PRIVATE ${PRIVATE_COMPILE_OPTIONS})
+# Core library -- all production source except main.cpp and *Test.*
+add_library(reseq_lib STATIC
+  AdapterStats.cpp
+  archive_format.cpp
+  BamIngestionEngine.cpp
+  CoverageStats.cpp
+  DataStats.cpp
+  DataStatsInterface.cpp
+  ErrorStats.cpp
+  FragmentDistributionStats.cpp
+  FragmentDuplicationStats.cpp
+  ProbabilityEstimates.cpp
+  QualityStats.cpp
+  ReadSequenceStats.cpp
+  Reference.cpp
+  Simulator.cpp
+  Surrounding.cpp
+  TileStats.cpp
+)
+target_include_directories(reseq_lib PUBLIC
+  "${PROJECT_BINARY_DIR}"
+  "${PROJECT_SOURCE_DIR}"
+  "${PROJECT_SOURCE_DIR}/reseq"
+)
+target_link_libraries(reseq_lib PUBLIC
+  skewer_matrix nlopt reseq_seqan GTest::gtest
+  ${Boost_LIBRARIES} ZLIB::ZLIB BZip2::BZip2 rt
+)
+target_compile_options(reseq_lib PRIVATE ${PRIVATE_COMPILE_OPTIONS})
 
-# Executables
-add_executable(reseq main.cpp ProbabilityEstimates.cpp Simulator.cpp AdapterStatsTest.cpp CoverageStatsTest.cpp DataStatsTest.cpp ErrorStatsTest.cpp FragmentDistributionStatsTest.cpp FragmentDuplicationStatsTest.cpp ProbabilityEstimatesTest.cpp QualityStatsTest.cpp ReferenceTest.cpp SeqQualityStatsTest.cpp SimulatorTest.cpp SurroundingTest.cpp TileStatsTest.cpp utilitiesTest.cpp VectTest.cpp)
-target_link_libraries(reseq DataStats)
-target_link_libraries(reseq gtest)
-target_link_libraries(reseq ${SEQAN_LIBRARIES})
-target_link_libraries(reseq ${Boost_LIBRARIES})
+# Production executable
+add_executable(reseq main.cpp)
+target_sources(reseq PRIVATE cli/cli_common.cpp cli/convert_profile.cpp cli/illumina_pe.cpp cli/query_profile.cpp cli/replace_n.cpp cli/seq_to_illumina.cpp)
+target_link_libraries(reseq PRIVATE reseq_lib)
 target_compile_options(reseq PRIVATE ${PRIVATE_COMPILE_OPTIONS})
 
 install(TARGETS reseq
-	RUNTIME DESTINATION bin
-	LIBRARY DESTINATION lib 
-	ARCHIVE DESTINATION lib)
+  RUNTIME DESTINATION bin
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib)
+
+option(RESEQ_BUILD_TESTS "Build test binary" ON)
+if(RESEQ_BUILD_TESTS)
+  add_executable(reseq_test
+    test_main.cpp
+    AdapterStatsTest.cpp CoverageStatsTest.cpp DataStatsTest.cpp
+    ErrorStatsTest.cpp FragmentDistributionStatsTest.cpp
+    FragmentDuplicationStatsTest.cpp ProbabilityEstimatesTest.cpp
+    QualityStatsTest.cpp ReadSequenceStatsTest.cpp ReferenceTest.cpp SeqQualityStatsTest.cpp
+    SimulatorTest.cpp SurroundingTest.cpp TileStatsTest.cpp
+    utilitiesTest.cpp VectTest.cpp
+    RegressionTest.cpp
+  )
+  target_link_libraries(reseq_test PRIVATE reseq_lib GTest::gtest)
+  target_compile_options(reseq_test PRIVATE ${PRIVATE_COMPILE_OPTIONS})
+  # Run all tests as a single invocation — tests have inter-test dependencies
+  # (shared Register() state) that require running together, not individually.
+  add_test(NAME reseq_tests COMMAND reseq_test)
+
+  if(CODE_COVERAGE)
+    target_compile_options(reseq_test PRIVATE --coverage -fprofile-update=atomic)
+    target_link_options(reseq_test PRIVATE --coverage)
+  endif()
+endif()
+
+if(CODE_COVERAGE)
+  target_compile_options(reseq_lib PRIVATE --coverage -fprofile-update=atomic)
+  target_link_options(reseq_lib PRIVATE --coverage)
+  target_compile_options(reseq PRIVATE --coverage -fprofile-update=atomic)
+  target_link_options(reseq PRIVATE --coverage)
+endif()

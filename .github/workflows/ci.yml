@@ -1,0 +1,244 @@
+name: CI
+
+on:
+  push:
+    branches: [master, devel]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - compiler: gcc
+            cc: gcc-13
+            cxx: g++-13
+            packages: gcc-13 g++-13
+          - compiler: clang
+            cc: clang-17
+            cxx: clang++-17
+            packages: clang-17
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ matrix.packages }} \
+            libboost-all-dev libbz2-dev zlib1g-dev
+
+      - name: Download test data
+        run: ./test/download_test_data.sh
+
+      - name: Configure
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Test
+        run: cd build && ctest --output-on-failure -j1
+
+  sanitizers:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-13 g++-13 \
+            libboost-all-dev libbz2-dev zlib1g-dev
+
+      - name: Download test data
+        run: ./test/download_test_data.sh
+
+      - name: Configure with sanitizers
+        env:
+          CC: gcc-13
+          CXX: g++-13
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Test with sanitizers
+        run: cd build && ctest --output-on-failure -j1
+
+  thread-sanitizer:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-13 g++-13 \
+            libboost-all-dev libbz2-dev zlib1g-dev
+
+      - name: Download test data
+        run: ./test/download_test_data.sh
+
+      - name: Configure with TSan
+        env:
+          CC: gcc-13
+          CXX: g++-13
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread"
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Test with TSan
+        run: cd build && ctest --output-on-failure -j1
+
+  coverage:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-13 g++-13 lcov \
+            libboost-all-dev libbz2-dev zlib1g-dev
+
+      - name: Download test data
+        run: ./test/download_test_data.sh
+
+      - name: Configure with coverage
+        env:
+          CC: gcc-13
+          CXX: g++-13
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCODE_COVERAGE=ON
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Test
+        run: cd build && ctest --output-on-failure -j1
+
+      - name: Generate coverage report
+        run: |
+          lcov --capture --directory build --output-file build/coverage.info \
+            --ignore-errors mismatch --gcov-tool gcov-13
+          lcov --remove build/coverage.info \
+            '*/skewer/*' \
+            '/usr/*' '*/build/*' \
+            --output-file build/coverage.info --ignore-errors unused
+          lcov --list build/coverage.info
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: build/coverage.info
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: build/coverage.info
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  test-isolation:
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-13 g++-13 \
+            libboost-all-dev libbz2-dev zlib1g-dev
+
+      - name: Download test data
+        run: ./test/download_test_data.sh
+
+      - name: Configure
+        env:
+          CC: gcc-13
+          CXX: g++-13
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Run tests in shuffled order
+        run: build/bin/reseq_test --gtest_shuffle --gtest_random_seed=0
+
+  format-check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format
+
+      - name: Check C++ formatting
+        run: |
+          git ls-files 'reseq/*.cpp' 'reseq/*.h' 'reseq/*.hpp' \
+            | xargs clang-format --dry-run --Werror
+
+      - name: Check Python formatting
+        run: |
+          pip install ruff
+          ruff check python/*.py
+          ruff format --check python/*.py
+
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-tidy-17 clang-17 clang++-17 \
+            libboost-all-dev libbz2-dev zlib1g-dev
+
+      - name: Configure and fetch FetchContent headers
+        env:
+          CC: clang-17
+          CXX: clang++-17
+        run: |
+          cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          cmake --build build --target nlopt
+
+      - name: Run clang-tidy on production sources
+        run: |
+          run-clang-tidy-17 -p build -j$(nproc) \
+            $(git ls-files 'reseq/*.cpp' | grep -v Test | grep -v test_main)
+
+  version-check:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify tag matches VERSION file
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          FILE_VERSION="$(cat VERSION | tr -d '[:space:]')"
+          if [ "$TAG" != "$FILE_VERSION" ]; then
+            echo "ERROR: Tag v$TAG does not match VERSION file ($FILE_VERSION)"
+            exit 1
+          fi
+          echo "OK: Tag v$TAG matches VERSION file"

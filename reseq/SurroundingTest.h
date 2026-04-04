@@ -6,22 +6,22 @@
 
 #include "BasicTestClass.hpp"
 
-namespace reseq{
-	class SurroundingTest : public BasicTestClassWithReference{
-	public: 
-		static void Register();
+namespace reseq {
+class SurroundingTest : public BasicTestClassWithReference {
+  public:
+    static void Register();
 
-	protected:
-		virtual void TearDown();
+  protected:
+    virtual void TearDown();
 
-		void TestBasics();
-		void TestSettersAndUpdaters(const std::string &test_dir);
-		void TestSettersAndUpdatersWithN(const std::string &test_dir);
-		void TestModifiers();
-		void TestModifiersExtremCases();
-		void TestCombiningBias();
-		void TestSeparatingBias();
-	};
-}
+    void TestBasics();
+    void TestSettersAndUpdaters(const std::string& test_dir);
+    void TestSettersAndUpdatersWithN(const std::string& test_dir);
+    void TestModifiers();
+    void TestModifiersExtremCases();
+    void TestCombiningBias();
+    void TestSeparatingBias();
+};
+} // namespace reseq
 
 #endif // SURROUNDINGTEST_H

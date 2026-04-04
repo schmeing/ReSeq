@@ -1,0 +1,38 @@
+[project]
+name = "reseq"
+version = "1.1.0"
+description = "Plotting tools for ReSeq sequencing simulator"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+dependencies = [
+    "matplotlib",
+    "numpy",
+]
+
+[project.scripts]
+reseq-plot = "reseq.plot_data_stats:main"
+reseq-prepare-names = "reseq.prepare_names:main"
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+target-version = "py39"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"python/reseq/plot_data_stats.py" = ["E501", "SIM105"]
+
+[tool.mypy]
+python_version = "3.9"
+check_untyped_defs = true
+ignore_missing_imports = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+exclude_gitignore = true
+files = ["python/reseq", "python/tests"]

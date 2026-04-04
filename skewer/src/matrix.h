@@ -50,7 +50,7 @@ namespace skewer{
 	class ElementComparator
 	{
 	public:
-		bool operator()(const ELEMENT &elem1, const ELEMENT &elem2){
+		bool operator()(const ELEMENT &elem1, const ELEMENT &elem2) const{
 			return elem1.idx.pos < elem2.idx.pos;
 		}
 	};

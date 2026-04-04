@@ -6,11 +6,11 @@
 
 #include "BasicTestClass.hpp"
 
-namespace reseq{
-	class utilitiesTest : public BasicTestClass{
-	public: 
-		static void Register();
-	};
-}
+namespace reseq {
+class utilitiesTest : public BasicTestClass {
+  public:
+    static void Register();
+};
+} // namespace reseq
 
 #endif // UTILITIESTEST_H
